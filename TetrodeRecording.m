@@ -38,7 +38,6 @@ classdef TetrodeRecording < handle
 
 				if exist(filename, 'file') ~= 2
 					error(['File ', filename, ' not found.']);
-					return
 				end
 
 				fid = fopen(filename, 'r');
@@ -370,7 +369,7 @@ classdef TetrodeRecording < handle
 			end
 
 			% Combine files
-			fprintf(1, 'All files loaded. Concatenating data...');
+			tic, fprintf(1, 'All files loaded. Concatenating data...');
 
 			obj.Notes = notes;
 			obj.FrequencyParameters = frequency_parameters;
@@ -393,7 +392,16 @@ classdef TetrodeRecording < handle
 				iSample.Amplifier = iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2);
 				iSample.BoardDigIn = iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2);
 			end
-			fprintf(1, 'Done!\n');
+			fprintf(1, ['Done(', num2str(toc), 's).\n'])
+		end
+
+		function TrimData(obj, numSamples)
+			obj.BoardDigIn.NumSamples = numSamples;
+			obj.BoardDigIn.Timestamps = obj.BoardDigIn.Timestamps(1:numSamples);
+			obj.BoardDigIn.Data = obj.BoardDigIn.Data(:, 1:numSamples);
+			obj.Amplifier.NumSamples = numSamples;
+			obj.Amplifier.Timestamps = obj.Amplifier.Timestamps(1:numSamples);
+			obj.Amplifier.Data = obj.Amplifier.Data(:, 1:numSamples);
 		end
 
 		% Amplifier data arranged in tetrode order (i.e., first four elements in array is first tetrode)
@@ -403,7 +411,7 @@ classdef TetrodeRecording < handle
 				return
 			end
 
-			fprintf(1, 'Remapping amplifier channels in tetrode order...');
+			tic, fprintf(1, 'Remapping amplifier channels in tetrode order...');
 
 			if nargin < 3
 				headstageType = 'intan';
@@ -423,7 +431,7 @@ classdef TetrodeRecording < handle
 			tetrodeMap = HSMap(EIBMap);
 			recordedChannels = [obj.Amplifier.Channels.NativeOrder] + 1;
 			
-			obj.Amplifier.DataMapped = nan(32, size(obj.Amplifier.Data, 2));
+			obj.Amplifier.DataMapped = NaN(32, size(obj.Amplifier.Data, 2));
 			iChn = 0;
 			for targetChannel = tetrodeMap
 				iChn = iChn + 1;
@@ -437,15 +445,15 @@ classdef TetrodeRecording < handle
 			obj.Amplifier.ChannelMap.Tetrode = tetrodeMap;
 			obj.Amplifier.Data = obj.Amplifier.DataMapped; 
 			obj.Amplifier = rmfield(obj.Amplifier, 'DataMapped');
-			fprintf(1, 'Done!\n');
+			fprintf(1, ['Done(', num2str(toc), 's).\n'])
 		end
 
 		% Convert zero-based raw channel id to remapped tetrode id
-		function tetrodeChannel = GetMappedChannelID(obj, rawChannel)
+		function tetrodeChannel = MapChannelID(obj, rawChannel)
 			tetrodeChannel = find(obj.Amplifier.ChannelMap.Tetrode == (rawChannel + 1));
 		end
 
-		function PlotChannel(obj, channel, xRange, yRange, digInChannels)
+		function PlotChannelRaw(obj, channel, xRange, yRange, digInChannels)
 			if nargin < 4
 				yRange = [-110, 110];
 			end
@@ -497,6 +505,8 @@ classdef TetrodeRecording < handle
 				error('Board digital input has a different sampling rate from amplifier. Aborted.');
 				return
 			end
+			
+			tic, fprintf(1, 'Removing lick/touch-related transients. This might take a while...');
 
 			mask = logical(zeros(1, obj.Amplifier.NumSamples));
 			dilateSE = ones(round(obj.FrequencyParameters.AmplifierSampleRate*2*dilate/1000) + 1);
@@ -505,47 +515,446 @@ classdef TetrodeRecording < handle
 				mask = mask | logical(imdilate(obj.BoardDigIn.Data(thisChannel, :), dilateSE));
 			end
 			obj.Amplifier.Data(:, mask) = 0;
+
+			fprintf(1, ['Done(', num2str(toc), 's).\n'])
 		end
 
-		% Threshold and plot spikes
-		function ThresholdAndPlotSpikes(obj, channel, threshold, numSpikes, spikeWindow)
-			if nargin < 4
-				numSpikes = 30;
-			end
-			if nargin < 5
-				spikeWindow = [0.5, 1];
-			end
-			[waveforms, t, spikeID] = ThresholdSpikes(obj, channel, threshold, spikeWindow);
-			figure();
-			hold on
-			for iSpike = 1:numSpikes
-				plot(t, waveforms(iSpike, :), 'k');
-				xlabel('Time (ms)');
-				ylabel('Voltage (\muV');
-				title('Spikes');
-				pause(0.01);
-			end
-			hold off			
-		end
+		% Expand waveform window, fill unavailable data with NaN
+		function varargout = GetWaveforms(obj, channel, waveformWindow, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addRequired(p, 'WaveformWindow', @(x) isnumeric(x) && length(x) == 2);
+			addOptional(p, 'Index', NaN, @isnumeric);
+			addParameter(p, 'IndexType', 'SampleIndex', @ischar);
+			parse(p, channel, waveformWindow, varargin{:});
+			channel = p.Results.Channel;
+			waveformWindow = p.Results.WaveformWindow;
+			index = p.Results.Index;
+			indexType = p.Results.IndexType;
 
-		function [waveforms, t, spikeID] = ThresholdSpikes(obj, channel, threshold, spikeWindow)
-			if nargin < 4
-				spikeWindow = [0.5, 1];
+			if length(index) == 1 && isnan(index)
+				index = obj.Spikes(channel).SampleIndex;
+				indexType = 'SampleIndex';
 			end
-			% Find threshold-crossing events
-			spikeID = find([false, diff(obj.Amplifier.Data(channel, :) > threshold) == sign(threshold)]);
-			numSpikes = length(spikeID);
 
-			sampleRate = obj.FrequencyParameters.AmplifierSampleRate;
-			t = -spikeWindow(1):1000/sampleRate:spikeWindow(2);
-			waveforms = nan(numSpikes, 1 + sampleRate*sum(spikeWindow)/1000);
-			for iSpike = 1:numSpikes
-				startIndex = spikeID(iSpike) - round(sampleRate*spikeWindow(1)/1000);
-				endIndex = spikeID(iSpike) + round(sampleRate*spikeWindow(2)/1000);
-				if startIndex >= 1 && endIndex <= obj.Amplifier.NumSamples
-					waveforms(iSpike, :) = obj.Amplifier.Data(channel, startIndex:endIndex);
+			if strcmp(indexType, 'SampleIndex')
+				sampleIndex = index;
+				% Only interpolate if sample index in non-integer
+				if sum(rem(sampleIndex, 1) == 0) == length(sampleIndex)
+					timestamps = obj.Amplifier.Timestamps(sampleIndex);
+				else
+					timestamps = interp1(1:length(obj.Amplifier.Timestamps), obj.Amplifier.Timestamps, sampleIndex, 'linear');
+				end
+			elseif strcmp(indexType, 'Timestamps')
+				% Always interpolate if input index in timestamps. This will always be slower.
+				timestamps = index;
+				sampleIndex = interp1(obj.Amplifier.Timestamps, 1:length(obj.Amplifier.Timestamps), timestamps, 'linear');
+			else
+				error(['Unrecognized index type: ''', indexType, ''', must be ''SampleIndex'' or ''Timestamps''.'])
+			end
+				
+			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
+			waveforms = NaN(length(sampleIndex), 1 + round(sampleRate*(waveformWindow(2) - waveformWindow(1))));
+			t = waveformWindow(1):1/sampleRate:waveformWindow(2);
+			i = sampleRate*t;
+			for iWaveform = 1:length(sampleIndex)
+				iQuery = sampleIndex(iWaveform) + i;
+				if (sum(rem(iQuery, 1) == 0) == length(iQuery)) && min(iQuery) > 0 && max(iQuery) <= size(obj.Amplifier.Data, 2)
+					waveforms(iWaveform, :) = obj.Amplifier.Data(channel, iQuery);
+				else
+					waveforms(iWaveform, :) = interp1(1:size(obj.Amplifier.Data, 2), obj.Amplifier.Data(channel, :), iQuery, 'pchip', NaN);
 				end
 			end
+
+			% Output
+			varargout = {waveforms, t, timestamps, sampleIndex};
+		end
+
+		% Detect spike-like waveforms by simple (or advanced) thresholding
+		function SpikeDetect(obj, channels, triggerThreshold, varargin)
+			p = inputParser;
+			addRequired(p, 'Channels', @isnumeric);
+			addRequired(p, 'TriggerThreshold', @isnumeric);
+			addParameter(p, 'ExitThreshold', NaN, @isnumeric);
+			addParameter(p, 'ExitWindow', [0, NaN], @(x) isnumeric(x) && length(x) == 2);
+			addParameter(p, 'ExclusionThreshold', NaN, @isnumeric);
+			addParameter(p, 'WaveformWindow', [-0.5, 0.5], @isnumeric);
+			addParameter(p, 'Append', false, @islogical);
+			parse(p, channels, triggerThreshold, varargin{:});
+			channels = p.Results.Channels;
+			triggerThreshold = p.Results.TriggerThreshold;
+			exitThreshold = p.Results.ExitThreshold;
+			exitWindow = p.Results.ExitWindow;
+			exclusionThreshold = p.Results.ExclusionThreshold;
+			waveformWindow = p.Results.WaveformWindow;
+			append = p.Results.Append;
+
+			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
+			if isnan(exitWindow(2))
+				exitWindow(2) = waveformWindow(2);
+			end
+
+			for iChannel = channels
+				% Find triggerThreshold-crossing events
+				[~, sampleIndex] = findpeaks(sign(triggerThreshold)*obj.Amplifier.Data(iChannel, :), 'MinPeakHeight', abs(triggerThreshold));
+				% sampleIndex = find([false, diff(obj.Amplifier.Data(iChannel, :) > triggerThreshold) == sign(triggerThreshold)]);
+				numWaveforms = length(sampleIndex);
+
+				% Extract waveforms
+				[waveforms, t, timestamps] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex, 'IndexType', 'SampleIndex');
+				if ~isnan(exitThreshold)
+					exitWaveforms = obj.GetWaveforms(iChannel, exitWindow, sampleIndex, 'IndexType', 'SampleIndex');
+				end
+
+				% Filter waveforms by optional criteria
+				includeWaveform = true(numWaveforms, 1);
+				for iWaveform = 1:numWaveforms
+					% (Optional) Only keep waveforms that cross a second exitThreshold after reaching the first triggerThreshold
+					if ~isnan(exitThreshold)
+						if sum(sign(exitWaveforms(iWaveform, :) - exitThreshold) == sign(exitThreshold)) == 0
+							includeWaveform(iWaveform) = false;
+							continue
+						end
+					end
+					% (Optional) Filter out waveforms with max amplitude exceeding exclusionThreshold
+					if ~isnan(exclusionThreshold)
+						if sum(sign(waveforms(iWaveform, :) - exclusionThreshold) == sign(exclusionThreshold)) > 0
+							includeWaveform(iWaveform) = false;
+							continue
+						end
+					end
+				end
+
+				% Remove invalid waveforms
+				waveforms = waveforms(includeWaveform, :);
+				sampleIndex = sampleIndex(includeWaveform);
+				timestamps = timestamps(includeWaveform);
+
+				% Store data
+				if ~isfield(obj.Spikes(iChannel), 'Waveforms')
+					obj.Spikes(iChannel).Channel = iChannel;
+
+					obj.Spikes(iChannel).SampleIndex = sampleIndex;
+					obj.Spikes(iChannel).Timestamps = timestamps;
+					obj.Spikes(iChannel).Waveforms = waveforms;
+
+					obj.Spikes(iChannel).WaveformTimestamps = t;
+					obj.Spikes(iChannel).WaveformWindow = waveformWindow;
+					obj.Spikes(iChannel).Threshold.Trigger = triggerThreshold;
+					obj.Spikes(iChannel).Threshold.Exit = exitThreshold;
+					obj.Spikes(iChannel).Threshold.ExitWindow = exitWindow;
+					obj.Spikes(iChannel).Threshold.Exclusion = exclusionThreshold;
+				else
+
+				end
+			end
+
+			obj.SpikeAlign(channels);
+		end
+
+		% SpikeSort: PCA & Cluster
+		function SpikeSort(obj, channels, varargin)
+			p = inputParser;
+			addRequired(p, 'Channels', @isnumeric);
+			addOptional(p, 'K', 7, @isnumeric);
+			addOptional(p, 'Method', 'kmeans', @ischar);
+			addParameter(p, 'HideResults', false, @islogical);
+			parse(p, channels, varargin{:});
+			channels = p.Results.Channels;
+			k = p.Results.K;
+			method = p.Results.Method;
+			hideResults = p.Results.HideResults;
+
+			obj.PCA(channels);
+			obj.Cluster(channels, k, method);
+			if ~hideResults
+				for iChannel = channels
+					obj.PlotChannel(iChannel);
+				end
+			end
+		end
+
+		% Align to max voltage.
+		function SpikeAlign(obj, channels)
+			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
+
+			tic, fprintf(1, 'Aligning putative spike waveforms by peak voltage instead of trigger voltage. This might take a while...');
+
+			for iChannel = channels
+				waveformWindow = obj.Spikes(iChannel).WaveformWindow;
+				waveforms = obj.Spikes(iChannel).Waveforms;
+				sampleIndex = obj.Spikes(iChannel).SampleIndex;
+				[numWaveforms, numSamples] = size(waveforms);
+				i = sampleRate*obj.Spikes(iChannel).WaveformTimestamps;
+
+				% Figure out via consensus if max amplitude is positive or negative.
+				[~, maxIndex] = max(abs(waveforms), [], 2);
+				peak = zeros(numWaveforms, 1);
+				for iWaveform = 1:numWaveforms
+					peak(iWaveform) = waveforms(iWaveform, maxIndex(iWaveform));
+				end
+				if sum(peak > 0) >= sum(peak < 0)
+					[~, maxIndex] = max(waveforms, [], 2);
+				else
+					[~, maxIndex] = max(-waveforms, [], 2);
+				end
+				alignmentShift = i(maxIndex);
+
+				[waveforms, t, timestamps, sampleIndex] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex + alignmentShift, 'IndexType', 'SampleIndex');
+				obj.Spikes(iChannel).Waveforms = waveforms;
+				obj.Spikes(iChannel).WaveformTimestamps = t;
+				obj.Spikes(iChannel).Timestamps = timestamps;
+				obj.Spikes(iChannel).SampleIndex = sampleIndex;
+				obj.Spikes(iChannel).AlignmentShift = alignmentShift;
+			end
+
+			fprintf(1, ['Done(', num2str(toc), 's).\n'])
+		end
+
+		function PCA(obj, channels)
+			tic, fprintf(1, 'Principal component analysis...');
+			for iChannel = channels
+				[obj.Spikes(iChannel).PCA.Coeff, obj.Spikes(iChannel).PCA.Score, obj.Spikes(iChannel).PCA.Latent, obj.Spikes(iChannel).PCA.TSquared, obj.Spikes(iChannel).PCA.Explained, obj.Spikes(iChannel).PCA.Mu] = pca(obj.Spikes(iChannel).Waveforms);
+			end
+			fprintf(1, ['Done(', num2str(toc), 's).\n'])
+		end
+
+		function Cluster(obj, channels, k, method)
+			tic, fprintf(1, 'Clustering...');
+			for iChannel = channels
+				obj.Spikes(iChannel).Cluster = [];
+				if strcmp(method, 'kmeans')
+					obj.Spikes(iChannel).Cluster = kmeans(obj.Spikes(iChannel).PCA.Score, k);
+				elseif strcmp(method, 'gaussian')
+					gm = fitgmdist(obj.Spikes(iChannel).PCA.Score, k);
+					obj.Spikes(iChannel).Cluster = cluster(gm, obj.Spikes(iChannel).PCA.Score);
+				else
+					error('Unrecognized clustering method. Must be ''kmeans'' or ''gaussian''.')			
+				end
+			end
+			fprintf(1, ['Done(', num2str(toc), 's).\n'])
+		end
+
+		function MergeClusters(obj, channel, mergeList, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addRequired(p, 'MergeList', @iscell);
+			addParameter(p, 'HideResults', false, @islogical);
+			parse(p, channel, mergeList, varargin{:});
+			channel = p.Results.Channel;
+			mergeList = p.Results.MergeList;
+			hideResults = p.Results.HideResults;
+
+			newCluster = NaN(size(obj.Spikes(channel).Cluster));
+			for iNewCluster = 1:length(mergeList)
+				newCluster(ismember(obj.Spikes(channel).Cluster, mergeList{iNewCluster})) = iNewCluster;
+			end
+			obj.Spikes(channel).Cluster = newCluster;
+
+			if ~hideResults
+				obj.PlotChannel(channel);
+			end
+		end
+
+		function DiscardClusters(obj, channel, discardList, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addRequired(p, 'DiscardList', @isnumeric);
+			addParameter(p, 'HideResults', false, @islogical);
+			parse(p, channel, discardList, varargin{:});
+			channel = p.Results.Channel;
+			discardList = p.Results.DiscardList;
+			hideResults = p.Results.HideResults;
+
+			% Discard unwanted clusters
+			iWaveformToDiscard = ismember(obj.Spikes(channel).Cluster, discardList);
+			obj.Spikes(channel).Waveforms(iWaveformToDiscard, :) = [];
+			obj.Spikes(channel).Timestamps(iWaveformToDiscard) = [];
+			obj.Spikes(channel).SampleIndex(iWaveformToDiscard) = [];
+			obj.Spikes(channel).PCA.Score(iWaveformToDiscard, :) = [];
+			obj.Spikes(channel).PCA.TSquared(iWaveformToDiscard, :) = [];
+			obj.Spikes(channel).Cluster(iWaveformToDiscard) = [];
+
+			% Renumber clusters from 1 to numClusters
+			obj.MergeClusters(channel, num2cell(unique(obj.Spikes(channel).Cluster)), 'HideResults', hideResults);
+		end
+
+		function GetDigitalEvents(obj, varagin)
+			p = inputParser;
+			addParameter(p, 'ChannelCue', 4, @isnumeric);
+			addParameter(p, 'ChannelPress', 2, @isnumeric);
+			addParameter(p, 'ChannelLick', 3, @isnumeric);
+			addParameter(p, 'ChannelReward', 5, @isnumeric);
+			parse(p, varargin{:});
+			channelCue 		= p.Results.ChannelCue;
+			channelPress 	= p.Results.ChannelPress;
+			channelLick 	= p.Results.ChannelLick;
+			channelReward 	= p.Results.ChannelReward;
+
+			% Get digital signals
+			obj.Events.Timestamps = obj.BoardDigIn.Timestamps;
+			cue 	= obj.BoardDigIn.Data(channelCue, :);
+			press 	= obj.BoardDigIn.Data(channelPress, :);
+			lick 	= obj.BoardDigIn.Data(channelLick, :);
+			reward 	= obj.BoardDigIn.Data(channelReward, :);
+
+			[~, cueOn] 		= findpeaks(cue);
+			[~, cueOff]		= findpeaks(-cue);
+			[~, pressOn] 	= findpeaks(press);
+			[~, pressOff]	= findpeaks(-press);
+			[~, lickOn] 	= findpeaks(lick);
+			[~, lickOff]	= findpeaks(-lick);
+			[~, rewardOn] 	= findpeaks(reward);
+		end
+
+		% Sort spikes and digital events into trial structure
+		function PlotByTrial(obj, channels)
+			% Find rising/falling edges
+
+
+			% Recalculate timestamps relative to cue on
+			% Find the first lever press (true first movement: before any lick/press has occured since cue on)
+
+			% Get spikes between two reference and first event
+			[referenceFirstPress, eventFirstPress, ~, ~] = TetrodeRecording.FindFirstInTrial(cueOn, pressOn, lickOn);
+
+			% Bin spikes into trials
+			for iChannel = channels
+				[spikesFirstPress, trialsFirstPress] = obj.GetSpikesByTrial(iChannel, referenceFirstPress, eventFirstPress);
+				% Sort trials by time to movement
+				[~, I] = sort(t(referenceFirstPress) - t(eventFirstPress));
+				trialsFirstPressSorted = changem(trialsFirstPress, sort(unique(I)), I);	% !!! changem requires mapping toolbox.
+
+				hFigure = figure('Units', 'Normalized', 'OuterPosition', [0, 0, 0.75, 1]);
+				hAxes = subplot(2, 2, 1);
+				hold on
+				plot(hAxes, t(spikesFirstPress) - t(referenceFirstPress(trialsFirstPress)), trialsFirstPressSorted, '.',...
+					'MarkerSize', 5,...
+					'MarkerEdgeColor', 'k',...
+					'MarkerFaceColor', 'k',...
+					'LineWidth', 1.5,...
+					'DisplayName', 'Spike'...
+				)
+				plot(hAxes, t(eventFirstPress(trialsFirstPress)) - t(referenceFirstPress(trialsFirstPress)), trialsFirstPressSorted, '.',...
+					'MarkerSize', 20,...
+					'MarkerEdgeColor', 'b',...
+					'MarkerFaceColor', 'b',...
+					'LineWidth', 1.5,...
+					'DisplayName', 'Movement'...
+				)
+				xlabel('Time relative to cue (s)')
+				ylabel('Trial')
+				legend('Location', 'northeast');
+				hold off
+
+				hAxes = subplot(2, 2, 2);
+				hold on
+				plot(hAxes, t(spikesFirstPress) - t(eventFirstPress(trialsFirstPress)), trialsFirstPressSorted, '.',...
+					'MarkerSize', 5,...
+					'MarkerEdgeColor', [.1, .1, .1],...
+					'MarkerFaceColor', [.1, .1, .1],...
+					'LineWidth', 1.5,...
+					'DisplayName', 'Spike'...
+				)
+				plot(hAxes, t(referenceFirstPress(trialsFirstPress)) - t(eventFirstPress(trialsFirstPress)), trialsFirstPressSorted, '.',...
+					'MarkerSize', 20,...
+					'MarkerEdgeColor', 'r',...
+					'MarkerFaceColor', 'r',...
+					'LineWidth', 1.5,...
+					'DisplayName', 'Cue'...
+				)
+				xlabel('Time relative to movement (s)')
+				ylabel('Trial')
+				legend('Location', 'northwest');
+				hold off
+			end
+		end
+
+		function [spikes, trials] = GetSpikesByTrial(obj, channel, reference, event)
+			edges = [reference; event];
+			edges = edges(:);
+			if isempty(edges)
+				spikes = [];
+				trials = [];
+			else
+				spikes = obj.Spikes(channel).SampleIndex;
+				[~, ~, bins] = histcounts(spikes, edges);
+				oddBins = rem(bins, 2) ~= 0;	% Spikes in odd bins occur between reference and event, should keep these spikes
+				spikes = spikes(oddBins);
+				trials = (bins(oddBins) + 1)/2;
+			end
+		end
+
+		% Plot spikes, run after ThresholdWaveforms
+		function PlotChannel(obj, channel, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addOptional(p, 'NumWaveforms', 30, @isnumeric);
+			addParameter(p, 'WaveformWindow', [-1, 2], @isnumeric);
+			addParameter(p, 'YLim', [-500, 500], @isnumeric);
+			parse(p, channel, varargin{:});
+			channel = p.Results.Channel;
+			numWaveforms = p.Results.NumWaveforms;
+			waveformWindow = p.Results.WaveformWindow;
+			yRange = p.Results.YLim;
+
+			numWaveformsTotal = size(obj.Spikes(channel).Waveforms, 1);
+
+			% If using a different waveform window, re-extract spikes
+			if sum(waveformWindow == obj.Spikes(channel).WaveformWindow) < 2
+				[waveforms, t] = obj.GetWaveforms(channel, waveformWindow);
+			else
+				waveforms = obj.Spikes(channel).Waveforms;
+				t = obj.Spikes(channel).WaveformTimestamps;
+			end
+
+			hFigure = figure('Units', 'Normalized', 'OuterPosition', [0, 0, 0.5, 1]);
+			colors = 'rgbcmyk';
+			if isfield(obj.Spikes(channel), 'Cluster')
+				clusterID = obj.Spikes(channel).Cluster;
+			else
+				clusterID = ones(numWaveformsTotal, 1);
+			end			
+			subplot(2, 1, 1)
+			hold on
+			for iCluster = unique(clusterID)'
+				scatter3(obj.Spikes(channel).PCA.Score(clusterID == iCluster, 1), obj.Spikes(channel).PCA.Score(clusterID == iCluster, 2), obj.Spikes(channel).PCA.Score(clusterID == iCluster, 3), 1, colors(iCluster), 'DisplayName', ['Cluster ', num2str(iCluster)])
+			end
+			hold off
+			axis equal
+			xlabel('1st Principal Component')
+			ylabel('2nd Principal Component')
+			zlabel('3rd Principal Component')
+			title('Spike Sorting')
+			legend()
+			hAxes = subplot(2, 1, 2);
+			hold on
+			hLegends = [];
+			hAxes.UserData.hWaveforms = [];
+			hAxes.UserData.iWaveform = 0;
+			if sum(waveformWindow == obj.Spikes(channel).WaveformWindow) < 2
+				hLegends = [hLegends, line(repmat(obj.Spikes(channel).WaveformWindow(1), [1, 2]), yRange, 'Color', 'r', 'DisplayName', ['SpikeSort Window (', num2str(obj.Spikes(channel).WaveformWindow(1)), ' to ', num2str(obj.Spikes(channel).WaveformWindow(2)), ' ms)'])];
+				line(repmat(obj.Spikes(channel).WaveformWindow(2), [1, 2]), yRange, 'Color', 'r')
+			end
+			hLegends = [hLegends, line([obj.Spikes(channel).WaveformWindow(1), 0], repmat(obj.Spikes(channel).Threshold.Trigger, [1, 2]), 'Color', 'c', 'LineWidth', 3, 'DisplayName', ['Trigger Threshold (', num2str(obj.Spikes(channel).Threshold.Trigger), ' \muV)'])];
+			if ~isnan(obj.Spikes(channel).Threshold.Exit)
+				hLegends = [hLegends, line(obj.Spikes(channel).Threshold.ExitWindow, repmat(obj.Spikes(channel).Threshold.Exit, [1, 2]), 'Color', 'm', 'LineWidth', 3, 'DisplayName', ['Exit Threshold (', num2str(obj.Spikes(channel).Threshold.Exit), ' \muV)'])];
+			end
+			if ~isnan(obj.Spikes(channel).Threshold.Exclusion)
+				hLegends = [hLegends, line(obj.Spikes(channel).WaveformWindow, repmat(obj.Spikes(channel).Threshold.Exclusion, [1, 2]), 'Color', 'y', 'LineWidth', 3, 'DisplayName', ['Exclusion Threshold (', num2str(obj.Spikes(channel).Threshold.Exclusion), ' \muV)'])];
+			end
+			legend(hLegends, 'AutoUpdate', 'off')			
+			ylim(yRange)
+
+			hTimer = timer(...
+				'ExecutionMode', 'FixedSpacing',...
+			 	'Period', 0.03,...
+			 	'TimerFcn', {@TetrodeRecording.OnPlotChannelRefresh, hAxes, t, waveforms, numWaveforms, numWaveformsTotal, colors, clusterID}...
+			 	);
+			hAxes.UserData.hTimer = hTimer;
+			hFigure.KeyPressFcn = {@TetrodeRecording.OnKeyPress, hTimer};
+			hFigure.CloseRequestFcn = {@TetrodeRecording.OnFigureClosed, hTimer};
+			start(hTimer);
 		end
 	end
 
@@ -563,6 +972,70 @@ classdef TetrodeRecording < handle
 			for i=1:length
 				a(i) = fread(fid, 1, 'uint16');
 			end
+		end
+
+		% Find first event after reference
+		function [reference, event, iReference, iEvent] = FindFirstInTrial(reference, event, eventExclude)
+			edges = [reference(1:end - 1), max(event(end), reference(end))];
+			[~, ~, bins] = histcounts(event, edges);
+			event = event(bins ~= 0);
+			bins = nonzeros(bins);
+			[iReference, iEvent] = unique(bins, 'first');
+			reference = reference(iReference);
+			event = event(iEvent);
+
+			if nargin >= 3
+				% Filter out trials where mouse licked before pressing
+				edges = [reference; event];
+				edges = edges(:);
+				[~, ~, bins] = histcounts(eventExclude, edges);
+				oddBins = rem(bins, 2) ~= 0;	% Licks in odd bins occur between cue on and lever press, should exclude these trials
+				toRemove = (unique(bins(oddBins)) + 1)/2;
+				event(toRemove) = [];
+				reference(toRemove) = [];
+				iReference(toRemove) = [];
+				iEvent(toRemove) = [];
+			end
+		end
+
+		function OnPlotChannelRefresh(~, ~, hAxes, t, waveforms, numWaveforms, numWaveformsTotal, colors, clusterID)
+			hAxes.UserData.iWaveform = hAxes.UserData.iWaveform + 1;
+			iWaveform = hAxes.UserData.iWaveform;
+
+			if iWaveform > numWaveformsTotal
+				stop(hAxes.UserData.hTimer);
+				delete(hAxes.UserData.hTimer);
+				return
+			else
+				if length(hAxes.UserData.hWaveforms) >= numWaveforms
+					delete(hAxes.UserData.hWaveforms(1));
+					hAxes.UserData.hWaveforms = hAxes.UserData.hWaveforms(2:end);
+				end
+				hAxes.UserData.hWaveforms = [hAxes.UserData.hWaveforms, plot(hAxes, t, waveforms(iWaveform, :), 'LineStyle', '-', 'Color', colors(clusterID(iWaveform)), 'DisplayName', ['Waveform (Cluster ', num2str(clusterID(iWaveform)), ')'])];
+				xlabel(hAxes, 'Time (ms)');
+				ylabel(hAxes, 'Voltage (\muV');
+				title(hAxes, 'Waveforms');
+			end	
+		end
+
+		function OnKeyPress(~, evnt, hTimer)
+			if isvalid(hTimer)
+				if strcmp(evnt.Key, 'space')
+					if strcmp(hTimer.Running, 'on')
+						stop(hTimer);
+					elseif strcmp(hTimer.Running, 'off')
+						start(hTimer);
+					end
+				end
+			end
+		end
+
+		function OnFigureClosed(~, ~, hTimer)
+			if isvalid(hTimer)
+				stop(hTimer);
+				delete(hTimer);
+			end
+			delete(gcf);
 		end
 	end
 end
