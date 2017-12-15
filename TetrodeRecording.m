@@ -27,10 +27,12 @@ classdef TetrodeRecording < handle
 			addOptional(p, 'ChunkSize', 2, @isnumeric);
 			addParameter(p, 'Chunks', 'first');
 			addParameter(p, 'SpikeDetect', false, @islogical);
+			addParameter(p, 'DigitalDetect', false, @islogical);
 			parse(p, varargin{:});
 			chunkSize = p.Results.ChunkSize;
 			chunks = p.Results.Chunks;
 			spikeDetect = p.Results.SpikeDetect;
+			digitalDetect = p.Results.DigitalDetect;
 
 			files = obj.Files;
 			numChunks = ceil(length(files)/chunkSize);
@@ -64,10 +66,13 @@ classdef TetrodeRecording < handle
 							'waveformWindowExtended', waveformWindowExtended,...
 							'Append', true);
 					end
-					obj.GetDigitalEvents('Append', true);
+					obj.GetDigitalData('Append', true);
 				else
-					obj.GetDigitalEvents('Append', false);
+					obj.GetDigitalData('Append', false);
 				end
+			end
+			if digitalDetect
+				obj.GetDigitalEvents(true);
 			end
 		end
 
@@ -691,8 +696,7 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function GetDigitalEvents(obj, varargin)
-			tic, TetrodeRecording.TTS(['Extracting digital events...']);
+		function GetDigitalData(obj, varargin)
 			p = inputParser;
 			addParameter(p, 'ChannelCue', 4, @isnumeric);
 			addParameter(p, 'ChannelPress', 2, @isnumeric);
@@ -706,43 +710,32 @@ classdef TetrodeRecording < handle
 			channelReward 	= p.Results.ChannelReward;
 			append 			= p.Results.Append;
 
-			% Get digital signals
-			t = obj.BoardDigIn.Timestamps;
-			cue 	= obj.BoardDigIn.Data(channelCue, :);
-			press 	= obj.BoardDigIn.Data(channelPress, :);
-			lick 	= obj.BoardDigIn.Data(channelLick, :);
-			reward 	= obj.BoardDigIn.Data(channelReward, :);
-
-			[~, cueOn] 		= findpeaks(cue);
-			[~, cueOff]		= findpeaks(-cue);
-			[~, pressOn] 	= findpeaks(press);
-			[~, pressOff]	= findpeaks(-press);
-			[~, lickOn] 	= findpeaks(lick);
-			[~, lickOff]	= findpeaks(-lick);
-			[~, rewardOn] 	= findpeaks(reward);
-			[~, rewardOff] 	= findpeaks(-reward);
-
-			if ~append
-				obj.DigitalEvents.CueOn = cueOn;
-				obj.DigitalEvents.CueOff = cueOff;
-				obj.DigitalEvents.PressOn = pressOn;
-				obj.DigitalEvents.PressOff = pressOff;
-				obj.DigitalEvents.LickOn = lickOn;
-				obj.DigitalEvents.LickOff = lickOff;
-				obj.DigitalEvents.RewardOn = rewardOn;
-				obj.DigitalEvents.RewardOff = rewardOff;
-				obj.DigitalEvents.Timestamps = t;
+			if append
+				obj.DigitalEvents.Data = [obj.DigitalEvents.Data, obj.BoardDigIn.Data([channelCue, channelPress, channelLick, channelReward], :)];
+				obj.DigitalEvents.Timestamps = [obj.DigitalEvents.Timestamps, obj.BoardDigIn.Timestamps];
 			else
-				obj.DigitalEvents.CueOn = [obj.DigitalEvents.CueOn, cueOn + length(obj.DigitalEvents.Timestamps)];
-				obj.DigitalEvents.CueOff = [obj.DigitalEvents.CueOff, cueOff + length(obj.DigitalEvents.Timestamps)];
-				obj.DigitalEvents.PressOn = [obj.DigitalEvents.PressOn, pressOn + length(obj.DigitalEvents.Timestamps)];
-				obj.DigitalEvents.PressOff = [obj.DigitalEvents.PressOff, pressOff + length(obj.DigitalEvents.Timestamps)];
-				obj.DigitalEvents.LickOn = [obj.DigitalEvents.LickOn, lickOn + length(obj.DigitalEvents.Timestamps)];
-				obj.DigitalEvents.LickOff = [obj.DigitalEvents.LickOff, lickOff + length(obj.DigitalEvents.Timestamps)];
-				obj.DigitalEvents.RewardOn = [obj.DigitalEvents.RewardOn, rewardOn + length(obj.DigitalEvents.Timestamps)];
-				obj.DigitalEvents.RewardOff = [obj.DigitalEvents.RewardOff, rewardOff + length(obj.DigitalEvents.Timestamps)];
-				obj.DigitalEvents.Timestamps = [obj.DigitalEvents.Timestamps, t];
+				obj.DigitalEvents.Data = obj.BoardDigIn.Data([channelCue, channelPress, channelLick, channelReward], :);
+				obj.DigitalEvents.Timestamps = obj.BoardDigIn.Timestamps;
 			end
+		end
+
+		function GetDigitalEvents(obj, clearCache)
+			if nargin < 2
+				clearCache = false;
+			end
+
+			tic, TetrodeRecording.TTS(['Extracting digital events...']);
+			% Get digital signals
+			[obj.DigitalEvents.CueOn, obj.DigitalEvents.CueOff] 		= TetrodeRecording.FindEdges(obj.DigitalEvents.Data(1, :), obj.DigitalEvents.Timestamps);
+			[obj.DigitalEvents.PressOn, obj.DigitalEvents.PressOff] 	= TetrodeRecording.FindEdges(obj.DigitalEvents.Data(2, :), obj.DigitalEvents.Timestamps);
+			[obj.DigitalEvents.LickOn, obj.DigitalEvents.LickOff] 		= TetrodeRecording.FindEdges(obj.DigitalEvents.Data(3, :), obj.DigitalEvents.Timestamps);
+			[obj.DigitalEvents.RewardOn, obj.DigitalEvents.RewardOff] 	= TetrodeRecording.FindEdges(obj.DigitalEvents.Data(4, :), obj.DigitalEvents.Timestamps);
+
+			if clearCache
+				obj.DigitalEvents.Timestamps = [];
+				obj.DigitalEvents.Data = [];
+			end
+
 			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 		end
 
@@ -978,37 +971,59 @@ classdef TetrodeRecording < handle
 			start(hTimer);
 		end
 		% Sort spikes and digital events into trial structure
-		function PlotByTrial(obj, channels)
-			% Find rising/falling edges
-			cueOn = obj.DigitalEvents.CueOn;
-			pressOn = obj.DigitalEvents.PressOn;
-			lickOn = obj.DigitalEvents.LickOn;
-			t = obj.DigitalEvents.Timestamps;
+		function PlotByTrial(obj, channels, varargin)
+			p = inputParser;
+			addRequired(p, 'Channels', @isnumeric);
+			addOptional(p, 'Reference', 'CueOn', @ischar);
+			addOptional(p, 'Event', 'PressOn', @ischar);
+			addOptional(p, 'Exclude', 'LickOn', @ischar);
+			parse(p, channels, varargin{:});
+			channels = p.Results.Channels;
+			reference = p.Results.Reference;
+			event = p.Results.Event;
+			exclude = p.Results.Exclude;
+
+			if ~isempty(reference)
+				reference = obj.DigitalEvents.(reference);
+			else
+				reference = [];
+			end
+			if ~isempty(event)
+				event = obj.DigitalEvents.(event);
+			else
+				event = [];
+			end
+			if ~isempty(exclude)
+				exclude = obj.DigitalEvents.(exclude);
+			else
+				exclude = [];
+			end
 
 			% Recalculate timestamps relative to cue on
 			% Find the first lever press (true first movement: before any lick/press has occured since cue on)
 
 			% Get spikes between two reference and first event
-			[referenceFirstPress, eventFirstPress, ~, ~] = TetrodeRecording.FindFirstInTrial(cueOn, pressOn, lickOn);
+			[reference, event, ~, ~] = TetrodeRecording.FindFirstInTrial(reference, event, exclude);
 
 			% Bin spikes into trials
 			for iChannel = channels
-				[spikesFirstPress, trialsFirstPress] = obj.GetSpikesByTrial(iChannel, referenceFirstPress, eventFirstPress);
+				[spikes, trials] = obj.GetSpikesByTrial(iChannel, reference, event, [-2, 2]);
 				% Sort trials by time to movement
-				[~, I] = sort(t(referenceFirstPress) - t(eventFirstPress));
-				trialsFirstPressSorted = changem(trialsFirstPress, 1:length(unique(I)), I);	% !!! changem requires mapping toolbox.
+				[~, I] = sort(reference - event);
+				% trialsFirstPressSorted = changem(trials, 1:length(unique(I)), I);	% !!! changem requires mapping toolbox.
+				trialsFirstPressSorted = changem(trials, 1:length(unique(I)), I);	% !!! changem requires mapping toolbox.
 
 				hFigure = figure('Units', 'Normalized', 'OuterPosition', [0, 0, 0.75, 1]);
 				hAxes = subplot(2, 2, 1);
 				hold on
-				plot(hAxes, t(spikesFirstPress) - t(referenceFirstPress(trialsFirstPress)), trialsFirstPressSorted, '.',...
+				plot(hAxes, spikes - reference(trials), trialsFirstPressSorted, '.',...
 					'MarkerSize', 5,...
 					'MarkerEdgeColor', 'k',...
 					'MarkerFaceColor', 'k',...
 					'LineWidth', 1.5,...
 					'DisplayName', 'Spike'...
 				)
-				plot(hAxes, t(eventFirstPress(trialsFirstPress)) - t(referenceFirstPress(trialsFirstPress)), trialsFirstPressSorted, '.',...
+				plot(hAxes, event(trials) - reference(trials), trialsFirstPressSorted, '.',...
 					'MarkerSize', 10,...
 					'MarkerEdgeColor', 'b',...
 					'MarkerFaceColor', 'b',...
@@ -1025,14 +1040,14 @@ classdef TetrodeRecording < handle
 
 				hAxes = subplot(2, 2, 2);
 				hold on
-				plot(hAxes, t(spikesFirstPress) - t(eventFirstPress(trialsFirstPress)), trialsFirstPressSorted, '.',...
+				plot(hAxes, spikes - event(trials), trialsFirstPressSorted, '.',...
 					'MarkerSize', 5,...
 					'MarkerEdgeColor', [.1, .1, .1],...
 					'MarkerFaceColor', [.1, .1, .1],...
 					'LineWidth', 1.5,...
 					'DisplayName', 'Spike'...
 				)
-				plot(hAxes, t(referenceFirstPress(trialsFirstPress)) - t(eventFirstPress(trialsFirstPress)), trialsFirstPressSorted, '.',...
+				plot(hAxes, reference(trials) - event(trials), trialsFirstPressSorted, '.',...
 					'MarkerSize', 10,...
 					'MarkerEdgeColor', 'r',...
 					'MarkerFaceColor', 'r',...
@@ -1046,14 +1061,18 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function [spikes, trials] = GetSpikesByTrial(obj, channel, reference, event)
-			edges = [reference; event];
+		function [spikes, trials] = GetSpikesByTrial(obj, channel, reference, event, extendedWindow)
+			if nargin < 5
+				extendedWindow = [-1, 0];
+			end
+
+			edges = [reference + extendedWindow(1); event + extendedWindow(2)];
 			edges = edges(:);
 			if isempty(edges)
 				spikes = [];
 				trials = [];
 			else
-				spikes = obj.Spikes(channel).SampleIndex;
+				spikes = obj.Spikes(channel).Timestamps;
 				[~, ~, bins] = histcounts(spikes, edges);
 				oddBins = rem(bins, 2) ~= 0;	% Spikes in odd bins occur between reference and event, should keep these spikes
 				spikes = spikes(oddBins);
@@ -1078,6 +1097,20 @@ classdef TetrodeRecording < handle
 			end
 		end
 
+		function [eventOn, eventOff] = FindEdges(event, t)
+			grad = diff([0, event]);
+			eventOn = grad == 1;
+			eventOff = grad == -1;
+
+			if nargin >= 2
+				eventOn = t(eventOn);
+				eventOff = t(eventOff);
+			else
+				eventOn = find(eventOn);
+				eventOff = find(eventOff);
+			end
+		end
+
 		% Find first event after reference
 		function [reference, event, iReference, iEvent] = FindFirstInTrial(reference, event, eventExclude)
 			edges = [reference(1:end - 1), max(event(end), reference(end))];
@@ -1088,7 +1121,7 @@ classdef TetrodeRecording < handle
 			reference = reference(iReference);
 			event = event(iEvent);
 
-			if nargin >= 3
+			if ~isempty(eventExclude)
 				% Filter out trials where mouse licked before pressing
 				edges = [reference; event];
 				edges = edges(:);
