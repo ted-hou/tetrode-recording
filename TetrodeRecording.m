@@ -61,6 +61,9 @@ classdef TetrodeRecording < handle
 							'WaveformWindow', waveformWindow,...
 							'Append', true);
 					end
+					obj.GetDigitalEvents('Append', true);
+				else
+					obj.GetDigitalEvents('Append', false);
 				end
 			end
 		end
@@ -588,6 +591,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'ExitWindow', [0, NaN], @(x) isnumeric(x) && length(x) == 2);
 			addParameter(p, 'ExclusionThreshold', NaN, @isnumeric);
 			addParameter(p, 'WaveformWindow', [-0.5, 0.5], @isnumeric);
+			addParameter(p, 'WaveformWindowExtended', [-1, 2], @isnumeric);
 			addParameter(p, 'Append', false, @islogical);
 			parse(p, channels, triggerThreshold, varargin{:});
 			channels = p.Results.Channels;
@@ -596,6 +600,7 @@ classdef TetrodeRecording < handle
 			exitWindow = p.Results.ExitWindow;
 			exclusionThreshold = p.Results.ExclusionThreshold;
 			waveformWindow = p.Results.WaveformWindow;
+			waveformWindowExtended = p.Results.WaveformWindowExtended;
 			append = p.Results.Append;
 
 			tic, fprintf(1, ['Detecting spikes...']);
@@ -607,11 +612,9 @@ classdef TetrodeRecording < handle
 			for iChannel = channels
 				% Find triggerThreshold-crossing events
 				[~, sampleIndex] = findpeaks(sign(triggerThreshold)*obj.Amplifier.Data(iChannel, :), 'MinPeakHeight', abs(triggerThreshold));
-				% sampleIndex = find([false, diff(obj.Amplifier.Data(iChannel, :) > triggerThreshold) == sign(triggerThreshold)]);
-				numWaveforms = length(sampleIndex);
 
 				% Extract waveforms
-				[waveforms, t, timestamps] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex, 'IndexType', 'SampleIndex');
+				[waveforms, t] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex, 'IndexType', 'SampleIndex');
 				if ~isnan(exitThreshold)
 					exitWaveforms = obj.GetWaveforms(iChannel, exitWindow, sampleIndex, 'IndexType', 'SampleIndex');
 				end
@@ -633,7 +636,8 @@ classdef TetrodeRecording < handle
 				end
 				alignmentShift = i(maxIndex);
 
-				[waveforms, t, timestamps, sampleIndex] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex + alignmentShift, 'IndexType', 'SampleIndex');
+				[waveforms, t] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex + alignmentShift, 'IndexType', 'SampleIndex');
+				[waveformsExtended, tExtended, timestamps, sampleIndex] = obj.GetWaveforms(iChannel, waveformWindowExtended, sampleIndex + alignmentShift, 'IndexType', 'SampleIndex');
 
 				% Filter waveforms by optional criteria
 				includeWaveform = true(numWaveforms, 1);
@@ -656,6 +660,7 @@ classdef TetrodeRecording < handle
 
 				% Remove invalid waveforms
 				waveforms = waveforms(includeWaveform, :);
+				waveformsExtended = waveformsExtended(includeWaveform, :);
 				sampleIndex = sampleIndex(includeWaveform);
 				timestamps = timestamps(includeWaveform);
 
@@ -666,9 +671,12 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).SampleIndex = sampleIndex;
 					obj.Spikes(iChannel).Timestamps = timestamps;
 					obj.Spikes(iChannel).Waveforms = waveforms;
+					obj.Spikes(iChannel).WaveformsExtended = waveformsExtended;
 
 					obj.Spikes(iChannel).WaveformTimestamps = t;
+					obj.Spikes(iChannel).WaveformTimestampsExtended = tExtended;
 					obj.Spikes(iChannel).WaveformWindow = waveformWindow;
+					obj.Spikes(iChannel).WaveformWindowExtended = waveformWindowExtended;
 					obj.Spikes(iChannel).Threshold.Trigger = triggerThreshold;
 					obj.Spikes(iChannel).Threshold.Exit = exitThreshold;
 					obj.Spikes(iChannel).Threshold.ExitWindow = exitWindow;
@@ -678,6 +686,7 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).SampleIndex = [obj.Spikes(iChannel).SampleIndex, sampleIndex];
 					obj.Spikes(iChannel).Timestamps = [obj.Spikes(iChannel).Timestamps, timestamps];
 					obj.Spikes(iChannel).Waveforms = [obj.Spikes(iChannel).Waveforms; waveforms];
+					obj.Spikes(iChannel).WaveformsExtended = [obj.Spikes(iChannel).WaveformsExtended; waveformsExtended];
 				end
 
 				fprintf(1, ['Done(', num2str(toc), 's).\n'])
@@ -685,6 +694,7 @@ classdef TetrodeRecording < handle
 		end
 
 		function GetDigitalEvents(obj, varargin)
+			tic, fprintf(1, ['Extracting digital events...']);
 			p = inputParser;
 			addParameter(p, 'ChannelCue', 4, @isnumeric);
 			addParameter(p, 'ChannelPress', 2, @isnumeric);
@@ -735,6 +745,7 @@ classdef TetrodeRecording < handle
 				obj.DigitalEvents.RewardOff = [obj.DigitalEvents.RewardOff, rewardOff];
 				obj.DigitalEvents.Timestamps = [obj.DigitalEvents.Timestamps, t];
 			end
+			fprintf(1, ['Done(', num2str(toc), 's).\n'])
 		end
 
 		% This compresses data by ~ 20 times
@@ -758,12 +769,23 @@ classdef TetrodeRecording < handle
 			method = p.Results.Method;
 			hideResults = p.Results.HideResults;
 
+			obj.RemoveNaNs(channels);
 			obj.PCA(channels);
 			obj.Cluster(channels, k, method);
 			if ~hideResults
 				for iChannel = channels
 					obj.PlotChannel(iChannel);
 				end
+			end
+		end
+
+		function RemoveNaNs(obj, channels)
+			for iChannel = channels
+				iWaveformToDiscard = sum(isnan(obj.Spikes(iChannel).Waveforms), 2) > 0;
+				obj.Spikes(iChannel).Waveforms(iWaveformToDiscard, :) = [];
+				obj.Spikes(iChannel).WaveformsExtended(iWaveformToDiscard, :) = [];
+				obj.Spikes(iChannel).Timestamps(iWaveformToDiscard) = [];
+				obj.Spikes(iChannel).SampleIndex(iWaveformToDiscard) = [];
 			end
 		end
 
@@ -825,6 +847,7 @@ classdef TetrodeRecording < handle
 			% Discard unwanted clusters
 			iWaveformToDiscard = ismember(obj.Spikes(channel).Cluster, discardList);
 			obj.Spikes(channel).Waveforms(iWaveformToDiscard, :) = [];
+			obj.Spikes(channel).WaveformsExtended(iWaveformToDiscard, :) = [];
 			obj.Spikes(channel).Timestamps(iWaveformToDiscard) = [];
 			obj.Spikes(channel).SampleIndex(iWaveformToDiscard) = [];
 			obj.Spikes(channel).PCA.Score(iWaveformToDiscard, :) = [];
@@ -887,24 +910,17 @@ classdef TetrodeRecording < handle
 			addRequired(p, 'Channel', @isnumeric);
 			addOptional(p, 'NumWaveforms', 30, @isnumeric);
 			addParameter(p, 'Clusters', [], @isnumeric);
-			addParameter(p, 'WaveformWindow', [-1, 2], @isnumeric);
 			addParameter(p, 'YLim', [-500, 500], @isnumeric);
 			parse(p, channel, varargin{:});
 			channel = p.Results.Channel;
 			numWaveforms = p.Results.NumWaveforms;
 			clusters = p.Results.Clusters;
-			waveformWindow = p.Results.WaveformWindow;
 			yRange = p.Results.YLim;
 
-			numWaveformsTotal = size(obj.Spikes(channel).Waveforms, 1);
-
-			% If using a different waveform window, re-extract spikes
-			if sum(waveformWindow == obj.Spikes(channel).WaveformWindow) < 2
-				[waveforms, t] = obj.GetWaveforms(channel, waveformWindow);
-			else
-				waveforms = obj.Spikes(channel).Waveforms;
-				t = obj.Spikes(channel).WaveformTimestamps;
-			end
+			waveforms = obj.Spikes(channel).WaveformsExtended;
+			numWaveformsTotal = size(waveforms, 1);
+			waveformWindow = obj.Spikes(channel).WaveformWindowExtended;
+			t = obj.Spikes(channel).WaveformTimestampsExtended;
 			score = obj.Spikes(channel).PCA.Score;
 
 			if isfield(obj.Spikes(channel), 'Cluster')
@@ -950,7 +966,7 @@ classdef TetrodeRecording < handle
 			if ~isnan(obj.Spikes(channel).Threshold.Exclusion)
 				hLegends = [hLegends, line(obj.Spikes(channel).WaveformWindow, repmat(obj.Spikes(channel).Threshold.Exclusion, [1, 2]), 'Color', 'y', 'LineWidth', 3, 'DisplayName', ['Exclusion Threshold (', num2str(obj.Spikes(channel).Threshold.Exclusion), ' \muV)'])];
 			end
-			legend(hLegends, 'AutoUpdate', 'off')			
+			legend(hLegends, 'AutoUpdate', 'off')
 			ylim(yRange)
 
 			hTimer = timer(...
@@ -1043,7 +1059,6 @@ classdef TetrodeRecording < handle
 				trials = (bins(oddBins) + 1)/2;
 			end
 		end
-
 	end
 
 	methods (Static)
