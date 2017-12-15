@@ -4,6 +4,7 @@ classdef TetrodeRecording < handle
 		Path
 		Notes
 		FrequencyParameters
+		ChannelMap
 		Spikes
 		DigitalEvents
 	end
@@ -45,13 +46,14 @@ classdef TetrodeRecording < handle
 
 			for iChunk = chunks
 				obj.ClearCache();
-				tts(['Loading chunk ', num2str(iChunk), '/', num2str(numChunks), '...\n']);
+				TetrodeRecording.TTS(['Loading chunk ', num2str(iChunk), '/', num2str(numChunks), '...\n']);
 				obj.ReadRHD(obj.Files((iChunk - 1)*chunkSize + 1:min(iChunk*chunkSize, length(obj.Files))))
 				obj.MapChannels();
 				obj.RemoveTransient();
 				if spikeDetect
 					for iChannel = [obj.Spikes.Channel]
 						waveformWindow = obj.Spikes(iChannel).WaveformWindow;
+						waveformWindowExtended = obj.Spikes(iChannel).WaveformWindowExtended;
 						threshold = obj.Spikes(iChannel).Threshold;
 						obj.SpikeDetect(...
 							iChannel, threshold.Trigger,...
@@ -59,6 +61,7 @@ classdef TetrodeRecording < handle
 							'ExitWindow', threshold.ExitWindow,...
 							'ExclusionThreshold', threshold.Exclusion,...
 							'WaveformWindow', waveformWindow,...
+							'waveformWindowExtended', waveformWindowExtended,...
 							'Append', true);
 					end
 					obj.GetDigitalEvents('Append', true);
@@ -316,7 +319,7 @@ classdef TetrodeRecording < handle
 					board_dig_out_raw = zeros(1, num_board_dig_out_samples);
 
 					% Read sampled data from file.
-					tts(['	Reading data from file ', num2str(iFile), '/', num2str(length(files)), ' (''', files{iFile},''')...\n']);
+					TetrodeRecording.TTS(['	Reading data from file ', num2str(iFile), '/', num2str(length(files)), ' (''', files{iFile},''')...\n']);
 
 					amplifier_index = 1;
 					aux_input_index = 1;
@@ -369,7 +372,7 @@ classdef TetrodeRecording < handle
 
 						fraction_done = 100 * (i / num_data_blocks);
 						if (fraction_done >= percent_done)
-							% tts('\t%d%% done...\n', percent_done);
+							% TetrodeRecording.TTS('\t%d%% done...\n', percent_done);
 							percent_done = percent_done + print_increment;
 						end
 					end
@@ -409,7 +412,7 @@ classdef TetrodeRecording < handle
 			end
 
 			% Combine files
-			tic, tts('All files loaded. Concatenating data...');
+			tic, TetrodeRecording.TTS('All files loaded. Concatenating data...');
 
 			obj.Notes = notes;
 			obj.FrequencyParameters = frequency_parameters;
@@ -432,7 +435,7 @@ classdef TetrodeRecording < handle
 				iSample.Amplifier = iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2);
 				iSample.BoardDigIn = iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2);
 			end
-			tts(['	Done(', num2str(toc), 's).\n'])
+			TetrodeRecording.TTS(['	Done(', num2str(toc, 2), ' seconds).\n'])
 		end
 
 		% Used to preview a small portion of loaded data. Will remove used data from workspace.
@@ -447,12 +450,7 @@ classdef TetrodeRecording < handle
 
 		% Amplifier data arranged in tetrode order (i.e., first four elements in array is first tetrode)
 		function MapChannels(obj, EIBMap, headstageType)
-			if isfield(obj.Amplifier, 'ChannelMap')
-				warning('Amplifier data already remapped in tetrode order. I refuse to do it again.');
-				return
-			end
-
-			tic, tts('Remapping amplifier channels in tetrode order...');
+			tic, TetrodeRecording.TTS('Remapping amplifier channels in tetrode order...');
 
 			if nargin < 3
 				headstageType = 'intan';
@@ -481,17 +479,17 @@ classdef TetrodeRecording < handle
 					obj.Amplifier.DataMapped(iChn, :) = obj.Amplifier.Data(sourceChannel, :);
 				end
 			end
-			obj.Amplifier.ChannelMap.ElectrodeInterfaceBoard = EIBMap;
-			obj.Amplifier.ChannelMap.Headstage = HSMap;
-			obj.Amplifier.ChannelMap.Tetrode = tetrodeMap;
+			obj.ChannelMap.ElectrodeInterfaceBoard = EIBMap;
+			obj.ChannelMap.Headstage = HSMap;
+			obj.ChannelMap.Tetrode = tetrodeMap;
 			obj.Amplifier.Data = obj.Amplifier.DataMapped; 
 			obj.Amplifier = rmfield(obj.Amplifier, 'DataMapped');
-			tts(['Done(', num2str(toc), 's).\n'])
+			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 		end
 
 		% Convert zero-based raw channel id to remapped tetrode id
 		function tetrodeChannel = MapChannelID(obj, rawChannel)
-			tetrodeChannel = find(obj.Amplifier.ChannelMap.Tetrode == (rawChannel + 1));
+			tetrodeChannel = find(obj.ChannelMap.Tetrode == (rawChannel + 1));
 		end
 
 		% Remove lick/press-transient by setting signal to zero
@@ -512,7 +510,7 @@ classdef TetrodeRecording < handle
 				return
 			end
 
-			tic, tts('Removing lick/touch-related transients. This might take a while...');
+			tic, TetrodeRecording.TTS('Removing lick/touch-related transients. This might take a while...');
 			if dilate
 				mask = logical(zeros(1, obj.Amplifier.NumSamples));
 				dilateSE = ones(round(obj.FrequencyParameters.AmplifierSampleRate*2*dilateSize/1000) + 1);
@@ -528,7 +526,7 @@ classdef TetrodeRecording < handle
 			end
 			
 			obj.Amplifier.Data(:, mask) = 0;
-			tts(['Done(', num2str(toc), 's).\n'])
+			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 		end
 
 		% Expand waveform window, fill unavailable data with NaN
@@ -603,7 +601,7 @@ classdef TetrodeRecording < handle
 			waveformWindowExtended = p.Results.WaveformWindowExtended;
 			append = p.Results.Append;
 
-			tic, tts(['Detecting spikes...']);
+			tic, TetrodeRecording.TTS(['Detecting spikes...']);
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
 			if isnan(exitWindow(2))
 				exitWindow(2) = waveformWindow(2);
@@ -683,18 +681,18 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).Threshold.Exclusion = exclusionThreshold;
 					obj.Spikes(iChannel).AlignmentShift = alignmentShift;
 				else
-					obj.Spikes(iChannel).SampleIndex = [obj.Spikes(iChannel).SampleIndex, sampleIndex];
+					obj.Spikes(iChannel).SampleIndex = [obj.Spikes(iChannel).SampleIndex, sampleIndex + length(obj.Spikes(iChannel).Timestamps)];
 					obj.Spikes(iChannel).Timestamps = [obj.Spikes(iChannel).Timestamps, timestamps];
 					obj.Spikes(iChannel).Waveforms = [obj.Spikes(iChannel).Waveforms; waveforms];
 					obj.Spikes(iChannel).WaveformsExtended = [obj.Spikes(iChannel).WaveformsExtended; waveformsExtended];
 				end
 
-				tts(['Done(', num2str(toc), 's).\n'])
+				TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 			end
 		end
 
 		function GetDigitalEvents(obj, varargin)
-			tic, tts(['Extracting digital events...']);
+			tic, TetrodeRecording.TTS(['Extracting digital events...']);
 			p = inputParser;
 			addParameter(p, 'ChannelCue', 4, @isnumeric);
 			addParameter(p, 'ChannelPress', 2, @isnumeric);
@@ -735,17 +733,17 @@ classdef TetrodeRecording < handle
 				obj.DigitalEvents.RewardOff = rewardOff;
 				obj.DigitalEvents.Timestamps = t;
 			else
-				obj.DigitalEvents.CueOn = [obj.DigitalEvents.CueOn, cueOn];
-				obj.DigitalEvents.CueOff = [obj.DigitalEvents.CueOff, cueOff];
-				obj.DigitalEvents.PressOn = [obj.DigitalEvents.PressOn, pressOn];
-				obj.DigitalEvents.PressOff = [obj.DigitalEvents.PressOff, pressOff];
-				obj.DigitalEvents.LickOn = [obj.DigitalEvents.LickOn, lickOn];
-				obj.DigitalEvents.LickOff = [obj.DigitalEvents.LickOff, lickOff];
-				obj.DigitalEvents.RewardOn = [obj.DigitalEvents.RewardOn, rewardOn];
-				obj.DigitalEvents.RewardOff = [obj.DigitalEvents.RewardOff, rewardOff];
+				obj.DigitalEvents.CueOn = [obj.DigitalEvents.CueOn, cueOn + length(obj.DigitalEvents.Timestamps)];
+				obj.DigitalEvents.CueOff = [obj.DigitalEvents.CueOff, cueOff + length(obj.DigitalEvents.Timestamps)];
+				obj.DigitalEvents.PressOn = [obj.DigitalEvents.PressOn, pressOn + length(obj.DigitalEvents.Timestamps)];
+				obj.DigitalEvents.PressOff = [obj.DigitalEvents.PressOff, pressOff + length(obj.DigitalEvents.Timestamps)];
+				obj.DigitalEvents.LickOn = [obj.DigitalEvents.LickOn, lickOn + length(obj.DigitalEvents.Timestamps)];
+				obj.DigitalEvents.LickOff = [obj.DigitalEvents.LickOff, lickOff + length(obj.DigitalEvents.Timestamps)];
+				obj.DigitalEvents.RewardOn = [obj.DigitalEvents.RewardOn, rewardOn + length(obj.DigitalEvents.Timestamps)];
+				obj.DigitalEvents.RewardOff = [obj.DigitalEvents.RewardOff, rewardOff + length(obj.DigitalEvents.Timestamps)];
 				obj.DigitalEvents.Timestamps = [obj.DigitalEvents.Timestamps, t];
 			end
-			tts(['Done(', num2str(toc), 's).\n'])
+			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 		end
 
 		% This compresses data by ~ 20 times
@@ -753,7 +751,7 @@ classdef TetrodeRecording < handle
 			obj.Amplifier = [];
 			obj.BoardDigIn = [];
 			mem = memory();
-			tts(['Cached data cleared. System memory: ', num2str(round(mem.MemUsedMATLAB/1024^2)), ' MB used (', num2str(round(mem.MemAvailableAllArrays/1024^2)), ' MB available).\n']);
+			TetrodeRecording.TTS(['Cached data cleared. System memory: ', num2str(round(mem.MemUsedMATLAB/1024^2)), ' MB used (', num2str(round(mem.MemAvailableAllArrays/1024^2)), ' MB available).\n']);
 		end
 
 		% SpikeSort: PCA & Cluster
@@ -790,15 +788,15 @@ classdef TetrodeRecording < handle
 		end
 
 		function PCA(obj, channels)
-			tic, tts('Principal component analysis...');
+			tic, TetrodeRecording.TTS('Principal component analysis...');
 			for iChannel = channels
 				[obj.Spikes(iChannel).PCA.Coeff, obj.Spikes(iChannel).PCA.Score, obj.Spikes(iChannel).PCA.Latent, obj.Spikes(iChannel).PCA.TSquared, obj.Spikes(iChannel).PCA.Explained, obj.Spikes(iChannel).PCA.Mu] = pca(obj.Spikes(iChannel).Waveforms);
 			end
-			tts(['Done(', num2str(toc), 's).\n'])
+			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 		end
 
 		function Cluster(obj, channels, k, method)
-			tic, tts('Clustering...');
+			tic, TetrodeRecording.TTS('Clustering...');
 			for iChannel = channels
 				obj.Spikes(iChannel).Cluster = [];
 				if strcmp(method, 'kmeans')
@@ -810,7 +808,7 @@ classdef TetrodeRecording < handle
 					error('Unrecognized clustering method. Must be ''kmeans'' or ''gaussian''.')			
 				end
 			end
-			tts(['Done(', num2str(toc), 's).\n'])
+			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 		end
 
 		function MergeClusters(obj, channel, mergeList, varargin)
@@ -936,7 +934,7 @@ classdef TetrodeRecording < handle
 				clusterID = ones(numWaveformsTotal, 1);
 			end
 
-			hFigure = figure('Units', 'Normalized', 'OuterPosition', [0, 0, 0.5, 1]);
+			hFigure = figure('Units', 'Normalized', 'OuterPosition', [0, 0, 0.3, 1]);
 			colors = 'rgbcmyk';		
 			subplot(2, 1, 1)
 			hold on
@@ -959,12 +957,12 @@ classdef TetrodeRecording < handle
 				hLegends = [hLegends, line(repmat(obj.Spikes(channel).WaveformWindow(1), [1, 2]), yRange, 'Color', 'r', 'DisplayName', ['SpikeSort Window (', num2str(obj.Spikes(channel).WaveformWindow(1)), ' to ', num2str(obj.Spikes(channel).WaveformWindow(2)), ' ms)'])];
 				line(repmat(obj.Spikes(channel).WaveformWindow(2), [1, 2]), yRange, 'Color', 'r')
 			end
-			hLegends = [hLegends, line([obj.Spikes(channel).WaveformWindow(1), 0], repmat(obj.Spikes(channel).Threshold.Trigger, [1, 2]), 'Color', 'c', 'LineWidth', 3, 'DisplayName', ['Trigger Threshold (', num2str(obj.Spikes(channel).Threshold.Trigger), ' \muV)'])];
+			hLegends = [hLegends, line([obj.Spikes(channel).WaveformWindow(1), 0], repmat(obj.Spikes(channel).Threshold.Trigger, [1, 2]), 'Color', 'k', 'LineWidth', 3, 'DisplayName', ['Trigger Threshold (', num2str(obj.Spikes(channel).Threshold.Trigger), ' \muV)'])];
 			if ~isnan(obj.Spikes(channel).Threshold.Exit)
-				hLegends = [hLegends, line(obj.Spikes(channel).Threshold.ExitWindow, repmat(obj.Spikes(channel).Threshold.Exit, [1, 2]), 'Color', 'm', 'LineWidth', 3, 'DisplayName', ['Exit Threshold (', num2str(obj.Spikes(channel).Threshold.Exit), ' \muV)'])];
+				hLegends = [hLegends, line(obj.Spikes(channel).Threshold.ExitWindow, repmat(obj.Spikes(channel).Threshold.Exit, [1, 2]), 'Color', 'b', 'LineWidth', 3, 'DisplayName', ['Exit Threshold (', num2str(obj.Spikes(channel).Threshold.Exit), ' \muV)'])];
 			end
 			if ~isnan(obj.Spikes(channel).Threshold.Exclusion)
-				hLegends = [hLegends, line(obj.Spikes(channel).WaveformWindow, repmat(obj.Spikes(channel).Threshold.Exclusion, [1, 2]), 'Color', 'y', 'LineWidth', 3, 'DisplayName', ['Exclusion Threshold (', num2str(obj.Spikes(channel).Threshold.Exclusion), ' \muV)'])];
+				hLegends = [hLegends, line(obj.Spikes(channel).WaveformWindow, repmat(obj.Spikes(channel).Threshold.Exclusion, [1, 2]), 'Color', 'm', 'LineWidth', 3, 'DisplayName', ['Exclusion Threshold (', num2str(obj.Spikes(channel).Threshold.Exclusion), ' \muV)'])];
 			end
 			legend(hLegends, 'AutoUpdate', 'off')
 			ylim(yRange)
@@ -1139,6 +1137,18 @@ classdef TetrodeRecording < handle
 				delete(hTimer);
 			end
 			delete(gcf);
+		end
+
+		function TTS(txt, speak)
+			fprintf(1, txt);
+			if nargin < 2
+				speak = false;
+			end
+			if speak
+				txt = strsplit(txt, '\');
+				txt = txt{1};
+				tts(txt);
+			end
 		end
 	end
 end

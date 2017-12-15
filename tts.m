@@ -33,8 +33,6 @@ function wav = tts(txt,voice,pace,fs)
 if ~ispc, error('Microsoft Win32 SAPI is required.'); end
 if ~ischar(txt), error('First input must be string.'); end
 
-fprintf(1, txt);
-
 SV = actxserver('SAPI.SpVoice');
 TK = invoke(SV,'GetVoices');
 
