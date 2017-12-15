@@ -45,7 +45,7 @@ classdef TetrodeRecording < handle
 
 			for iChunk = chunks
 				obj.ClearCache();
-				fprintf(1, ['Loading chunk ', num2str(iChunk), '/', num2str(numChunks), '...\n']);
+				tts(['Loading chunk ', num2str(iChunk), '/', num2str(numChunks), '...\n']);
 				obj.ReadRHD(obj.Files((iChunk - 1)*chunkSize + 1:min(iChunk*chunkSize, length(obj.Files))))
 				obj.MapChannels();
 				obj.RemoveTransient();
@@ -316,7 +316,7 @@ classdef TetrodeRecording < handle
 					board_dig_out_raw = zeros(1, num_board_dig_out_samples);
 
 					% Read sampled data from file.
-					fprintf(1, ['	Reading data from file ', num2str(iFile), '/', num2str(length(files)), ' (''', files{iFile},''')...\n']);
+					tts(['	Reading data from file ', num2str(iFile), '/', num2str(length(files)), ' (''', files{iFile},''')...\n']);
 
 					amplifier_index = 1;
 					aux_input_index = 1;
@@ -369,7 +369,7 @@ classdef TetrodeRecording < handle
 
 						fraction_done = 100 * (i / num_data_blocks);
 						if (fraction_done >= percent_done)
-							% fprintf(1, '\t%d%% done...\n', percent_done);
+							% tts('\t%d%% done...\n', percent_done);
 							percent_done = percent_done + print_increment;
 						end
 					end
@@ -409,7 +409,7 @@ classdef TetrodeRecording < handle
 			end
 
 			% Combine files
-			tic, fprintf(1, 'All files loaded. Concatenating data...');
+			tic, tts('All files loaded. Concatenating data...');
 
 			obj.Notes = notes;
 			obj.FrequencyParameters = frequency_parameters;
@@ -432,7 +432,7 @@ classdef TetrodeRecording < handle
 				iSample.Amplifier = iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2);
 				iSample.BoardDigIn = iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2);
 			end
-			fprintf(1, ['	Done(', num2str(toc), 's).\n'])
+			tts(['	Done(', num2str(toc), 's).\n'])
 		end
 
 		% Used to preview a small portion of loaded data. Will remove used data from workspace.
@@ -452,7 +452,7 @@ classdef TetrodeRecording < handle
 				return
 			end
 
-			tic, fprintf(1, 'Remapping amplifier channels in tetrode order...');
+			tic, tts('Remapping amplifier channels in tetrode order...');
 
 			if nargin < 3
 				headstageType = 'intan';
@@ -486,7 +486,7 @@ classdef TetrodeRecording < handle
 			obj.Amplifier.ChannelMap.Tetrode = tetrodeMap;
 			obj.Amplifier.Data = obj.Amplifier.DataMapped; 
 			obj.Amplifier = rmfield(obj.Amplifier, 'DataMapped');
-			fprintf(1, ['Done(', num2str(toc), 's).\n'])
+			tts(['Done(', num2str(toc), 's).\n'])
 		end
 
 		% Convert zero-based raw channel id to remapped tetrode id
@@ -512,7 +512,7 @@ classdef TetrodeRecording < handle
 				return
 			end
 
-			tic, fprintf(1, 'Removing lick/touch-related transients. This might take a while...');
+			tic, tts('Removing lick/touch-related transients. This might take a while...');
 			if dilate
 				mask = logical(zeros(1, obj.Amplifier.NumSamples));
 				dilateSE = ones(round(obj.FrequencyParameters.AmplifierSampleRate*2*dilateSize/1000) + 1);
@@ -528,7 +528,7 @@ classdef TetrodeRecording < handle
 			end
 			
 			obj.Amplifier.Data(:, mask) = 0;
-			fprintf(1, ['Done(', num2str(toc), 's).\n'])
+			tts(['Done(', num2str(toc), 's).\n'])
 		end
 
 		% Expand waveform window, fill unavailable data with NaN
@@ -603,7 +603,7 @@ classdef TetrodeRecording < handle
 			waveformWindowExtended = p.Results.WaveformWindowExtended;
 			append = p.Results.Append;
 
-			tic, fprintf(1, ['Detecting spikes...']);
+			tic, tts(['Detecting spikes...']);
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
 			if isnan(exitWindow(2))
 				exitWindow(2) = waveformWindow(2);
@@ -689,12 +689,12 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).WaveformsExtended = [obj.Spikes(iChannel).WaveformsExtended; waveformsExtended];
 				end
 
-				fprintf(1, ['Done(', num2str(toc), 's).\n'])
+				tts(['Done(', num2str(toc), 's).\n'])
 			end
 		end
 
 		function GetDigitalEvents(obj, varargin)
-			tic, fprintf(1, ['Extracting digital events...']);
+			tic, tts(['Extracting digital events...']);
 			p = inputParser;
 			addParameter(p, 'ChannelCue', 4, @isnumeric);
 			addParameter(p, 'ChannelPress', 2, @isnumeric);
@@ -745,7 +745,7 @@ classdef TetrodeRecording < handle
 				obj.DigitalEvents.RewardOff = [obj.DigitalEvents.RewardOff, rewardOff];
 				obj.DigitalEvents.Timestamps = [obj.DigitalEvents.Timestamps, t];
 			end
-			fprintf(1, ['Done(', num2str(toc), 's).\n'])
+			tts(['Done(', num2str(toc), 's).\n'])
 		end
 
 		% This compresses data by ~ 20 times
@@ -753,7 +753,7 @@ classdef TetrodeRecording < handle
 			obj.Amplifier = [];
 			obj.BoardDigIn = [];
 			mem = memory();
-			fprintf(1, ['Cached data cleared. System memory: ', num2str(round(mem.MemUsedMATLAB/1024^2)), ' MB used (', num2str(round(mem.MemAvailableAllArrays/1024^2)), ' MB available).\n']);
+			tts(['Cached data cleared. System memory: ', num2str(round(mem.MemUsedMATLAB/1024^2)), ' MB used (', num2str(round(mem.MemAvailableAllArrays/1024^2)), ' MB available).\n']);
 		end
 
 		% SpikeSort: PCA & Cluster
@@ -790,15 +790,15 @@ classdef TetrodeRecording < handle
 		end
 
 		function PCA(obj, channels)
-			tic, fprintf(1, 'Principal component analysis...');
+			tic, tts('Principal component analysis...');
 			for iChannel = channels
 				[obj.Spikes(iChannel).PCA.Coeff, obj.Spikes(iChannel).PCA.Score, obj.Spikes(iChannel).PCA.Latent, obj.Spikes(iChannel).PCA.TSquared, obj.Spikes(iChannel).PCA.Explained, obj.Spikes(iChannel).PCA.Mu] = pca(obj.Spikes(iChannel).Waveforms);
 			end
-			fprintf(1, ['Done(', num2str(toc), 's).\n'])
+			tts(['Done(', num2str(toc), 's).\n'])
 		end
 
 		function Cluster(obj, channels, k, method)
-			tic, fprintf(1, 'Clustering...');
+			tic, tts('Clustering...');
 			for iChannel = channels
 				obj.Spikes(iChannel).Cluster = [];
 				if strcmp(method, 'kmeans')
@@ -810,7 +810,7 @@ classdef TetrodeRecording < handle
 					error('Unrecognized clustering method. Must be ''kmeans'' or ''gaussian''.')			
 				end
 			end
-			fprintf(1, ['Done(', num2str(toc), 's).\n'])
+			tts(['Done(', num2str(toc), 's).\n'])
 		end
 
 		function MergeClusters(obj, channel, mergeList, varargin)
