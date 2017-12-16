@@ -26,11 +26,13 @@ classdef TetrodeRecording < handle
 			p = inputParser;
 			addOptional(p, 'ChunkSize', 2, @isnumeric);
 			addParameter(p, 'Chunks', 'first');
+			addParameter(p, 'SubstractMean', true, @islogical);
 			addParameter(p, 'SpikeDetect', false, @islogical);
 			addParameter(p, 'DigitalDetect', false, @islogical);
 			parse(p, varargin{:});
 			chunkSize = p.Results.ChunkSize;
 			chunks = p.Results.Chunks;
+			substractMean = p.Results.SubstractMean;
 			spikeDetect = p.Results.SpikeDetect;
 			digitalDetect = p.Results.DigitalDetect;
 
@@ -51,6 +53,7 @@ classdef TetrodeRecording < handle
 				TetrodeRecording.TTS(['Loading chunk ', num2str(iChunk), '/', num2str(numChunks), '...\n']);
 				obj.ReadRHD(obj.Files((iChunk - 1)*chunkSize + 1:min(iChunk*chunkSize, length(obj.Files))))
 				obj.MapChannels();
+				obj.SubstractMean();
 				obj.RemoveTransient();
 				if spikeDetect
 					for iChannel = [obj.Spikes.Channel]
@@ -497,6 +500,12 @@ classdef TetrodeRecording < handle
 			tetrodeChannel = find(obj.ChannelMap.Tetrode == (rawChannel + 1));
 		end
 
+		% Substract by 32 chn mean
+		function SubstractMean(obj)
+			dataMean = nanmean(obj.Amplifier.Data, 1);
+			obj.Amplifier.Data = obj.Amplifier.Data - dataMean;
+		end
+
 		% Remove lick/press-transient by setting signal to zero
 		function RemoveTransient(obj, digChannel, dilate, dilateSize)
 			if nargin < 2
@@ -748,23 +757,41 @@ classdef TetrodeRecording < handle
 		end
 
 		% SpikeSort: PCA & Cluster
-		function SpikeSort(obj, channels, varargin)
+		function SpikeSort(obj, channels, k, varargin)
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric);
-			addOptional(p, 'K', 7, @isnumeric);
-			addOptional(p, 'Method', 'kmeans', @ischar);
+			addRequired(p, 'K', @isnumeric);
+			addParameter(p, 'Method', 'kmeans', @ischar);
+			addParameter(p, 'Clusters', [], @isnumeric);
+			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'HideResults', false, @islogical);
-			parse(p, channels, varargin{:});
+			parse(p, channels, k, varargin{:});
 			channels = p.Results.Channels;
 			k = p.Results.K;
 			method = p.Results.Method;
+			clusters = p.Results.Clusters;
+			waveformWindow = p.Results.WaveformWindow;
 			hideResults = p.Results.HideResults;
 
-			obj.RemoveNaNs(channels);
-			obj.PCA(channels);
-			obj.Cluster(channels, k, method);
-			if ~hideResults
-				for iChannel = channels
+			for iChannel = channels
+                if isfield(obj.Spikes(iChannel), 'Cluster')
+                    if isempty(clusters)
+                        thisClusters = unique(obj.Spikes(iChannel).Cluster);
+                    else
+                        thisClusters = clusters;
+                    end
+                else
+                    thisClusters = clusters;
+                end
+                if isempty(waveformWindow)
+                	thisWaveformWindow = obj.Spikes(iChannel).WaveformWindow;
+                else
+                	thisWaveformWindow = waveformWindow;
+                end
+				obj.RemoveNaNs(channels);
+				obj.PCA(channels, thisClusters, thisWaveformWindow);
+				obj.Cluster(channels, k, method, thisClusters);
+				if ~hideResults
 					obj.PlotChannel(iChannel);
 				end
 			end
@@ -780,23 +807,40 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function PCA(obj, channels)
+		function PCA(obj, channels, clusters, waveformWindow)
 			tic, TetrodeRecording.TTS('Principal component analysis...');
 			for iChannel = channels
-				[obj.Spikes(iChannel).PCA.Coeff, obj.Spikes(iChannel).PCA.Score, obj.Spikes(iChannel).PCA.Latent, obj.Spikes(iChannel).PCA.TSquared, obj.Spikes(iChannel).PCA.Explained, obj.Spikes(iChannel).PCA.Mu] = pca(obj.Spikes(iChannel).Waveforms);
+                if ~isempty(clusters)
+                    inCluster = ismember(obj.Spikes(iChannel).Cluster, clusters);
+                else
+                    inCluster = true(size(obj.Spikes(iChannel).Timestamps));
+                end
+                inWindow = obj.Spikes(iChannel).WaveformTimestamps >= waveformWindow(1) & obj.Spikes(iChannel).WaveformTimestamps <= waveformWindow(2);
+				obj.Spikes(iChannel).PCA = [];
+				[obj.Spikes(iChannel).PCA.Coeff, obj.Spikes(iChannel).PCA.Score(inCluster, :)] = pca(obj.Spikes(iChannel).Waveforms(inCluster, inWindow));
 			end
 			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 		end
 
-		function Cluster(obj, channels, k, method)
+		function Cluster(obj, channels, k, method, clusters)
 			tic, TetrodeRecording.TTS('Clustering...');
 			for iChannel = channels
+                if isfield(obj.Spikes(iChannel), 'Cluster')
+                    if isempty(obj.Spikes(iChannel).Cluster)
+                        inCluster = true(size(obj.Spikes(iChannel).Timestamps));
+                    else
+                        inCluster = ismember(obj.Spikes(iChannel).Cluster, clusters);
+                    end
+                else
+                    inCluster = true(size(obj.Spikes(iChannel).Timestamps));
+                end
+				
 				obj.Spikes(iChannel).Cluster = [];
 				if strcmp(method, 'kmeans')
-					obj.Spikes(iChannel).Cluster = kmeans(obj.Spikes(iChannel).PCA.Score, k);
+					obj.Spikes(iChannel).Cluster(inCluster) = kmeans(obj.Spikes(iChannel).PCA.Score(inCluster, :), k);
 				elseif strcmp(method, 'gaussian')
-					gm = fitgmdist(obj.Spikes(iChannel).PCA.Score, k);
-					obj.Spikes(iChannel).Cluster = cluster(gm, obj.Spikes(iChannel).PCA.Score);
+					gm = fitgmdist(obj.Spikes(iChannel).PCA.Score(inCluster, :), k);
+					obj.Spikes(iChannel).Cluster(inCluster) = cluster(gm, obj.Spikes(iChannel).PCA.Score(inCluster, :));
 				else
 					error('Unrecognized clustering method. Must be ''kmeans'' or ''gaussian''.')			
 				end
@@ -804,7 +848,7 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 		end
 
-		function MergeClusters(obj, channel, mergeList, varargin)
+		function ClusterMerge(obj, channel, mergeList, varargin)
 			p = inputParser;
 			addRequired(p, 'Channel', @isnumeric);
 			addRequired(p, 'MergeList', @iscell);
@@ -825,7 +869,7 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function RemoveClusters(obj, channel, discardList, varargin)
+		function ClusterRemove(obj, channel, discardList, varargin)
 			p = inputParser;
 			addRequired(p, 'Channel', @isnumeric);
 			addRequired(p, 'DiscardList', @isnumeric);
@@ -842,11 +886,10 @@ classdef TetrodeRecording < handle
 			obj.Spikes(channel).Timestamps(iWaveformToDiscard) = [];
 			obj.Spikes(channel).SampleIndex(iWaveformToDiscard) = [];
 			obj.Spikes(channel).PCA.Score(iWaveformToDiscard, :) = [];
-			obj.Spikes(channel).PCA.TSquared(iWaveformToDiscard, :) = [];
 			obj.Spikes(channel).Cluster(iWaveformToDiscard) = [];
 
 			% Renumber clusters from 1 to numClusters
-			obj.MergeClusters(channel, num2cell(unique(obj.Spikes(channel).Cluster)), 'HideResults', hideResults);
+			obj.ClusterMerge(channel, num2cell(unique(obj.Spikes(channel).Cluster)), 'HideResults', hideResults);
 		end
 
 		% Plot raw channel
@@ -902,37 +945,42 @@ classdef TetrodeRecording < handle
 			addOptional(p, 'NumWaveforms', 30, @isnumeric);
 			addParameter(p, 'Clusters', [], @isnumeric);
 			addParameter(p, 'YLim', [-500, 500], @isnumeric);
+			addParameter(p, 'FrameRate', 30, @isnumeric);
 			parse(p, channel, varargin{:});
 			channel = p.Results.Channel;
 			numWaveforms = p.Results.NumWaveforms;
 			clusters = p.Results.Clusters;
 			yRange = p.Results.YLim;
+			frameRate = p.Results.FrameRate;
 
 			waveforms = obj.Spikes(channel).WaveformsExtended;
 			numWaveformsTotal = size(waveforms, 1);
 			waveformWindow = obj.Spikes(channel).WaveformWindowExtended;
 			t = obj.Spikes(channel).WaveformTimestampsExtended;
 			score = obj.Spikes(channel).PCA.Score;
+			if isempty(clusters)
+				clusters = nonzeros(unique(obj.Spikes(channel).Cluster));
+			end
 
 			if isfield(obj.Spikes(channel), 'Cluster')
 				clusterID = obj.Spikes(channel).Cluster;
-				if ~isempty(clusters)
-					toKeep = ismember(clusterID, clusters);
-					clusterID = clusterID(toKeep);
-					waveforms = waveforms(toKeep, :);
-					score = score(toKeep, :);
-					numWaveformsTotal = size(waveforms, 1);
-				end
+				toKeep = ismember(clusterID, clusters);
+				clusterID = clusterID(toKeep);
+				waveforms = waveforms(toKeep, :);
+				score = score(toKeep, :);
+				numWaveformsTotal = size(waveforms, 1);
 			else
 				clusterID = ones(numWaveformsTotal, 1);
 			end
 
-			hFigure = figure('Units', 'Normalized', 'OuterPosition', [0, 0, 0.3, 1]);
+			hFigure = figure('Units', 'Normalized', 'OuterPosition', [1, 0, 0.3, 1]);
 			colors = 'rgbcmyk';		
 			subplot(2, 1, 1)
 			hold on
-			for iCluster = unique(clusterID)'
-				scatter3(score(clusterID == iCluster, 1), score(clusterID == iCluster, 2), score(clusterID == iCluster, 3), 1, colors(iCluster), 'DisplayName', ['Cluster ', num2str(iCluster)])
+			for iCluster = unique(nonzeros(clusterID))'
+				inCluster = clusterID == iCluster;
+				percentage = round(100*sum(inCluster)/size(obj.Spikes(channel).Waveforms, 1));
+				scatter3(score(inCluster, 1), score(inCluster, 2), score(inCluster, 3), 1, colors(iCluster), 'DisplayName', ['Cluster ', num2str(iCluster), ' (', num2str(percentage), '%)'])
 			end
 			hold off
 			axis equal
@@ -962,7 +1010,7 @@ classdef TetrodeRecording < handle
 
 			hTimer = timer(...
 				'ExecutionMode', 'FixedSpacing',...
-			 	'Period', 0.03,...
+			 	'Period', round((1/frameRate)*1000)/1000,...
 			 	'TimerFcn', {@TetrodeRecording.OnPlotChannelRefresh, hAxes, t, waveforms, numWaveforms, numWaveformsTotal, colors, clusterID}...
 			 	);
 			hAxes.UserData.hTimer = hTimer;
@@ -970,25 +1018,128 @@ classdef TetrodeRecording < handle
 			hFigure.CloseRequestFcn = {@TetrodeRecording.OnFigureClosed, hTimer};
 			start(hTimer);
 		end
-		% Sort spikes and digital events into trial structure
-		function PlotByTrial(obj, channels, varargin)
+
+		function PETH(obj, channels, varargin)
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric);
 			addOptional(p, 'Reference', 'CueOn', @ischar);
 			addOptional(p, 'Event', 'PressOn', @ischar);
 			addOptional(p, 'Exclude', 'LickOn', @ischar);
+			addParameter(p, 'MinTrialLength', 0, @isnumeric);
+			addParameter(p, 'Bins', 5, @isnumeric);
+			addParameter(p, 'BinMethod', 'percentile', @ischar);
+			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
+			addParameter(p, 'Ax', []);
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
 			reference = p.Results.Reference;
 			event = p.Results.Event;
 			exclude = p.Results.Exclude;
+			minTrialLength = p.Results.MinTrialLength;
+			nBins = p.Results.Bins;
+			binMethod = p.Results.BinMethod;
+			spikeRateWindow = p.Results.SpikeRateWindow;
+			ax = p.Results.Ax;
 
 			if ~isempty(reference)
+				referenceDisplayName = reference;
 				reference = obj.DigitalEvents.(reference);
 			else
 				reference = [];
 			end
 			if ~isempty(event)
+				eventDisplayName = event;
+				event = obj.DigitalEvents.(event);
+			else
+				event = [];
+			end
+			if ~isempty(exclude)
+				exclude = obj.DigitalEvents.(exclude);
+			else
+				exclude = [];
+			end
+
+			[reference, event, ~, ~] = TetrodeRecording.FindFirstInTrial(reference, event, exclude);
+
+			% Bin trials according to trial length (t(event) - t(reference))
+			trialLength = event - reference;
+			if strcmp(binMethod, 'percentile')
+				edges = prctile(trialLength(trialLength > minTrialLength), 0:(100/nBins):100);
+			elseif strcmp(binMethod, 'equal')
+				edges = linspace(max(minTrialLength, min(trialLength)), max(trialLength), nBins + 1);
+			end
+			[NTrials, ~, bins] = histcounts(trialLength, edges);
+
+			colors = 'rgbcmyk';
+			styles = {'-', '--', ':', '-.'};
+
+			for iChannel = channels
+				[spikes, trials] = obj.GetSpikesByTrial(iChannel, reference, event, [0, 0]);
+
+				if isempty(ax)
+					hAxes = axes(figure());
+				else
+					hAxes = ax;
+				end
+				hold on
+				for iBin = 1:nBins
+					inBin = ismember(trials, find(bins == iBin));
+					cutOff = -edges(iBin);
+					spikesRelative = spikes(inBin) - event(trials(inBin)); % Spike times relative to event
+					spikesRelative = spikesRelative(spikesRelative > cutOff & spikesRelative < 0);
+					% Windows for estimating spike rate
+					thisEdges = cutOff:(spikeRateWindow/1000):0;
+					if length(thisEdges) < 3
+						continue
+					end
+					% if thisEdges(end) < 0
+					% 	thisEdges(end + 1) = 0;
+					% end
+					thisSpikeRate = histcounts(spikesRelative, thisEdges);
+					thisSpikeRate = (1000*thisSpikeRate/spikeRateWindow)/NTrials(iBin);
+					thisCenters = (thisEdges(1:end - 1) + thisEdges(2:end))/2;
+
+					iStyle = ceil(iBin/length(colors));
+					iColor = mod(iBin, length(colors));
+					if iColor == 0
+						iColor = 7;
+					end
+					thisColor = colors(iColor);
+					thisStyle = styles{iStyle};
+					plot(hAxes, thisCenters, thisSpikeRate, [thisColor, thisStyle],...
+						'DisplayName', ['[', num2str(-cutOff, 2), ' s, ', num2str(edges(iBin + 1), 2), ' s] (', num2str(NTrials(iBin)), ' trials)'],...
+						'LineWidth', 2.5);
+				end
+				xlabel(hAxes, ['Time relative to ', eventDisplayName, ' (s)']);
+				ylabel(hAxes, 'Mean firing rate (Hz)')
+				legend(hAxes, 'Location', 'southwest');
+				hold off
+			end
+		end
+
+		% Sort spikes and digital events into trial structure
+		function Raster(obj, channels, varargin)
+			p = inputParser;
+			addRequired(p, 'Channels', @isnumeric);
+			addOptional(p, 'Reference', 'CueOn', @ischar);
+			addOptional(p, 'Event', 'PressOn', @ischar);
+			addOptional(p, 'Exclude', 'LickOn', @ischar);
+			addParameter(p, 'ExtendedWindow', [-2, 2], @isnumeric);
+			parse(p, channels, varargin{:});
+			channels = p.Results.Channels;
+			reference = p.Results.Reference;
+			event = p.Results.Event;
+			exclude = p.Results.Exclude;
+			extendedWindow = p.Results.ExtendedWindow;
+
+			if ~isempty(reference)
+				referenceDisplayName = reference;
+				reference = obj.DigitalEvents.(reference);
+			else
+				reference = [];
+			end
+			if ~isempty(event)
+				eventDisplayName = event;
 				event = obj.DigitalEvents.(event);
 			else
 				event = [];
@@ -1007,54 +1158,53 @@ classdef TetrodeRecording < handle
 
 			% Bin spikes into trials
 			for iChannel = channels
-				[spikes, trials] = obj.GetSpikesByTrial(iChannel, reference, event, [-2, 2]);
+				[spikes, trials] = obj.GetSpikesByTrial(iChannel, reference, event, extendedWindow);
 				% Sort trials by time to movement
 				[~, I] = sort(reference - event);
-				% trialsFirstPressSorted = changem(trials, 1:length(unique(I)), I);	% !!! changem requires mapping toolbox.
-				trialsFirstPressSorted = changem(trials, 1:length(unique(I)), I);	% !!! changem requires mapping toolbox.
+				trialsSorted = changem(trials, 1:length(unique(I)), I);	% !!! changem requires mapping toolbox.
 
 				hFigure = figure('Units', 'Normalized', 'OuterPosition', [0, 0, 0.75, 1]);
-				hAxes = subplot(2, 2, 1);
+				hAxes = subplot(1, 2, 1);
 				hold on
-				plot(hAxes, spikes - reference(trials), trialsFirstPressSorted, '.',...
+				plot(hAxes, spikes - reference(trials), trialsSorted, '.',...
 					'MarkerSize', 5,...
 					'MarkerEdgeColor', 'k',...
 					'MarkerFaceColor', 'k',...
 					'LineWidth', 1.5,...
 					'DisplayName', 'Spike'...
 				)
-				plot(hAxes, event(trials) - reference(trials), trialsFirstPressSorted, '.',...
+				plot(hAxes, event(trials) - reference(trials), trialsSorted, '.',...
 					'MarkerSize', 10,...
 					'MarkerEdgeColor', 'b',...
 					'MarkerFaceColor', 'b',...
 					'LineWidth', 1.5,...
-					'DisplayName', 'Movement'...
+					'DisplayName', eventDisplayName...
 				)
 				expName = strsplit(obj.Path, '\');
 				expName = expName{end - 1};
 				title([expName, ' - Channel ', num2str(iChannel)], 'Interpreter', 'none')
-				xlabel('Time relative to cue (s)')
+				xlabel(['Time relative to ', referenceDisplayName, ' (s)'])
 				ylabel('Trial')
 				legend('Location', 'northeast');
 				hold off
 
-				hAxes = subplot(2, 2, 2);
+				hAxes = subplot(1, 2, 2);
 				hold on
-				plot(hAxes, spikes - event(trials), trialsFirstPressSorted, '.',...
+				plot(hAxes, spikes - event(trials), trialsSorted, '.',...
 					'MarkerSize', 5,...
 					'MarkerEdgeColor', [.1, .1, .1],...
 					'MarkerFaceColor', [.1, .1, .1],...
 					'LineWidth', 1.5,...
 					'DisplayName', 'Spike'...
 				)
-				plot(hAxes, reference(trials) - event(trials), trialsFirstPressSorted, '.',...
+				plot(hAxes, reference(trials) - event(trials), trialsSorted, '.',...
 					'MarkerSize', 10,...
 					'MarkerEdgeColor', 'r',...
 					'MarkerFaceColor', 'r',...
 					'LineWidth', 1.5,...
-					'DisplayName', 'Cue'...
+					'DisplayName', referenceDisplayName...
 				)
-				xlabel('Time relative to movement (s)')
+				xlabel(['Time relative to ', eventDisplayName,' (s)'])
 				ylabel('Trial')
 				legend('Location', 'northwest');
 				hold off
@@ -1149,9 +1299,11 @@ classdef TetrodeRecording < handle
 					hAxes.UserData.hWaveforms = hAxes.UserData.hWaveforms(2:end);
 				end
 				hAxes.UserData.hWaveforms = [hAxes.UserData.hWaveforms, plot(hAxes, t, waveforms(iWaveform, :), 'LineStyle', '-', 'Color', colors(clusterID(iWaveform)), 'DisplayName', ['Waveform (Cluster ', num2str(clusterID(iWaveform)), ')'])];
-				xlabel(hAxes, 'Time (ms)');
-				ylabel(hAxes, 'Voltage (\muV');
-				title(hAxes, 'Waveforms');
+				if iWaveform == 1
+					xlabel(hAxes, 'Time (ms)');
+					ylabel(hAxes, 'Voltage (\muV');
+					title(hAxes, 'Waveforms');
+				end
 			end	
 		end
 
