@@ -845,7 +845,7 @@ classdef TetrodeRecording < handle
 					error('Unrecognized clustering method. Must be ''kmeans'' or ''gaussian''.')			
 				end
 			end
-			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
+			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'], toc >= 8)
 		end
 
 		function ClusterMerge(obj, channel, mergeList, varargin)
@@ -1025,6 +1025,7 @@ classdef TetrodeRecording < handle
 			addOptional(p, 'Reference', 'CueOn', @ischar);
 			addOptional(p, 'Event', 'PressOn', @ischar);
 			addOptional(p, 'Exclude', 'LickOn', @ischar);
+			addParameter(p, 'Clusters', [], @isnumeric);
 			addParameter(p, 'MinTrialLength', 0, @isnumeric);
 			addParameter(p, 'Bins', 5, @isnumeric);
 			addParameter(p, 'BinMethod', 'percentile', @ischar);
@@ -1035,6 +1036,7 @@ classdef TetrodeRecording < handle
 			reference = p.Results.Reference;
 			event = p.Results.Event;
 			exclude = p.Results.Exclude;
+			clusters = p.Results.Clusters;
 			minTrialLength = p.Results.MinTrialLength;
 			nBins = p.Results.Bins;
 			binMethod = p.Results.BinMethod;
@@ -1074,7 +1076,7 @@ classdef TetrodeRecording < handle
 			styles = {'-', '--', ':', '-.'};
 
 			for iChannel = channels
-				[spikes, trials] = obj.GetSpikesByTrial(iChannel, reference, event, [0, 0]);
+				[spikes, trials] = obj.GetSpikesByTrial(iChannel, reference, event, [0, 0], clusters);
 
 				if isempty(ax)
 					hAxes = axes(figure());
@@ -1125,12 +1127,14 @@ classdef TetrodeRecording < handle
 			addOptional(p, 'Event', 'PressOn', @ischar);
 			addOptional(p, 'Exclude', 'LickOn', @ischar);
 			addParameter(p, 'ExtendedWindow', [-2, 2], @isnumeric);
+			addParameter(p, 'Clusters', [], @isnumeric);
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
 			reference = p.Results.Reference;
 			event = p.Results.Event;
 			exclude = p.Results.Exclude;
 			extendedWindow = p.Results.ExtendedWindow;
+			clusters = p.Results.Clusters;
 
 			if ~isempty(reference)
 				referenceDisplayName = reference;
@@ -1158,7 +1162,7 @@ classdef TetrodeRecording < handle
 
 			% Bin spikes into trials
 			for iChannel = channels
-				[spikes, trials] = obj.GetSpikesByTrial(iChannel, reference, event, extendedWindow);
+				[spikes, trials] = obj.GetSpikesByTrial(iChannel, reference, event, extendedWindow, clusters);
 				% Sort trials by time to movement
 				[~, I] = sort(reference - event);
 				trialsSorted = changem(trials, 1:length(unique(I)), I);	% !!! changem requires mapping toolbox.
@@ -1211,9 +1215,13 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function [spikes, trials] = GetSpikesByTrial(obj, channel, reference, event, extendedWindow)
+		function [spikes, trials] = GetSpikesByTrial(obj, channel, reference, event, extendedWindow, clusters)
 			if nargin < 5
 				extendedWindow = [-1, 0];
+			end
+
+			if nargin < 6
+				clusters = [];
 			end
 
 			edges = [reference + extendedWindow(1); event + extendedWindow(2)];
@@ -1222,7 +1230,11 @@ classdef TetrodeRecording < handle
 				spikes = [];
 				trials = [];
 			else
-				spikes = obj.Spikes(channel).Timestamps;
+				if ~isempty(clusters)
+					spikes = obj.Spikes(channel).Timestamps(ismember(obj.Spikes(channel).Cluster, clusters));
+				else
+					spikes = obj.Spikes(channel).Timestamps;
+				end
 				[~, ~, bins] = histcounts(spikes, edges);
 				oddBins = rem(bins, 2) ~= 0;	% Spikes in odd bins occur between reference and event, should keep these spikes
 				spikes = spikes(oddBins);
