@@ -53,7 +53,9 @@ classdef TetrodeRecording < handle
 				TetrodeRecording.TTS(['Loading chunk ', num2str(iChunk), '/', num2str(numChunks), '...\n']);
 				obj.ReadRHD(obj.Files((iChunk - 1)*chunkSize + 1:min(iChunk*chunkSize, length(obj.Files))))
 				obj.MapChannels();
-				obj.SubstractMean();
+                if substractMean
+                    obj.SubstractMean();
+                end
 				obj.RemoveTransient();
 				if spikeDetect
 					for iChannel = [obj.Spikes.Channel]
@@ -521,12 +523,11 @@ classdef TetrodeRecording < handle
 			% Verify if digital input sample rate is identical to amplifier sample rate
 			if obj.FrequencyParameters.AmplifierSampleRate ~= obj.FrequencyParameters.BoardDigInSampleRate
 				error('Board digital input has a different sampling rate from amplifier. Aborted.');
-				return
 			end
 
 			tic, TetrodeRecording.TTS('Removing lick/touch-related transients. This might take a while...');
 			if dilate
-				mask = logical(zeros(1, obj.Amplifier.NumSamples));
+				mask = false(1, obj.Amplifier.NumSamples);
 				dilateSE = ones(round(obj.FrequencyParameters.AmplifierSampleRate*2*dilateSize/1000) + 1);
 				for thisChannel = digChannel
 					thisChannel = find([obj.BoardDigIn.Channels.NativeOrder] == thisChannel);
@@ -615,7 +616,7 @@ classdef TetrodeRecording < handle
 			waveformWindowExtended = p.Results.WaveformWindowExtended;
 			append = p.Results.Append;
 
-			tic, TetrodeRecording.TTS(['Detecting spikes...']);
+			tic, TetrodeRecording.TTS('Detecting spikes...');
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
 			if isnan(exitWindow(2))
 				exitWindow(2) = waveformWindow(2);
@@ -733,7 +734,7 @@ classdef TetrodeRecording < handle
 				clearCache = false;
 			end
 
-			tic, TetrodeRecording.TTS(['Extracting digital events...']);
+			tic, TetrodeRecording.TTS('Extracting digital events...');
 			% Get digital signals
 			[obj.DigitalEvents.CueOn, obj.DigitalEvents.CueOff] 		= TetrodeRecording.FindEdges(obj.DigitalEvents.Data(1, :), obj.DigitalEvents.Timestamps);
 			[obj.DigitalEvents.PressOn, obj.DigitalEvents.PressOff] 	= TetrodeRecording.FindEdges(obj.DigitalEvents.Data(2, :), obj.DigitalEvents.Timestamps);
@@ -906,8 +907,6 @@ classdef TetrodeRecording < handle
 			digInScaled = obj.BoardDigIn.Data(digInChannels, :).*[100; 500; 200; 350]; % CUE, LEVER, REWARD, LICK
 
 			obj.Amplifier.DataMean = nanmean(obj.Amplifier.Data, 1);
-
-			tetrodeColors = {'c-', 'm-', 'y-', 'b-', 'c--', 'm--', 'y--', 'b--'};
 
 			figure('Units', 'normalized', 'Position', [0, 0, 1, 0.6])
 
@@ -1167,7 +1166,7 @@ classdef TetrodeRecording < handle
 				[~, I] = sort(reference - event);
 				trialsSorted = changem(trials, 1:length(unique(I)), I);	% !!! changem requires mapping toolbox.
 
-				hFigure = figure('Units', 'Normalized', 'OuterPosition', [0, 0, 0.75, 1]);
+				figure('Units', 'Normalized', 'OuterPosition', [0, 0, 0.75, 1]);
 				hAxes = subplot(1, 2, 1);
 				hold on
 				plot(hAxes, spikes - reference(trials), trialsSorted, '.',...
