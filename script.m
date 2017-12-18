@@ -86,6 +86,23 @@ TetrodeRecording.TTS(['All Done.\n',], true)
 
 clear chunkSize
 
+% 1115
+% 10 20
+tr = TetrodeRecording();
+
+chunkSize = 10;
+
+tr.ReadFiles(chunkSize);
+
+tr.SpikeDetect(10, 25, 'ExclusionThreshold', 500, 'ExitThreshold', -15, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
+tr.SpikeDetect(20, 25, 'ExclusionThreshold', 500, 'ExitThreshold', -15, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
+
+tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
+
+TetrodeRecording.TTS(['All Done.\n',], true)
+
+clear chunkSize
+
 % 1116
 tr = TetrodeRecording();
 
