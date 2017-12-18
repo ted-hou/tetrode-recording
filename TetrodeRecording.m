@@ -977,7 +977,7 @@ classdef TetrodeRecording < handle
 				clusterID = ones(numWaveformsTotal, 1);
 			end
 
-			hFigure = figure('Units', 'Normalized', 'OuterPosition', [1, 0, 0.3, 1]);
+			hFigure = figure('Units', 'Normalized', 'OuterPosition', [0.7, 0, 0.3, 1]);
 			colors = 'rgbcmyk';		
 			subplot(2, 1, 1)
 			hold on
