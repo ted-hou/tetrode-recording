@@ -793,7 +793,7 @@ classdef TetrodeRecording < handle
 				obj.PCA(channels, thisClusters, thisWaveformWindow);
 				obj.Cluster(channels, k, method, thisClusters);
 				if ~hideResults
-					obj.PlotChannel(iChannel);
+					obj.PlotChannel(iChannel, 'WaveformWindow', thisWaveformWindow);
 				end
 			end
 		end
@@ -908,7 +908,7 @@ classdef TetrodeRecording < handle
 
 			obj.Amplifier.DataMean = nanmean(obj.Amplifier.Data, 1);
 
-			figure('Units', 'normalized', 'Position', [0, 0, 1, 0.6])
+			figure('Name', ['Channel ', num2str(channel)], 'Units', 'normalized', 'Position', [0, 0, 1, 0.6])
 
 			subplot(2, 1, 1)
 			hold on
@@ -945,16 +945,21 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Clusters', [], @isnumeric);
 			addParameter(p, 'YLim', [-500, 500], @isnumeric);
 			addParameter(p, 'FrameRate', 30, @isnumeric);
+			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			parse(p, channel, varargin{:});
 			channel = p.Results.Channel;
 			numWaveforms = p.Results.NumWaveforms;
 			clusters = p.Results.Clusters;
 			yRange = p.Results.YLim;
 			frameRate = p.Results.FrameRate;
+			waveformWindow = p.Results.WaveformWindow;
 
 			waveforms = obj.Spikes(channel).WaveformsExtended;
 			numWaveformsTotal = size(waveforms, 1);
-			waveformWindow = obj.Spikes(channel).WaveformWindowExtended;
+			if isempty(waveformWindow)
+				waveformWindow = obj.Spikes(channel).WaveformWindow;
+			end
+			waveformWindowExtended = obj.Spikes(channel).WaveformWindowExtended;
 			t = obj.Spikes(channel).WaveformTimestampsExtended;
 			score = obj.Spikes(channel).PCA.Score;
 			if isempty(clusters)
@@ -993,9 +998,9 @@ classdef TetrodeRecording < handle
 			hLegends = [];
 			hAxes.UserData.hWaveforms = [];
 			hAxes.UserData.iWaveform = 0;
-			if sum(waveformWindow == obj.Spikes(channel).WaveformWindow) < 2
-				hLegends = [hLegends, line(repmat(obj.Spikes(channel).WaveformWindow(1), [1, 2]), yRange, 'Color', 'r', 'DisplayName', ['SpikeSort Window (', num2str(obj.Spikes(channel).WaveformWindow(1)), ' to ', num2str(obj.Spikes(channel).WaveformWindow(2)), ' ms)'])];
-				line(repmat(obj.Spikes(channel).WaveformWindow(2), [1, 2]), yRange, 'Color', 'r')
+			if sum(waveformWindowExtended == waveformWindow) < 2
+				hLegends = [hLegends, line(repmat(waveformWindow(1), [1, 2]), yRange, 'Color', 'r', 'DisplayName', ['SpikeSort Window (', num2str(waveformWindow(1)), ' to ', num2str(waveformWindow(2)), ' ms)'])];
+				line(repmat(waveformWindow(2), [1, 2]), yRange, 'Color', 'r')
 			end
 			hLegends = [hLegends, line([obj.Spikes(channel).WaveformWindow(1), 0], repmat(obj.Spikes(channel).Threshold.Trigger, [1, 2]), 'Color', 'k', 'LineWidth', 3, 'DisplayName', ['Trigger Threshold (', num2str(obj.Spikes(channel).Threshold.Trigger), ' \muV)'])];
 			if ~isnan(obj.Spikes(channel).Threshold.Exit)
