@@ -95,7 +95,6 @@ chunkSize = 10;
 tr.ReadFiles(chunkSize);
 
 tr.SpikeDetect(10, 25, 'ExclusionThreshold', 500, 'ExitThreshold', -15, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
-tr.SpikeDetect(20, 25, 'ExclusionThreshold', 500, 'ExitThreshold', -15, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
 
 tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
 
@@ -112,7 +111,7 @@ tr.ReadFiles(chunkSize);
 
 tr.SpikeDetect(tr.MapChannelID(4), 40, 'ExclusionThreshold', 600, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
 tr.SpikeDetect(tr.MapChannelID(7), -50, 'ExclusionThreshold', -500, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
-% tr.SpikeDetect(tr.MapChannelID(11), -50, 'ExclusionThreshold', -400, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
+tr.SpikeDetect(tr.MapChannelID(11), -30, 'ExitThreshold', 10, 'ExclusionThreshold', -400, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
 
 tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
 
@@ -120,3 +119,23 @@ TetrodeRecording.TTS(['All Done.\n',], true)
 
 clear chunkSize
 
+% 1122
+for iChannel = [1 4 5 24 31]
+	tr.PlotChannelRaw(tr.MapChannelID(iChannel), [100, 101], [-300, 300]);
+end
+
+tr = TetrodeRecording();
+
+chunkSize = 10;
+
+tr.ReadFiles(chunkSize);
+
+for iChannel = [1 4 10 12 15];
+	tr.SpikeDetect(iChannel, -30, 'ExitThreshold', 15, 'ExclusionThreshold', 500, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
+end
+
+tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
+
+TetrodeRecording.TTS(['All Done.\n',], true)
+
+clear chunkSize
