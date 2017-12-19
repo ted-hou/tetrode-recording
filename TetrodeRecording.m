@@ -837,6 +837,7 @@ classdef TetrodeRecording < handle
                 end
 				
 				obj.Spikes(iChannel).Cluster = [];
+				obj.Spikes(iChannel).Hidden = false(size(obj.Spikes(iChannel).Timestamps));
 				if strcmp(method, 'kmeans')
 					obj.Spikes(iChannel).Cluster(inCluster) = kmeans(obj.Spikes(iChannel).PCA.Score(inCluster, :), k);
 				elseif strcmp(method, 'gaussian')
@@ -888,9 +889,59 @@ classdef TetrodeRecording < handle
 			obj.Spikes(channel).SampleIndex(iWaveformToDiscard) = [];
 			obj.Spikes(channel).PCA.Score(iWaveformToDiscard, :) = [];
 			obj.Spikes(channel).Cluster(iWaveformToDiscard) = [];
+			obj.Spikes(channel).Hidden(iWaveformToDiscard) = [];
 
 			% Renumber clusters from 1 to numClusters
 			obj.ClusterMerge(channel, num2cell(unique(obj.Spikes(channel).Cluster)), 'HideResults', hideResults);
+		end
+
+		function ClusterHide(obj, channel, hideList, unhide, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addRequired(p, 'HideList', @isnumeric);
+			addOptional(p, 'Unhide', false, @islogical);
+			addParameter(p, 'HideResults', false, @islogical);
+			parse(p, channel, hideList, varargin{:});
+			channel = p.Results.Channel;
+			hideList = p.Results.HideResults;
+			unhide = p.Results.Unhide;
+			hideResults = p.Results.HideResults;
+
+			if isempty(hideList)
+				hideList = unique(obj.Spikes(channel).Cluster);
+			end
+
+			% Discard unwanted clusters
+			iWaveformToHide = ismember(obj.Spikes(channel).Cluster, hideList);
+			obj.Spikes(channel).Hidden(iWaveformToHide) = ~unhide;
+		end
+
+		function ClusterDecimate(obj, channel, cluster, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addRequired(p, 'Cluster', @isnumeric);
+			addOptional(p, 'LuckyNumber', 10, @isnumeric);
+			addParameter(p, 'HideResults', false, @islogical);
+			parse(p, channel, cluster, varargin{:});
+			channel = p.Results.Channel;
+			cluster = p.Results.Cluster;
+			luckyNumber = p.Results.LuckyNumber;
+			hideResults = p.Results.HideResults;
+
+			inCluster = find(obj.Spikes(channel).Cluster == cluster);
+			notInLuck = inCluster(~ismember(1:length(inCluster), 1:luckyNumber:length(inCluster)));
+
+			obj.Spikes(channel).Waveforms(notInLuck, :) 		= [];
+			obj.Spikes(channel).WaveformsExtended(notInLuck, :) = [];
+			obj.Spikes(channel).Timestamps(notInLuck) 			= [];
+			obj.Spikes(channel).SampleIndex(notInLuck) 			= [];
+			obj.Spikes(channel).PCA.Score(notInLuck, :) 		= [];
+			obj.Spikes(channel).Cluster(notInLuck) 				= [];
+			obj.Spikes(channel).Hidden(notInLuck) 				= [];
+
+			if ~hideResults
+				obj.PlotChannel(channel);
+			end
 		end
 
 		% Plot raw channel
@@ -968,7 +1019,7 @@ classdef TetrodeRecording < handle
 
 			if isfield(obj.Spikes(channel), 'Cluster')
 				clusterID = obj.Spikes(channel).Cluster;
-				toKeep = ismember(clusterID, clusters);
+				toKeep = ismember(clusterID, clusters) & ~obj.Spikes(channel).Hidden;
 				clusterID = clusterID(toKeep);
 				waveforms = waveforms(toKeep, :);
 				score = score(toKeep, :);
@@ -983,6 +1034,9 @@ classdef TetrodeRecording < handle
 			hold on
 			for iCluster = unique(nonzeros(clusterID))'
 				inCluster = clusterID == iCluster;
+				if sum(inCluster) == 0
+					continue
+				end
 				percentage = round(100*sum(inCluster)/size(obj.Spikes(channel).Waveforms, 1));
 				scatter3(score(inCluster, 1), score(inCluster, 2), score(inCluster, 3), 1, colors(iCluster), 'DisplayName', ['Cluster ', num2str(iCluster), ' (', num2str(percentage), '%)'])
 			end
@@ -1235,7 +1289,7 @@ classdef TetrodeRecording < handle
 				trials = [];
 			else
 				if ~isempty(clusters)
-					spikes = obj.Spikes(channel).Timestamps(ismember(obj.Spikes(channel).Cluster, clusters));
+					spikes = obj.Spikes(channel).Timestamps(ismember(obj.Spikes(channel).Cluster, clusters) & ~obj.Spikes(channel).Hidden);
 				else
 					spikes = obj.Spikes(channel).Timestamps;
 				end
