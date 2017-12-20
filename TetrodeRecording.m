@@ -448,6 +448,11 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.TTS(['	Done(', num2str(toc, 2), ' seconds).\n'])
 		end
 
+		% Save spike data for selected channels
+		function Save(obj, channels)
+
+		end
+
 		% Used to preview a small portion of loaded data. Will remove used data from workspace.
 		function TrimData(obj, numSamples)
 			obj.BoardDigIn.NumSamples = numSamples;
@@ -846,7 +851,7 @@ classdef TetrodeRecording < handle
 					error('Unrecognized clustering method. Must be ''kmeans'' or ''gaussian''.')			
 				end
 			end
-			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'], toc >= 8)
+			TetrodeRecording.TTS(['Done(', num2str(round(toc)), ' seconds).\n'], toc >= 10)
 		end
 
 		function ClusterMerge(obj, channel, mergeList, varargin)
@@ -1277,6 +1282,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Event', 'PressOn', @ischar);
 			addParameter(p, 'Exclude', 'LickOn', @ischar);
 			addParameter(p, 'Clusters', [], @isnumeric);
+			addParameter(p, 'AddFirstCluster', false, @islogical);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'ExtendedWindow', [0, 0], @isnumeric);
 			addParameter(p, 'MinTrialLength', 0, @isnumeric);
@@ -1284,13 +1290,14 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'BinMethod', 'percentile', @ischar);
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
 			addParameter(p, 'RasterXLim', [], @isnumeric);
-			addParameter(p, 'FontSize', [], @isnumeric);
+			addParameter(p, 'FontSize', 8, @isnumeric);
 			parse(p, channels, varargin{:});
 			channels 		= p.Results.Channels;
 			reference 		= p.Results.Reference;
 			event 			= p.Results.Event;
 			exclude 		= p.Results.Exclude;
 			clusters 		= p.Results.Clusters;
+			addFirstCluster	= p.Results.AddFirstCluster;
 			waveformWindow 	= p.Results.WaveformWindow;
 			extendedWindow 	= p.Results.ExtendedWindow;
 			minTrialLength 	= p.Results.MinTrialLength;
@@ -1303,7 +1310,11 @@ classdef TetrodeRecording < handle
 			if isempty(clusters)
 				waveformClusters = [];
 			else
-				waveformClusters = [1, clusters];
+				if addFirstCluster
+					waveformClusters = [1, clusters];
+				else
+					waveformClusters = clusters;
+				end
 			end
 
 			xRatio 	= 0.4;
@@ -1323,15 +1334,12 @@ classdef TetrodeRecording < handle
 				expName = expName{end - 1};
 				displayName = [expName, ' (Channel ', num2str(iChannel), ')'];
 
-				hFigure 	= figure('Units', 'Normalized', 'Position', [0.125, 0, 0.75, 1], 'Name', displayName);
+				hFigure 	= figure('Units', 'Normalized', 'Position', [0.125, 0, 0.75, 1], 'Name', displayName, 'DefaultAxesFontSize', fontSize);
 				hWaveform 	= subplot('Position', [fMargin + xMargin, fMargin + 5*yMargin + hDown + hUpHalf, wLeft, hUpHalf]);
 				hPCA 		= subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hDown, wLeft, hUpHalf]);
 				hRaster		= subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + 3*yMargin + hDown, wRight, hUp]);
 				hPETH 		= subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hDown]);
 
-				if ~isempty(fontSize)
-					hFigure.DefaultAxesFontSize = fontSize;
-				end
 				suptitle(displayName);
 
 				obj.PlotWaveforms(iChannel, 'Clusters', waveformClusters, 'WaveformWindow', waveformWindow,...
