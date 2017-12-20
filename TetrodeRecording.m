@@ -1030,9 +1030,9 @@ classdef TetrodeRecording < handle
 			end
 			hold(hAxes1, 'off')
 			axis(hAxes1, 'equal')
-			xlabel(hAxes1, '1st Principal Component')
-			ylabel(hAxes1, '2nd Principal Component')
-			zlabel(hAxes1, '3rd Principal Component')
+			xlabel(hAxes1, '1st PC')
+			ylabel(hAxes1, '2nd PC')
+			zlabel(hAxes1, '3rd PC')
 			title(hAxes1, 'PCA')
 			legend(hAxes1, 'Location', 'Best')
 
@@ -1053,6 +1053,7 @@ classdef TetrodeRecording < handle
 				hLegends = [hLegends, line(hAxes2, obj.Spikes(channel).WaveformWindow, repmat(obj.Spikes(channel).Threshold.Exclusion, [1, 2]), 'Color', 'm', 'LineWidth', 3, 'DisplayName', ['Exclusion Threshold (', num2str(obj.Spikes(channel).Threshold.Exclusion), ' \muV)'])];
 			end
 			% legend(hLegends, 'AutoUpdate', 'off', 'Location', 'Best')
+			xlim(hAxes2, waveformWindowExtended)
 			ylim(hAxes2, yRange)
 
 			hTimer = timer(...
@@ -1075,6 +1076,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'AlignTo', 'Event', @ischar);
 			addParameter(p, 'ExtendedWindow', [-2, 2], @isnumeric);
 			addParameter(p, 'Clusters', [], @isnumeric);
+			addParameter(p, 'XLim', [], @isnumeric);
 			addParameter(p, 'Ax', []);
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
@@ -1084,6 +1086,7 @@ classdef TetrodeRecording < handle
 			alignTo = p.Results.AlignTo;
 			extendedWindow = p.Results.ExtendedWindow;
 			clusters = p.Results.Clusters;
+			xRange = p.Results.XLim;
 			ax = p.Results.Ax;
 
 			if ~isempty(reference)
@@ -1151,13 +1154,13 @@ classdef TetrodeRecording < handle
 					'LineWidth', 1.5,...
 					'DisplayName', eventDisplayNameRelative...
 				)
-				expName = strsplit(obj.Path, '\');
-				expName = expName{end - 1};
 				title(hAxes, 'Spike raster')
-				% title(hAxes, ['Spike raster - ', expName, ' (Channel ', num2str(iChannel), ')'], 'Interpreter', 'none')
 				xlabel(hAxes, ['Time relative to ', referenceDisplayNameRelative, ' (s)'])
 				ylabel(hAxes, 'Trial')
 				legend(hAxes, 'Location', 'Best');
+				if ~isempty(xRange)
+					xlim(hAxes, xRange);
+				end
 				hold off
 			end
 		end
@@ -1280,6 +1283,8 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Bins', 5, @isnumeric);
 			addParameter(p, 'BinMethod', 'percentile', @ischar);
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
+			addParameter(p, 'RasterXLim', [], @isnumeric);
+			addParameter(p, 'FontSize', [], @isnumeric);
 			parse(p, channels, varargin{:});
 			channels 		= p.Results.Channels;
 			reference 		= p.Results.Reference;
@@ -1292,6 +1297,8 @@ classdef TetrodeRecording < handle
 			bins 			= p.Results.Bins;
 			binMethod 		= p.Results.BinMethod;
 			spikeRateWindow = p.Results.SpikeRateWindow;
+			rasterXLim 		= p.Results.RasterXLim;
+			fontSize 		= p.Results.FontSize;
 
 			if isempty(clusters)
 				waveformClusters = [];
@@ -1300,9 +1307,9 @@ classdef TetrodeRecording < handle
 			end
 
 			xRatio 	= 0.4;
-			yRatio 	= 0.65;
+			yRatio 	= 0.6;
 			xMargin = 0.04;
-			yMargin = 0.04;
+			yMargin = 0.06;
 			fMargin = 0.04;
 			hUp 	= (1 - 2*fMargin)*yRatio - 2*yMargin;
 			hUpHalf = (hUp - 2*yMargin)/2;
@@ -1312,20 +1319,30 @@ classdef TetrodeRecording < handle
 			wRight	= (1 - 2*fMargin)*(1 - xRatio) - 2*xMargin;
 
 			for iChannel = channels
-				hFigure 	= figure('Units', 'Normalized', 'Position', [0.25, 0.05, 0.7, 0.8]);
+				expName = strsplit(obj.Path, '\');
+				expName = expName{end - 1};
+				displayName = [expName, ' (Channel ', num2str(iChannel), ')'];
+
+				hFigure 	= figure('Units', 'Normalized', 'Position', [0.125, 0, 0.75, 1], 'Name', displayName);
 				hWaveform 	= subplot('Position', [fMargin + xMargin, fMargin + 5*yMargin + hDown + hUpHalf, wLeft, hUpHalf]);
 				hPCA 		= subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hDown, wLeft, hUpHalf]);
 				hRaster		= subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + 3*yMargin + hDown, wRight, hUp]);
 				hPETH 		= subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hDown]);
 
-				obj.PlotWaveforms(iChannel, 'Clusters', waveformClusters, 'Ax', [hPCA, hWaveform], 'WaveformWindow', waveformWindow);
+				if ~isempty(fontSize)
+					hFigure.DefaultAxesFontSize = fontSize;
+				end
+				suptitle(displayName);
+
+				obj.PlotWaveforms(iChannel, 'Clusters', waveformClusters, 'WaveformWindow', waveformWindow,...
+					'Ax', [hPCA, hWaveform]);
 				obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
-					'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'Ax', hRaster...
-					);
+					'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
+					'Ax', hRaster);
 				obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
 					'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
-					'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow, 'Ax', hPETH...
-					);
+					'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
+					'Ax', hPETH);
 			end
 		end
 
@@ -1428,7 +1445,7 @@ classdef TetrodeRecording < handle
 				hAxes.UserData.hWaveforms = [hAxes.UserData.hWaveforms, plot(hAxes, t, waveforms(iWaveform, :), 'LineStyle', '-', 'Color', colors(clusterID(iWaveform)), 'DisplayName', ['Waveform (Cluster ', num2str(clusterID(iWaveform)), ')'])];
 				if iWaveform == 1
 					xlabel(hAxes, 'Time (ms)');
-					ylabel(hAxes, 'Voltage (\muV');
+					ylabel(hAxes, 'Voltage (\muV)');
 					title(hAxes, 'Waveforms');
 				end
 			end	
