@@ -504,7 +504,10 @@ classdef TetrodeRecording < handle
 
 		% Convert zero-based raw channel id to remapped tetrode id
 		function tetrodeChannel = MapChannelID(obj, rawChannel)
-			tetrodeChannel = find(obj.ChannelMap.Tetrode == (rawChannel + 1));
+			tetrodeChannel = [];
+			for iChannel = rawChannel
+				tetrodeChannel = [tetrodeChannel, find(obj.ChannelMap.Tetrode == (iChannel + 1))];
+			end
 		end
 
 		% Substract by 32 chn mean
