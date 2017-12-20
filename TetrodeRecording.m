@@ -918,6 +918,8 @@ classdef TetrodeRecording < handle
 			if ~hideResults
 				obj.PlotChannel(channel);
 			end
+
+			TetrodeRecording.TTS('Decimate!\n', true);
 		end
 
 		% Plot raw channel
@@ -967,9 +969,9 @@ classdef TetrodeRecording < handle
 		function PlotWaveforms(obj, channel, varargin)
 			p = inputParser;
 			addRequired(p, 'Channel', @isnumeric);
-			addOptional(p, 'NumWaveforms', 30, @isnumeric);
+			addOptional(p, 'NumWaveforms', 50, @isnumeric);
 			addParameter(p, 'Clusters', [], @isnumeric);
-			addParameter(p, 'YLim', [-500, 500], @isnumeric);
+			addParameter(p, 'YLim', [-300, 300], @isnumeric);
 			addParameter(p, 'FrameRate', 30, @isnumeric);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'Ax', []);
@@ -1011,13 +1013,13 @@ classdef TetrodeRecording < handle
 				hAxes2 = subplot(2, 1, 2);
 			else
 				hAxes1 = ax(1);
-				hAxes2 = ax(1);
+				hAxes2 = ax(2);
 				hFigure = hAxes1.Parent;
 			end
 
 			colors = 'rgbcmyk';
-			axes(hAxes2)
-			hold on
+			axes(hAxes1)
+			hold(hAxes1, 'on')
 			for iCluster = unique(nonzeros(clusterID))'
 				inCluster = clusterID == iCluster;
 				if sum(inCluster) == 0
@@ -1026,32 +1028,32 @@ classdef TetrodeRecording < handle
 				percentage = round(100*sum(inCluster)/size(obj.Spikes(channel).Waveforms, 1));
 				scatter3(hAxes1, score(inCluster, 1), score(inCluster, 2), score(inCluster, 3), 1, colors(iCluster), 'DisplayName', ['Cluster ', num2str(iCluster), ' (', num2str(percentage), '%)'])
 			end
-			hold off
+			hold(hAxes1, 'off')
 			axis(hAxes1, 'equal')
 			xlabel(hAxes1, '1st Principal Component')
 			ylabel(hAxes1, '2nd Principal Component')
 			zlabel(hAxes1, '3rd Principal Component')
-			title(hAxes1, 'Spike Sorting')
-			legend(hAxes1)
+			title(hAxes1, 'PCA')
+			legend(hAxes1, 'Location', 'Best')
 
 			axes(hAxes2)
-			hold on
+			hold(hAxes2, 'on')
 			hLegends = [];
 			hAxes2.UserData.hWaveforms = [];
 			hAxes2.UserData.iWaveform = 0;
 			if sum(waveformWindowExtended == waveformWindow) < 2
-				hLegends = [hLegends, line(repmat(waveformWindow(1), [1, 2]), yRange, 'Color', 'r', 'DisplayName', ['SpikeSort Window (', num2str(waveformWindow(1)), ' to ', num2str(waveformWindow(2)), ' ms)'])];
+				hLegends = [hLegends, line(hAxes2, repmat(waveformWindow(1), [1, 2]), yRange, 'Color', 'r', 'DisplayName', ['SpikeSort Window (', num2str(waveformWindow(1)), ' to ', num2str(waveformWindow(2)), ' ms)'])];
 				line(repmat(waveformWindow(2), [1, 2]), yRange, 'Color', 'r')
 			end
-			hLegends = [hLegends, line([obj.Spikes(channel).WaveformWindow(1), 0], repmat(obj.Spikes(channel).Threshold.Trigger, [1, 2]), 'Color', 'k', 'LineWidth', 3, 'DisplayName', ['Trigger Threshold (', num2str(obj.Spikes(channel).Threshold.Trigger), ' \muV)'])];
+			hLegends = [hLegends, line(hAxes2, [obj.Spikes(channel).WaveformWindow(1), 0], repmat(obj.Spikes(channel).Threshold.Trigger, [1, 2]), 'Color', 'k', 'LineWidth', 3, 'DisplayName', ['Trigger Threshold (', num2str(obj.Spikes(channel).Threshold.Trigger), ' \muV)'])];
 			if ~isnan(obj.Spikes(channel).Threshold.Exit)
-				hLegends = [hLegends, line(obj.Spikes(channel).Threshold.ExitWindow, repmat(obj.Spikes(channel).Threshold.Exit, [1, 2]), 'Color', 'b', 'LineWidth', 3, 'DisplayName', ['Exit Threshold (', num2str(obj.Spikes(channel).Threshold.Exit), ' \muV)'])];
+				hLegends = [hLegends, line(hAxes2, obj.Spikes(channel).Threshold.ExitWindow, repmat(obj.Spikes(channel).Threshold.Exit, [1, 2]), 'Color', 'b', 'LineWidth', 3, 'DisplayName', ['Exit Threshold (', num2str(obj.Spikes(channel).Threshold.Exit), ' \muV)'])];
 			end
 			if ~isnan(obj.Spikes(channel).Threshold.Exclusion)
-				hLegends = [hLegends, line(obj.Spikes(channel).WaveformWindow, repmat(obj.Spikes(channel).Threshold.Exclusion, [1, 2]), 'Color', 'm', 'LineWidth', 3, 'DisplayName', ['Exclusion Threshold (', num2str(obj.Spikes(channel).Threshold.Exclusion), ' \muV)'])];
+				hLegends = [hLegends, line(hAxes2, obj.Spikes(channel).WaveformWindow, repmat(obj.Spikes(channel).Threshold.Exclusion, [1, 2]), 'Color', 'm', 'LineWidth', 3, 'DisplayName', ['Exclusion Threshold (', num2str(obj.Spikes(channel).Threshold.Exclusion), ' \muV)'])];
 			end
-			legend(hLegends, 'AutoUpdate', 'off')
-			ylim(yRange)
+			% legend(hLegends, 'AutoUpdate', 'off', 'Location', 'Best')
+			ylim(hAxes2, yRange)
 
 			hTimer = timer(...
 				'ExecutionMode', 'FixedSpacing',...
@@ -1115,11 +1117,12 @@ classdef TetrodeRecording < handle
 				[~, I] = sort(reference - event);
 				trialsSorted = changem(trials, 1:length(unique(I)), I);	% !!! changem requires mapping toolbox.
 
-				hFigure = figure('Units', 'Normalized', 'OuterPosition', [0, 0, 0.75, 1]);
 				if isempty(ax)
+					hFigure = figure('Units', 'Normalized', 'OuterPosition', [0, 0, 0.75, 1]);
 					hAxes = axes(hFigure);
 				else
 					hAxes = ax;
+					axes(hAxes);
 				end
 
 				if strcmp(alignTo, 'Event') || strcmp(alignTo, 'Movement')
@@ -1150,10 +1153,11 @@ classdef TetrodeRecording < handle
 				)
 				expName = strsplit(obj.Path, '\');
 				expName = expName{end - 1};
-				title(['Spike raster - ', expName, ' (Channel ', num2str(iChannel), ')'], 'Interpreter', 'none')
-				xlabel(['Time relative to ', referenceDisplayNameRelative, ' (s)'])
-				ylabel('Trial')
-				legend('Location', 'northeast');
+				title(hAxes, 'Spike raster')
+				% title(hAxes, ['Spike raster - ', expName, ' (Channel ', num2str(iChannel), ')'], 'Interpreter', 'none')
+				xlabel(hAxes, ['Time relative to ', referenceDisplayNameRelative, ' (s)'])
+				ylabel(hAxes, 'Trial')
+				legend(hAxes, 'Location', 'Best');
 				hold off
 			end
 		end
@@ -1223,6 +1227,7 @@ classdef TetrodeRecording < handle
 					hAxes = axes(figure());
 				else
 					hAxes = ax;
+					axes(hAxes);
 				end
 				hold on
 				for iBin = 1:nBins
@@ -1255,7 +1260,8 @@ classdef TetrodeRecording < handle
 				end
 				xlabel(hAxes, ['Time relative to ', eventDisplayName, ' (s)']);
 				ylabel(hAxes, 'Mean firing rate (Hz)')
-				legend(hAxes, 'Location', 'southwest');
+				legend(hAxes, 'Location', 'Best');
+				title(hAxes, 'Peri-event time histogram');
 				hold off
 			end
 		end
@@ -1264,16 +1270,17 @@ classdef TetrodeRecording < handle
 			% Waveform
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric);
-			addOptional(p, 'Reference', 'CueOn', @ischar);
-			addOptional(p, 'Event', 'PressOn', @ischar);
-			addOptional(p, 'Exclude', 'LickOn', @ischar);
+			addParameter(p, 'Reference', 'CueOn', @ischar);
+			addParameter(p, 'Event', 'PressOn', @ischar);
+			addParameter(p, 'Exclude', 'LickOn', @ischar);
 			addParameter(p, 'Clusters', [], @isnumeric);
+			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'ExtendedWindow', [0, 0], @isnumeric);
 			addParameter(p, 'MinTrialLength', 0, @isnumeric);
 			addParameter(p, 'Bins', 5, @isnumeric);
 			addParameter(p, 'BinMethod', 'percentile', @ischar);
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
-			parse(p, channel, varargin{:});
+			parse(p, channels, varargin{:});
 			channels 		= p.Results.Channels;
 			reference 		= p.Results.Reference;
 			event 			= p.Results.Event;
@@ -1286,29 +1293,36 @@ classdef TetrodeRecording < handle
 			binMethod 		= p.Results.BinMethod;
 			spikeRateWindow = p.Results.SpikeRateWindow;
 
-			ratio 	= 0.65;
+			if isempty(clusters)
+				waveformClusters = [];
+			else
+				waveformClusters = [1, clusters];
+			end
+
+			xRatio 	= 0.4;
+			yRatio 	= 0.65;
 			xMargin = 0.04;
 			yMargin = 0.04;
 			fMargin = 0.04;
-			hUp 	= (1 - 2*fMargin)*ratio - 2*yMargin;
+			hUp 	= (1 - 2*fMargin)*yRatio - 2*yMargin;
 			hUpHalf = (hUp - 2*yMargin)/2;
-			hDown 	= (1 - 2*fMargin)*(1 - ratio) - 2*yMargin;
+			hDown 	= (1 - 2*fMargin)*(1 - yRatio) - 2*yMargin;
 			w 		= 1 - 2*fMargin - 2*xMargin;
-			wHalf	= (1 - 2*fMargin)/2 - 2*xMargin;
+			wLeft	= (1 - 2*fMargin)*xRatio - 2*xMargin;
+			wRight	= (1 - 2*fMargin)*(1 - xRatio) - 2*xMargin;
 
-
-			for iChannel = channel
-				hFigure 	= figure('Units', 'Normalized', 'Position', [0.25, 0.05, 0.4, (0.4*4/3)/ratio]);
-				hWaveform 	= subplot('Position', [fMargin + xMargin, fMargin + 5*yMargin + hDown + hUpHalf, wHalf, hUpHalf]);
-				hPCA 		= subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hDown, wHalf, hUpHalf]);
-				hRaster		= subplot('Position', [fMargin + xMargin + wHalf + 2*xMargin, fMargin + 3*yMargin + hDown, wHalf, hUp]);
+			for iChannel = channels
+				hFigure 	= figure('Units', 'Normalized', 'Position', [0.25, 0.05, 0.7, 0.8]);
+				hWaveform 	= subplot('Position', [fMargin + xMargin, fMargin + 5*yMargin + hDown + hUpHalf, wLeft, hUpHalf]);
+				hPCA 		= subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hDown, wLeft, hUpHalf]);
+				hRaster		= subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + 3*yMargin + hDown, wRight, hUp]);
 				hPETH 		= subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hDown]);
 
-				obj.PlotWaveforms(iChannel, 'Clusters', clusters, 'Ax', [hPCA, hWaveform]);
-				obj.Raster(iChannel, reference, event, eventExclude, 'Clusters', clusters,...
+				obj.PlotWaveforms(iChannel, 'Clusters', waveformClusters, 'Ax', [hPCA, hWaveform], 'WaveformWindow', waveformWindow);
+				obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
 					'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'Ax', hRaster...
 					);
-				obj.PETH(iChannel, reference, event, eventExclude, 'Clusters', clusters,...
+				obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
 					'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
 					'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow, 'Ax', hPETH...
 					);
