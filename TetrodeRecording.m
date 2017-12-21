@@ -774,6 +774,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Clusters', [], @isnumeric);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'HideResults', false, @islogical);
+			addParameter(p, 'Dimension', 3, @isnumeric);
 			parse(p, channels, k, varargin{:});
 			channels = p.Results.Channels;
 			k = p.Results.K;
@@ -781,6 +782,7 @@ classdef TetrodeRecording < handle
 			clusters = p.Results.Clusters;
 			waveformWindow = p.Results.WaveformWindow;
 			hideResults = p.Results.HideResults;
+			dimension = p.Results.Dimension;
 
 			for iChannel = channels
                 if isfield(obj.Spikes(iChannel), 'Cluster')
@@ -799,7 +801,7 @@ classdef TetrodeRecording < handle
                 end
 				obj.RemoveNaNs(channels);
 				obj.PCA(channels, thisClusters, thisWaveformWindow);
-				obj.Cluster(channels, k, method, thisClusters);
+				obj.Cluster(channels, k, method, thisClusters, dimension);
 				if ~hideResults
 					obj.PlotChannel(iChannel, 'WaveformWindow', thisWaveformWindow);
 				end
@@ -831,7 +833,7 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 		end
 
-		function Cluster(obj, channels, k, method, clusters)
+		function Cluster(obj, channels, k, method, clusters, dimension)
 			tic, TetrodeRecording.TTS('Clustering...');
 			for iChannel = channels
                 if isfield(obj.Spikes(iChannel), 'Cluster')
@@ -846,10 +848,10 @@ classdef TetrodeRecording < handle
 				
 				obj.Spikes(iChannel).Cluster = [];
 				if strcmp(method, 'kmeans')
-					obj.Spikes(iChannel).Cluster(inCluster) = kmeans(obj.Spikes(iChannel).PCA.Score(inCluster, :), k);
+					obj.Spikes(iChannel).Cluster(inCluster) = kmeans(obj.Spikes(iChannel).PCA.Score(inCluster, 1:dimension), k);
 				elseif strcmp(method, 'gaussian')
-					gm = fitgmdist(obj.Spikes(iChannel).PCA.Score(inCluster, :), k);
-					obj.Spikes(iChannel).Cluster(inCluster) = cluster(gm, obj.Spikes(iChannel).PCA.Score(inCluster, :));
+					gm = fitgmdist(obj.Spikes(iChannel).PCA.Score(inCluster, 1:dimension), k);
+					obj.Spikes(iChannel).Cluster(inCluster) = cluster(gm, obj.Spikes(iChannel).PCA.Score(inCluster, 1:dimension));
 				else
 					error('Unrecognized clustering method. Must be ''kmeans'' or ''gaussian''.')			
 				end
