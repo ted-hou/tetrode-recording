@@ -651,8 +651,6 @@ classdef TetrodeRecording < handle
 				% Align waveforms to peak
 				numWaveforms = size(waveforms, 1);
 				i = sampleRate*t;
-
-				% Figure out via consensus if max amplitude is positive or negative.
 				[~, maxIndex] = max(direction*waveforms, [], 2);
 				alignmentShift = i(maxIndex);
 				[waveforms, t, timestamps, sampleIndex] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex + alignmentShift, 'IndexType', 'SampleIndex');
