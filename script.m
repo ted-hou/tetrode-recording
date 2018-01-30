@@ -74,11 +74,18 @@ chunkSize = 10;
 
 tr.ReadFiles(chunkSize);
 
-tr.SpikeDetect(2, -25, 'ExclusionThreshold', 400, 'ExitThreshold', 15, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
-tr.SpikeDetect(5, -25, 'ExclusionThreshold', 300, 'ExitThreshold', 15, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
-tr.SpikeDetect(6, -25, 'ExclusionThreshold', 300, 'ExitThreshold', 15, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
-tr.SpikeDetect(16, -25, 'ExclusionThreshold', 300, 'ExitThreshold', 15, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
-tr.SpikeDetect(32, -25, 'ExclusionThreshold', 300, 'ExitThreshold', 15, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
+tr.SpikeDetect(2, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+tr.SpikeDetect(5, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+tr.SpikeDetect(6, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+tr.SpikeDetect(16, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+tr.SpikeDetect(32, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+
+
+% tr.SpikeDetect(2, -25, 'ExclusionThreshold', 400, 'ExitThreshold', 15, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
+% tr.SpikeDetect(5, -25, 'ExclusionThreshold', 300, 'ExitThreshold', 15, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
+% tr.SpikeDetect(6, -25, 'ExclusionThreshold', 300, 'ExitThreshold', 15, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
+% tr.SpikeDetect(16, -25, 'ExclusionThreshold', 300, 'ExitThreshold', 15, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
+% tr.SpikeDetect(32, -25, 'ExclusionThreshold', 300, 'ExitThreshold', 15, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
 
 tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
 
@@ -109,9 +116,14 @@ chunkSize = 10;
 
 tr.ReadFiles(chunkSize);
 
-tr.SpikeDetect(tr.MapChannelID(4), 40, 'ExclusionThreshold', 600, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
-tr.SpikeDetect(tr.MapChannelID(7), -50, 'ExclusionThreshold', -500, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
-tr.SpikeDetect(tr.MapChannelID(11), -30, 'ExitThreshold', 10, 'ExclusionThreshold', 1000, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
+
+tr.SpikeDetect(tr.MapChannelID(4), 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+tr.SpikeDetect(tr.MapChannelID(7), 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+tr.SpikeDetect(tr.MapChannelID(11), 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+
+% tr.SpikeDetect(tr.MapChannelID(4), 40, 'ExclusionThreshold', 600, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
+% tr.SpikeDetect(tr.MapChannelID(7), -50, 'ExclusionThreshold', -500, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
+% tr.SpikeDetect(tr.MapChannelID(11), -30, 'ExitThreshold', 10, 'ExclusionThreshold', 1000, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
 
 tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
 

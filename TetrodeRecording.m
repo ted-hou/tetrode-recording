@@ -27,12 +27,14 @@ classdef TetrodeRecording < handle
 			addOptional(p, 'ChunkSize', 2, @isnumeric);
 			addParameter(p, 'Chunks', 'first');
 			addParameter(p, 'SubstractMean', true, @islogical);
+			addParameter(p, 'RemoveTransient', true, @islogical);
 			addParameter(p, 'SpikeDetect', false, @islogical);
 			addParameter(p, 'DigitalDetect', false, @islogical);
 			parse(p, varargin{:});
 			chunkSize = p.Results.ChunkSize;
 			chunks = p.Results.Chunks;
 			substractMean = p.Results.SubstractMean;
+			removeTransient = p.Results.RemoveTransient;
 			spikeDetect = p.Results.SpikeDetect;
 			digitalDetect = p.Results.DigitalDetect;
 
@@ -56,19 +58,15 @@ classdef TetrodeRecording < handle
                 if substractMean
                     obj.SubstractMean();
                 end
-				obj.RemoveTransient();
+                if removeTransient
+					obj.RemoveTransient();
+				end
 				if spikeDetect
 					for iChannel = [obj.Spikes.Channel]
-						waveformWindow = obj.Spikes(iChannel).WaveformWindow;
-						waveformWindowExtended = obj.Spikes(iChannel).WaveformWindowExtended;
-						threshold = obj.Spikes(iChannel).Threshold;
 						obj.SpikeDetect(...
-							iChannel, threshold.Trigger,...
-							'ExitThreshold', threshold.Exit,...
-							'ExitWindow', threshold.ExitWindow,...
-							'ExclusionThreshold', threshold.Exclusion,...
-							'WaveformWindow', waveformWindow,...
-							'waveformWindowExtended', waveformWindowExtended,...
+							iChannel,...
+							'NumSigmas', obj.Spikes(iChannel).Threshold.NumSigmas,...
+							'WaveformWindow', obj.Spikes(iChannel).WaveformWindow,...
 							'Append', true);
 					end
 					obj.GetDigitalData('Append', true);
@@ -522,10 +520,10 @@ classdef TetrodeRecording < handle
 				digChannel = [1, 2]; % Default lick channel is 2 on intan board. This was used for Daisy1. Also do this for lever press (Chn 1)
 			end
 			if nargin < 3
-				dilate = false;
+				dilate = true;
 			end
 			if nargin < 4
-				dilateSize = 12; % By default, lick digital event is extended 2 ms to the left and right.
+				dilateSize = round(30*obj.FrequencyParameters.AmplifierSampleRate/1000); % By default, lick digital event is extended 15 ms to the left and right.
 			end
 
 			% Verify if digital input sample rate is identical to amplifier sample rate
@@ -536,10 +534,9 @@ classdef TetrodeRecording < handle
 			tic, TetrodeRecording.TTS('Removing lick/touch-related transients. This might take a while...');
 			if dilate
 				mask = false(1, obj.Amplifier.NumSamples);
-				dilateSE = ones(round(obj.FrequencyParameters.AmplifierSampleRate*2*dilateSize/1000) + 1);
 				for thisChannel = digChannel
 					thisChannel = find([obj.BoardDigIn.Channels.NativeOrder] == thisChannel);
-					mask = mask | logical(imdilate(obj.BoardDigIn.Data(thisChannel, :), dilateSE));
+					mask = mask | logical(movmean(obj.BoardDigIn.Data(thisChannel, :), dilateSize));
 				end
 			else
 				for thisChannel = digChannel
@@ -547,7 +544,7 @@ classdef TetrodeRecording < handle
 					mask = logical(obj.BoardDigIn.Data(thisChannel, :));
 				end
 			end
-			
+
 			obj.Amplifier.Data(:, mask) = 0;
 			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 		end
@@ -604,41 +601,33 @@ classdef TetrodeRecording < handle
 		end
 
 		% Detect spike-like waveforms by simple (or advanced) thresholding
-		function SpikeDetect(obj, channels, triggerThreshold, varargin)
+		function SpikeDetect(obj, channels, varargin)
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric);
-			addRequired(p, 'TriggerThreshold', @isnumeric);
-			addParameter(p, 'ExitThreshold', NaN, @isnumeric);
-			addParameter(p, 'ExitWindow', [0, NaN], @(x) isnumeric(x) && length(x) == 2);
-			addParameter(p, 'ExclusionThreshold', NaN, @isnumeric);
+			addParameter(p, 'NumSigmas', 2, @isnumeric);
 			addParameter(p, 'WaveformWindow', [-0.5, 0.5], @isnumeric);
-			addParameter(p, 'WaveformWindowExtended', [-1, 2], @isnumeric);
 			addParameter(p, 'Append', false, @islogical);
-			parse(p, channels, triggerThreshold, varargin{:});
+			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
-			triggerThreshold = p.Results.TriggerThreshold;
-			exitThreshold = p.Results.ExitThreshold;
-			exitWindow = p.Results.ExitWindow;
-			exclusionThreshold = p.Results.ExclusionThreshold;
+			numSigmas = p.Results.NumSigmas;
 			waveformWindow = p.Results.WaveformWindow;
-			waveformWindowExtended = p.Results.WaveformWindowExtended;
 			append = p.Results.Append;
 
-			tic, TetrodeRecording.TTS('Detecting spikes...');
+			tic, TetrodeRecording.TTS('Detecting spikes');
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
-			if isnan(exitWindow(2))
-				exitWindow(2) = waveformWindow(2);
-			end
 
 			for iChannel = channels
-				% Find triggerThreshold-crossing events
-				[~, sampleIndex] = findpeaks(sign(triggerThreshold)*obj.Amplifier.Data(iChannel, :), 'MinPeakHeight', abs(triggerThreshold));
+				% Auto-threshold for spikes
+				% median(abs(x))/0.6745 is a better estimation of noise amplitude than std() when there are spikes -- Quiroga, 2004
+				threshold = numSigmas*nanmedian(abs(obj.Amplifier.Data(iChannel, :)))/0.6745;
+				direction = sign(median(obj.Amplifier.Data(iChannel, abs(obj.Amplifier.Data(iChannel, :)) > 1.5*threshold)) - median(nonzeros(obj.Amplifier.Data(iChannel, :)))); % Check if spikes are positive or negative
+				TetrodeRecording.TTS([' (', num2str(numSigmas), num2str(char(963)), ' = ', num2str(direction*threshold), ')...']);
+				
+				% Find spikes
+				[~, sampleIndex] = findpeaks(direction*obj.Amplifier.Data(iChannel, :), 'MinPeakHeight', threshold);
 
 				% Extract waveforms
 				[waveforms, t] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex, 'IndexType', 'SampleIndex');
-				if ~isnan(exitThreshold)
-					exitWaveforms = obj.GetWaveforms(iChannel, exitWindow, sampleIndex, 'IndexType', 'SampleIndex');
-				end
 
 				% Align waveforms to peak
 				numWaveforms = size(waveforms, 1);
@@ -657,33 +646,7 @@ classdef TetrodeRecording < handle
 				end
 				alignmentShift = i(maxIndex);
 
-				[waveforms, t] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex + alignmentShift, 'IndexType', 'SampleIndex');
-				[waveformsExtended, tExtended, timestamps, sampleIndex] = obj.GetWaveforms(iChannel, waveformWindowExtended, sampleIndex + alignmentShift, 'IndexType', 'SampleIndex');
-
-				% Filter waveforms by optional criteria
-				includeWaveform = true(numWaveforms, 1);
-				for iWaveform = 1:numWaveforms
-					% (Optional) Only keep waveforms that cross a second exitThreshold after reaching the first triggerThreshold
-					if ~isnan(exitThreshold)
-						if sum(sign(exitWaveforms(iWaveform, :) - exitThreshold) == sign(exitThreshold)) == 0
-							includeWaveform(iWaveform) = false;
-							continue
-						end
-					end
-					% (Optional) Filter out waveforms with max amplitude exceeding exclusionThreshold
-					if ~isnan(exclusionThreshold)
-						if sum(sign(waveforms(iWaveform, :) - exclusionThreshold) == sign(exclusionThreshold)) > 0
-							includeWaveform(iWaveform) = false;
-							continue
-						end
-					end
-				end
-
-				% Remove invalid waveforms
-				waveforms = waveforms(includeWaveform, :);
-				waveformsExtended = waveformsExtended(includeWaveform, :);
-				sampleIndex = sampleIndex(includeWaveform);
-				timestamps = timestamps(includeWaveform);
+				[waveforms, t, timestamps, sampleIndex] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex + alignmentShift, 'IndexType', 'SampleIndex');
 
 				% Store data
 				if ~append
@@ -692,22 +655,17 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).SampleIndex = sampleIndex;
 					obj.Spikes(iChannel).Timestamps = timestamps;
 					obj.Spikes(iChannel).Waveforms = waveforms;
-					obj.Spikes(iChannel).WaveformsExtended = waveformsExtended;
 
 					obj.Spikes(iChannel).WaveformTimestamps = t;
-					obj.Spikes(iChannel).WaveformTimestampsExtended = tExtended;
 					obj.Spikes(iChannel).WaveformWindow = waveformWindow;
-					obj.Spikes(iChannel).WaveformWindowExtended = waveformWindowExtended;
-					obj.Spikes(iChannel).Threshold.Trigger = triggerThreshold;
-					obj.Spikes(iChannel).Threshold.Exit = exitThreshold;
-					obj.Spikes(iChannel).Threshold.ExitWindow = exitWindow;
-					obj.Spikes(iChannel).Threshold.Exclusion = exclusionThreshold;
+					obj.Spikes(iChannel).Threshold.NumSigmas = numSigmas;
+					obj.Spikes(iChannel).Threshold.Threshold = direction*threshold;
 					obj.Spikes(iChannel).AlignmentShift = alignmentShift;
 				else
 					obj.Spikes(iChannel).SampleIndex = [obj.Spikes(iChannel).SampleIndex, sampleIndex + length(obj.DigitalEvents.Timestamps)];
 					obj.Spikes(iChannel).Timestamps = [obj.Spikes(iChannel).Timestamps, timestamps];
 					obj.Spikes(iChannel).Waveforms = [obj.Spikes(iChannel).Waveforms; waveforms];
-					obj.Spikes(iChannel).WaveformsExtended = [obj.Spikes(iChannel).WaveformsExtended; waveformsExtended];
+					obj.Spikes(iChannel).Threshold.Threshold = [obj.Spikes(iChannel).Threshold.Threshold, direction*threshold];
 				end
 
 				TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
@@ -812,7 +770,6 @@ classdef TetrodeRecording < handle
 			for iChannel = channels
 				iWaveformToDiscard = sum(isnan(obj.Spikes(iChannel).Waveforms), 2) > 0;
 				obj.Spikes(iChannel).Waveforms(iWaveformToDiscard, :) = [];
-				obj.Spikes(iChannel).WaveformsExtended(iWaveformToDiscard, :) = [];
 				obj.Spikes(iChannel).Timestamps(iWaveformToDiscard) = [];
 				obj.Spikes(iChannel).SampleIndex(iWaveformToDiscard) = [];
 			end
@@ -893,7 +850,6 @@ classdef TetrodeRecording < handle
 			% Discard unwanted clusters
 			iWaveformToDiscard = ismember(obj.Spikes(channel).Cluster, discardList);
 			obj.Spikes(channel).Waveforms(iWaveformToDiscard, :) = [];
-			obj.Spikes(channel).WaveformsExtended(iWaveformToDiscard, :) = [];
 			obj.Spikes(channel).Timestamps(iWaveformToDiscard) = [];
 			obj.Spikes(channel).SampleIndex(iWaveformToDiscard) = [];
 			obj.Spikes(channel).PCA.Score(iWaveformToDiscard, :) = [];
@@ -919,7 +875,6 @@ classdef TetrodeRecording < handle
 			notInLuck = inCluster(~ismember(1:length(inCluster), 1:luckyNumber:length(inCluster)));
 
 			obj.Spikes(channel).Waveforms(notInLuck, :) 		= [];
-			obj.Spikes(channel).WaveformsExtended(notInLuck, :) = [];
 			obj.Spikes(channel).Timestamps(notInLuck) 			= [];
 			obj.Spikes(channel).SampleIndex(notInLuck) 			= [];
 			obj.Spikes(channel).PCA.Score(notInLuck, :) 		= [];
@@ -994,13 +949,12 @@ classdef TetrodeRecording < handle
 			waveformWindow = p.Results.WaveformWindow;
 			ax = p.Results.Ax;
 
-			waveforms = obj.Spikes(channel).WaveformsExtended;
+			waveforms = obj.Spikes(channel).Waveforms;
 			numWaveformsTotal = size(waveforms, 1);
 			if isempty(waveformWindow)
 				waveformWindow = obj.Spikes(channel).WaveformWindow;
 			end
-			waveformWindowExtended = obj.Spikes(channel).WaveformWindowExtended;
-			t = obj.Spikes(channel).WaveformTimestampsExtended;
+			t = obj.Spikes(channel).WaveformTimestamps;
 			score = obj.Spikes(channel).PCA.Score;
 			if isempty(clusters)
 				clusters = nonzeros(unique(obj.Spikes(channel).Cluster));
@@ -1051,19 +1005,9 @@ classdef TetrodeRecording < handle
 			hLegends = [];
 			hAxes2.UserData.hWaveforms = [];
 			hAxes2.UserData.iWaveform = 0;
-			if sum(waveformWindowExtended == waveformWindow) < 2
-				hLegends = [hLegends, line(hAxes2, repmat(waveformWindow(1), [1, 2]), yRange, 'Color', 'r', 'DisplayName', ['SpikeSort Window (', num2str(waveformWindow(1)), ' to ', num2str(waveformWindow(2)), ' ms)'])];
-				line(repmat(waveformWindow(2), [1, 2]), yRange, 'Color', 'r')
-			end
-			hLegends = [hLegends, line(hAxes2, [obj.Spikes(channel).WaveformWindow(1), 0], repmat(obj.Spikes(channel).Threshold.Trigger, [1, 2]), 'Color', 'k', 'LineWidth', 3, 'DisplayName', ['Trigger Threshold (', num2str(obj.Spikes(channel).Threshold.Trigger), ' \muV)'])];
-			if ~isnan(obj.Spikes(channel).Threshold.Exit)
-				hLegends = [hLegends, line(hAxes2, obj.Spikes(channel).Threshold.ExitWindow, repmat(obj.Spikes(channel).Threshold.Exit, [1, 2]), 'Color', 'b', 'LineWidth', 3, 'DisplayName', ['Exit Threshold (', num2str(obj.Spikes(channel).Threshold.Exit), ' \muV)'])];
-			end
-			if ~isnan(obj.Spikes(channel).Threshold.Exclusion)
-				hLegends = [hLegends, line(hAxes2, obj.Spikes(channel).WaveformWindow, repmat(obj.Spikes(channel).Threshold.Exclusion, [1, 2]), 'Color', 'm', 'LineWidth', 3, 'DisplayName', ['Exclusion Threshold (', num2str(obj.Spikes(channel).Threshold.Exclusion), ' \muV)'])];
-			end
+			hLegends = [hLegends, line(hAxes2, [obj.Spikes(channel).WaveformWindow(1), 0], repmat(mean(obj.Spikes(channel).Threshold.Threshold), [1, 2]), 'Color', 'k', 'LineWidth', 3, 'DisplayName', ['Trigger Threshold (', num2str(mean(obj.Spikes(channel).Threshold.Threshold)), ' \muV)'])];
 			% legend(hLegends, 'AutoUpdate', 'off', 'Location', 'Best')
-			xlim(hAxes2, waveformWindowExtended)
+			xlim(hAxes2, waveformWindow)
 			ylim(hAxes2, yRange)
 
 			hTimer = timer(...
