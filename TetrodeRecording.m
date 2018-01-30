@@ -63,14 +63,7 @@ classdef TetrodeRecording < handle
 					obj.RemoveTransient();
 				end
 				if spikeDetect
-					for iChannel = [obj.Spikes.Channel]
-						obj.SpikeDetect(...
-							iChannel,...
-							'NumSigmas', obj.Spikes(iChannel).Threshold.NumSigmas,...
-							'Direction', obj.Spikes(iChannel).Threshold.Direction,...
-							'WaveformWindow', obj.Spikes(iChannel).WaveformWindow,...
-							'Append', true);
-					end
+					obj.SpikeDetect([obj.Spikes.Channel], 'Append', true);
 					obj.GetDigitalData('Append', true);
 				else
 					obj.GetDigitalData('Append', false);
@@ -616,15 +609,22 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Append', false, @islogical);
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
-			numSigmas = p.Results.NumSigmas;
-			directionMode = p.Results.Direction;
-			waveformWindow = p.Results.WaveformWindow;
 			append = p.Results.Append;
 
-			tic, TetrodeRecording.TTS('Detecting spikes');
+			TetrodeRecording.TTS('Detecting spikes...\n');
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
 
 			for iChannel = channels
+				% If append mode
+				if ~append
+					numSigmas = p.Results.NumSigmas;
+					directionMode = p.Results.Direction;
+					waveformWindow = p.Results.WaveformWindow;
+				else
+					numSigmas = obj.Spikes(iChannel).Threshold.NumSigmas;
+					directionMode = obj.Spikes(iChannel).Threshold.Direction;
+					waveformWindow = obj.Spikes(iChannel).WaveformWindow;
+				end
 				% Auto-threshold for spikes
 				% median(abs(x))/0.6745 is a better estimation of noise amplitude than std() when there are spikes -- Quiroga, 2004
 				threshold = numSigmas*nanmedian(abs(obj.Amplifier.Data(iChannel, :)))/0.6745;
@@ -638,7 +638,7 @@ classdef TetrodeRecording < handle
 					otherwise
 						error(['Unrecognized spike detection mode ''', directionMode, '''.'])
 				end
-				TetrodeRecording.TTS([' (', num2str(numSigmas), num2str(char(963)), ' = ', num2str(direction*threshold), ')...']);
+				tic, TetrodeRecording.TTS(['	Channel ', num2str(iChannel), ' (', num2str(char(952)), ' = ', num2str(numSigmas), num2str(char(963)), ' = ', num2str(direction*threshold), ')...']);
 				
 				% Find spikes
 				[~, sampleIndex] = findpeaks(direction*obj.Amplifier.Data(iChannel, :), 'MinPeakHeight', threshold);

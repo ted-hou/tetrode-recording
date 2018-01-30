@@ -111,25 +111,16 @@ clear chunkSize
 
 % 1116
 tr = TetrodeRecording();
-
 chunkSize = 10;
-
 tr.ReadFiles(chunkSize);
-
-
-tr.SpikeDetect(tr.MapChannelID(4), 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
-tr.SpikeDetect(tr.MapChannelID(7), 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
-tr.SpikeDetect(tr.MapChannelID(11), 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+tr.SpikeDetect(tr.MapChannelID([4, 7, 11]), 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
+TetrodeRecording.TTS(['All Done.\n',], true)
+clear chunkSize
 
 % tr.SpikeDetect(tr.MapChannelID(4), 40, 'ExclusionThreshold', 600, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
 % tr.SpikeDetect(tr.MapChannelID(7), -50, 'ExclusionThreshold', -500, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
 % tr.SpikeDetect(tr.MapChannelID(11), -30, 'ExitThreshold', 10, 'ExclusionThreshold', 1000, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
-
-tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
-
-TetrodeRecording.TTS(['All Done.\n',], true)
-
-clear chunkSize
 
 % 1122
 for iChannel = [1 4 5 24 31]
