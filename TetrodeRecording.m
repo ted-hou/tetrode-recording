@@ -53,7 +53,7 @@ classdef TetrodeRecording < handle
 
 			for iChunk = chunks
 				obj.ClearCache();
-				TetrodeRecording.TTS(['Loading chunk ', num2str(iChunk), '/', num2str(numChunks), '...\n']);
+				TetrodeRecording.TTS(['Processing chunk ', num2str(iChunk), '/', num2str(numChunks), ':\n']);
 				obj.ReadRHD(obj.Files((iChunk - 1)*chunkSize + 1:min(iChunk*chunkSize, length(obj.Files))))
 				obj.MapChannels();
                 if substractMean
@@ -79,6 +79,7 @@ classdef TetrodeRecording < handle
 		end
 
 		function ReadRHD(obj, files)
+			TetrodeRecording.TTS(['	Loading data:\n'])
 			for iFile = 1:length(files)
 				filename = [obj.Path, files{iFile}];
 
@@ -322,7 +323,7 @@ classdef TetrodeRecording < handle
 					board_dig_out_raw = zeros(1, num_board_dig_out_samples);
 
 					% Read sampled data from file.
-					TetrodeRecording.TTS(['	Reading data from file ', num2str(iFile), '/', num2str(length(files)), ' (''', files{iFile},''')...\n']);
+					tic, TetrodeRecording.TTS(['		Reading file ', num2str(iFile), '/', num2str(length(files)), ' (''', files{iFile},''')...']);
 
 					amplifier_index = 1;
 					aux_input_index = 1;
@@ -404,6 +405,7 @@ classdef TetrodeRecording < handle
 					objTemp(iFile).Amplifier.Timestamps = objTemp(iFile).Amplifier.Timestamps / sample_rate;
 					objTemp(iFile).BoardDigIn.Timestamps = objTemp(iFile).Amplifier.Timestamps;
 				end
+				TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 			end
 
 			% Count number of samples in all files
@@ -415,7 +417,7 @@ classdef TetrodeRecording < handle
 			end
 
 			% Combine files
-			tic, TetrodeRecording.TTS('All files loaded. Concatenating data...');
+			tic, TetrodeRecording.TTS('	Concatenating data...');
 
 			obj.Notes = notes;
 			obj.FrequencyParameters = frequency_parameters;
@@ -438,7 +440,7 @@ classdef TetrodeRecording < handle
 				iSample.Amplifier = iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2);
 				iSample.BoardDigIn = iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2);
 			end
-			TetrodeRecording.TTS(['	Done(', num2str(toc, 2), ' seconds).\n'])
+			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 		end
 
 		% Save spike data for selected channels
@@ -458,7 +460,7 @@ classdef TetrodeRecording < handle
 
 		% Amplifier data arranged in tetrode order (i.e., first four elements in array is first tetrode)
 		function MapChannels(obj, EIBMap, headstageType)
-			tic, TetrodeRecording.TTS('Remapping amplifier channels in tetrode order...');
+			tic, TetrodeRecording.TTS('	Remapping amplifier channels in tetrode order...');
 
 			if nargin < 3
 				headstageType = 'intan';
@@ -529,7 +531,7 @@ classdef TetrodeRecording < handle
 				error('Board digital input has a different sampling rate from amplifier. Aborted.');
 			end
 
-			tic, TetrodeRecording.TTS('Removing lick/touch-related transients. This might take a while...');
+			tic, TetrodeRecording.TTS('	Removing lick/touch-related transients. This might take a while...');
 			if dilate
 				mask = false(1, obj.Amplifier.NumSamples);
 				for thisChannel = digChannel
@@ -611,7 +613,7 @@ classdef TetrodeRecording < handle
 			channels = p.Results.Channels;
 			append = p.Results.Append;
 
-			TetrodeRecording.TTS('Detecting spikes...\n');
+			TetrodeRecording.TTS('	Detecting spikes:\n');
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
 
 			for iChannel = channels
@@ -638,7 +640,7 @@ classdef TetrodeRecording < handle
 					otherwise
 						error(['Unrecognized spike detection mode ''', directionMode, '''.'])
 				end
-				tic, TetrodeRecording.TTS(['	Channel ', num2str(iChannel), ' (', num2str(char(952)), ' = ', num2str(numSigmas), num2str(char(963)), ' = ', num2str(direction*threshold), ')...']);
+				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), ' (', num2str(char(952)), ' = ', num2str(numSigmas), num2str(char(963)), ' = ', num2str(direction*threshold), ')...']);
 				
 				% Find spikes
 				[~, sampleIndex] = findpeaks(direction*obj.Amplifier.Data(iChannel, :), 'MinPeakHeight', threshold);
@@ -718,7 +720,7 @@ classdef TetrodeRecording < handle
 				clearCache = false;
 			end
 
-			tic, TetrodeRecording.TTS('Extracting digital events...');
+			tic, TetrodeRecording.TTS('	Extracting digital events...');
 			% Get digital signals
 			[obj.DigitalEvents.CueOn, obj.DigitalEvents.CueOff] 		= TetrodeRecording.FindEdges(obj.DigitalEvents.Data(1, :), obj.DigitalEvents.Timestamps);
 			[obj.DigitalEvents.PressOn, obj.DigitalEvents.PressOff] 	= TetrodeRecording.FindEdges(obj.DigitalEvents.Data(2, :), obj.DigitalEvents.Timestamps);
