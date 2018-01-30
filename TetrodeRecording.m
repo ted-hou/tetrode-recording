@@ -41,12 +41,13 @@ classdef TetrodeRecording < handle
 			files = obj.Files;
 			numChunks = ceil(length(files)/chunkSize);
 			if ischar(chunks)
-				if strcmp(chunks, 'all')
-					chunks = 1:numChunks;
-				elseif strcmp(chunks, 'remaining')
-					chunks = 2:numChunks;
-				elseif strcmp(chunks, 'first')
-					chunks = 1;
+				switch lower(chunks)
+					case 'all'
+						chunks = 1:numChunks;
+					case 'remaining'
+						chunks = 2:numChunks;
+					case 'first'
+						chunks = 1;
 				end
 			end
 
@@ -66,6 +67,7 @@ classdef TetrodeRecording < handle
 						obj.SpikeDetect(...
 							iChannel,...
 							'NumSigmas', obj.Spikes(iChannel).Threshold.NumSigmas,...
+							'Direction', obj.Spikes(iChannel).Threshold.Direction,...
 							'WaveformWindow', obj.Spikes(iChannel).WaveformWindow,...
 							'Append', true);
 					end
@@ -474,10 +476,13 @@ classdef TetrodeRecording < handle
 				[~, EIBMap] = sort(EIBMap);
 			end
 
-			if strcmp(headstageType, 'intan')
-				HSMap = [25:32, 1:8, 24:-1:9];
-			elseif strcmp(headstageType, 'open ephys')
-				HSMap = [26, 25, 27, 28, 29, 30, 31, 1, 32, 3, 2, 5, 4, 7, 6, 8, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9];
+			switch headstageType
+				case 'intan'
+					HSMap = [25:32, 1:8, 24:-1:9];
+				case 'open ephys'
+					HSMap = [26, 25, 27, 28, 29, 30, 31, 1, 32, 3, 2, 5, 4, 7, 6, 8, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9];
+				otherwise
+					error('Unrecognized headstage type.'); 
 			end
 
 			tetrodeMap = HSMap(EIBMap);
@@ -567,22 +572,23 @@ classdef TetrodeRecording < handle
 				indexType = 'SampleIndex';
 			end
 
-			if strcmp(indexType, 'SampleIndex')
-				sampleIndex = index;
-				% Only interpolate if sample index in non-integer
-				if sum(rem(sampleIndex, 1) == 0) == length(sampleIndex)
-					timestamps = obj.Amplifier.Timestamps(sampleIndex);
-				else
-					timestamps = interp1(1:length(obj.Amplifier.Timestamps), obj.Amplifier.Timestamps, sampleIndex, 'linear');
-				end
-			elseif strcmp(indexType, 'Timestamps')
-				% Always interpolate if input index in timestamps. This will always be slower.
-				timestamps = index;
-				sampleIndex = interp1(obj.Amplifier.Timestamps, 1:length(obj.Amplifier.Timestamps), timestamps, 'linear');
-			else
-				error(['Unrecognized index type: ''', indexType, ''', must be ''SampleIndex'' or ''Timestamps''.'])
+			switch indexType
+				case 'SampleIndex'
+					sampleIndex = index;
+					% Only interpolate if sample index in non-integer
+					if sum(rem(sampleIndex, 1) == 0) == length(sampleIndex)
+						timestamps = obj.Amplifier.Timestamps(sampleIndex);
+					else
+						timestamps = interp1(1:length(obj.Amplifier.Timestamps), obj.Amplifier.Timestamps, sampleIndex, 'linear');
+					end
+				case 'Timestamps'
+					% Always interpolate if input index in timestamps. This will always be slower.
+					timestamps = index;
+					sampleIndex = interp1(obj.Amplifier.Timestamps, 1:length(obj.Amplifier.Timestamps), timestamps, 'linear');
+				otherwise
+					error(['Unrecognized index type: ''', indexType, ''', must be ''SampleIndex'' or ''Timestamps''.'])
 			end
-				
+
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
 			waveforms = NaN(length(sampleIndex), 1 + round(sampleRate*(waveformWindow(2) - waveformWindow(1))));
 			t = waveformWindow(1):1/sampleRate:waveformWindow(2);
@@ -605,11 +611,13 @@ classdef TetrodeRecording < handle
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric);
 			addParameter(p, 'NumSigmas', 2, @isnumeric);
+			addParameter(p, 'Direction', 'negative', @ischar);
 			addParameter(p, 'WaveformWindow', [-0.5, 0.5], @isnumeric);
 			addParameter(p, 'Append', false, @islogical);
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
 			numSigmas = p.Results.NumSigmas;
+			directionMode = p.Results.Direction;
 			waveformWindow = p.Results.WaveformWindow;
 			append = p.Results.Append;
 
@@ -620,7 +628,16 @@ classdef TetrodeRecording < handle
 				% Auto-threshold for spikes
 				% median(abs(x))/0.6745 is a better estimation of noise amplitude than std() when there are spikes -- Quiroga, 2004
 				threshold = numSigmas*nanmedian(abs(obj.Amplifier.Data(iChannel, :)))/0.6745;
-				direction = sign(median(obj.Amplifier.Data(iChannel, abs(obj.Amplifier.Data(iChannel, :)) > 1.5*threshold)) - median(nonzeros(obj.Amplifier.Data(iChannel, :)))); % Check if spikes are positive or negative
+				switch lower(directionMode)
+					case 'negative'
+						direction = -1;
+					case 'positive'
+						direction = 1;
+					case 'auto'
+						direction = sign(median(obj.Amplifier.Data(iChannel, abs(obj.Amplifier.Data(iChannel, :)) > 1.5*threshold))); % Check if spikes are positive or negative
+					otherwise
+						error(['Unrecognized spike detection mode ''', directionMode, '''.'])
+				end
 				TetrodeRecording.TTS([' (', num2str(numSigmas), num2str(char(963)), ' = ', num2str(direction*threshold), ')...']);
 				
 				% Find spikes
@@ -660,6 +677,7 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).WaveformWindow = waveformWindow;
 					obj.Spikes(iChannel).Threshold.NumSigmas = numSigmas;
 					obj.Spikes(iChannel).Threshold.Threshold = direction*threshold;
+					obj.Spikes(iChannel).Threshold.Direction = directionMode;
 					obj.Spikes(iChannel).AlignmentShift = alignmentShift;
 				else
 					obj.Spikes(iChannel).SampleIndex = [obj.Spikes(iChannel).SampleIndex, sampleIndex + length(obj.DigitalEvents.Timestamps)];
@@ -804,13 +822,14 @@ classdef TetrodeRecording < handle
                 end
 				
 				obj.Spikes(iChannel).Cluster = [];
-				if strcmp(method, 'kmeans')
-					obj.Spikes(iChannel).Cluster(inCluster) = kmeans(obj.Spikes(iChannel).PCA.Score(inCluster, 1:dimension), k);
-				elseif strcmp(method, 'gaussian')
-					gm = fitgmdist(obj.Spikes(iChannel).PCA.Score(inCluster, 1:dimension), k);
-					obj.Spikes(iChannel).Cluster(inCluster) = cluster(gm, obj.Spikes(iChannel).PCA.Score(inCluster, 1:dimension));
-				else
-					error('Unrecognized clustering method. Must be ''kmeans'' or ''gaussian''.')			
+				switch lower(method)
+					case 'kmeans'
+						obj.Spikes(iChannel).Cluster(inCluster) = kmeans(obj.Spikes(iChannel).PCA.Score(inCluster, 1:dimension), k);
+					case 'gaussian'
+						gm = fitgmdist(obj.Spikes(iChannel).PCA.Score(inCluster, 1:dimension), k);
+						obj.Spikes(iChannel).Cluster(inCluster) = cluster(gm, obj.Spikes(iChannel).PCA.Score(inCluster, 1:dimension));
+					otherwise
+						error('Unrecognized clustering method. Must be ''kmeans'' or ''gaussian''.')			
 				end
 			end
 			TetrodeRecording.TTS(['Done(', num2str(round(toc)), ' seconds).\n'], toc >= 10)
@@ -1028,6 +1047,7 @@ classdef TetrodeRecording < handle
 			addOptional(p, 'Event', 'PressOn', @ischar);
 			addOptional(p, 'Exclude', 'LickOn', @ischar);
 			addParameter(p, 'AlignTo', 'Event', @ischar);
+			addParameter(p, 'Sort', true, @islogical);
 			addParameter(p, 'ExtendedWindow', [-2, 2], @isnumeric);
 			addParameter(p, 'Clusters', [], @isnumeric);
 			addParameter(p, 'XLim', [], @isnumeric);
@@ -1038,6 +1058,7 @@ classdef TetrodeRecording < handle
 			event = p.Results.Event;
 			exclude = p.Results.Exclude;
 			alignTo = p.Results.AlignTo;
+			doSort = p.Results.Sort;
 			extendedWindow = p.Results.ExtendedWindow;
 			clusters = p.Results.Clusters;
 			xRange = p.Results.XLim;
@@ -1071,8 +1092,12 @@ classdef TetrodeRecording < handle
 			for iChannel = channels
 				[spikes, trials] = obj.GetSpikesByTrial(iChannel, reference, event, extendedWindow, clusters);
 				% Sort trials by time to movement
-				[~, I] = sort(reference - event);
-				trialsSorted = changem(trials, 1:length(unique(I)), I);	% !!! changem requires mapping toolbox.
+				if doSort
+					[~, I] = sort(reference - event);
+					trialsSorted = changem(trials, 1:length(unique(I)), I);	% !!! changem requires mapping toolbox.
+				else
+					trialsSorted = trials;
+				end
 
 				if isempty(ax)
 					hFigure = figure('Units', 'Normalized', 'OuterPosition', [0, 0, 0.75, 1]);
@@ -1082,12 +1107,12 @@ classdef TetrodeRecording < handle
 					axes(hAxes);
 				end
 
-				if strcmp(alignTo, 'Event') || strcmp(alignTo, 'Movement')
+				if strcmpi(alignTo, 'Event') || strcmpi(alignTo, 'Movement')
 					spikesRelative = spikes - event(trials);
 					eventRelative = reference(trials) - event(trials);
 					eventDisplayNameRelative = referenceDisplayName; 
 					referenceDisplayNameRelative = eventDisplayName; 
-				elseif strcmp(alignTo, 'Reference') || strcmp(alignTo, 'Cue')
+				elseif strcmpi(alignTo, 'Reference') || strcmpi(alignTo, 'Cue')
 					spikesRelative = spikes - reference(trials);
 					eventRelative = event(trials) - reference(trials);
 					eventDisplayNameRelative = eventDisplayName; 
@@ -1167,10 +1192,13 @@ classdef TetrodeRecording < handle
 
 			% Bin trials according to trial length (t(event) - t(reference))
 			trialLength = event - reference;
-			if strcmp(binMethod, 'percentile')
-				edges = prctile(trialLength(trialLength > minTrialLength), 0:(100/nBins):100);
-			elseif strcmp(binMethod, 'equal')
-				edges = linspace(max(minTrialLength, min(trialLength)), max(trialLength), nBins + 1);
+			switch binMethod
+				case 'percentile'
+					edges = prctile(trialLength(trialLength > minTrialLength), 0:(100/nBins):100);
+				case 'equal'
+					edges = linspace(max(minTrialLength, min(trialLength)), max(trialLength), nBins + 1);
+				otherwise
+					error('Unrecognized bin method.')
 			end
 			[NTrials, ~, bins] = histcounts(trialLength, edges);
 
@@ -1295,7 +1323,7 @@ classdef TetrodeRecording < handle
 					'Ax', [hPCA, hWaveform]);
 				obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
 					'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
-					'Ax', hRaster);
+					'Ax', hRaster, 'Sort', false);
 				obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
 					'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
 					'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
@@ -1410,11 +1438,12 @@ classdef TetrodeRecording < handle
 
 		function OnKeyPress(~, evnt, hTimer)
 			if isvalid(hTimer)
-				if strcmp(evnt.Key, 'space')
-					if strcmp(hTimer.Running, 'on')
-						stop(hTimer);
-					elseif strcmp(hTimer.Running, 'off')
-						start(hTimer);
+				if strcmpi(evnt.Key, 'space')
+					switch lower(hTimer.Running)
+						case 'on'
+							stop(hTimer);
+						case 'off'
+							start(hTimer);
 					end
 				end
 			end
