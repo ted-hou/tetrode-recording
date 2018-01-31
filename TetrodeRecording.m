@@ -607,7 +607,7 @@ classdef TetrodeRecording < handle
 			addRequired(p, 'Channels', @isnumeric);
 			addParameter(p, 'NumSigmas', 2, @isnumeric);
 			addParameter(p, 'Direction', 'negative', @ischar);
-			addParameter(p, 'WaveformWindow', [-0.5, 0.5], @isnumeric);
+			addParameter(p, 'WaveformWindow', [-1.25, 1.25], @isnumeric);
 			addParameter(p, 'Append', false, @islogical);
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
@@ -668,7 +668,6 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).Threshold.NumSigmas = numSigmas;
 					obj.Spikes(iChannel).Threshold.Threshold = direction*threshold;
 					obj.Spikes(iChannel).Threshold.Direction = directionMode;
-					obj.Spikes(iChannel).AlignmentShift = alignmentShift;
 				else
 					obj.Spikes(iChannel).SampleIndex = [obj.Spikes(iChannel).SampleIndex, sampleIndex + length(obj.DigitalEvents.Timestamps)];
 					obj.Spikes(iChannel).Timestamps = [obj.Spikes(iChannel).Timestamps, timestamps];
@@ -766,8 +765,8 @@ classdef TetrodeRecording < handle
                 	thisWaveformWindow = waveformWindow;
                 end
 				obj.RemoveNaNs(channels);
-				obj.PCA(channels, thisClusters, thisWaveformWindow);
-				obj.Cluster(channels, k, method, thisClusters, dimension);
+				obj.FeatureExtract(channels, 'WaveformWindow', thisWaveformWindow, 'Dimension', dimension);
+				obj.Cluster(channels, k, method, thisClusters);
 				if ~hideResults
 					obj.PlotChannel(iChannel, 'WaveformWindow', thisWaveformWindow);
 				end
@@ -783,41 +782,133 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function PCA(obj, channels, clusters, waveformWindow)
-			tic, TetrodeRecording.TTS('Principal component analysis...');
+		function FeatureExtract(obj, channels, varargin)
+			p = inputParser;
+			addRequired(p, 'Channels', @isnumeric);
+			addParameter(p, 'WaveformWindow', [], @isnumeric);
+			addParameter(p, 'Method', 'WaveletTransform', @ischar);
+			addParameter(p, 'WaveDecLevel', 4, @isnumeric);
+			addParameter(p, 'Dimension', 10, @isnumeric);
+			parse(p, channels, varargin{:});
+			channels = p.Results.Channels;
+			waveformWindow = p.Results.WaveformWindow;
+			method = p.Results.Method;
+			waveDecLevel = p.Results.WaveDecLevel;
+			dimension = p.Results.Dimension;
+
+			tic, TetrodeRecording.TTS(['Feature extraction via ', method, '...']);
+
 			for iChannel = channels
-                if ~isempty(clusters)
-                    inCluster = ismember(obj.Spikes(iChannel).Cluster, clusters);
-                else
-                    inCluster = true(size(obj.Spikes(iChannel).Timestamps));
-                end
-                inWindow = obj.Spikes(iChannel).WaveformTimestamps >= waveformWindow(1) & obj.Spikes(iChannel).WaveformTimestamps <= waveformWindow(2);
-				obj.Spikes(iChannel).PCA = [];
-				[obj.Spikes(iChannel).PCA.Coeff, obj.Spikes(iChannel).PCA.Score(inCluster, :)] = pca(obj.Spikes(iChannel).Waveforms(inCluster, inWindow));
+				obj.Spikes(iChannel).Feature.Method = method;
+
+				if isempty(waveformWindow)
+					thisWaveformWindow = obj.Spikes(iChannel).WaveformWindow;
+				else
+					thisWaveformWindow = waveformWindow;
+				end
+					
+				switch lower(method)
+					case 'wavelettransform'
+						obj.Spikes(iChannel).Feature.Parameters = struct('Dimension', dimension, 'WaveformWindow', thisWaveformWindow, 'Level', waveDecLevel);
+						[obj.Spikes(iChannel).Feature.Coeff, obj.Spikes(iChannel).Feature.Stats] = obj.WaveletTransform(iChannel, 'Level', waveDecLevel, 'WaveformWindow', thisWaveformWindow, 'Dimension', dimension);
+					case 'pca'
+						obj.Spikes(iChannel).Feature.Parameters = struct('Dimension', dimension, 'WaveformWindow', thisWaveformWindow);
+						[obj.Spikes(iChannel).Feature.Coeff, obj.Spikes(iChannel).Feature.Stats] = obj.PCA(iChannel, 'WaveformWindow', thisWaveformWindow, 'Dimension', dimension);
+					otherwise
+						error('Unrecognized feature extraction method.')
+				end
 			end
+
 			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 		end
 
-		function Cluster(obj, channels, k, method, clusters, dimension)
+		function [coeff, stats] = PCA(obj, channel, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addParameter(p, 'WaveformWindow', [], @isnumeric);
+			addParameter(p, 'Dimension', 10, @isnumeric);
+			parse(p, channel, varargin{:});
+			channel = p.Results.Channel;
+			waveformWindow = p.Results.WaveformWindow;
+			dimension = p.Results.Dimension;
+
+			if isempty(waveformWindow)
+				inWindow = true(size(obj.Spikes(channel).WaveformTimestamps));
+			else
+				inWindow = obj.Spikes(channel).WaveformTimestamps >= waveformWindow(1) & obj.Spikes(channel).WaveformTimestamps <= waveformWindow(2);
+			end
+			[stats, coeff] = pca(obj.Spikes(channel).Waveforms(:, inWindow));
+			coeff = coeff(:, 1:dimension);
+			stats = struct('Basis', stats(:, 1:dimension));
+		end
+
+		function [coeff, stats] = WaveletTransform(obj, channel, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addParameter(p, 'Level', 4, @isnumeric);
+			addParameter(p, 'WaveformWindow', [], @isnumeric);
+			addParameter(p, 'Dimension', 10, @isnumeric);
+			parse(p, channel, varargin{:});
+			channel = p.Results.Channel;
+			level = p.Results.Level;
+			waveformWindow = p.Results.WaveformWindow;
+			dimension = p.Results.Dimension;
+
+			if isempty(waveformWindow)
+				inWindow = true(size(obj.Spikes(channel).WaveformTimestamps));
+			else
+				inWindow = obj.Spikes(channel).WaveformTimestamps >= waveformWindow(1) & obj.Spikes(channel).WaveformTimestamps <= waveformWindow(2);
+			end
+
+			% Wavelet transform
+			numWaveforms = length(obj.Spikes(channel).Timestamps);
+			waveformLength = sum(inWindow);
+			coeff = zeros(numWaveforms, waveformLength);
+			for iWaveform = 1:numWaveforms
+				[c, ~] = wavedec(obj.Spikes(channel).Waveforms(iWaveform, inWindow), level, 'haar');	% Haar wavelet decomposition
+				coeff(iWaveform, :) = c(1:waveformLength);
+			end
+
+			% Select informative coefficients via KS test. 10 coefficients with largest deviation from normality are selected.
+			ksstat = zeros(1, waveformLength);
+			for iCoeff = 1:waveformLength
+				thisCoeff = coeff(:, iCoeff);
+				% Discard outliers (3 sigma)
+				thisCoeff = thisCoeff(thisCoeff > mean(thisCoeff) - 3*std(thisCoeff) & thisCoeff < mean(thisCoeff) + 3*std(thisCoeff));
+
+				if (sum(thisCoeff == 0) ~= length(thisCoeff)) && length(thisCoeff) > dimension
+					[~, ~, ksstat(iCoeff)] = kstest((thisCoeff - mean(thisCoeff))./std(thisCoeff)); % Check normality for each coefficient
+				else
+					ksstat(iCoeff) = 0;
+				end
+			end
+			% Pick 10 least 'normal' coefficients (largest ksstat)
+			[~, I] = sort(ksstat, 'descend');
+			I = I(1:min(dimension, waveformLength));
+			coeff = coeff(:, I);
+			stats = struct('ksstat', ksstat(I));
+		end
+
+		function Cluster(obj, channels, k, method, clusters)
 			tic, TetrodeRecording.TTS('Clustering...');
 			for iChannel = channels
-                if isfield(obj.Spikes(iChannel), 'Cluster')
-                    if isempty(obj.Spikes(iChannel).Cluster)
-                        inCluster = true(size(obj.Spikes(iChannel).Timestamps));
-                    else
-                        inCluster = ismember(obj.Spikes(iChannel).Cluster, clusters);
-                    end
-                else
-                    inCluster = true(size(obj.Spikes(iChannel).Timestamps));
-                end
+				if isfield(obj.Spikes(iChannel), 'Cluster')
+					if isempty(obj.Spikes(iChannel).Cluster)
+						inCluster = true(size(obj.Spikes(iChannel).Timestamps));
+					else
+						inCluster = ismember(obj.Spikes(iChannel).Cluster, clusters);
+					end
+				else
+					inCluster = true(size(obj.Spikes(iChannel).Timestamps));
+				end
 				
 				obj.Spikes(iChannel).Cluster = [];
 				switch lower(method)
 					case 'kmeans'
-						obj.Spikes(iChannel).Cluster(inCluster) = kmeans(obj.Spikes(iChannel).PCA.Score(inCluster, 1:dimension), k);
+						obj.Spikes(iChannel).Cluster(inCluster) = kmeans(obj.Spikes(iChannel).Feature.Coeff(inCluster, :), k);
 					case 'gaussian'
-						gm = fitgmdist(obj.Spikes(iChannel).PCA.Score(inCluster, 1:dimension), k);
-						obj.Spikes(iChannel).Cluster(inCluster) = cluster(gm, obj.Spikes(iChannel).PCA.Score(inCluster, 1:dimension));
+						gm = fitgmdist(obj.Spikes(iChannel).Feature.Coeff(inCluster, :), k);
+						obj.Spikes(iChannel).Cluster(inCluster) = cluster(gm, obj.Spikes(iChannel).Feature.Coeff(inCluster, :));
 					otherwise
 						error('Unrecognized clustering method. Must be ''kmeans'' or ''gaussian''.')			
 				end
@@ -861,7 +952,7 @@ classdef TetrodeRecording < handle
 			obj.Spikes(channel).Waveforms(iWaveformToDiscard, :) = [];
 			obj.Spikes(channel).Timestamps(iWaveformToDiscard) = [];
 			obj.Spikes(channel).SampleIndex(iWaveformToDiscard) = [];
-			obj.Spikes(channel).PCA.Score(iWaveformToDiscard, :) = [];
+			obj.Spikes(channel).Feature.Coeff(iWaveformToDiscard, :) = [];
 			obj.Spikes(channel).Cluster(iWaveformToDiscard) = [];
 
 			% Renumber clusters from 1 to numClusters
@@ -886,7 +977,7 @@ classdef TetrodeRecording < handle
 			obj.Spikes(channel).Waveforms(notInLuck, :) 		= [];
 			obj.Spikes(channel).Timestamps(notInLuck) 			= [];
 			obj.Spikes(channel).SampleIndex(notInLuck) 			= [];
-			obj.Spikes(channel).PCA.Score(notInLuck, :) 		= [];
+			obj.Spikes(channel).Feature.Coeff(notInLuck, :)		= [];
 			obj.Spikes(channel).Cluster(notInLuck) 				= [];
 
 			if ~hideResults
@@ -964,7 +1055,7 @@ classdef TetrodeRecording < handle
 				waveformWindow = obj.Spikes(channel).WaveformWindow;
 			end
 			t = obj.Spikes(channel).WaveformTimestamps;
-			score = obj.Spikes(channel).PCA.Score;
+			score = obj.Spikes(channel).Feature.Coeff;
 			if isempty(clusters)
 				clusters = nonzeros(unique(obj.Spikes(channel).Cluster));
 			end
