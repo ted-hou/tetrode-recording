@@ -115,6 +115,8 @@ chunkSize = 10;
 tr.ReadFiles(chunkSize);
 tr.SpikeDetect(tr.MapChannelID([4, 7, 11]), 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
 tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
+tr.SpikeSort(10, 'ClusterMethod', 'kmeans', 'WaveformWindow', [], 'FeatureMethod', 'WaveletTransform', 'Dimension', 10, 'HideResults', true);
+[clu, tree] = tr.SPC(10);
 TetrodeRecording.TTS(['All Done.\n',], true)
 clear chunkSize
 

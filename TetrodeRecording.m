@@ -731,22 +731,22 @@ classdef TetrodeRecording < handle
 		end
 
 		% SpikeSort: PCA & Cluster
-		function SpikeSort(obj, channels, k, varargin)
+		function SpikeSort(obj, channels, varargin)
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric);
-			addRequired(p, 'K', @isnumeric);
 			addParameter(p, 'Dimension', 10, @isnumeric);
 			addParameter(p, 'FeatureMethod', 'WaveletTransform', @ischar);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'ClusterMethod', 'gaussian', @ischar);
+			addParameter(p, 'NumClusters', 3, @isnumeric);
 			addParameter(p, 'HideResults', false, @islogical);
-			parse(p, channels, k, varargin{:});
+			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
-			k = p.Results.K;
 			dimension = p.Results.Dimension;
 			featureMethod = p.Results.FeatureMethod;
 			waveformWindow = p.Results.WaveformWindow;
 			clusterMethod = p.Results.ClusterMethod;
+			numClusters = p.Results.NumClusters;
 			hideResults = p.Results.HideResults;
 
 			for iChannel = channels
@@ -757,7 +757,7 @@ classdef TetrodeRecording < handle
 				end
 				obj.RemoveNaNs(channels);
 				obj.FeatureExtract(channels, 'WaveformWindow', thisWaveformWindow, 'Method', featureMethod, 'Dimension', dimension);
-				obj.Cluster(channels, k, clusterMethod);
+				obj.Cluster(channels, numClusters, clusterMethod);
 				if ~hideResults
 					obj.PlotChannel(iChannel, 'WaveformWindow', thisWaveformWindow);
 				end
@@ -897,6 +897,60 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.TTS(['Done(', num2str(round(toc)), ' seconds).\n'], toc >= 10)
 		end
 
+		function [clu, tree] = SPC(obj, channel, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addParameter(p, 'Dimension', [], @isnumeric);
+			addParameter(p, 'MinTemp', 0, @isnumeric);
+			addParameter(p, 'MaxTemp', 0.251, @isnumeric);
+			addParameter(p, 'TempStep', 0.01, @isnumeric);
+			addParameter(p, 'SWCycles', 100, @isnumeric);
+			addParameter(p, 'KNearestNeighbours', 11, @isnumeric);
+			parse(p, channel, varargin{:});
+			channel 	= p.Results.Channel;
+			dimension 	= p.Results.Dimension;
+
+			coeff = obj.Spikes(channel).Feature.Coeff;
+
+			if isempty(dimension) || dimension < size(coeff, 2)
+				dimension = size(coeff, 2);
+			end
+
+			fileIn = 'temp_in';
+			fileOut = 'temp_out';
+			save(fileIn, 'coeff', '-ascii');
+			fid = fopen(sprintf('%s.run', fileOut), 'wt');
+			fprintf(fid, 'NumberOfPoints: %s\n', num2str(size(coeff, 1)));
+			fprintf(fid, 'DataFile: %s\n', fileIn);
+			fprintf(fid, 'OutFile: %s\n', fileOut);
+			fprintf(fid, 'Dimensions: %s\n', num2str(dimension));
+			fprintf(fid, 'MinTemp: %s\n', num2str(p.Results.MinTemp));
+			fprintf(fid, 'MaxTemp: %s\n', num2str(p.Results.MaxTemp));
+			fprintf(fid, 'TempStep: %s\n', num2str(p.Results.TempStep));
+			fprintf(fid, 'SWCycles: %s\n', num2str(p.Results.SWCycles));
+			fprintf(fid, 'KNearestNeighbours: %s\n', num2str(p.Results.KNearestNeighbours));
+			fprintf(fid, 'MSTree|\n');
+			fprintf(fid, 'DirectedGrowth|\n');
+			fprintf(fid, 'SaveSuscept|\n');
+			fprintf(fid, 'WriteLables|\n');
+			fprintf(fid, 'WriteCorFile~\n');
+			fclose(fid);
+
+			[status, result] = dos(sprintf('"%s" %s.run', which('cluster_64.exe'), fileOut));
+
+			disp(result)
+			clu = load([fileOut, '.dg_01.lab']);
+			tree = load([fileOut, '.dg_01']);
+			delete([fileOut, '.dg_01.lab'])
+			delete([fileOut, '.dg_01'])
+			delete([fileOut, '.run']);
+			delete([fileOut, '*.mag']);
+			delete([fileOut, '*.edges']);
+			delete([fileOut, '*.param']);
+			delete([fileOut, '*.knn']);
+			delete(fileIn);
+		end
+
 		function ClusterMerge(obj, channel, mergeList, varargin)
 			p = inputParser;
 			addRequired(p, 'Channel', @isnumeric);
@@ -1018,7 +1072,7 @@ classdef TetrodeRecording < handle
 			addOptional(p, 'NumWaveforms', 50, @isnumeric);
 			addParameter(p, 'Clusters', [], @isnumeric);
 			addParameter(p, 'YLim', [], @isnumeric);
-			addParameter(p, 'FrameRate', 60, @isnumeric);
+			addParameter(p, 'FrameRate', 120, @isnumeric);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'Ax', []);
 			parse(p, channel, varargin{:});
@@ -1091,8 +1145,8 @@ classdef TetrodeRecording < handle
 			hLegends = [];
 			hAxes2.UserData.hWaveforms = [];
 			hAxes2.UserData.iWaveform = 0;
-			hLegends = [hLegends, line(hAxes2, [obj.Spikes(channel).WaveformWindow(1), 0], repmat(mean(obj.Spikes(channel).Threshold.Threshold), [1, 2]), 'Color', 'k', 'LineWidth', 3, 'DisplayName', ['Trigger Threshold (', num2str(mean(obj.Spikes(channel).Threshold.Threshold)), ' \muV)'])];
-			% legend(hLegends, 'AutoUpdate', 'off', 'Location', 'Best')
+			hLegends = [hLegends, line(hAxes2, [obj.Spikes(channel).WaveformWindow(1), 0], repmat(mean(obj.Spikes(channel).Threshold.Threshold), [1, 2]), 'Color', 'k', 'LineWidth', 3, 'DisplayName', ['Threshold (', num2str(mean(obj.Spikes(channel).Threshold.Threshold)), ' \muV)'])];
+			legend(hLegends, 'AutoUpdate', 'off', 'Location', 'Best')
 			xlim(hAxes2, waveformWindow)
 			ylim(hAxes2, yRange)
 
@@ -1113,7 +1167,6 @@ classdef TetrodeRecording < handle
 				for iWaveform = 1:numWaveformsTotal
 					line(hAxes2, t, waveforms(iWaveform, :), 'LineStyle', '-', 'Color', colors(clusterID(iWaveform)), 'DisplayName', ['Waveform (Cluster ', num2str(clusterID(iWaveform)), ')']);
 				end
-				drawnow
 			end
 		end
 
@@ -1345,6 +1398,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
 			addParameter(p, 'RasterXLim', [], @isnumeric);
 			addParameter(p, 'FontSize', 8, @isnumeric);
+			addParameter(p, 'FrameRate', 120, @isnumeric);
 			parse(p, channels, varargin{:});
 			channels 		= p.Results.Channels;
 			reference 		= p.Results.Reference;
@@ -1360,6 +1414,7 @@ classdef TetrodeRecording < handle
 			spikeRateWindow = p.Results.SpikeRateWindow;
 			rasterXLim 		= p.Results.RasterXLim;
 			fontSize 		= p.Results.FontSize;
+			frameRate 		= p.Results.FrameRate;
 
 			if isempty(clusters)
 				waveformClusters = [];
@@ -1388,7 +1443,8 @@ classdef TetrodeRecording < handle
 				expName = expName{end - 1};
 				displayName = [expName, ' (Channel ', num2str(iChannel), ')'];
 
-				hFigure 	= figure('Units', 'Normalized', 'Position', [0.125, 0, 0.75, 1], 'Name', displayName, 'DefaultAxesFontSize', fontSize, 'GraphicsSmoothing', 'off');
+				hFigure 	= figure('Units', 'Normalized', 'Position', [0.125, 0, 0.75, 1], 'Name', displayName, 'DefaultAxesFontSize', fontSize,...
+					'GraphicsSmoothing', 'on');
 				hWaveform 	= subplot('Position', [fMargin + xMargin, fMargin + 5*yMargin + hDown + hUpHalf, wLeft, hUpHalf]);
 				hPCA 		= subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hDown, wLeft, hUpHalf]);
 				hRaster		= subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + 3*yMargin + hDown, wRight, hUp]);
@@ -1396,7 +1452,7 @@ classdef TetrodeRecording < handle
 
 				suptitle(displayName);
 
-				obj.PlotWaveforms(iChannel, 'Clusters', waveformClusters, 'WaveformWindow', waveformWindow,...
+				obj.PlotWaveforms(iChannel, 'Clusters', waveformClusters, 'WaveformWindow', waveformWindow, 'FrameRate', frameRate,...
 					'Ax', [hPCA, hWaveform]);
 				obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
 					'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
@@ -1500,16 +1556,23 @@ classdef TetrodeRecording < handle
 				delete(hAxes.UserData.hTimer);
 				return
 			else
-				if length(hAxes.UserData.hWaveforms) >= numWaveforms
-					delete(hAxes.UserData.hWaveforms(1));
-					hAxes.UserData.hWaveforms = hAxes.UserData.hWaveforms(2:end);
-				end
-				hAxes.UserData.hWaveforms = [hAxes.UserData.hWaveforms, line(hAxes, t, waveforms(iWaveform, :), 'LineStyle', '-', 'Color', colors(clusterID(iWaveform)), 'DisplayName', ['Waveform (Cluster ', num2str(clusterID(iWaveform)), ')'])];
 				if iWaveform == 1
 					xlabel(hAxes, 'Time (ms)');
 					ylabel(hAxes, 'Voltage (\muV)');
 					title(hAxes, 'Waveforms');
 				end
+				if length(hAxes.UserData.hWaveforms) < numWaveforms
+					hAxes.UserData.hWaveforms = [hAxes.UserData.hWaveforms, line(hAxes, t, waveforms(iWaveform, :), 'LineStyle', '-', 'Color', colors(clusterID(iWaveform)), 'DisplayName', ['Waveform (Cluster ', num2str(clusterID(iWaveform)), ')'])];
+				else
+					iHandle = mod(iWaveform, numWaveforms);
+					if iHandle == 0
+						iHandle = numWaveforms;
+					end
+					% hAxes.UserData.hWaveforms(iHandle).XData = t;
+					hAxes.UserData.hWaveforms(iHandle).YData = waveforms(iWaveform, :);
+					hAxes.UserData.hWaveforms(iHandle).Color = colors(clusterID(iWaveform));
+				end
+				drawnow
 			end	
 		end
 
