@@ -897,6 +897,7 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.TTS(['Done(', num2str(round(toc)), ' seconds).\n'], toc >= 10)
 		end
 
+		% Superparamagnetic clustering
 		function [clu, tree] = SPC(obj, channel, varargin)
 			p = inputParser;
 			addRequired(p, 'Channel', @isnumeric);
@@ -906,11 +907,21 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'TempStep', 0.01, @isnumeric);
 			addParameter(p, 'SWCycles', 100, @isnumeric);
 			addParameter(p, 'KNearestNeighbours', 11, @isnumeric);
+			addParameter(p, 'MinClusterSize', NaN, @isnumeric);
+			addParameter(p, 'MinClusterSizeRatio', 0.005, @isnumeric);
+			addParameter(p, 'MaxNumClusters', 13, @isnumeric);
 			parse(p, channel, varargin{:});
-			channel 	= p.Results.Channel;
-			dimension 	= p.Results.Dimension;
+			channel 			= p.Results.Channel;
+			dimension 			= p.Results.Dimension;
+			tempStep 			= p.Results.TempStep;
+			minClusterSize 		= p.Results.MinClusterSize;
+			minClusterSizeRatio = p.Results.MinClusterSizeRatio;
+			maxNumClusters 		= p.Results.MaxNumClusters;
 
 			coeff = obj.Spikes(channel).Feature.Coeff;
+			if isnan(minClusterSize)
+				minClusterSize = round(size(coeff, 1)*minClusterSizeRatio/tempStep);
+			end
 
 			if isempty(dimension) || dimension < size(coeff, 2)
 				dimension = size(coeff, 2);
@@ -936,9 +947,8 @@ classdef TetrodeRecording < handle
 			fprintf(fid, 'WriteCorFile~\n');
 			fclose(fid);
 
-			[status, result] = dos(sprintf('"%s" %s.run', which('cluster_64.exe'), fileOut));
+			dos(sprintf('"%s" %s.run', which('cluster_64.exe'), fileOut));
 
-			disp(result)
 			clu = load([fileOut, '.dg_01.lab']);
 			tree = load([fileOut, '.dg_01']);
 			delete([fileOut, '.dg_01.lab'])
@@ -949,6 +959,11 @@ classdef TetrodeRecording < handle
 			delete([fileOut, '*.param']);
 			delete([fileOut, '*.knn']);
 			delete(fileIn);
+
+			% Find proper temperature (when )
+			dSizeCluster = diff(tree(:, 5:8));
+			[false; sum(dSizeCluster <= minClusterSize, 2) == 4] & sum(tree(:, 5:8), 2) >= 0.75*size(coeff, 1)
+
 		end
 
 		function ClusterMerge(obj, channel, mergeList, varargin)
