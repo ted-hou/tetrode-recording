@@ -21,7 +21,7 @@ tr.SpikeDetect(19, -25, 'ExclusionThreshold', -500, 'ExitThreshold', 15, 'Wavefo
 
 tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
 
-TetrodeRecording.TTS(['All Done.\n',], true)
+TetrodeRecording.RandomWords();
 
 clear chunkSize
 
@@ -41,7 +41,7 @@ tr.SpikeDetect(30, -25, 'ExclusionThreshold', 300, 'ExitThreshold', 25, 'Wavefor
 
 tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
 
-TetrodeRecording.TTS(['All Done.\n',], true)
+TetrodeRecording.RandomWords();
 
 clear chunkSize
 
@@ -62,7 +62,7 @@ tr.SpikeDetect(29, -25, 'ExclusionThreshold', 500, 'ExitThreshold', 15, 'Wavefor
 
 tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
 
-TetrodeRecording.TTS(['All Done.\n',], true)
+TetrodeRecording.RandomWords();
 
 clear chunkSize
 
@@ -89,7 +89,7 @@ tr.SpikeDetect(32, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
 
 tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
 
-TetrodeRecording.TTS(['All Done.\n',], true)
+TetrodeRecording.RandomWords();
 
 clear chunkSize
 
@@ -105,7 +105,7 @@ tr.SpikeDetect(10, 25, 'ExclusionThreshold', 500, 'ExitThreshold', -15, 'Wavefor
 
 tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
 
-TetrodeRecording.TTS(['All Done.\n',], true)
+TetrodeRecording.RandomWords();
 
 clear chunkSize
 
@@ -117,7 +117,7 @@ tr.SpikeDetect(tr.MapChannelID([4, 7, 11]), 'NumSigmas', 4, 'WaveformWindow', [-
 tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
 tr.SpikeSort(10, 'ClusterMethod', 'kmeans', 'WaveformWindow', [], 'FeatureMethod', 'WaveletTransform', 'Dimension', 10, 'HideResults', true);
 [clu, tree] = tr.SPC(10);
-TetrodeRecording.TTS(['All Done.\n',], true)
+TetrodeRecording.RandomWords();
 clear chunkSize
 
 % tr.SpikeDetect(tr.MapChannelID(4), 40, 'ExclusionThreshold', 600, 'WaveformWindow', [-0.35, 0.35], 'WaveformWindowExtended', [-0.75, 1]);
@@ -141,6 +141,6 @@ end
 
 tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
 
-TetrodeRecording.TTS(['All Done.\n',], true)
+TetrodeRecording.RandomWords();
 
 clear chunkSize
