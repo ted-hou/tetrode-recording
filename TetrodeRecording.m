@@ -1500,10 +1500,12 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Channels', [], @isnumeric);
 			addParameter(p, 'PercentShown', 10, @isnumeric); % What percentage of waveforms are plotted (0 - 100)
 			addParameter(p, 'Fontsize', 8, @isnumeric);
+			addParameter(p, 'PlotMethod', 'all', @ischar); % 'all', 'mean'
 			parse(p, varargin{:});
 			channels 		= p.Results.Channels;
 			percentShown 	= p.Results.PercentShown;
 			fontSize 		= p.Results.Fontsize;
+			plotMethod 		= p.Results.PlotMethod;
 
 			if isempty(channels)
 				channels = [obj.Spikes.Channel];
@@ -1525,7 +1527,12 @@ classdef TetrodeRecording < handle
 				clusterID = obj.Spikes(iChannel).Cluster;
 				for iCluster = unique(nonzeros(clusterID))'
 					thisWaveforms = obj.Spikes(iChannel).Waveforms(clusterID==iCluster, :);
-					thisWaveforms = thisWaveforms(1:ceil(100/percentShown):end, :);
+					switch lower(plotMethod)
+						case 'all'
+							thisWaveforms = thisWaveforms(1:ceil(100/percentShown):end, :);
+						case 'mean'
+							thisWaveforms = mean(thisWaveforms, 1);
+					end
 					line(hAxes(iChannel), obj.Spikes(iChannel).WaveformTimestamps, thisWaveforms, 'LineStyle', '-', 'Color', colors(iCluster));
 				end
 				drawnow
