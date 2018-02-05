@@ -1,7 +1,7 @@
 % Prototype
 tr = TetrodeRecording();
 chunkSize = 10;
-tr.ReadFiles(chunkSize);
+tr.ReadFiles(chunkSize, 'DigitalDetect', true);
 channels = tr.MapChannelID([tr.Amplifier.Channels.NativeOrder]);
 tr.SpikeDetect(channels, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
 tr.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);

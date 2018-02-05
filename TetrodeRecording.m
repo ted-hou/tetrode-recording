@@ -1177,7 +1177,7 @@ classdef TetrodeRecording < handle
 			hLegends = [];
 			hAxes2.UserData.hWaveforms = [];
 			hAxes2.UserData.iWaveform = 0;
-			hLegends = [hLegends, line(hAxes2, [obj.Spikes(channel).WaveformWindow(1), 0], repmat(mean(obj.Spikes(channel).Threshold.Threshold), [1, 2]), 'Color', 'k', 'LineWidth', 3, 'DisplayName', ['Threshold (', num2str(mean(obj.Spikes(channel).Threshold.Threshold)), ' \muV)'])];
+			hLegends = [hLegends, line(hAxes2, 'XData', [obj.Spikes(channel).WaveformWindow(1), 0], 'YData', repmat(mean(obj.Spikes(channel).Threshold.Threshold), [1, 2]), 'Color', 'k', 'LineWidth', 3, 'DisplayName', ['Threshold (', num2str(mean(obj.Spikes(channel).Threshold.Threshold)), ' \muV)'])];
 			legend(hLegends, 'AutoUpdate', 'off', 'Location', 'Best')
 			xlim(hAxes2, waveformWindow)
 			ylim(hAxes2, yRange)
@@ -1196,8 +1196,8 @@ classdef TetrodeRecording < handle
 				xlabel(hAxes2, 'Time (ms)');
 				ylabel(hAxes2, 'Voltage (\muV)');
 				title(hAxes2, 'Waveforms');
-				for iWaveform = 1:numWaveformsTotal
-					line(hAxes2, t, waveforms(iWaveform, :), 'LineStyle', '-', 'Color', colors(clusterID(iWaveform)), 'DisplayName', ['Waveform (Cluster ', num2str(clusterID(iWaveform)), ')']);
+				for iCluster = unique(nonzeros(clusterID))'
+					line(hAxes2, t, waveforms(clusterID==iCluster, :), 'LineStyle', '-', 'Color', colors(iCluster));
 				end
 			end
 		end
@@ -1414,7 +1414,6 @@ classdef TetrodeRecording < handle
 		end
 
 		function PlotChannel(obj, channels, varargin)
-			% Waveform
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric);
 			addParameter(p, 'Reference', 'CueOn', @ischar);
@@ -1494,6 +1493,45 @@ classdef TetrodeRecording < handle
 					'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
 					'Ax', hPETH);
 			end
+		end
+
+		function ReviewChannels(obj, varargin)
+			p = inputParser;
+			addParameter(p, 'Channels', [], @isnumeric);
+			addParameter(p, 'PercentShown', 10, @isnumeric); % What percentage of waveforms are plotted (0 - 100)
+			addParameter(p, 'Fontsize', 8, @isnumeric);
+			parse(p, varargin{:});
+			channels 		= p.Results.Channels;
+			percentShown 	= p.Results.PercentShown;
+			fontSize 		= p.Results.Fontsize;
+
+			if isempty(channels)
+				channels = [obj.Spikes.Channel];
+			end
+
+			expName = strsplit(obj.Path, '\');
+			expName = expName{end - 1};
+
+			hFigure	= figure('Units', 'Normalized', 'Position', [0.125, 0, 0.75, 1], 'Name', expName, 'DefaultAxesFontSize', fontSize,...
+				'GraphicsSmoothing', 'off');
+			hAxes = gobjects(1, 35);
+
+			colors = 'rgbcmyk';
+			for iChannel = channels
+				hAxes(iChannel)	= subplot(5, 7, iChannel);
+				xlabel(hAxes(iChannel), 'Time (ms)');
+				ylabel(hAxes(iChannel), 'Voltage (\muV)');
+				title(hAxes(iChannel), ['Channel ', num2str(iChannel)]);
+				clusterID = obj.Spikes(iChannel).Cluster;
+				for iCluster = unique(nonzeros(clusterID))'
+					thisWaveforms = obj.Spikes(iChannel).Waveforms(clusterID==iCluster, :);
+					thisWaveforms = thisWaveforms(1:ceil(100/percentShown):end, :);
+					line(hAxes(iChannel), obj.Spikes(iChannel).WaveformTimestamps, thisWaveforms, 'LineStyle', '-', 'Color', colors(iCluster));
+				end
+				drawnow
+			end
+
+			suptitle(expName);
 		end
 
 		% Sort spikes and digital events into trial structure
@@ -1594,7 +1632,7 @@ classdef TetrodeRecording < handle
 					title(hAxes, 'Waveforms');
 				end
 				if length(hAxes.UserData.hWaveforms) < numWaveforms
-					hAxes.UserData.hWaveforms = [hAxes.UserData.hWaveforms, line(hAxes, t, waveforms(iWaveform, :), 'LineStyle', '-', 'Color', colors(clusterID(iWaveform)), 'DisplayName', ['Waveform (Cluster ', num2str(clusterID(iWaveform)), ')'])];
+					hAxes.UserData.hWaveforms = [hAxes.UserData.hWaveforms, line(hAxes, 'XData', t, 'YData', waveforms(iWaveform, :), 'LineStyle', '-', 'Color', colors(clusterID(iWaveform)), 'DisplayName', ['Waveform (Cluster ', num2str(clusterID(iWaveform)), ')'])];
 				else
 					iHandle = mod(iWaveform, numWaveforms);
 					if iHandle == 0
