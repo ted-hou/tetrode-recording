@@ -2,9 +2,9 @@
 tr = TetrodeRecording();
 chunkSize = 10;
 tr.ReadFiles(chunkSize);
-channels = [tr.Amplifier.Channels.NativeOrder] + 1;
+channels = tr.MapChannelID([tr.Amplifier.Channels.NativeOrder]);
 tr.SpikeDetect(channels, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
-tr.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'WaveformWindow', [], 'FeatureMethod', 'WaveletTransform', 'Dimension', 10);
+tr.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
 clear chunkSize channels
 
 
@@ -22,9 +22,9 @@ end
 tr = TetrodeRecording();
 chunkSize = 10;
 tr.ReadFiles(chunkSize);
-tr.SpikeDetect(tr.MapChannelID([4, 7, 11]), 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+channels = tr.MapChannelID([4, 7, 11]);
+tr.SpikeDetect(channels, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
 tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
-tr.SpikeSort(10, 'ClusterMethod', 'kmeans', 'WaveformWindow', [], 'FeatureMethod', 'WaveletTransform', 'Dimension', 10);
-[clu, tree] = tr.SPC(10);
+tr.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'WaveformWindow', [], 'FeatureMethod', 'WaveletTransform', 'Dimension', 10);
 TetrodeRecording.RandomWords();
-clear chunkSize
+clear chunkSize channels
