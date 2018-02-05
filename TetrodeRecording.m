@@ -739,7 +739,6 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'ClusterMethod', 'gaussian', @ischar);
 			addParameter(p, 'NumClusters', 3, @isnumeric);
-			addParameter(p, 'HideResults', false, @islogical);
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
 			dimension = p.Results.Dimension;
@@ -747,25 +746,17 @@ classdef TetrodeRecording < handle
 			waveformWindow = p.Results.WaveformWindow;
 			clusterMethod = p.Results.ClusterMethod;
 			numClusters = p.Results.NumClusters;
-			hideResults = p.Results.HideResults;
 
-			for iChannel = channels
-				if isempty(waveformWindow)
-					thisWaveformWindow = obj.Spikes(iChannel).WaveformWindow;
-				else
-					thisWaveformWindow = waveformWindow;
-				end
-				obj.RemoveNaNs(channels);
-				obj.FeatureExtract(channels, 'WaveformWindow', thisWaveformWindow, 'Method', featureMethod, 'Dimension', dimension);
-				obj.Cluster(channels, numClusters, clusterMethod);
-				if ~hideResults
-					obj.PlotChannel(iChannel, 'WaveformWindow', thisWaveformWindow);
-				end
-			end
+			obj.RemoveNaNs(channels);
+			obj.FeatureExtract(channels, 'WaveformWindow', waveformWindow, 'Method', featureMethod, 'Dimension', dimension);
+			obj.Cluster(channels, numClusters, clusterMethod);
 		end
 
 		function RemoveNaNs(obj, channels)
 			for iChannel = channels
+				if isempty(obj.Spikes(iChannel).Waveforms)
+					continue
+				end
 				iWaveformToDiscard = sum(isnan(obj.Spikes(iChannel).Waveforms), 2) > 0;
 				obj.Spikes(iChannel).Waveforms(iWaveformToDiscard, :) = [];
 				obj.Spikes(iChannel).Timestamps(iWaveformToDiscard) = [];
@@ -787,9 +778,24 @@ classdef TetrodeRecording < handle
 			waveDecLevel = p.Results.WaveDecLevel;
 			dimension = p.Results.Dimension;
 
-			tic, TetrodeRecording.TTS(['Feature extraction via ', method, '...']);
+			switch lower(method)
+				case 'wavelettransform'
+					methodDisplayName = 'wavelet transform';
+				case 'pca'
+					methodDisplayName = 'PCA';
+				otherwise
+					error('Unrecognized feature extraction method.')
+			end
+
+			tic, TetrodeRecording.TTS(['	Extracting waveform features (', methodDisplayName, '):\n']);
 
 			for iChannel = channels
+				if isempty(obj.Spikes(iChannel).Waveforms)
+					continue
+				end
+
+				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), '...']);
+
 				obj.Spikes(iChannel).Feature.Method = method;
 
 				if isempty(waveformWindow)
@@ -805,12 +811,10 @@ classdef TetrodeRecording < handle
 					case 'pca'
 						obj.Spikes(iChannel).Feature.Parameters = struct('Dimension', dimension, 'WaveformWindow', thisWaveformWindow);
 						[obj.Spikes(iChannel).Feature.Coeff, obj.Spikes(iChannel).Feature.Stats] = obj.PCA(iChannel, 'WaveformWindow', thisWaveformWindow, 'Dimension', dimension);
-					otherwise
-						error('Unrecognized feature extraction method.')
 				end
-			end
 
-			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
+				TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
+			end
 		end
 
 		function [coeff, stats] = PCA(obj, channel, varargin)
@@ -881,20 +885,34 @@ classdef TetrodeRecording < handle
 		end
 
 		function Cluster(obj, channels, k, method)
-			tic, TetrodeRecording.TTS('Clustering...');
+			switch lower(method)
+				case 'kmeans'
+					methodDisplayName = 'k-means';
+				case 'gaussian'
+					methodDisplayName = 'Gaussian mixture model';
+				case 'spc'
+					methodDisplayName = 'superparamagnetic';
+				otherwise
+					error('Unrecognized clustering method. Must be ''kmeans'', ''gaussian'', or ''SPC''.')			
+			end			
+			tic, TetrodeRecording.TTS(['	Clustering (', methodDisplayName, '):\n']);
 			for iChannel = channels
 				obj.Spikes(iChannel).Cluster = [];
+				if isempty(obj.Spikes(iChannel).Waveforms)
+					continue
+				end
+				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), '...']);
 				switch lower(method)
 					case 'kmeans'
 						obj.Spikes(iChannel).Cluster = kmeans(obj.Spikes(iChannel).Feature.Coeff, k);
 					case 'gaussian'
 						gm = fitgmdist(obj.Spikes(iChannel).Feature.Coeff, k);
 						obj.Spikes(iChannel).Cluster = cluster(gm, obj.Spikes(iChannel).Feature.Coeff);
-					otherwise
-						error('Unrecognized clustering method. Must be ''kmeans'' or ''gaussian''.')			
+					case 'spc'
+						obj.Spikes(iChannel).Cluster = obj.SPC(iChannel);
 				end
+				TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 			end
-			TetrodeRecording.TTS(['Done(', num2str(round(toc)), ' seconds).\n'], toc >= 10)
 		end
 
 		% Superparamagnetic clustering
@@ -963,7 +981,6 @@ classdef TetrodeRecording < handle
 			% Find proper temperature (when )
 			dSizeCluster = diff(tree(:, 5:8));
 			[false; sum(dSizeCluster <= minClusterSize, 2) == 4] & sum(tree(:, 5:8), 2) >= 0.75*size(coeff, 1)
-
 		end
 
 		function ClusterMerge(obj, channel, mergeList, varargin)
