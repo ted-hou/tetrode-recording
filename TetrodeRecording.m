@@ -1535,11 +1535,14 @@ classdef TetrodeRecording < handle
 
 			hFigure	= figure('Units', 'Normalized', 'Position', [0.125, 0, 0.75, 1], 'Name', expName, 'DefaultAxesFontSize', fontSize,...
 				'GraphicsSmoothing', 'off');
+			hFigure.UserData.SelectedChannels = false(32, 1);
 			hAxes = gobjects(1, 35);
 
 			colors = 'rgbcmyk';
 			for iChannel = channels
 				hAxes(iChannel)	= subplot(5, 7, iChannel);
+				hAxes(iChannel).UserData.Channel = iChannel;
+				hAxes(iChannel).ButtonDownFcn = @TetrodeRecording.OnAxesClicked;
 				xlabel(hAxes(iChannel), 'Time (ms)');
 				ylabel(hAxes(iChannel), 'Voltage (\muV)');
 				title(hAxes(iChannel), ['Channel ', num2str(iChannel)]);
@@ -1692,6 +1695,34 @@ classdef TetrodeRecording < handle
 				delete(hTimer);
 			end
 			delete(gcf);
+		end
+
+		function OnAxesClicked(hAxes, evnt)
+			channel = hAxes.UserData.Channel;
+			button = evnt.Button; % 1, 2, 3 (LMB, MMB, RMB click)
+			hFigure = hAxes.Parent;
+
+			switch button
+				case 1
+					hFigure.UserData.SelectedChannels(channel) = true;
+					hAxes.Box 						= 'on';
+					hAxes.LineWidth 				= 2;
+					hAxes.XColor 					= 'r';
+					hAxes.YColor 					= 'r';
+					hAxes.Title.Color 				= 'r';
+					hAxes.TitleFontSizeMultiplier 	= 1.6;
+				case 3
+					hFigure.UserData.SelectedChannels(channel) = false;
+					hAxes.Box 						= 'off';
+					hAxes.LineWidth 				= 0.5;
+					hAxes.XColor 					= 'k';
+					hAxes.YColor 					= 'k';
+					hAxes.Title.Color 				= 'k';
+					hAxes.TitleFontSizeMultiplier 	= 1.1;
+				case 2
+					selectedChannels = find(hFigure.UserData.SelectedChannels);
+					disp(mat2str(selectedChannels'))
+			end
 		end
 
 		function TTS(txt, speak)
