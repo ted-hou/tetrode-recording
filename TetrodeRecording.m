@@ -605,7 +605,7 @@ classdef TetrodeRecording < handle
 		function SpikeDetect(obj, channels, varargin)
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric);
-			addParameter(p, 'NumSigmas', 2, @isnumeric);
+			addParameter(p, 'NumSigmas', 4, @isnumeric);
 			addParameter(p, 'Direction', 'negative', @ischar);
 			addParameter(p, 'WaveformWindow', [-1.25, 1.25], @isnumeric);
 			addParameter(p, 'Append', false, @islogical);
@@ -1518,11 +1518,13 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'PercentShown', 10, @isnumeric); % What percentage of waveforms are plotted (0 - 100)
 			addParameter(p, 'Fontsize', 8, @isnumeric);
 			addParameter(p, 'PlotMethod', 'all', @ischar); % 'all', 'mean'
+			addParameter(p, 'YLim', [-400, 400], @isnumeric); % 'all', 'mean'
 			parse(p, varargin{:});
 			channels 		= p.Results.Channels;
 			percentShown 	= p.Results.PercentShown;
 			fontSize 		= p.Results.Fontsize;
 			plotMethod 		= p.Results.PlotMethod;
+			yRange 			= p.Results.YLim;
 
 			if isempty(channels)
 				channels = [obj.Spikes.Channel];
@@ -1552,6 +1554,7 @@ classdef TetrodeRecording < handle
 					end
 					line(hAxes(iChannel), obj.Spikes(iChannel).WaveformTimestamps, thisWaveforms, 'LineStyle', '-', 'Color', colors(iCluster));
 				end
+				ylim(hAxes(iChannel), yRange);
 				drawnow
 			end
 
