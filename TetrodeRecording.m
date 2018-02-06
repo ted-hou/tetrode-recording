@@ -1495,7 +1495,24 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function ReviewChannels(obj, varargin)
+		function Preview(obj, varargin)
+			p = inputParser;
+			addParameter(p, 'Channels', [], @isnumeric);
+			addParameter(p, 'ChunkSize', 10, @isnumeric);
+			parse(p, varargin{:});
+			channels 		= p.Results.Channels;
+			chunkSize 		= p.Results.ChunkSize;
+
+			obj.ReadFiles(chunkSize, 'DigitalDetect', true);
+			if isempty(channels)
+				channels = obj.MapChannelID([obj.Amplifier.Channels.NativeOrder]);
+			end
+			obj.SpikeDetect(channels, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
+			obj.PlotAllChannels('PercentShown', 5);
+		end
+
+		function PlotAllChannels(obj, varargin)
 			p = inputParser;
 			addParameter(p, 'Channels', [], @isnumeric);
 			addParameter(p, 'PercentShown', 10, @isnumeric); % What percentage of waveforms are plotted (0 - 100)
