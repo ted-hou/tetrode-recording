@@ -602,6 +602,7 @@ classdef TetrodeRecording < handle
 			addRequired(p, 'Channels', @isnumeric);
 			addParameter(p, 'NumSigmas', 4, @isnumeric);
 			addParameter(p, 'Direction', 'negative', @ischar);
+			addParameter(p, 'ThresholdMode', 'MinPeakHeight', @ischar); % MinPeakHeight or MinPeakThreshold, see doc for findpeaks()
 			addParameter(p, 'WaveformWindow', [-1.25, 1.25], @isnumeric);
 			addParameter(p, 'Append', false, @islogical);
 			parse(p, channels, varargin{:});
@@ -616,10 +617,12 @@ classdef TetrodeRecording < handle
 				if ~append
 					numSigmas = p.Results.NumSigmas;
 					directionMode = p.Results.Direction;
+					thresholdMode = p.Results.ThresholdMode;
 					waveformWindow = p.Results.WaveformWindow;
 				else
 					numSigmas = obj.Spikes(iChannel).Threshold.NumSigmas;
 					directionMode = obj.Spikes(iChannel).Threshold.Direction;
+					thresholdMode = obj.Spikes(iChannel).Threshold.Mode;
 					waveformWindow = obj.Spikes(iChannel).WaveformWindow;
 				end
 				% Auto-threshold for spikes
@@ -638,7 +641,7 @@ classdef TetrodeRecording < handle
 				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), ' (', num2str(char(952)), ' = ', num2str(numSigmas), num2str(char(963)), ' = ', num2str(direction*threshold), ')...']);
 				
 				% Find spikes
-				[~, sampleIndex] = findpeaks(direction*obj.Amplifier.Data(iChannel, :), 'MinPeakHeight', threshold);
+				[~, sampleIndex] = findpeaks(direction*obj.Amplifier.Data(iChannel, :), thresholdMode, threshold);
 
 				% Extract waveforms
 				[waveforms, t] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex, 'IndexType', 'SampleIndex');
@@ -663,6 +666,7 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).Threshold.NumSigmas = numSigmas;
 					obj.Spikes(iChannel).Threshold.Threshold = direction*threshold;
 					obj.Spikes(iChannel).Threshold.Direction = directionMode;
+					obj.Spikes(iChannel).Threshold.Mode = thresholdMode;
 				else
 					obj.Spikes(iChannel).SampleIndex = [obj.Spikes(iChannel).SampleIndex, sampleIndex + length(obj.DigitalEvents.Timestamps)];
 					obj.Spikes(iChannel).Timestamps = [obj.Spikes(iChannel).Timestamps, timestamps];
@@ -933,7 +937,7 @@ classdef TetrodeRecording < handle
 
 			coeff = obj.Spikes(channel).Feature.Coeff;
 			if isnan(minClusterSize)
-				minClusterSize = round(size(coeff, 1)*minClusterSizeRatio/tempStep);
+				minClusterSize = round(size(coeff, 1)*minClusterSizeRatio);
 			end
 
 			if isempty(dimension) || dimension < size(coeff, 2)
@@ -973,9 +977,19 @@ classdef TetrodeRecording < handle
 			delete([fileOut, '*.knn']);
 			delete(fileIn);
 
-			% Find proper temperature (when )
+			% Find proper temperature (when the 4 biggest clusters no longer significantly increase in size)
 			dSizeCluster = diff(tree(:, 5:8));
-			[false; sum(dSizeCluster <= minClusterSize, 2) == 4] & sum(tree(:, 5:8), 2) >= 0.75*size(coeff, 1)
+			stable = [false; sum(dSizeCluster <= minClusterSize, 2) == 4];
+			iTempBest = find(stable, 1);
+			clusterID = clu(iTempBest, 3:end);
+
+			for iCluster = 1:max(clusterID)
+				if nnz(clusterID == iCluster) < minClusterSize
+					clusterID(clusterID == iCluster) = 0;
+				end
+			end
+
+			clusterID = clusterID + 1;
 		end
 
 		function ClusterMerge(obj, channel, mergeList, varargin)
@@ -1100,6 +1114,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Clusters', [], @isnumeric);
 			addParameter(p, 'YLim', [], @isnumeric);
 			addParameter(p, 'FrameRate', 120, @isnumeric);
+			addParameter(p, 'PercentShown', 1, @isnumeric);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'Ax', []);
 			parse(p, channel, varargin{:});
@@ -1108,6 +1123,7 @@ classdef TetrodeRecording < handle
 			clusters = p.Results.Clusters;
 			yRange = p.Results.YLim;
 			frameRate = p.Results.FrameRate;
+			percentShown = p.Results.PercentShown;
 			waveformWindow = p.Results.WaveformWindow;
 			ax = p.Results.Ax;
 
@@ -1192,7 +1208,9 @@ classdef TetrodeRecording < handle
 				ylabel(hAxes2, 'Voltage (\muV)');
 				title(hAxes2, 'Waveforms');
 				for iCluster = unique(nonzeros(clusterID))'
-					line(hAxes2, t, waveforms(clusterID==iCluster, :), 'LineStyle', '-', 'Color', colors(iCluster));
+					thisWaveforms = waveforms(clusterID==iCluster, :);
+					thisWaveforms = thisWaveforms(1:ceil(100/percentShown):end, :);
+					line(hAxes2, t, thisWaveforms, 'LineStyle', '-', 'Color', colors(iCluster));
 				end
 			end
 		end
@@ -1423,6 +1441,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'BinMethod', 'percentile', @ischar);
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
 			addParameter(p, 'RasterXLim', [], @isnumeric);
+			addParameter(p, 'WaveformYLim', [], @isnumeric);
 			addParameter(p, 'FontSize', 8, @isnumeric);
 			addParameter(p, 'FrameRate', 120, @isnumeric);
 			parse(p, channels, varargin{:});
@@ -1439,6 +1458,7 @@ classdef TetrodeRecording < handle
 			binMethod 		= p.Results.BinMethod;
 			spikeRateWindow = p.Results.SpikeRateWindow;
 			rasterXLim 		= p.Results.RasterXLim;
+			waveformYLim	= p.Results.WaveformYLim;
 			fontSize 		= p.Results.FontSize;
 			frameRate 		= p.Results.FrameRate;
 
@@ -1478,11 +1498,11 @@ classdef TetrodeRecording < handle
 
 				suptitle(displayName);
 
-				obj.PlotWaveforms(iChannel, 'Clusters', waveformClusters, 'WaveformWindow', waveformWindow, 'FrameRate', frameRate,...
+				obj.PlotWaveforms(iChannel, 'Clusters', waveformClusters, 'WaveformWindow', waveformWindow, 'YLim', waveformYLim, 'FrameRate', frameRate,...
 					'Ax', [hPCA, hWaveform]);
 				obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
 					'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
-					'Ax', hRaster, 'Sort', false);
+					'Ax', hRaster, 'Sort', true);
 				obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
 					'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
 					'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
