@@ -443,11 +443,6 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 		end
 
-		% Save spike data for selected channels
-		function Save(obj, channels)
-
-		end
-
 		% Used to preview a small portion of loaded data. Will remove used data from workspace.
 		function TrimData(obj, numSamples)
 			obj.BoardDigIn.NumSamples = numSamples;
