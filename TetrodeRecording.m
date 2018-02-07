@@ -674,7 +674,7 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).Threshold.Threshold = [obj.Spikes(iChannel).Threshold.Threshold, direction*threshold];
 				end
 
-				TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
+				TetrodeRecording.TTS(['Done(', num2str(numWaveforms), ' putative spikes, ', num2str(toc, 2), ' seconds).\n'])
 			end
 		end
 
