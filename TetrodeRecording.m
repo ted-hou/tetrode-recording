@@ -927,6 +927,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'MinClusterSize', NaN, @isnumeric);
 			addParameter(p, 'MinClusterSizeRatio', 0.005, @isnumeric);
 			addParameter(p, 'MaxNumClusters', 13, @isnumeric);
+			addParameter(p, 'MaxNumWaveforms', 20000, @isnumeric); % If too many spikes use template matching for extra spikes
 			parse(p, channel, varargin{:});
 			channel 			= p.Results.Channel;
 			dimension 			= p.Results.Dimension;
@@ -936,21 +937,40 @@ classdef TetrodeRecording < handle
 			minClusterSize 		= p.Results.MinClusterSize;
 			minClusterSizeRatio = p.Results.MinClusterSizeRatio;
 			maxNumClusters 		= p.Results.MaxNumClusters;
+			maxNumWaveforms		= p.Results.MaxNumWaveforms;
 
-			coeff = obj.Spikes(channel).Feature.Coeff;
-			if isnan(minClusterSize)
-				minClusterSize = round(size(coeff, 1)*minClusterSizeRatio);
+			feature = obj.Spikes(channel).Feature.Coeff;
+			numWaveforms = size(feature, 1);
+
+			if numWaveforms > maxNumWaveforms
+				templateMatching = true;
+			else
+				templateMatching = false;
 			end
 
-			if isempty(dimension) || dimension < size(coeff, 2)
-				dimension = size(coeff, 2);
+			if templateMatching
+				indicesSPC = randperm(numWaveforms, maxNumWaveforms);
+				indicesTemplateMatching = setdiff(1:numWaveforms, indicesSPC);
+				featureSPC = feature(indicesSPC, :);
+				waveformsSPC = obj.Spikes(channel).Waveforms(indicesSPC, :);
+				waveformsTemplateMatching = obj.Spikes(channel).Waveforms(indicesTemplateMatching, :);
+			else
+				featureSPC = feature;
+			end
+
+			if isnan(minClusterSize)
+				minClusterSize = round(numWaveforms*minClusterSizeRatio);
+			end
+
+			if isempty(dimension) || dimension < size(feature, 2)
+				dimension = size(feature, 2);
 			end
 
 			fileIn = 'temp_in';
 			fileOut = 'temp_out';
-			save(fileIn, 'coeff', '-ascii');
+			save(fileIn, 'featureSPC', '-ascii');
 
-			clusterID = [];
+			clusterSPC = [];
 			clu = [];
 			tree = [];
 
@@ -958,7 +978,7 @@ classdef TetrodeRecording < handle
 			for nextTemp = (minTemp + 3*tempStep):3*tempStep:maxTemp
 				disp(mat2str(prevTemp:tempStep:nextTemp))
 				fid = fopen(sprintf('%s.run', fileOut), 'wt');
-				fprintf(fid, 'NumberOfPoints: %s\n', num2str(size(coeff, 1)));
+				fprintf(fid, 'NumberOfPoints: %s\n', num2str(size(feature, 1)));
 				fprintf(fid, 'DataFile: %s\n', fileIn);
 				fprintf(fid, 'OutFile: %s\n', fileOut);
 				fprintf(fid, 'Dimensions: %s\n', num2str(dimension));
@@ -994,7 +1014,7 @@ classdef TetrodeRecording < handle
 					dSizeCluster = diff(tree(:, 5:8));
 					stable = [false; sum(dSizeCluster <= minClusterSize, 2) == 4];
 					if nnz(stable) > 0
-						clusterID = clu(find(stable, 1), 3:end);
+						clusterSPC = clu(find(stable, 1), 3:end);
 						break
 					end
 				end
@@ -1002,17 +1022,35 @@ classdef TetrodeRecording < handle
 
 			delete(fileIn);
 
-			for iCluster = 1:max(clusterID)
-				if nnz(clusterID == iCluster) < minClusterSize
-					clusterID(clusterID == iCluster) = 0;
+			for iCluster = 1:max(clusterSPC)
+				if nnz(clusterSPC == iCluster) < minClusterSize
+					clusterSPC(clusterSPC == iCluster) = 0;
 				end
 			end
 
-			clusterID = clusterID + 1;
-			clusterID = clusterID';
+			clusterSPC = clusterSPC + 1;
+			clusterSPC = clusterSPC';
+
+			if templateMatching
+				% Build templates
+				templates = zeros(length(unique(clusterSPC)), size(feature, 2));
+				for iCluster = unique(clusterSPC)
+					templates(iCluster, :) = mean(waveformsSPC(clusterSPC == iCluster, :), 1);
+				end
+
+				% Match to template via corr
+				rho = corr(templates', waveformsTemplateMatching');
+				[~, clusterTemplateMatching] = max(rho, [], 1);
+
+				cluster = zeros(numWaveforms, 1);
+				cluster(indicesSPC) = clusterSPC;
+				cluster(indicesTemplateMatching) = clusterTemplateMatching;
+			else
+				cluster = clusterSPC;
+			end
 
 			% Output
-			varargout = {clusterID, clu, tree};			
+			varargout = {cluster, clu, tree};			
 		end
 
 		function ClusterMerge(obj, channel, mergeList, varargin)
