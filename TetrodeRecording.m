@@ -915,7 +915,7 @@ classdef TetrodeRecording < handle
 		end
 
 		% Superparamagnetic clustering
-		function [clu, tree] = SPC(obj, channel, varargin)
+		function varargout = SPC(obj, channel, varargin)
 			p = inputParser;
 			addRequired(p, 'Channel', @isnumeric);
 			addParameter(p, 'Dimension', [], @isnumeric);
@@ -930,6 +930,8 @@ classdef TetrodeRecording < handle
 			parse(p, channel, varargin{:});
 			channel 			= p.Results.Channel;
 			dimension 			= p.Results.Dimension;
+			minTemp 			= p.Results.MinTemp;
+			maxTemp 			= p.Results.MaxTemp;
 			tempStep 			= p.Results.TempStep;
 			minClusterSize 		= p.Results.MinClusterSize;
 			minClusterSizeRatio = p.Results.MinClusterSizeRatio;
@@ -947,41 +949,58 @@ classdef TetrodeRecording < handle
 			fileIn = 'temp_in';
 			fileOut = 'temp_out';
 			save(fileIn, 'coeff', '-ascii');
-			fid = fopen(sprintf('%s.run', fileOut), 'wt');
-			fprintf(fid, 'NumberOfPoints: %s\n', num2str(size(coeff, 1)));
-			fprintf(fid, 'DataFile: %s\n', fileIn);
-			fprintf(fid, 'OutFile: %s\n', fileOut);
-			fprintf(fid, 'Dimensions: %s\n', num2str(dimension));
-			fprintf(fid, 'MinTemp: %s\n', num2str(p.Results.MinTemp));
-			fprintf(fid, 'MaxTemp: %s\n', num2str(p.Results.MaxTemp));
-			fprintf(fid, 'TempStep: %s\n', num2str(p.Results.TempStep));
-			fprintf(fid, 'SWCycles: %s\n', num2str(p.Results.SWCycles));
-			fprintf(fid, 'KNearestNeighbours: %s\n', num2str(p.Results.KNearestNeighbours));
-			fprintf(fid, 'MSTree|\n');
-			fprintf(fid, 'DirectedGrowth|\n');
-			fprintf(fid, 'SaveSuscept|\n');
-			fprintf(fid, 'WriteLables|\n');
-			fprintf(fid, 'WriteCorFile~\n');
-			fclose(fid);
 
-			dos(sprintf('"%s" %s.run', which('cluster_64.exe'), fileOut));
+			clusterID = [];
+			clu = [];
+			tree = [];
 
-			clu = load([fileOut, '.dg_01.lab']);
-			tree = load([fileOut, '.dg_01']);
-			delete([fileOut, '.dg_01.lab'])
-			delete([fileOut, '.dg_01'])
-			delete([fileOut, '.run']);
-			delete([fileOut, '*.mag']);
-			delete([fileOut, '*.edges']);
-			delete([fileOut, '*.param']);
-			delete([fileOut, '*.knn']);
+			prevTemp = minTemp;
+			for nextTemp = (minTemp + 3*tempStep):3*tempStep:maxTemp
+				disp(mat2str(prevTemp:tempStep:nextTemp))
+				fid = fopen(sprintf('%s.run', fileOut), 'wt');
+				fprintf(fid, 'NumberOfPoints: %s\n', num2str(size(coeff, 1)));
+				fprintf(fid, 'DataFile: %s\n', fileIn);
+				fprintf(fid, 'OutFile: %s\n', fileOut);
+				fprintf(fid, 'Dimensions: %s\n', num2str(dimension));
+				fprintf(fid, 'MinTemp: %s\n', num2str(prevTemp));
+				fprintf(fid, 'MaxTemp: %s\n', num2str(nextTemp));
+				fprintf(fid, 'TempStep: %s\n', num2str(tempStep));
+				fprintf(fid, 'SWCycles: %s\n', num2str(p.Results.SWCycles));
+				fprintf(fid, 'KNearestNeighbours: %s\n', num2str(p.Results.KNearestNeighbours));
+				fprintf(fid, 'MSTree|\n');
+				fprintf(fid, 'DirectedGrowth|\n');
+				fprintf(fid, 'SaveSuscept|\n');
+				fprintf(fid, 'WriteLables|\n');
+				fprintf(fid, 'WriteCorFile~\n');
+				fclose(fid);
+
+				dos(sprintf('"%s" %s.run', which('cluster_64.exe'), fileOut));
+
+				clu = [clu; load([fileOut, '.dg_01.lab'])];
+				tree = [tree; load([fileOut, '.dg_01'])]
+
+				delete([fileOut, '.dg_01.lab'])
+				delete([fileOut, '.dg_01'])
+				delete([fileOut, '.run']);
+				delete([fileOut, '*.mag']);
+				delete([fileOut, '*.edges']);
+				delete([fileOut, '*.param']);
+				delete([fileOut, '*.knn']);
+
+				prevTemp = nextTemp;
+
+				% Find proper temperature (when the 4 biggest clusters no longer significantly increase in size)
+				if size(tree, 1) > 1
+					dSizeCluster = diff(tree(:, 5:8));
+					stable = [false; sum(dSizeCluster <= minClusterSize, 2) == 4];
+					if nnz(stable) > 0
+						clusterID = clu(find(stable, 1), 3:end);
+						break
+					end
+				end
+			end
+
 			delete(fileIn);
-
-			% Find proper temperature (when the 4 biggest clusters no longer significantly increase in size)
-			dSizeCluster = diff(tree(:, 5:8));
-			stable = [false; sum(dSizeCluster <= minClusterSize, 2) == 4];
-			iTempBest = find(stable, 1);
-			clusterID = clu(iTempBest, 3:end);
 
 			for iCluster = 1:max(clusterID)
 				if nnz(clusterID == iCluster) < minClusterSize
@@ -990,6 +1009,10 @@ classdef TetrodeRecording < handle
 			end
 
 			clusterID = clusterID + 1;
+			clusterID = clusterID';
+
+			% Output
+			varargout = {clusterID, clu, tree};			
 		end
 
 		function ClusterMerge(obj, channel, mergeList, varargin)
