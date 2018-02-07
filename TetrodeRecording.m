@@ -922,18 +922,20 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'MinTemp', 0, @isnumeric);
 			addParameter(p, 'MaxTemp', 0.251, @isnumeric);
 			addParameter(p, 'TempStep', 0.01, @isnumeric);
+			addParameter(p, 'NumSteps', 3, @isnumeric);
 			addParameter(p, 'SWCycles', 100, @isnumeric);
 			addParameter(p, 'KNearestNeighbours', 11, @isnumeric);
 			addParameter(p, 'MinClusterSize', NaN, @isnumeric);
 			addParameter(p, 'MinClusterSizeRatio', 0.005, @isnumeric);
 			addParameter(p, 'MaxNumClusters', 13, @isnumeric);
-			addParameter(p, 'MaxNumWaveforms', 20000, @isnumeric); % If too many spikes use template matching for extra spikes
+			addParameter(p, 'MaxNumWaveforms', 20, @isnumeric); % If too many spikes use template matching for extra spikes
 			parse(p, channel, varargin{:});
 			channel 			= p.Results.Channel;
 			dimension 			= p.Results.Dimension;
 			minTemp 			= p.Results.MinTemp;
 			maxTemp 			= p.Results.MaxTemp;
 			tempStep 			= p.Results.TempStep;
+			numSteps 			= p.Results.NumSteps;
 			minClusterSize 		= p.Results.MinClusterSize;
 			minClusterSizeRatio = p.Results.MinClusterSizeRatio;
 			maxNumClusters 		= p.Results.MaxNumClusters;
@@ -970,14 +972,14 @@ classdef TetrodeRecording < handle
 			fileOut = 'temp_out';
 			save(fileIn, 'featureSPC', '-ascii');
 
-			clusterSPC = [];
+			clusterssSPC = [];
 			clu = [];
 			tree = [];
 
 			temps = minTemp:tempStep:maxTemp;
-			for iTemp = 1:3:length(temps)
+			for iTemp = 1:numSteps:length(temps)
 				thisMinTemp = temps(iTemp);
-				thisMaxTemp = temps(min(length(temps), iTemp + 2));
+				thisMaxTemp = temps(min(length(temps), iTemp + numSteps - 1));
 				disp(mat2str(thisMinTemp:tempStep:thisMaxTemp))
 				fid = fopen(sprintf('%s.run', fileOut), 'wt');
 				fprintf(fid, 'NumberOfPoints: %s\n', num2str(size(feature, 1)));
@@ -999,7 +1001,7 @@ classdef TetrodeRecording < handle
 				dos(sprintf('"%s" %s.run', which('cluster_64.exe'), fileOut));
 
 				clu = [clu; load([fileOut, '.dg_01.lab'])];
-				tree = [tree; load([fileOut, '.dg_01'])]
+				tree = [tree; load([fileOut, '.dg_01'])];
 
 				delete([fileOut, '.dg_01.lab'])
 				delete([fileOut, '.dg_01'])
@@ -1014,7 +1016,7 @@ classdef TetrodeRecording < handle
 					dSizeCluster = diff(tree(:, 5:8));
 					stable = [false; sum(dSizeCluster <= minClusterSize, 2) == 4];
 					if nnz(stable) > 0
-						clusterSPC = clu(find(stable, 1), 3:end);
+						clustersSPC = clu(find(stable, 1), 3:end);
 						break
 					end
 				end
@@ -1022,35 +1024,35 @@ classdef TetrodeRecording < handle
 
 			delete(fileIn);
 
-			for iCluster = 1:max(clusterSPC)
-				if nnz(clusterSPC == iCluster) < minClusterSize
-					clusterSPC(clusterSPC == iCluster) = 0;
+			for iCluster = 1:max(clustersSPC)
+				if nnz(clustersSPC == iCluster) < minClusterSize
+					clustersSPC(clustersSPC == iCluster) = 0;
 				end
 			end
 
-			clusterSPC = clusterSPC + 1;
-			clusterSPC = clusterSPC';
+			clustersSPC = clustersSPC + 1;
+			clustersSPC = clustersSPC';
 
 			if templateMatching
 				% Build templates
-				templates = zeros(length(unique(clusterSPC)), size(waveformsSPC, 2));
-				for iCluster = unique(clusterSPC)
-					templates(iCluster, :) = mean(waveformsSPC(clusterSPC == iCluster, :), 1);
+				templates = zeros(length(unique(clustersSPC)), size(waveformsSPC, 2));
+				for iCluster = unique(clustersSPC)
+					templates(iCluster, :) = mean(waveformsSPC(clustersSPC == iCluster, :), 1);
 				end
 
 				% Match to template via corr
 				rho = corr(templates', waveformsTemplateMatching');
-				[~, clusterTemplateMatching] = max(rho, [], 1);
+				[~, clustersTemplateMatching] = max(rho, [], 1);
 
-				cluster = zeros(numWaveforms, 1);
-				cluster(indicesSPC) = clusterSPC;
-				cluster(indicesTemplateMatching) = clusterTemplateMatching;
+				clusters = zeros(numWaveforms, 1);
+				clusters(indicesSPC) = clustersSPC;
+				clusters(indicesTemplateMatching) = clustersTemplateMatching;
 			else
-				cluster = clusterSPC;
+				clusters = clustersSPC;
 			end
 
 			% Output
-			varargout = {cluster, clu, tree};			
+			varargout = {clusters, clu, tree};			
 		end
 
 		function ClusterMerge(obj, channel, mergeList, varargin)
