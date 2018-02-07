@@ -974,16 +974,18 @@ classdef TetrodeRecording < handle
 			clu = [];
 			tree = [];
 
-			prevTemp = minTemp;
-			for nextTemp = (minTemp + 3*tempStep):3*tempStep:maxTemp
-				disp(mat2str(prevTemp:tempStep:nextTemp))
+			temps = minTemp:tempStep:maxTemp;
+			for iTemp = 1:3:length(temps)
+				thisMinTemp = temps(iTemp);
+				thisMaxTemp = temps(min(length(temps), iTemp + 2));
+				disp(mat2str(thisMinTemp:tempStep:thisMaxTemp))
 				fid = fopen(sprintf('%s.run', fileOut), 'wt');
 				fprintf(fid, 'NumberOfPoints: %s\n', num2str(size(feature, 1)));
 				fprintf(fid, 'DataFile: %s\n', fileIn);
 				fprintf(fid, 'OutFile: %s\n', fileOut);
 				fprintf(fid, 'Dimensions: %s\n', num2str(dimension));
-				fprintf(fid, 'MinTemp: %s\n', num2str(prevTemp));
-				fprintf(fid, 'MaxTemp: %s\n', num2str(nextTemp));
+				fprintf(fid, 'MinTemp: %s\n', num2str(thisMinTemp));
+				fprintf(fid, 'MaxTemp: %s\n', num2str(thisMaxTemp));
 				fprintf(fid, 'TempStep: %s\n', num2str(tempStep));
 				fprintf(fid, 'SWCycles: %s\n', num2str(p.Results.SWCycles));
 				fprintf(fid, 'KNearestNeighbours: %s\n', num2str(p.Results.KNearestNeighbours));
@@ -1006,8 +1008,6 @@ classdef TetrodeRecording < handle
 				delete([fileOut, '*.edges']);
 				delete([fileOut, '*.param']);
 				delete([fileOut, '*.knn']);
-
-				prevTemp = nextTemp;
 
 				% Find proper temperature (when the 4 biggest clusters no longer significantly increase in size)
 				if size(tree, 1) > 1
@@ -1033,7 +1033,7 @@ classdef TetrodeRecording < handle
 
 			if templateMatching
 				% Build templates
-				templates = zeros(length(unique(clusterSPC)), size(feature, 2));
+				templates = zeros(length(unique(clusterSPC)), size(waveformsSPC, 2));
 				for iCluster = unique(clusterSPC)
 					templates(iCluster, :) = mean(waveformsSPC(clusterSPC == iCluster, :), 1);
 				end
