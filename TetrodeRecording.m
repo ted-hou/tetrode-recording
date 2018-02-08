@@ -602,7 +602,6 @@ classdef TetrodeRecording < handle
 			addRequired(p, 'Channels', @isnumeric);
 			addParameter(p, 'NumSigmas', 4, @isnumeric);
 			addParameter(p, 'Direction', 'negative', @ischar);
-			addParameter(p, 'ThresholdMode', 'MinPeakHeight', @ischar); % MinPeakHeight or MinPeakThreshold, see doc for findpeaks()
 			addParameter(p, 'WaveformWindow', [-1.25, 1.25], @isnumeric);
 			addParameter(p, 'Append', false, @islogical);
 			parse(p, channels, varargin{:});
@@ -617,12 +616,10 @@ classdef TetrodeRecording < handle
 				if ~append
 					numSigmas = p.Results.NumSigmas;
 					directionMode = p.Results.Direction;
-					thresholdMode = p.Results.ThresholdMode;
 					waveformWindow = p.Results.WaveformWindow;
 				else
 					numSigmas = obj.Spikes(iChannel).Threshold.NumSigmas;
 					directionMode = obj.Spikes(iChannel).Threshold.Direction;
-					thresholdMode = obj.Spikes(iChannel).Threshold.Mode;
 					waveformWindow = obj.Spikes(iChannel).WaveformWindow;
 				end
 				% Auto-threshold for spikes
@@ -641,7 +638,7 @@ classdef TetrodeRecording < handle
 				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), ' (', num2str(char(952)), ' = ', num2str(numSigmas), num2str(char(963)), ' = ', num2str(direction*threshold), ')...']);
 				
 				% Find spikes
-				[~, sampleIndex] = findpeaks(direction*obj.Amplifier.Data(iChannel, :), thresholdMode, threshold);
+				[~, sampleIndex] = findpeaks(direction*obj.Amplifier.Data(iChannel, :), 'MinPeakHeight', threshold, 'MinPeakProminence', threshold);
 
 				% Extract waveforms
 				[waveforms, t] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex, 'IndexType', 'SampleIndex');
@@ -666,7 +663,6 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).Threshold.NumSigmas = numSigmas;
 					obj.Spikes(iChannel).Threshold.Threshold = direction*threshold;
 					obj.Spikes(iChannel).Threshold.Direction = directionMode;
-					obj.Spikes(iChannel).Threshold.Mode = thresholdMode;
 				else
 					obj.Spikes(iChannel).SampleIndex = [obj.Spikes(iChannel).SampleIndex, sampleIndex + length(obj.DigitalEvents.Timestamps)];
 					obj.Spikes(iChannel).Timestamps = [obj.Spikes(iChannel).Timestamps, timestamps];
