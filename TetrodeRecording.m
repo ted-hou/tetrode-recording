@@ -933,7 +933,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'SWCycles', 100, @isnumeric);
 			addParameter(p, 'KNearestNeighbours', 11, @isnumeric);
 			addParameter(p, 'MinClusterSize', NaN, @isnumeric);
-			addParameter(p, 'MinClusterSizeRatio', 0.005, @isnumeric);
+			addParameter(p, 'MinClusterSizeRatio', 0.0015, @isnumeric);
 			addParameter(p, 'MaxNumClusters', 13, @isnumeric);
 			addParameter(p, 'MaxNumWaveforms', 40000, @isnumeric); % If too many spikes use template matching for extra spikes
 			parse(p, channel, varargin{:});
