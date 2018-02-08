@@ -901,21 +901,21 @@ classdef TetrodeRecording < handle
 			end			
 			tic, TetrodeRecording.TTS(['	Clustering (', methodDisplayName, '):\n']);
 			for iChannel = channels
-				obj.Spikes(ichannel).Cluster.Classes = [];
-				obj.Spikes(ichannel).Cluster.Stats = [];
-				obj.Spikes(ichannel).Cluster.Method = method;
+				obj.Spikes(iChannel).Cluster.Classes = [];
+				obj.Spikes(iChannel).Cluster.Stats = [];
+				obj.Spikes(iChannel).Cluster.Method = method;
 				if isempty(obj.Spikes(iChannel).Waveforms)
 					continue
 				end
 				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), '...']);
 				switch lower(method)
 					case 'kmeans'
-						obj.Spikes(ichannel).Cluster.Classes = kmeans(obj.Spikes(iChannel).Feature.Coeff, numClusters);
+						obj.Spikes(iChannel).Cluster.Classes = kmeans(obj.Spikes(iChannel).Feature.Coeff, numClusters);
 					case 'gaussian'
 						gm = fitgmdist(obj.Spikes(iChannel).Feature.Coeff, numClusters);
-						obj.Spikes(ichannel).Cluster.Classes = cluster(gm, obj.Spikes(iChannel).Feature.Coeff);
+						obj.Spikes(iChannel).Cluster.Classes = cluster(gm, obj.Spikes(iChannel).Feature.Coeff);
 					case 'spc'
-						[obj.Spikes(ichannel).Cluster.Classes, obj.Spikes(iChannel).Cluster.Stats] = obj.SPC(iChannel);
+						[obj.Spikes(iChannel).Cluster.Classes, obj.Spikes(iChannel).Cluster.Stats] = obj.SPC(iChannel);
 				end
 				TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 			end
@@ -1631,7 +1631,7 @@ classdef TetrodeRecording < handle
 				xlabel(hAxes(iChannel), 'Time (ms)');
 				ylabel(hAxes(iChannel), 'Voltage (\muV)');
 				title(hAxes(iChannel), ['Channel ', num2str(iChannel)]);
-				clusterID = obj.Spikes(ichannel).Cluster.Classes;
+				clusterID = obj.Spikes(iChannel).Cluster.Classes;
 				for iCluster = unique(nonzeros(clusterID))'
 					thisWaveforms = obj.Spikes(iChannel).Waveforms(clusterID==iCluster, :);
 					switch lower(plotMethod)
