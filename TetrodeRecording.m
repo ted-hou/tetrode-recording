@@ -748,7 +748,7 @@ classdef TetrodeRecording < handle
 
 			obj.RemoveNaNs(channels);
 			obj.FeatureExtract(channels, 'WaveformWindow', waveformWindow, 'Method', featureMethod, 'Dimension', dimension);
-			obj.Cluster(channels, numClusters, clusterMethod);
+			obj.Cluster(channels, 'Method', clusterMethod, 'NumClusters', numClusters);
 		end
 
 		function RemoveNaNs(obj, channels)
@@ -883,7 +883,16 @@ classdef TetrodeRecording < handle
 			stats = struct('ksstat', ksstat(I));
 		end
 
-		function Cluster(obj, channels, k, method)
+		function Cluster(obj, channels, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addParameter(p, 'NumClusters', 4, @isnumeric);
+			addParameter(p, 'Method', 'kmeans', @ischar);
+			parse(p, channel, varargin{:});
+			channel = p.Results.Channel;
+			numClusters = p.Results.NumClusters;
+			method = p.Results.Method;
+
 			switch lower(method)
 				case 'kmeans'
 					methodDisplayName = 'k-means';
@@ -903,9 +912,9 @@ classdef TetrodeRecording < handle
 				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), '...']);
 				switch lower(method)
 					case 'kmeans'
-						obj.Spikes(iChannel).Cluster = kmeans(obj.Spikes(iChannel).Feature.Coeff, k);
+						obj.Spikes(iChannel).Cluster = kmeans(obj.Spikes(iChannel).Feature.Coeff, numClusters);
 					case 'gaussian'
-						gm = fitgmdist(obj.Spikes(iChannel).Feature.Coeff, k);
+						gm = fitgmdist(obj.Spikes(iChannel).Feature.Coeff, numClusters);
 						obj.Spikes(iChannel).Cluster = cluster(gm, obj.Spikes(iChannel).Feature.Coeff);
 					case 'spc'
 						obj.Spikes(iChannel).Cluster = obj.SPC(iChannel);
@@ -928,7 +937,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'MinClusterSize', NaN, @isnumeric);
 			addParameter(p, 'MinClusterSizeRatio', 0.005, @isnumeric);
 			addParameter(p, 'MaxNumClusters', 13, @isnumeric);
-			addParameter(p, 'MaxNumWaveforms', 20, @isnumeric); % If too many spikes use template matching for extra spikes
+			addParameter(p, 'MaxNumWaveforms', 40000, @isnumeric); % If too many spikes use template matching for extra spikes
 			parse(p, channel, varargin{:});
 			channel 			= p.Results.Channel;
 			dimension 			= p.Results.Dimension;
@@ -972,7 +981,7 @@ classdef TetrodeRecording < handle
 			fileOut = 'temp_out';
 			save(fileIn, 'featureSPC', '-ascii');
 
-			clusterssSPC = [];
+			clustersSPC = [];
 			clu = [];
 			tree = [];
 
@@ -982,7 +991,7 @@ classdef TetrodeRecording < handle
 				thisMaxTemp = temps(min(length(temps), iTemp + numSteps - 1));
 				disp(mat2str(thisMinTemp:tempStep:thisMaxTemp))
 				fid = fopen(sprintf('%s.run', fileOut), 'wt');
-				fprintf(fid, 'NumberOfPoints: %s\n', num2str(size(feature, 1)));
+				fprintf(fid, 'NumberOfPoints: %s\n', num2str(size(featureSPC, 1)));
 				fprintf(fid, 'DataFile: %s\n', fileIn);
 				fprintf(fid, 'OutFile: %s\n', fileOut);
 				fprintf(fid, 'Dimensions: %s\n', num2str(dimension));
@@ -998,7 +1007,7 @@ classdef TetrodeRecording < handle
 				fprintf(fid, 'WriteCorFile~\n');
 				fclose(fid);
 
-				dos(sprintf('"%s" %s.run', which('cluster_64.exe'), fileOut));
+				[status,result] = dos(sprintf('"%s" %s.run', which('cluster_64.exe'), fileOut));
 
 				clu = [clu; load([fileOut, '.dg_01.lab'])];
 				tree = [tree; load([fileOut, '.dg_01'])];
@@ -1036,7 +1045,7 @@ classdef TetrodeRecording < handle
 			if templateMatching
 				% Build templates
 				templates = zeros(length(unique(clustersSPC)), size(waveformsSPC, 2));
-				for iCluster = unique(clustersSPC)
+				for iCluster = 1:max(clustersSPC)
 					templates(iCluster, :) = mean(waveformsSPC(clustersSPC == iCluster, :), 1);
 				end
 
@@ -1219,7 +1228,7 @@ classdef TetrodeRecording < handle
 
 			if isempty(ax)
 				hFigure = figure('Units', 'Normalized', 'OuterPosition', [0.7, 0, 0.3, 1]);
-				hAxes1 = subplot(2, 1, 1)
+				hAxes1 = subplot(2, 1, 1);
 				hAxes2 = subplot(2, 1, 2);
 			else
 				hAxes1 = ax(1);
