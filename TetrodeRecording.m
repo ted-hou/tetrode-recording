@@ -1,10 +1,11 @@
 classdef TetrodeRecording < handle
 	properties
-		Files
-		Path
+		Files = []
+		Path = []
 		Notes
 		FrequencyParameters
 		ChannelMap
+		SelectedChannels
 		Spikes
 		DigitalEvents
 	end
@@ -18,8 +19,28 @@ classdef TetrodeRecording < handle
 	%		Methods
 	%----------------------------------------------------
 	methods
-		function obj = TetrodeRecording()
-			obj.SelectFiles();
+		function obj = TetrodeRecording(varargin)
+		end
+
+		function Preview(obj, varargin)
+			p = inputParser;
+			addParameter(p, 'Channels', [], @isnumeric);
+			addParameter(p, 'ChunkSize', 10, @isnumeric);
+			parse(p, varargin{:});
+			channels 		= p.Results.Channels;
+			chunkSize 		= p.Results.ChunkSize;
+
+			obj.ReadFiles(chunkSize);
+			if isempty(channels)
+				channels = obj.MapChannelID([obj.Amplifier.Channels.NativeOrder]);
+			end
+			obj.SpikeDetect(channels, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
+			obj.PlotAllChannels('PercentShown', 5);
+		end
+
+		function SelectFiles(obj)
+			[obj.Files, obj.Path, ~] = uigetfile('*.rhd', 'Select an RHD2000 Data File', 'MultiSelect', 'on');
 		end
 
 		function ReadFiles(obj, varargin)
@@ -666,7 +687,7 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).Threshold.Threshold = [obj.Spikes(iChannel).Threshold.Threshold, direction*threshold];
 				end
 
-				TetrodeRecording.TTS(['Done(', num2str(numWaveforms), ' putative spikes, ', num2str(toc, 2), ' seconds).\n'])
+				TetrodeRecording.TTS(['Done(', num2str(numWaveforms), ' waveforms, ', num2str(toc, 2), ' seconds).\n'])
 			end
 		end
 
@@ -1614,33 +1635,18 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function Preview(obj, varargin)
-			p = inputParser;
-			addParameter(p, 'Channels', [], @isnumeric);
-			addParameter(p, 'ChunkSize', 10, @isnumeric);
-			parse(p, varargin{:});
-			channels 		= p.Results.Channels;
-			chunkSize 		= p.Results.ChunkSize;
-
-			obj.ReadFiles(chunkSize);
-			if isempty(channels)
-				channels = obj.MapChannelID([obj.Amplifier.Channels.NativeOrder]);
-			end
-			obj.SpikeDetect(channels, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
-			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
-			obj.PlotAllChannels('PercentShown', 5);
-		end
-
 		function PlotAllChannels(obj, varargin)
 			p = inputParser;
 			addParameter(p, 'Channels', [], @isnumeric);
-			addParameter(p, 'PercentShown', 10, @isnumeric); % What percentage of waveforms are plotted (0 - 100)
+			addParameter(p, 'PercentShown', 5, @isnumeric); % What percentage of waveforms are plotted (0 - 100)
+			addParameter(p, 'MaxShown', 1000, @isnumeric);
 			addParameter(p, 'Fontsize', 8, @isnumeric);
 			addParameter(p, 'PlotMethod', 'all', @ischar); % 'all', 'mean'
 			addParameter(p, 'YLim', [-400, 400], @isnumeric); % 'all', 'mean'
 			parse(p, varargin{:});
 			channels 		= p.Results.Channels;
 			percentShown 	= p.Results.PercentShown;
+			maxShown 		= p.Results.MaxShown;
 			fontSize 		= p.Results.Fontsize;
 			plotMethod 		= p.Results.PlotMethod;
 			yRange 			= p.Results.YLim;
@@ -1661,7 +1667,7 @@ classdef TetrodeRecording < handle
 			for iChannel = channels
 				hAxes(iChannel)	= subplot(5, 7, iChannel);
 				hAxes(iChannel).UserData.Channel = iChannel;
-				hAxes(iChannel).ButtonDownFcn = @TetrodeRecording.OnAxesClicked;
+				hAxes(iChannel).ButtonDownFcn = @obj.OnAxesClicked;
 				xlabel(hAxes(iChannel), 'Time (ms)');
 				ylabel(hAxes(iChannel), 'Voltage (\muV)');
 				title(hAxes(iChannel), ['Channel ', num2str(iChannel)]);
@@ -1671,6 +1677,9 @@ classdef TetrodeRecording < handle
 					switch lower(plotMethod)
 						case 'all'
 							thisWaveforms = thisWaveforms(1:ceil(100/percentShown):end, :);
+							if size(thisWaveforms, 1) > maxShown
+								thisWaveforms = thisWaveforms(randperm(size(thisWaveforms, 1), maxShown), :);
+							end
 						case 'mean'
 							thisWaveforms = mean(thisWaveforms, 1);
 					end
@@ -1681,6 +1690,37 @@ classdef TetrodeRecording < handle
 			end
 
 			suptitle(expName);
+		end
+
+		function OnAxesClicked(obj, hAxes, evnt)
+			channel = hAxes.UserData.Channel;
+			button = evnt.Button; % 1, 2, 3 (LMB, MMB, RMB click)
+			hFigure = hAxes.Parent;
+
+			switch button
+				case 1
+					hFigure.UserData.SelectedChannels(channel) = true;
+					hAxes.Box 						= 'on';
+					hAxes.LineWidth 				= 2;
+					hAxes.XColor 					= 'r';
+					hAxes.YColor 					= 'r';
+					hAxes.Title.Color 				= 'r';
+					hAxes.TitleFontSizeMultiplier 	= 1.6;
+					drawnow
+				case 3
+					hFigure.UserData.SelectedChannels(channel) = false;
+					hAxes.Box 						= 'off';
+					hAxes.LineWidth 				= 0.5;
+					hAxes.XColor 					= 'k';
+					hAxes.YColor 					= 'k';
+					hAxes.Title.Color 				= 'k';
+					hAxes.TitleFontSizeMultiplier 	= 1.1;
+					drawnow
+				case 2
+					selectedChannels = transpose(find(hFigure.UserData.SelectedChannels));
+					obj.SelectedChannels = selectedChannels;
+					disp(['Selected channels: ', mat2str(selectedChannels)])
+			end
 		end
 
 		% Sort spikes and digital events into trial structure
@@ -1814,34 +1854,6 @@ classdef TetrodeRecording < handle
 				delete(hTimer);
 			end
 			delete(gcf);
-		end
-
-		function OnAxesClicked(hAxes, evnt)
-			channel = hAxes.UserData.Channel;
-			button = evnt.Button; % 1, 2, 3 (LMB, MMB, RMB click)
-			hFigure = hAxes.Parent;
-
-			switch button
-				case 1
-					hFigure.UserData.SelectedChannels(channel) = true;
-					hAxes.Box 						= 'on';
-					hAxes.LineWidth 				= 2;
-					hAxes.XColor 					= 'r';
-					hAxes.YColor 					= 'r';
-					hAxes.Title.Color 				= 'r';
-					hAxes.TitleFontSizeMultiplier 	= 1.6;
-				case 3
-					hFigure.UserData.SelectedChannels(channel) = false;
-					hAxes.Box 						= 'off';
-					hAxes.LineWidth 				= 0.5;
-					hAxes.XColor 					= 'k';
-					hAxes.YColor 					= 'k';
-					hAxes.Title.Color 				= 'k';
-					hAxes.TitleFontSizeMultiplier 	= 1.1;
-				case 2
-					selectedChannels = find(hFigure.UserData.SelectedChannels);
-					disp(mat2str(selectedChannels'))
-			end
 		end
 
 		function TTS(txt, speak)
