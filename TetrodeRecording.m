@@ -1246,7 +1246,6 @@ classdef TetrodeRecording < handle
 				scatter3(hAxes1, score(inCluster, 1), score(inCluster, 2), score(inCluster, 3), 1, colors(iCluster), 'DisplayName', ['Cluster ', num2str(iCluster), ' (', num2str(percentage), '%)'])
 			end
 			hold(hAxes1, 'off')
-			axis(hAxes1, 'equal')
 			xlabel(hAxes1, '1st Coefficient')
 			ylabel(hAxes1, '2nd Coefficient')
 			zlabel(hAxes1, '3rd Coefficient')
