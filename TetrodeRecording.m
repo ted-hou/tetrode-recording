@@ -901,19 +901,21 @@ classdef TetrodeRecording < handle
 			end			
 			tic, TetrodeRecording.TTS(['	Clustering (', methodDisplayName, '):\n']);
 			for iChannel = channels
-				obj.Spikes(iChannel).Cluster = [];
+				obj.Spikes(ichannel).Cluster.Classes = [];
+				obj.Spikes(ichannel).Cluster.Stats = [];
+				obj.Spikes(ichannel).Cluster.Method = method;
 				if isempty(obj.Spikes(iChannel).Waveforms)
 					continue
 				end
 				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), '...']);
 				switch lower(method)
 					case 'kmeans'
-						obj.Spikes(iChannel).Cluster = kmeans(obj.Spikes(iChannel).Feature.Coeff, numClusters);
+						obj.Spikes(ichannel).Cluster.Classes = kmeans(obj.Spikes(iChannel).Feature.Coeff, numClusters);
 					case 'gaussian'
 						gm = fitgmdist(obj.Spikes(iChannel).Feature.Coeff, numClusters);
-						obj.Spikes(iChannel).Cluster = cluster(gm, obj.Spikes(iChannel).Feature.Coeff);
+						obj.Spikes(ichannel).Cluster.Classes = cluster(gm, obj.Spikes(iChannel).Feature.Coeff);
 					case 'spc'
-						obj.Spikes(iChannel).Cluster = obj.SPC(iChannel);
+						[obj.Spikes(ichannel).Cluster.Classes, obj.Spikes(iChannel).Cluster.Stats] = obj.SPC(iChannel);
 				end
 				TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 			end
@@ -966,7 +968,7 @@ classdef TetrodeRecording < handle
 			end
 
 			if isnan(minClusterSize)
-				minClusterSize = round(numWaveforms*minClusterSizeRatio);
+				minClusterSize = round(size(featureSPC, 1)*minClusterSizeRatio);
 			end
 
 			if isempty(dimension) || dimension < size(feature, 2)
@@ -1056,7 +1058,8 @@ classdef TetrodeRecording < handle
 			end
 
 			% Output
-			varargout = {clusters, clu, tree};			
+			stats = struct('Classes', clu, 'ClusterSizes', tree, 'MinClusterSize', minClusterSize, 'BestTempIndex', find(stable, 1), 'IndicesSPC', indicesSPC, 'IndicesTemplateMatching', indicesTemplateMatching);
+			varargout = {clusters, stats};			
 		end
 
 		function ClusterMerge(obj, channel, mergeList, varargin)
@@ -1069,11 +1072,11 @@ classdef TetrodeRecording < handle
 			mergeList = p.Results.MergeList;
 			hideResults = p.Results.HideResults;
 
-			newCluster = NaN(size(obj.Spikes(channel).Cluster));
+			newCluster = NaN(size(obj.Spikes(channel).Cluster.Classes));
 			for iNewCluster = 1:length(mergeList)
-				newCluster(ismember(obj.Spikes(channel).Cluster, mergeList{iNewCluster})) = iNewCluster;
+				newCluster(ismember(obj.Spikes(channel).Cluster.Classes, mergeList{iNewCluster})) = iNewCluster;
 			end
-			obj.Spikes(channel).Cluster = newCluster;
+			obj.Spikes(channel).Cluster.Classes = newCluster;
 
 			if ~hideResults
 				obj.PlotChannel(channel);
@@ -1091,15 +1094,15 @@ classdef TetrodeRecording < handle
 			hideResults = p.Results.HideResults;
 
 			% Discard unwanted clusters
-			iWaveformToDiscard = ismember(obj.Spikes(channel).Cluster, discardList);
+			iWaveformToDiscard = ismember(obj.Spikes(channel).Cluster.Classes, discardList);
 			obj.Spikes(channel).Waveforms(iWaveformToDiscard, :) = [];
 			obj.Spikes(channel).Timestamps(iWaveformToDiscard) = [];
 			obj.Spikes(channel).SampleIndex(iWaveformToDiscard) = [];
 			obj.Spikes(channel).Feature.Coeff(iWaveformToDiscard, :) = [];
-			obj.Spikes(channel).Cluster(iWaveformToDiscard) = [];
+			obj.Spikes(channel).Cluster.Classes(iWaveformToDiscard) = [];
 
 			% Renumber clusters from 1 to numClusters
-			obj.ClusterMerge(channel, num2cell(unique(obj.Spikes(channel).Cluster)), 'HideResults', hideResults);
+			obj.ClusterMerge(channel, num2cell(unique(obj.Spikes(channel).Cluster.Classes)), 'HideResults', hideResults);
 		end
 
 		function ClusterDecimate(obj, channel, cluster, varargin)
@@ -1114,14 +1117,14 @@ classdef TetrodeRecording < handle
 			luckyNumber = p.Results.LuckyNumber;
 			hideResults = p.Results.HideResults;
 
-			inCluster = find(obj.Spikes(channel).Cluster == cluster);
+			inCluster = find(obj.Spikes(channel).Cluster.Classes == cluster);
 			notInLuck = inCluster(~ismember(1:length(inCluster), 1:luckyNumber:length(inCluster)));
 
 			obj.Spikes(channel).Waveforms(notInLuck, :) 		= [];
 			obj.Spikes(channel).Timestamps(notInLuck) 			= [];
 			obj.Spikes(channel).SampleIndex(notInLuck) 			= [];
 			obj.Spikes(channel).Feature.Coeff(notInLuck, :)		= [];
-			obj.Spikes(channel).Cluster(notInLuck) 				= [];
+			obj.Spikes(channel).Cluster.Classes(notInLuck) 				= [];
 
 			if ~hideResults
 				obj.PlotChannel(channel);
@@ -1207,11 +1210,11 @@ classdef TetrodeRecording < handle
 			t = obj.Spikes(channel).WaveformTimestamps;
 			score = obj.Spikes(channel).Feature.Coeff;
 			if isempty(clusters)
-				clusters = nonzeros(unique(obj.Spikes(channel).Cluster));
+				clusters = nonzeros(unique(obj.Spikes(channel).Cluster.Classes));
 			end
 
 			if isfield(obj.Spikes(channel), 'Cluster')
-				clusterID = obj.Spikes(channel).Cluster;
+				clusterID = obj.Spikes(channel).Cluster.Classes;
 				toKeep = ismember(clusterID, clusters);
 				clusterID = clusterID(toKeep);
 				waveforms = waveforms(toKeep, :);
@@ -1628,7 +1631,7 @@ classdef TetrodeRecording < handle
 				xlabel(hAxes(iChannel), 'Time (ms)');
 				ylabel(hAxes(iChannel), 'Voltage (\muV)');
 				title(hAxes(iChannel), ['Channel ', num2str(iChannel)]);
-				clusterID = obj.Spikes(iChannel).Cluster;
+				clusterID = obj.Spikes(ichannel).Cluster.Classes;
 				for iCluster = unique(nonzeros(clusterID))'
 					thisWaveforms = obj.Spikes(iChannel).Waveforms(clusterID==iCluster, :);
 					switch lower(plotMethod)
@@ -1663,7 +1666,7 @@ classdef TetrodeRecording < handle
 				trials = [];
 			else
 				if ~isempty(clusters)
-					spikes = obj.Spikes(channel).Timestamps(ismember(obj.Spikes(channel).Cluster, clusters));
+					spikes = obj.Spikes(channel).Timestamps(ismember(obj.Spikes(channel).Cluster.Classes, clusters));
 				else
 					spikes = obj.Spikes(channel).Timestamps;
 				end
