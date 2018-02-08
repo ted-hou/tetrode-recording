@@ -74,10 +74,6 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function SelectFiles(obj)
-			[obj.Files, obj.Path, ~] = uigetfile('*.rhd', 'Select an RHD2000 Data File', 'MultiSelect', 'on');
-		end
-
 		function ReadRHD(obj, files)
 			TetrodeRecording.TTS(['	Loading data:\n'])
 			for iFile = 1:length(files)
@@ -882,12 +878,14 @@ classdef TetrodeRecording < handle
 		function Cluster(obj, channels, varargin)
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric);
-			addParameter(p, 'NumClusters', 4, @isnumeric);
 			addParameter(p, 'Method', 'kmeans', @ischar);
+			addParameter(p, 'Dimension', [], @isnumeric);
+			addParameter(p, 'NumClusters', [], @isnumeric);
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
-			numClusters = p.Results.NumClusters;
 			method = p.Results.Method;
+			dimension = p.Results.Dimension;
+			numClusters = p.Results.NumClusters;
 
 			switch lower(method)
 				case 'kmeans'
@@ -901,6 +899,11 @@ classdef TetrodeRecording < handle
 			end			
 			tic, TetrodeRecording.TTS(['	Clustering (', methodDisplayName, '):\n']);
 			for iChannel = channels
+				if isempty(dimension) || dimension > size(obj.Spikes(iChannel).Feature.Coeff, 2)
+					thisDimension = size(obj.Spikes(iChannel).Feature.Coeff, 2);
+				else
+					thisDimension = dimension;
+				end
 				obj.Spikes(iChannel).Cluster.Classes = [];
 				obj.Spikes(iChannel).Cluster.Stats = [];
 				obj.Spikes(iChannel).Cluster.Method = method;
@@ -910,15 +913,47 @@ classdef TetrodeRecording < handle
 				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), '...']);
 				switch lower(method)
 					case 'kmeans'
-						obj.Spikes(iChannel).Cluster.Classes = kmeans(obj.Spikes(iChannel).Feature.Coeff, numClusters);
+						[obj.Spikes(iChannel).Cluster.Classes, obj.Spikes(iChannel).Cluster.Stats] = obj.KMeans(iChannel, 'NumClusters', numClusters, 'Dimension', thisDimension);
 					case 'gaussian'
-						gm = fitgmdist(obj.Spikes(iChannel).Feature.Coeff, numClusters);
-						obj.Spikes(iChannel).Cluster.Classes = cluster(gm, obj.Spikes(iChannel).Feature.Coeff);
+						gm = fitgmdist(obj.Spikes(iChannel).Feature.Coeff(:, 1:thisDimension), numClusters, 'RegularizationValue', 0.001);
+						obj.Spikes(iChannel).Cluster.Classes = cluster(gm, obj.Spikes(iChannel).Feature.Coeff(:, 1:thisDimension));
 					case 'spc'
-						[obj.Spikes(iChannel).Cluster.Classes, obj.Spikes(iChannel).Cluster.Stats] = obj.SPC(iChannel);
+						[obj.Spikes(iChannel).Cluster.Classes, obj.Spikes(iChannel).Cluster.Stats] = obj.SPC(iChannel, 'Dimension', thisDimension);
 				end
 				TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
 			end
+		end
+
+		% kmeans clustering
+		function varargout = KMeans(obj, channel, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addParameter(p, 'Dimension', [], @isnumeric);
+			addParameter(p, 'NumClusters', [], @isnumeric);
+			addParameter(p, 'MaxNumClusters', 7, @isnumeric);
+			parse(p, channel, varargin{:});
+			channel 			= p.Results.Channel;
+			dimension 			= p.Results.Dimension;
+			numClusters			= p.Results.NumClusters;
+			maxNumClusters 		= p.Results.MaxNumClusters;
+
+			feature = obj.Spikes(channel).Feature.Coeff;
+
+			if isempty(dimension) || dimension > size(feature, 2)
+				dimension = size(feature, 2);
+			end
+
+			feature = feature(:, 1:dimension);
+
+			if isempty(numClusters)
+				stats = evalclusters(feature, 'kmeans', 'CalinskiHarabasz', 'KList', 2:maxNumClusters);
+				numClusters = stats.OptimalK;
+			else
+				stats = [];
+			end
+			classes = kmeans(feature, numClusters, 'Replicates', 10);
+
+			varargout = {classes, stats};
 		end
 
 		% Superparamagnetic clustering
@@ -971,7 +1006,7 @@ classdef TetrodeRecording < handle
 				minClusterSize = round(size(featureSPC, 1)*minClusterSizeRatio);
 			end
 
-			if isempty(dimension) || dimension < size(feature, 2)
+			if isempty(dimension) || dimension > size(feature, 2)
 				dimension = size(feature, 2);
 			end
 
@@ -979,7 +1014,7 @@ classdef TetrodeRecording < handle
 			fileOut = 'temp_out';
 			save(fileIn, 'featureSPC', '-ascii');
 
-			clustersSPC = [];
+			classesSPC = [];
 			clu = [];
 			tree = [];
 
@@ -1022,7 +1057,7 @@ classdef TetrodeRecording < handle
 					dSizeCluster = diff(tree(:, 5:8));
 					stable = [false; sum(dSizeCluster <= minClusterSize, 2) == 4];
 					if nnz(stable) > 0
-						clustersSPC = clu(find(stable, 1), 3:end);
+						classesSPC = clu(find(stable, 1), 3:end);
 						break
 					end
 				end
@@ -1030,36 +1065,36 @@ classdef TetrodeRecording < handle
 
 			delete(fileIn);
 
-			for iCluster = 1:max(clustersSPC)
-				if nnz(clustersSPC == iCluster) < minClusterSize
-					clustersSPC(clustersSPC == iCluster) = 0;
+			for iCluster = 1:max(classesSPC)
+				if nnz(classesSPC == iCluster) < minClusterSize
+					classesSPC(classesSPC == iCluster) = 0;
 				end
 			end
 
-			clustersSPC = clustersSPC + 1;
-			clustersSPC = clustersSPC';
+			classesSPC = classesSPC + 1;
+			classesSPC = classesSPC';
 
 			if templateMatching
 				% Build templates
-				templates = zeros(length(unique(clustersSPC)), size(waveformsSPC, 2));
-				for iCluster = 1:max(clustersSPC)
-					templates(iCluster, :) = mean(waveformsSPC(clustersSPC == iCluster, :), 1);
+				templates = zeros(length(unique(classesSPC)), size(waveformsSPC, 2));
+				for iCluster = 1:max(classesSPC)
+					templates(iCluster, :) = mean(waveformsSPC(classesSPC == iCluster, :), 1);
 				end
 
 				% Match to template via corr
-				IDX = knnsearch(waveformsSPC, waveformsTemplateMatching, 'k', 1);
-				clustersTemplateMatching = clustersSPC(IDX);
+				nearestIndex = knnsearch(waveformsSPC, waveformsTemplateMatching, 'k', 1);
+				classesTemplateMatching = classesSPC(nearestIndex);
 
-				clusters = zeros(numWaveforms, 1);
-				clusters(indicesSPC) = clustersSPC;
-				clusters(indicesTemplateMatching) = clustersTemplateMatching;
+				classes = zeros(numWaveforms, 1);
+				classes(indicesSPC) = classesSPC;
+				classes(indicesTemplateMatching) = classesTemplateMatching;
 			else
-				clusters = clustersSPC;
+				classes = classesSPC;
 			end
 
 			% Output
 			stats = struct('Classes', clu, 'ClusterSizes', tree, 'MinClusterSize', minClusterSize, 'BestTempIndex', find(stable, 1), 'IndicesSPC', indicesSPC, 'IndicesTemplateMatching', indicesTemplateMatching);
-			varargout = {clusters, stats};			
+			varargout = {classes, stats};			
 		end
 
 		function ClusterMerge(obj, channel, mergeList, varargin)
@@ -1587,7 +1622,7 @@ classdef TetrodeRecording < handle
 			channels 		= p.Results.Channels;
 			chunkSize 		= p.Results.ChunkSize;
 
-			obj.ReadFiles(chunkSize, 'DigitalDetect', true);
+			obj.ReadFiles(chunkSize);
 			if isempty(channels)
 				channels = obj.MapChannelID([obj.Amplifier.Channels.NativeOrder]);
 			end

@@ -1,6 +1,7 @@
 % Prototype
 tr = TetrodeRecording(); tr.Preview();
 
+
 % 1113
 % No spikes
 tr = TetrodeRecording();
@@ -9,6 +10,6 @@ channels = [5 6 10 12 31 32];
 tr.ReadFiles(chunkSize, 'DigitalDetect', true);
 tr.SpikeDetect(channels, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
 tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
-tr.SpikeSort(channels, 'ClusterMethod', 'SPC', 'FeatureMethod', 'WaveletTransform', 'Dimension', 10);
+tr.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'WaveletTransform', 'Dimension', 10);
 clear chunkSize channels
 TetrodeRecording.RandomWords();
