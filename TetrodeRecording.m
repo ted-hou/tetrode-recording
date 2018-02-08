@@ -885,11 +885,11 @@ classdef TetrodeRecording < handle
 
 		function Cluster(obj, channels, varargin)
 			p = inputParser;
-			addRequired(p, 'Channel', @isnumeric);
+			addRequired(p, 'Channels', @isnumeric);
 			addParameter(p, 'NumClusters', 4, @isnumeric);
 			addParameter(p, 'Method', 'kmeans', @ischar);
-			parse(p, channel, varargin{:});
-			channel = p.Results.Channel;
+			parse(p, channels, varargin{:});
+			channels = p.Results.Channels;
 			numClusters = p.Results.NumClusters;
 			method = p.Results.Method;
 
@@ -989,7 +989,6 @@ classdef TetrodeRecording < handle
 			for iTemp = 1:numSteps:length(temps)
 				thisMinTemp = temps(iTemp);
 				thisMaxTemp = temps(min(length(temps), iTemp + numSteps - 1));
-				disp(mat2str(thisMinTemp:tempStep:thisMaxTemp))
 				fid = fopen(sprintf('%s.run', fileOut), 'wt');
 				fprintf(fid, 'NumberOfPoints: %s\n', num2str(size(featureSPC, 1)));
 				fprintf(fid, 'DataFile: %s\n', fileIn);
@@ -1050,8 +1049,8 @@ classdef TetrodeRecording < handle
 				end
 
 				% Match to template via corr
-				rho = corr(templates', waveformsTemplateMatching');
-				[~, clustersTemplateMatching] = max(rho, [], 1);
+				IDX = knnsearch(waveformsSPC, waveformsTemplateMatching, 'k', 1);
+				clustersTemplateMatching = clustersSPC(IDX);
 
 				clusters = zeros(numWaveforms, 1);
 				clusters(indicesSPC) = clustersSPC;
