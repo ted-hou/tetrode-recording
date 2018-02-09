@@ -1587,6 +1587,10 @@ classdef TetrodeRecording < handle
 			fontSize 		= p.Results.FontSize;
 			frameRate 		= p.Results.FrameRate;
 
+			if isempty(channels)
+				channels = [obj.Spikes.Channel];
+			end
+
 			if isempty(clusters)
 				waveformClusters = [];
 			else

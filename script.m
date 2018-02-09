@@ -34,8 +34,18 @@ for iDir = 1:length(selectedChannels)
 		tr.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'WaveletTransform', 'Dimension', 10);
 		tr.PlotAllChannels();
 		tr.ClearCache();
-		save([tr.Path, 'tr_', datestr(datetime, 'yyyymmdd_HHMM'), '.mat'], 'tr')
+		expName = strsplit(tr.Path, '\');
+		expName = expName{end - 1};
+		save([tr.Path, '..\SpikeSort\tr_', expName, '.mat'], 'tr')
 	end
 end
 TetrodeRecording.RandomWords();
-clear iDir chunkSize channels allPaths
+clear iDir chunkSize channels allPaths expName
+
+% Batch load
+files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
+for iFile = 1:length(files)
+	S(iFile) = load(files{iFile}, 'tr');
+end
+tr = [S.tr];
+clear iFile files S
