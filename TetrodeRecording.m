@@ -19,16 +19,18 @@ classdef TetrodeRecording < handle
 	%		Methods
 	%----------------------------------------------------
 	methods
-		function obj = TetrodeRecording(varargin)
+		function obj = TetrodeRecording()
 		end
 
 		function Preview(obj, varargin)
 			p = inputParser;
 			addParameter(p, 'Channels', [], @isnumeric);
 			addParameter(p, 'ChunkSize', 10, @isnumeric);
+			addParameter(p, 'HideResults', false, @islogical);
 			parse(p, varargin{:});
 			channels 		= p.Results.Channels;
 			chunkSize 		= p.Results.ChunkSize;
+			hideResults 	= p.Results.HideResults;
 
 			obj.ReadFiles(chunkSize);
 			if isempty(channels)
@@ -36,7 +38,9 @@ classdef TetrodeRecording < handle
 			end
 			obj.SpikeDetect(channels, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
 			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
-			obj.PlotAllChannels('PercentShown', 5);
+			if ~hideResults
+				obj.PlotAllChannels();
+			end
 		end
 
 		function SelectFiles(obj)
@@ -1662,7 +1666,7 @@ classdef TetrodeRecording < handle
 			expName = strsplit(obj.Path, '\');
 			expName = expName{end - 1};
 
-			hFigure	= figure('Units', 'Normalized', 'Position', [0.125, 0, 0.75, 1], 'Name', expName, 'DefaultAxesFontSize', fontSize,...
+			hFigure	= figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'Name', expName, 'DefaultAxesFontSize', fontSize,...
 				'GraphicsSmoothing', 'off');
 			hFigure.UserData.SelectedChannels = false(32, 1);
 			hAxes = gobjects(1, 35);
@@ -1710,6 +1714,9 @@ classdef TetrodeRecording < handle
 					hAxes.YColor 					= 'r';
 					hAxes.Title.Color 				= 'r';
 					hAxes.TitleFontSizeMultiplier 	= 1.6;
+					selectedChannels = transpose(find(hFigure.UserData.SelectedChannels));
+					obj.SelectedChannels = selectedChannels;
+					disp(['Selected channels: ', mat2str(selectedChannels)])
 					drawnow
 				case 3
 					hFigure.UserData.SelectedChannels(channel) = false;
@@ -1719,11 +1726,10 @@ classdef TetrodeRecording < handle
 					hAxes.YColor 					= 'k';
 					hAxes.Title.Color 				= 'k';
 					hAxes.TitleFontSizeMultiplier 	= 1.1;
-					drawnow
-				case 2
 					selectedChannels = transpose(find(hFigure.UserData.SelectedChannels));
 					obj.SelectedChannels = selectedChannels;
 					disp(['Selected channels: ', mat2str(selectedChannels)])
+					drawnow
 			end
 		end
 
@@ -1757,6 +1763,66 @@ classdef TetrodeRecording < handle
 	end
 
 	methods (Static)
+		function previewObj = BatchPreview()
+			previewObj = TetrodeRecording();
+			dirs = uipickfiles('Prompt', 'Select (multiple) folders...');
+			dirs = dirs(isfolder(dirs));
+			parfor iDir = 1:length(dirs)
+				files = dir([dirs{iDir}, '\*.rhd']);
+				files = {files(unique([1:round(length(files)/4):length(files), length(files)])).name};
+				previewObj(iDir) = TetrodeRecording();
+				previewObj(iDir).Path = [dirs{iDir}, '\'];
+				previewObj(iDir).Files = files;
+				previewObj(iDir).Preview('HideResults', true);
+			end
+			for iDir = 1:length(dirs)
+				previewObj(iDir).PlotAllChannels();
+			end
+			TetrodeRecording.RandomWords();
+		end
+
+		function BatchProcess(previewObj, varargin)
+			p = inputParser;
+			addRequired(p, 'Obj', @(x) isa(x, 'TetrodeRecording'));
+			addParameter(p, 'ChunkSize', 10, @isnumeric);
+			parse(p, previewObj, varargin{:});
+			previewObj 	= p.Results.Obj;
+			chunkSize 	= p.Results.ChunkSize;
+
+			selectedChannels = {previewObj.SelectedChannels};
+			allPaths = {previewObj.Path};
+			parfor iDir = 1:length(selectedChannels)
+				channels = selectedChannels{iDir};
+				if ~isempty(channels)
+					TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels);
+				end
+			end
+			TetrodeRecording.RandomWords();
+		end
+
+		function ProcessFolder(thisPath, chunkSize, channels)
+			tr = TetrodeRecording();
+			tr.Path = thisPath;
+			files = dir([tr.Path, '*.rhd']);
+			tr.Files = {files.name};
+			tr.ReadFiles(chunkSize, 'DigitalDetect', true);
+			tr.SpikeDetect(channels, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+			tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
+			tr.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'WaveletTransform', 'Dimension', 10);
+			tr.ClearCache();
+			expName = strsplit(tr.Path, '\');
+			expName = expName{end - 1};
+			save([tr.Path, '..\SpikeSort\tr_', expName, '.mat'], 'tr')			
+		end
+
+		function tr = BatchLoad()
+			files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
+			for iFile = 1:length(files)
+				S(iFile) = load(files{iFile}, 'tr');
+			end
+			tr = [S.tr];
+		end
+
 		function a = ReadQString(fid)
 			% Read Qt style QString.  The first 32-bit unsigned number indicates the length of the string (in bytes).  If this number equals 0xFFFFFFFF, the string is null.
 			a = '';

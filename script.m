@@ -1,11 +1,8 @@
-% Prototype
-tr = TetrodeRecording(); tr.Preview();
-
 % Batch preview
 tr = TetrodeRecording();
 dirs = uipickfiles('Prompt', 'Select (multiple) folders...');
 dirs = dirs(isfolder(dirs));
-for iDir = 1:length(dirs)
+parfor iDir = 1:length(dirs)
 	files = dir([dirs{iDir}, '\*.rhd']);
 	files = {files(unique([1:round(length(files)/4):length(files), length(files)])).name};
 	tr(iDir) = TetrodeRecording();
