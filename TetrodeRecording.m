@@ -1767,9 +1767,10 @@ classdef TetrodeRecording < handle
 			previewObj = TetrodeRecording();
 			dirs = uipickfiles('Prompt', 'Select (multiple) folders...');
 			dirs = dirs(isfolder(dirs));
-			parfor iDir = 1:length(dirs)
+			for iDir = 1:length(dirs)
 				files = dir([dirs{iDir}, '\*.rhd']);
-				files = {files(unique([1:round(length(files)/4):length(files), length(files)])).name};
+				stepSize = round(length(files)/6);
+				files = {files(stepSize:stepSize:5*stepSize).name};
 				previewObj(iDir) = TetrodeRecording();
 				previewObj(iDir).Path = [dirs{iDir}, '\'];
 				previewObj(iDir).Files = files;
@@ -1777,6 +1778,7 @@ classdef TetrodeRecording < handle
 			end
 			for iDir = 1:length(dirs)
 				previewObj(iDir).PlotAllChannels();
+				previewObj(iDir).ClearCache();
 			end
 			TetrodeRecording.RandomWords();
 		end
