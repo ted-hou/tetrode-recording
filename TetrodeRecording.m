@@ -422,7 +422,7 @@ classdef TetrodeRecording < handle
 					objTemp(iFile).Amplifier.Timestamps = objTemp(iFile).Amplifier.Timestamps / sample_rate;
 					objTemp(iFile).BoardDigIn.Timestamps = objTemp(iFile).Amplifier.Timestamps;
 				end
-				TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
+				TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 			end
 
 			% Count number of samples in all files
@@ -457,7 +457,7 @@ classdef TetrodeRecording < handle
 				iSample.Amplifier = iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2);
 				iSample.BoardDigIn = iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2);
 			end
-			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
+			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 		end
 
 		% Used to preview a small portion of loaded data. Will remove used data from workspace.
@@ -509,7 +509,7 @@ classdef TetrodeRecording < handle
 			obj.ChannelMap.Tetrode = tetrodeMap;
 			obj.Amplifier.Data = obj.Amplifier.DataMapped; 
 			obj.Amplifier = rmfield(obj.Amplifier, 'DataMapped');
-			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
+			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 		end
 
 		% Convert zero-based raw channel id to remapped tetrode id
@@ -558,7 +558,7 @@ classdef TetrodeRecording < handle
 			end
 
 			obj.Amplifier.Data(:, mask) = 0;
-			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
+			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 		end
 
 		% Expand waveform window, fill unavailable data with NaN
@@ -687,7 +687,7 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).Threshold.Threshold = [obj.Spikes(iChannel).Threshold.Threshold, direction*threshold];
 				end
 
-				TetrodeRecording.TTS(['Done(', num2str(numWaveforms), ' waveforms, ', num2str(toc, 2), ' seconds).\n'])
+				TetrodeRecording.TTS(['Done(', num2str(numWaveforms), ' waveforms, ', num2str(toc, '%.2f'), ' seconds).\n'])
 			end
 		end
 
@@ -731,7 +731,7 @@ classdef TetrodeRecording < handle
 				obj.DigitalEvents.Data = [];
 			end
 
-			TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
+			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 		end
 
 		% This compresses data by ~ 20 times
@@ -825,7 +825,7 @@ classdef TetrodeRecording < handle
 						[obj.Spikes(iChannel).Feature.Coeff, obj.Spikes(iChannel).Feature.Stats] = obj.PCA(iChannel, 'WaveformWindow', thisWaveformWindow, 'Dimension', dimension);
 				end
 
-				TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
+				TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 			end
 		end
 
@@ -941,7 +941,7 @@ classdef TetrodeRecording < handle
 					case 'spc'
 						[obj.Spikes(iChannel).Cluster.Classes, obj.Spikes(iChannel).Cluster.Stats] = obj.SPC(iChannel, 'Dimension', thisDimension);
 				end
-				TetrodeRecording.TTS(['Done(', num2str(toc, 2), ' seconds).\n'])
+				TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 			end
 		end
 
