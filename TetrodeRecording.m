@@ -1793,7 +1793,7 @@ classdef TetrodeRecording < handle
 
 			selectedChannels = {previewObj.SelectedChannels};
 			allPaths = {previewObj.Path};
-			parfor iDir = 1:length(selectedChannels)
+			for iDir = 1:length(selectedChannels)
 				channels = selectedChannels{iDir};
 				if ~isempty(channels)
 					TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels);
