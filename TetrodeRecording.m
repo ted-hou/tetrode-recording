@@ -1846,7 +1846,7 @@ classdef TetrodeRecording < handle
 
 			for iTr = 1:length(TR)
 				tr = TR(iTr);
-				expName = obj.GetExpName();
+				expName = tr.GetExpName();
 				if discardData
 					tr.Spikes = [];
 					tr.DigitalEvents = [];
