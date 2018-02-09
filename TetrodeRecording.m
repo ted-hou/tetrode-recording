@@ -36,11 +36,16 @@ classdef TetrodeRecording < handle
 			if isempty(channels)
 				channels = obj.MapChannelID([obj.Amplifier.Channels.NativeOrder]);
 			end
-			obj.SpikeDetect(channels, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+			obj.SpikeDetect(channels, 'NumSigmas', 4, 'WaveformWindow', [-0.5, 0.5]);
 			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
 			if ~hideResults
 				obj.PlotAllChannels();
 			end
+		end
+
+		function expName = GetExpName(obj)
+			expName = strsplit(obj.Path, '\');
+			expName = expName{end - 1};
 		end
 
 		function SelectFiles(obj)
@@ -1572,7 +1577,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'RasterXLim', [], @isnumeric);
 			addParameter(p, 'WaveformYLim', [], @isnumeric);
 			addParameter(p, 'FontSize', 8, @isnumeric);
-			addParameter(p, 'FrameRate', 120, @isnumeric);
+			addParameter(p, 'FrameRate', 0, @isnumeric);
 			parse(p, channels, varargin{:});
 			channels 		= p.Results.Channels;
 			reference 		= p.Results.Reference;
@@ -1618,8 +1623,7 @@ classdef TetrodeRecording < handle
 			wRight	= (1 - 2*fMargin)*(1 - xRatio) - 2*xMargin;
 
 			for iChannel = channels
-				expName = strsplit(obj.Path, '\');
-				expName = expName{end - 1};
+				expName = obj.GetExpName();				
 				displayName = [expName, ' (Channel ', num2str(iChannel), ')'];
 
 				hFigure 	= figure('Units', 'Normalized', 'Position', [0.125, 0, 0.75, 1], 'Name', displayName, 'DefaultAxesFontSize', fontSize,...
@@ -1663,8 +1667,7 @@ classdef TetrodeRecording < handle
 				channels = [obj.Spikes.Channel];
 			end
 
-			expName = strsplit(obj.Path, '\');
-			expName = expName{end - 1};
+			expName = obj.GetExpName();
 
 			hFigure	= figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'Name', expName, 'DefaultAxesFontSize', fontSize,...
 				'GraphicsSmoothing', 'off');
@@ -1787,37 +1790,42 @@ classdef TetrodeRecording < handle
 			p = inputParser;
 			addRequired(p, 'Obj', @(x) isa(x, 'TetrodeRecording'));
 			addParameter(p, 'ChunkSize', 10, @isnumeric);
+			addParameter(p, 'NumSigmas', 4, @isnumeric);
+			addParameter(p, 'WaveformWindow', [-1, 1], @isnumeric);
+			addParameter(p, 'FeatureMethod', 'WaveletTransform', @ischar);
+			addParameter(p, 'ClusterMethod', 'kmeans', @ischar);
+			addParameter(p, 'Dimension', 10, @isnumeric);
 			parse(p, previewObj, varargin{:});
-			previewObj 	= p.Results.Obj;
-			chunkSize 	= p.Results.ChunkSize;
+			previewObj 		= p.Results.Obj;
+			chunkSize 		= p.Results.ChunkSize;
+			numSigmas 		= p.Results.NumSigmas;
+			waveformWindow 	= p.Results.WaveformWindow;
+			featureMethod 	= p.Results.FeatureMethod;
+			clusterMethod 	= p.Results.ClusterMethod;
+			dimension 		= p.Results.Dimension;
 
 			selectedChannels = {previewObj.SelectedChannels};
 			allPaths = {previewObj.Path};
 			for iDir = 1:length(selectedChannels)
 				channels = selectedChannels{iDir};
 				if ~isempty(channels)
-					TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels);
+					TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels, numSigmas, waveformWindow, featureMethod, clusterMethod, dimension);
 				end
 			end
 			TetrodeRecording.RandomWords();
 		end
 
-		function ProcessFolder(thisPath, chunkSize, channels)
+		function ProcessFolder(thisPath, chunkSize, channels, numSigmas, waveformWindow, featureMethod, clusterMethod, dimension)
 			tr = TetrodeRecording();
 			tr.Path = thisPath;
 			files = dir([tr.Path, '*.rhd']);
 			tr.Files = {files.name};
 			tr.ReadFiles(chunkSize, 'DigitalDetect', true);
-			tr.SpikeDetect(channels, 'NumSigmas', 4, 'WaveformWindow', [-1, 1]);
+			tr.SpikeDetect(channels, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow);
 			tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
-			tr.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'WaveletTransform', 'Dimension', 10);
+			tr.SpikeSort(channels, 'FeatureMethod', featureMethod, 'ClusterMethod', clusterMethod, 'Dimension', dimension);
 			tr.ClearCache();
-			expName = strsplit(tr.Path, '\');
-			expName = expName{end - 1};
-			if ~isfolder([tr.Path, '..\SpikeSort'])
-				mkdir([tr.Path, '..\SpikeSort'])
-			end
-			save([tr.Path, '..\SpikeSort\tr_', expName, '.mat'], 'tr')			
+			TetrodeRecording.BatchSave(tr, 'Prefix', 'tr_', 'DiscardData', false);
 		end
 
 		function tr = BatchLoad()
@@ -1826,6 +1834,29 @@ classdef TetrodeRecording < handle
 				S(iFile) = load(files{iFile}, 'tr');
 			end
 			tr = [S.tr];
+		end
+
+		function BatchSave(TR, varargin)
+			p = inputParser;
+			addParameter(p, 'Prefix', '', @ischar);
+			addParameter(p, 'DiscardData', false, @islogical);
+			parse(p, varargin{:});
+			prefix = p.Results.Prefix;
+			discardData = p.Results.DiscardData;
+
+			for iTr = 1:length(TR)
+				tr = TR(iTr);
+				expName = obj.GetExpName();
+				if discardData
+					tr.Spikes = [];
+					tr.DigitalEvents = [];
+				end
+				if ~isfolder([tr.Path, '..\SpikeSort'])
+					mkdir([tr.Path, '..\SpikeSort'])
+				end
+				file = [tr.Path, '..\SpikeSort\', prefix, expName, '.mat'];
+				save(file, 'tr');
+			end
 		end
 
 		function a = ReadQString(fid)
