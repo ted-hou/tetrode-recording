@@ -1812,6 +1812,9 @@ classdef TetrodeRecording < handle
 			tr.ClearCache();
 			expName = strsplit(tr.Path, '\');
 			expName = expName{end - 1};
+			if ~isfolder([tr.Path, '..\SpikeSort'])
+				mkdir([tr.Path, '..\SpikeSort'])
+			end
 			save([tr.Path, '..\SpikeSort\tr_', expName, '.mat'], 'tr')			
 		end
 
