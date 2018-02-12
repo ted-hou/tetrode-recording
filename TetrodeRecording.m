@@ -1795,6 +1795,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'FeatureMethod', 'WaveletTransform', @ischar);
 			addParameter(p, 'ClusterMethod', 'kmeans', @ischar);
 			addParameter(p, 'Dimension', 10, @isnumeric);
+			addParameter(p, 'Prefix', 'tr_', @ischar);
 			parse(p, previewObj, varargin{:});
 			previewObj 		= p.Results.Obj;
 			chunkSize 		= p.Results.ChunkSize;
@@ -1803,19 +1804,20 @@ classdef TetrodeRecording < handle
 			featureMethod 	= p.Results.FeatureMethod;
 			clusterMethod 	= p.Results.ClusterMethod;
 			dimension 		= p.Results.Dimension;
+			prefix 			= p.Results.Prefix;
 
 			selectedChannels = {previewObj.SelectedChannels};
 			allPaths = {previewObj.Path};
 			for iDir = 1:length(selectedChannels)
 				channels = selectedChannels{iDir};
 				if ~isempty(channels)
-					TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels, numSigmas, waveformWindow, featureMethod, clusterMethod, dimension);
+					TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels, numSigmas, waveformWindow, featureMethod, clusterMethod, dimension, prefix);
 				end
 			end
 			TetrodeRecording.RandomWords();
 		end
 
-		function ProcessFolder(thisPath, chunkSize, channels, numSigmas, waveformWindow, featureMethod, clusterMethod, dimension)
+		function ProcessFolder(thisPath, chunkSize, channels, numSigmas, waveformWindow, featureMethod, clusterMethod, dimension, prefix)
 			tr = TetrodeRecording();
 			tr.Path = thisPath;
 			files = dir([tr.Path, '*.rhd']);
@@ -1825,7 +1827,7 @@ classdef TetrodeRecording < handle
 			tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
 			tr.SpikeSort(channels, 'FeatureMethod', featureMethod, 'ClusterMethod', clusterMethod, 'Dimension', dimension);
 			tr.ClearCache();
-			TetrodeRecording.BatchSave(tr, 'Prefix', 'tr_', 'DiscardData', false);
+			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false);
 		end
 
 		function tr = BatchLoad()
