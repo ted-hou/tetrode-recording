@@ -910,11 +910,13 @@ classdef TetrodeRecording < handle
 			addRequired(p, 'Channels', @isnumeric);
 			addParameter(p, 'Method', 'kmeans', @ischar);
 			addParameter(p, 'Dimension', [], @isnumeric);
+			addParameter(p, 'Clusters', [], @isnumeric);
 			addParameter(p, 'NumClusters', [], @isnumeric);
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
 			method = p.Results.Method;
 			dimension = p.Results.Dimension;
+			clusters = p.Results.Clusters;
 			numClusters = p.Results.NumClusters;
 
 			switch lower(method)
@@ -929,13 +931,18 @@ classdef TetrodeRecording < handle
 			end			
 			tic, TetrodeRecording.TTS(['	Clustering (', methodDisplayName, '):\n']);
 			for iChannel = channels
+				numWaveforms = size(obj.Spikes(iChannel).Waveforms, 1);
+				if isempty(clusters)
+					selected = true(1, numWaveforms);
+				else
+					selected = ismember(obj.Spikes(iChannel).Cluster.Classes, clusters);
+				end
+
 				if isempty(dimension) || dimension > size(obj.Spikes(iChannel).Feature.Coeff, 2)
 					thisDimension = size(obj.Spikes(iChannel).Feature.Coeff, 2);
 				else
 					thisDimension = dimension;
 				end
-				obj.Spikes(iChannel).Cluster.Classes = [];
-				obj.Spikes(iChannel).Cluster.Stats = [];
 				obj.Spikes(iChannel).Cluster.Method = method;
 				if isempty(obj.Spikes(iChannel).Waveforms)
 					continue
@@ -943,12 +950,12 @@ classdef TetrodeRecording < handle
 				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), '...']);
 				switch lower(method)
 					case 'kmeans'
-						[obj.Spikes(iChannel).Cluster.Classes, obj.Spikes(iChannel).Cluster.Stats] = obj.KMeans(iChannel, 'NumClusters', numClusters, 'Dimension', thisDimension);
+						obj.Spikes(iChannel).Cluster.Classes(selected) = obj.KMeans(iChannel, 'NumClusters', numClusters, 'Dimension', thisDimension, 'SelectedWaveforms', selected);
 					case 'gaussian'
-						gm = fitgmdist(obj.Spikes(iChannel).Feature.Coeff(:, 1:thisDimension), numClusters, 'RegularizationValue', 0.001);
-						obj.Spikes(iChannel).Cluster.Classes = cluster(gm, obj.Spikes(iChannel).Feature.Coeff(:, 1:thisDimension));
+						gm = fitgmdist(obj.Spikes(iChannel).Feature.Coeff(selected, 1:thisDimension), numClusters, 'RegularizationValue', 0.001);
+						obj.Spikes(iChannel).Cluster.Classes(selected) = cluster(gm, obj.Spikes(iChannel).Feature.Coeff(selected, 1:thisDimension));
 					case 'spc'
-						[obj.Spikes(iChannel).Cluster.Classes, obj.Spikes(iChannel).Cluster.Stats] = obj.SPC(iChannel, 'Dimension', thisDimension);
+						obj.Spikes(iChannel).Cluster.Classes(selected) = obj.SPC(iChannel, 'Dimension', thisDimension, 'SelectedWaveforms', selected);
 				end
 				TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 			end
@@ -961,19 +968,24 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Dimension', [], @isnumeric);
 			addParameter(p, 'NumClusters', [], @isnumeric);
 			addParameter(p, 'MaxNumClusters', 7, @isnumeric);
+			addParameter(p, 'SelectedWaveforms', [], @(x) (islogical(x) | isnumeric(x)));
 			parse(p, channel, varargin{:});
 			channel 			= p.Results.Channel;
 			dimension 			= p.Results.Dimension;
 			numClusters			= p.Results.NumClusters;
 			maxNumClusters 		= p.Results.MaxNumClusters;
+			selectedWaveforms	= p.Results.SelectedWaveforms;
 
 			feature = obj.Spikes(channel).Feature.Coeff;
 
+			if isempty(selectedWaveforms)
+				selectedWaveforms = true(1, size(feature, 1));
+			end
 			if isempty(dimension) || dimension > size(feature, 2)
 				dimension = size(feature, 2);
 			end
 
-			feature = feature(:, 1:dimension);
+			feature = feature(selectedWaveforms, 1:dimension);
 
 			if isempty(numClusters)
 				stats = evalclusters(feature, 'kmeans', 'CalinskiHarabasz', 'KList', 2:maxNumClusters);
@@ -1001,6 +1013,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'MinClusterSizeRatio', 0.0015, @isnumeric);
 			addParameter(p, 'MaxNumClusters', 13, @isnumeric);
 			addParameter(p, 'MaxNumWaveforms', 40000, @isnumeric); % If too many spikes use template matching for extra spikes
+			addParameter(p, 'SelectedWaveforms', [], @(x) (islogical(x) | isnumeric(x)));
 			parse(p, channel, varargin{:});
 			channel 			= p.Results.Channel;
 			dimension 			= p.Results.Dimension;
@@ -1012,8 +1025,14 @@ classdef TetrodeRecording < handle
 			minClusterSizeRatio = p.Results.MinClusterSizeRatio;
 			maxNumClusters 		= p.Results.MaxNumClusters;
 			maxNumWaveforms		= p.Results.MaxNumWaveforms;
+			selectedWaveforms	= p.Results.SelectedWaveforms;
 
 			feature = obj.Spikes(channel).Feature.Coeff;
+			if isempty(selectedWaveforms)
+				selectedWaveforms = true(1, size(feature, 1));
+			end
+			feature = feature(selectedWaveforms, :);
+			waveforms = obj.Spikes(channel).Waveforms(selectedWaveforms, :);
 			numWaveforms = size(feature, 1);
 
 			if numWaveforms > maxNumWaveforms
@@ -1026,8 +1045,8 @@ classdef TetrodeRecording < handle
 				indicesSPC = randperm(numWaveforms, maxNumWaveforms);
 				indicesTemplateMatching = setdiff(1:numWaveforms, indicesSPC);
 				featureSPC = feature(indicesSPC, :);
-				waveformsSPC = obj.Spikes(channel).Waveforms(indicesSPC, :);
-				waveformsTemplateMatching = obj.Spikes(channel).Waveforms(indicesTemplateMatching, :);
+				waveformsSPC = waveforms(indicesSPC, :);
+				waveformsTemplateMatching = waveforms(indicesTemplateMatching, :);
 			else
 				featureSPC = feature;
 			end
@@ -1131,32 +1150,24 @@ classdef TetrodeRecording < handle
 			p = inputParser;
 			addRequired(p, 'Channel', @isnumeric);
 			addRequired(p, 'MergeList', @iscell);
-			addParameter(p, 'HideResults', false, @islogical);
 			parse(p, channel, mergeList, varargin{:});
 			channel = p.Results.Channel;
 			mergeList = p.Results.MergeList;
-			hideResults = p.Results.HideResults;
 
 			newCluster = NaN(size(obj.Spikes(channel).Cluster.Classes));
 			for iNewCluster = 1:length(mergeList)
 				newCluster(ismember(obj.Spikes(channel).Cluster.Classes, mergeList{iNewCluster})) = iNewCluster;
 			end
 			obj.Spikes(channel).Cluster.Classes = newCluster;
-
-			if ~hideResults
-				obj.PlotChannel(channel);
-			end
 		end
 
 		function ClusterRemove(obj, channel, discardList, varargin)
 			p = inputParser;
 			addRequired(p, 'Channel', @isnumeric);
 			addRequired(p, 'DiscardList', @isnumeric);
-			addParameter(p, 'HideResults', false, @islogical);
 			parse(p, channel, discardList, varargin{:});
 			channel = p.Results.Channel;
 			discardList = p.Results.DiscardList;
-			hideResults = p.Results.HideResults;
 
 			% Discard unwanted clusters
 			iWaveformToDiscard = ismember(obj.Spikes(channel).Cluster.Classes, discardList);
@@ -1167,7 +1178,7 @@ classdef TetrodeRecording < handle
 			obj.Spikes(channel).Cluster.Classes(iWaveformToDiscard) = [];
 
 			% Renumber clusters from 1 to numClusters
-			obj.ClusterMerge(channel, num2cell(unique(obj.Spikes(channel).Cluster.Classes)), 'HideResults', hideResults);
+			obj.ClusterMerge(channel, num2cell(unique(obj.Spikes(channel).Cluster.Classes)));
 		end
 
 		function ClusterDecimate(obj, channel, cluster, varargin)
@@ -1175,12 +1186,10 @@ classdef TetrodeRecording < handle
 			addRequired(p, 'Channel', @isnumeric);
 			addRequired(p, 'Cluster', @isnumeric);
 			addOptional(p, 'LuckyNumber', 10, @isnumeric);
-			addParameter(p, 'HideResults', false, @islogical);
 			parse(p, channel, cluster, varargin{:});
 			channel = p.Results.Channel;
 			cluster = p.Results.Cluster;
 			luckyNumber = p.Results.LuckyNumber;
-			hideResults = p.Results.HideResults;
 
 			inCluster = find(obj.Spikes(channel).Cluster.Classes == cluster);
 			notInLuck = inCluster(~ismember(1:length(inCluster), 1:luckyNumber:length(inCluster)));
@@ -1190,10 +1199,6 @@ classdef TetrodeRecording < handle
 			obj.Spikes(channel).SampleIndex(notInLuck) 			= [];
 			obj.Spikes(channel).Feature.Coeff(notInLuck, :)		= [];
 			obj.Spikes(channel).Cluster.Classes(notInLuck) 				= [];
-
-			if ~hideResults
-				obj.PlotChannel(channel);
-			end
 
 			TetrodeRecording.TTS('Decimate!\n', true);
 		end
@@ -1249,7 +1254,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Clusters', [], @isnumeric);
 			addParameter(p, 'YLim', [], @isnumeric);
 			addParameter(p, 'FrameRate', 120, @isnumeric);
-			addParameter(p, 'PercentShown', 1, @isnumeric);
+			addParameter(p, 'MaxShown', 1000, @isnumeric);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'Ax', []);
 			parse(p, channel, varargin{:});
@@ -1258,12 +1263,18 @@ classdef TetrodeRecording < handle
 			clusters = p.Results.Clusters;
 			yRange = p.Results.YLim;
 			frameRate = p.Results.FrameRate;
-			percentShown = p.Results.PercentShown;
+			maxShown = p.Results.MaxShown;
 			waveformWindow = p.Results.WaveformWindow;
 			ax = p.Results.Ax;
 
 			waveforms = obj.Spikes(channel).Waveforms;
 			numWaveformsTotal = size(waveforms, 1);
+
+			if numWaveformsTotal > maxShown
+				percentShown = max(1, round(100*(maxShown/numWaveformsTotal)));
+			else
+				percentShown = 100;
+			end
 
 			if isempty(yRange)
 				yRange = [min(waveforms(:)), max(waveforms(:))];
@@ -1567,15 +1578,14 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Event', 'PressOn', @ischar);
 			addParameter(p, 'Exclude', 'LickOn', @ischar);
 			addParameter(p, 'Clusters', [], @isnumeric);
-			addParameter(p, 'AddFirstCluster', false, @islogical);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'ExtendedWindow', [0, 0], @isnumeric);
 			addParameter(p, 'MinTrialLength', 0, @isnumeric);
-			addParameter(p, 'Bins', 5, @isnumeric);
+			addParameter(p, 'Bins', 4, @isnumeric);
 			addParameter(p, 'BinMethod', 'percentile', @ischar);
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
 			addParameter(p, 'RasterXLim', [], @isnumeric);
-			addParameter(p, 'WaveformYLim', [], @isnumeric);
+			addParameter(p, 'WaveformYLim', [-300, 300], @isnumeric);
 			addParameter(p, 'FontSize', 8, @isnumeric);
 			addParameter(p, 'FrameRate', 0, @isnumeric);
 			parse(p, channels, varargin{:});
@@ -1584,7 +1594,6 @@ classdef TetrodeRecording < handle
 			event 			= p.Results.Event;
 			exclude 		= p.Results.Exclude;
 			clusters 		= p.Results.Clusters;
-			addFirstCluster	= p.Results.AddFirstCluster;
 			waveformWindow 	= p.Results.WaveformWindow;
 			extendedWindow 	= p.Results.ExtendedWindow;
 			minTrialLength 	= p.Results.MinTrialLength;
@@ -1600,16 +1609,6 @@ classdef TetrodeRecording < handle
 				channels = [obj.Spikes.Channel];
 			end
 
-			if isempty(clusters)
-				waveformClusters = [];
-			else
-				if addFirstCluster
-					waveformClusters = [1, clusters];
-				else
-					waveformClusters = clusters;
-				end
-			end
-
 			xRatio 	= 0.4;
 			yRatio 	= 0.6;
 			xMargin = 0.04;
@@ -1621,6 +1620,9 @@ classdef TetrodeRecording < handle
 			w 		= 1 - 2*fMargin - 2*xMargin;
 			wLeft	= (1 - 2*fMargin)*xRatio - 2*xMargin;
 			wRight	= (1 - 2*fMargin)*(1 - xRatio) - 2*xMargin;
+			buttonWidth = 0.05;
+			buttonHeight = 0.05;
+			buttonSpacing = 0.01;
 
 			for iChannel = channels
 				expName = obj.GetExpName();				
@@ -1633,17 +1635,203 @@ classdef TetrodeRecording < handle
 				hRaster		= subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + 3*yMargin + hDown, wRight, hUp]);
 				hPETH 		= subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hDown]);
 
-				suptitle(displayName);
+				if isempty(clusters)
+					hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+				else
+					hFigure.UserData.SelectedClusters = clusters;
+				end
 
-				obj.PlotWaveforms(iChannel, 'Clusters', waveformClusters, 'WaveformWindow', waveformWindow, 'YLim', waveformYLim, 'FrameRate', frameRate,...
-					'Ax', [hPCA, hWaveform]);
-				obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
-					'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
-					'Ax', hRaster, 'Sort', true);
-				obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
-					'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
-					'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
-					'Ax', hPETH);
+				hTitle = suptitle(displayName);
+
+				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+				% obj.PlotWaveforms(iChannel, 'Clusters', clusters, 'WaveformWindow',...
+				% 	waveformWindow, 'YLim', waveformYLim, 'FrameRate', frameRate,...
+				% 	'Ax', [hPCA, hWaveform]);
+				% obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
+				% 	'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
+				% 	'Ax', hRaster, 'Sort', true);
+				% obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
+				% 	'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
+				% 	'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
+				% 	'Ax', hPETH);
+
+				hButtonPlot = uicontrol(...
+					'Style', 'pushbutton',...
+					'String', 'Plot ...',...
+					'Callback', {@obj.GUIPlotClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+					'Units', 'Normalized',...
+					'Position', [xMargin, 1 - yMargin, buttonWidth, min(yMargin, buttonHeight)]);
+				hButtonPlot.Position(1) = hButtonPlot.Position(1) + hButtonPlot.Position(3);
+
+				hButtonMerge = uicontrol(...
+					'Style', 'pushbutton',...
+					'String', 'Merge ...',...
+					'Callback', {@obj.GUIMergeClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+					'Units', 'Normalized',...
+					'Position', hButtonRemove.Position);
+				hButtonMerge.Position(1) = hButtonMerge.Position(1) + hButtonMerge.Position(3) + buttonSpacing;
+
+				hButtonRemove = uicontrol(...
+					'Style', 'pushbutton',...
+					'String', 'Remove ...',...
+					'Callback', {@obj.GUIRemoveClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+					'Units', 'Normalized',...
+					'Position', hButtonPlot.Position);
+				hButtonRemove.Position(1) = hButtonRemove.Position(1) + hButtonRemove.Position(3) + buttonSpacing;
+
+				hButtonRecluster = uicontrol(...
+					'Style', 'pushbutton',...
+					'String', 'Recluster ...',...
+					'Callback', {@obj.GUIRecluster, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+					'Units', 'Normalized',...
+					'Position', hButtonMerge.Position);
+				hButtonRecluster.Position(1) = hButtonRecluster.Position(1) + hButtonRecluster.Position(3) + buttonSpacing;
+			end
+		end
+
+		function ReplotChannel(obj, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+			reference 		= p.Results.Reference;
+			event 			= p.Results.Event;
+			exclude 		= p.Results.Exclude;
+			waveformWindow 	= p.Results.WaveformWindow;
+			extendedWindow 	= p.Results.ExtendedWindow;
+			minTrialLength 	= p.Results.MinTrialLength;
+			bins 			= p.Results.Bins;
+			binMethod 		= p.Results.BinMethod;
+			spikeRateWindow = p.Results.SpikeRateWindow;
+			rasterXLim 		= p.Results.RasterXLim;
+			waveformYLim	= p.Results.WaveformYLim;
+			frameRate 		= p.Results.FrameRate;
+
+			clusters = hFigure.UserData.SelectedClusters;
+
+			% Stop refresh if frameRate > 0
+			if isfield(hWaveform.UserData, 'hTimer')
+				if isvalid(hWaveform.UserData.hTimer)
+					stop(hWaveform.UserData.hTimer);
+					delete(hWaveform.UserData.hTimer);
+				end
+			end
+
+			% Clear axes
+			cla(hPCA)
+			cla(hWaveform)
+			cla(hRaster)
+			cla(hPETH)
+
+			% Replot newly selected clusters
+			obj.PlotWaveforms(iChannel, 'Clusters', clusters, 'WaveformWindow',...
+				waveformWindow, 'YLim', waveformYLim, 'FrameRate', frameRate,...
+				'Ax', [hPCA, hWaveform]);
+			obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
+				'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
+				'Ax', hRaster, 'Sort', true);
+			obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
+				'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
+				'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
+				'Ax', hPETH);
+		end
+
+		function GUIPlotClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
+
+			[clusters, ok] = listdlg(...
+				'PromptString', 'Plot clusters:',...
+				'SelectionMode', 'multiple',...
+				'OKString', 'Plot',...
+				'ListString', liststr,...
+				'InitialValue', hFigure.UserData.SelectedClusters);
+
+			if (ok && ~isempty(clusters))
+				% Updated selected clusters
+				hFigure.UserData.SelectedClusters = clusters;
+
+				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+			end
+		end
+
+		function GUIRemoveClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
+
+			[clusters, ok] = listdlg(...
+				'PromptString', 'Remove clusters:',...
+				'SelectionMode', 'multiple',...
+				'OKString', 'Remove',...
+				'ListString', liststr,...
+				'InitialValue', []);
+
+			if (ok && ~isempty(clusters))
+				answer = questdlg(...
+					['Permanently remove selected clusters (', mat2str(clusters), ')?'],...
+					'Remove Cluster(s)',...
+					'Remove', 'Cancel',...
+					'Cancel');
+				if strcmpi(answer, 'Remove')
+					% Remove selected clusters
+					obj.ClusterRemove(iChannel, clusters);
+					hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+
+					% Updated selected clusters
+					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+				end
+			end
+		end
+
+		function GUIMergeClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
+
+			[clusters, ok] = listdlg(...
+				'PromptString', 'Merge clusters:',...
+				'SelectionMode', 'multiple',...
+				'OKString', 'Remove',...
+				'ListString', liststr,...
+				'InitialValue', []);
+
+			if (ok && ~isempty(clusters))
+				answer = questdlg(...
+					['Merge selected clusters (', mat2str(clusters), ')?'],...
+					'Merge Clusters',...
+					'Merge', 'Cancel',...
+					'Cancel');
+				if strcmpi(answer, 'Merge')
+					% Merge selected clusters
+					allClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+					mergeList = [{clusters}, num2cell(allClusters(~ismember(allClusters, clusters)))];
+					obj.ClusterMerge(iChannel, mergeList);
+					hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+
+					% Updated selected clusters
+					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+				end
+			end
+		end
+
+		function GUIRecluster(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
+
+			[clusters, ok] = listdlg(...
+				'PromptString', 'Recluster clusters:',...
+				'SelectionMode', 'multiple',...
+				'OKString', 'Recluster',...
+				'ListString', liststr,...
+				'InitialValue', []);
+
+			if (ok && ~isempty(clusters))
+				answer = questdlg(...
+					['Recluster selected clusters (', mat2str(clusters), ')?'],...
+					'Recluster Clusters',...
+					'Recluster', 'Cancel',...
+					'Cancel');
+				if strcmpi(answer, 'Recluster')
+					% Merge selected clusters
+					allClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+					mergeList = [{clusters}, num2cell(allClusters(~ismember(allClusters, clusters)))];
+					obj.ClusterMerge(iChannel, mergeList);
+					hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+
+					% Updated selected clusters
+					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+				end
 			end
 		end
 
