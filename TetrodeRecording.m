@@ -1662,6 +1662,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'RasterXLim', [], @isnumeric);
 			addParameter(p, 'WaveformYLim', [-200, 200], @isnumeric);
 			addParameter(p, 'FontSize', 8, @isnumeric);
+			addParameter(p, 'PrintMode', false, @islogical);
 			addParameter(p, 'FrameRate', 0, @isnumeric);
 			addParameter(p, 'Fig', []);
 			parse(p, channel, varargin{:});
@@ -1679,6 +1680,7 @@ classdef TetrodeRecording < handle
 			rasterXLim 		= p.Results.RasterXLim;
 			waveformYLim	= p.Results.WaveformYLim;
 			fontSize 		= p.Results.FontSize;
+			printMode 		= p.Results.PrintMode;
 			frameRate 		= p.Results.FrameRate;
 			hFigure 		= p.Results.Fig;
 
@@ -1708,10 +1710,17 @@ classdef TetrodeRecording < handle
 			if ~isempty(hFigure)
 				clf(hFigure)
 			else
-				hFigure	= figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'GraphicsSmoothing', 'off');
+				hFigure	= figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'GraphicsSmoothing', 'on');
 				hFigure.UserData.PlotMean = true;
+				hFigure.UserData.ReferenceCluster = [];
 			end
 			hFigure.Name = displayName;
+
+			if printMode
+				fontSize = 14;
+				hFigure.Units = 'pixels';
+				hFigure.InnerPosition = [0, 0, 1332, 999];
+			end
 			set(hFigure, 'DefaultAxesFontSize', fontSize);
 
 			hWaveform 	= subplot('Position', [fMargin + xMargin, fMargin + 5*yMargin + hDown + hUpHalf, wLeft, hUpHalf]);
@@ -1787,16 +1796,35 @@ classdef TetrodeRecording < handle
 				'Position', [buttonSpacing, hWaveform.Position(2) + hWaveform.Position(4) - buttonHeight, buttonWidth, buttonHeight]);
 			hPrev = hButtonPlotMean;
 
+			hButtonSelRef = uicontrol(...
+				'Style', 'pushbutton',...
+				'String', 'Reference ...',...
+				'Callback', {@obj.GUISelRef, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Position', hPrev.Position);
+			hButtonSelRef.Position(2) = hButtonSelRef.Position(2) - hButtonSelRef.Position(4) - buttonHeight;
+			hPrev = hButtonSelRef;
+
 			hButtonPlotAllClusters = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Expand ...',...
 				'Callback', {@obj.GUIPlotAllClusters, iChannel, hFigure},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
-				'Value', hFigure.UserData.PlotMean,...
 				'Position', hPrev.Position);
 			hButtonPlotAllClusters.Position(2) = hButtonPlotAllClusters.Position(2) - hButtonPlotAllClusters.Position(4) - buttonHeight;
 			hPrev = hButtonPlotAllClusters;
+
+			hButtonSavePlot = uicontrol(...
+				'Style', 'pushbutton',...
+				'String', 'Clipboard',...
+				'Callback', {@obj.GUISavePlot, hFigure},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Position', hPrev.Position);
+			hButtonSavePlot.Position(2) = hButtonSavePlot.Position(2) - hButtonSavePlot.Position(4) - buttonHeight;
+			hPrev = hButtonSavePlot;
 
 			nextChn = find(allChannels == iChannel) + 1;
 			nextChn = mod(nextChn, length(allChannels));
@@ -1815,7 +1843,7 @@ classdef TetrodeRecording < handle
 			hButtonNextChn = uicontrol(hFigure,...
 				'Style', 'pushbutton',...
 				'String', 'Next Chn',...
-				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Fig', hFigure), nextChn, hFigure},...
+				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Fig', hFigure, 'PrintMode', printMode), nextChn, hFigure},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', [1 - xMargin - 2*buttonWidth, 1 - yMargin, buttonWidth, min(yMargin, buttonHeight)]);
@@ -1840,7 +1868,7 @@ classdef TetrodeRecording < handle
 			hButtonPrevChn = uicontrol(hFigure,...
 				'Style', 'pushbutton',...
 				'String', 'Prev Chn',...
-				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Fig', hFigure), prevChn, hFigure},...
+				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Fig', hFigure, 'PrintMode', printMode), prevChn, hFigure},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -1928,6 +1956,7 @@ classdef TetrodeRecording < handle
 
 			clusters = hFigure.UserData.SelectedClusters;
 			plotMean = hFigure.UserData.PlotMean;
+			referenceCluster = hFigure.UserData.ReferenceCluster;
 
 			% Stop refresh if frameRate > 0
 			if isfield(hWaveform.UserData, 'hTimer')
@@ -1943,9 +1972,21 @@ classdef TetrodeRecording < handle
 			cla(hRaster)
 			cla(hPETH)
 
+			if length(clusters) == 1
+				selectedCluster = clusters;
+				clusters = [];
+				if selectedCluster == referenceCluster
+					referenceCluster = [];
+				end
+			else
+				selectedCluster = [];
+				referenceCluster = [];
+			end
+
 			% Replot newly selected clusters
 			obj.PlotWaveforms(iChannel, 'Clusters', clusters, 'WaveformWindow', waveformWindow,...
 				'YLim', waveformYLim, 'FrameRate', frameRate, 'PlotMean', plotMean,...
+				'ReferenceCluster', referenceCluster, 'SelectedCluster', selectedCluster,...
 				'Ax', [hPCA, hWaveform]);
 			obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
 				'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
@@ -2100,6 +2141,28 @@ classdef TetrodeRecording < handle
 			obj.GUIBusy(hFigure, false);
 		end
 
+		function GUISelRef(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+			obj.GUIBusy(hFigure, true);
+			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
+
+			[referenceCluster, ok] = listdlg(...
+				'PromptString', 'Select cluster as reference:',...
+				'SelectionMode', 'single',...
+				'OKString', 'Reference',...
+				'CancelString', 'No Reference',...
+				'ListString', liststr,...
+				'InitialValue', []);
+
+			if ok
+				hFigure.UserData.ReferenceCluster = cellfun(@str2num, liststr(referenceCluster));
+			else
+				hFigure.UserData.ReferenceCluster = [];
+			end
+			obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+
+			obj.GUIBusy(hFigure, false);
+		end
+
 		function GUIPlotMean(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
 			obj.GUIBusy(hFigure, true);
 			if logical(hButton.Value) ~= hFigure.UserData.PlotMean
@@ -2126,6 +2189,13 @@ classdef TetrodeRecording < handle
 				obj.PlotAllClusters(iChannel, 'Clusters', hFigure.UserData.SelectedClusters, 'ReferenceCluster', referenceCluster, 'FigMain', hFigure);
 			end
 			obj.GUIBusy(hFigure, false);
+		end
+
+		function GUISavePlot(obj, hButton, evnt, hFigure)
+			hButtons = findobj(hFigure.Children, 'Type', 'uicontrol');
+			set(hButtons, 'Visible', 'off');
+			print(hFigure, '-clipboard', '-dbitmap')
+			set(hButtons, 'Visible', 'on');
 		end
 
 		function GUIDeleteChannel(obj, hButton, evnt, iChannel, nextChn, hFigure)
