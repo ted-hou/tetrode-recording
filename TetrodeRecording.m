@@ -1210,13 +1210,11 @@ classdef TetrodeRecording < handle
 			inCluster = find(obj.Spikes(channel).Cluster.Classes == cluster);
 			notInLuck = inCluster(~ismember(1:length(inCluster), 1:luckyNumber:length(inCluster)));
 
-			obj.Spikes(channel).Waveforms(notInLuck, :) 		= [];
-			obj.Spikes(channel).Timestamps(notInLuck) 			= [];
 			obj.Spikes(channel).SampleIndex(notInLuck) 			= [];
+			obj.Spikes(channel).Timestamps(notInLuck) 			= [];
+			obj.Spikes(channel).Waveforms(notInLuck, :) 		= [];
 			obj.Spikes(channel).Feature.Coeff(notInLuck, :)		= [];
-			obj.Spikes(channel).Cluster.Classes(notInLuck) 				= [];
-
-			TetrodeRecording.TTS('Decimate!\n', true);
+			obj.Spikes(channel).Cluster.Classes(notInLuck) 		= [];
 		end
 
 		% Plot raw channel
@@ -1688,6 +1686,16 @@ classdef TetrodeRecording < handle
 			hButtonRemove.Position(1) = hButtonRemove.Position(1) + hButtonRemove.Position(3) + buttonSpacing;
 			hPrev = hButtonRemove;
 
+			hButtonDecimate = uicontrol(...
+				'Style', 'pushbutton',...
+				'String', 'Decimate ...',...
+				'Callback', {@obj.GUIDecimateClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Position', hPrev.Position);
+			hButtonDecimate.Position(1) = hButtonDecimate.Position(1) + hButtonDecimate.Position(3) + buttonSpacing;
+			hPrev = hButtonDecimate;
+
 			hButtonRecluster = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Recluster ...',...
@@ -1837,6 +1845,37 @@ classdef TetrodeRecording < handle
 					% Remove selected clusters
 					obj.ClusterRemove(iChannel, clusters);
 					hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+
+					% Replot clusters
+					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+				end
+			end
+			obj.GUIBusy(hFigure, false);
+		end
+
+		function GUIDecimateClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+			obj.GUIBusy(hFigure, true);
+			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
+
+			[clusters, ok] = listdlg(...
+				'PromptString', 'Decimate clusters:',...
+				'SelectionMode', 'multiple',...
+				'OKString', 'Decimate',...
+				'ListString', liststr,...
+				'InitialValue', []);
+
+			if (ok && ~isempty(clusters))
+				clusters = cellfun(@str2num, liststr(clusters));
+				answer = questdlg(...
+					['Permanently decimate selected clusters (', mat2str(clusters), ')?'],...
+					'Decimate Cluster(s)',...
+					'Decimate', 'Cancel',...
+					'Cancel');
+				if strcmpi(answer, 'Decimate')
+					% Decimate selected clusters
+					for iCluster = clusters
+						obj.ClusterDecimate(iChannel, iCluster);
+					end
 
 					% Replot clusters
 					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
