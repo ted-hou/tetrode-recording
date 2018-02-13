@@ -1327,9 +1327,16 @@ classdef TetrodeRecording < handle
 				if sum(inCluster) == 0
 					continue
 				end
-				percentage = round(100*sum(inCluster)/size(obj.Spikes(channel).Waveforms, 1));
+				percentage = 100*sum(inCluster)/size(obj.Spikes(channel).Waveforms, 1);
+				percentage = [num2str(percentage, '%.1f'), '%'];
+				count = sum(inCluster);
+				if count < 1000
+					count = num2str(count);
+				else
+					count = [num2str(count/1000, '%.1f'), 'k'];
+				end
 				[thisColor, ~] = TetrodeRecording.GetColorAndStyle(iCluster);
-				scatter3(hAxes1, score(inCluster, 1), score(inCluster, 2), score(inCluster, 3), 1, thisColor, 'DisplayName', ['Cluster ', num2str(iCluster), ' (', num2str(percentage), '%)'])
+				scatter3(hAxes1, score(inCluster, 1), score(inCluster, 2), score(inCluster, 3), 1, thisColor, 'DisplayName', ['Cluster ', num2str(iCluster), ' (', percentage, ' | ', count, ')'])
 			end
 			hold(hAxes1, 'off')
 			xlabel(hAxes1, '1st Coefficient')
