@@ -1270,7 +1270,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'ReferenceCluster', [], @isnumeric);
 			addParameter(p, 'YLim', [], @isnumeric);
 			addParameter(p, 'FrameRate', 120, @isnumeric);
-			addParameter(p, 'MaxShown', 1000, @isnumeric);
+			addParameter(p, 'MaxShown', 200, @isnumeric);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'PlotMean', false, @islogical);
 			addParameter(p, 'Ax', []);
@@ -1790,7 +1790,7 @@ classdef TetrodeRecording < handle
 			hButtonPlotAllClusters = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Expand ...',...
-				'Callback', {@obj.GUIPlotAllClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'Callback', {@obj.GUIPlotAllClusters, iChannel, hFigure},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Value', hFigure.UserData.PlotMean,...
@@ -1886,15 +1886,19 @@ classdef TetrodeRecording < handle
 			yPadding = 0.03;
 			wAx = (1 - (numClusters + 1)*xPadding)/numClusters;
 			hAx = (1 - 3*yPadding)/2;
-			yScroll = 0.025;
+			ySlider = 0.025;
+
+			if ~isempty(hFigureMain) && isfield(hFigureMain.UserData, 'PlotMean')
+				plotMean = hFigureMain.UserData.PlotMean;
+			end
 
 			if isempty(hFigure)
 				hFigure	= figure('Units', 'Normalized', 'Position', [0, 0.1, 1, 0.7], 'GraphicsSmoothing', 'off');
-				hPanel = uipanel('Parent', hFigure, 'Position', [0, yScroll, numClusters/numCols, 1 - yScroll]);
+				hPanel = uipanel('Parent', hFigure, 'Position', [0, ySlider, numClusters/numCols, 1 - ySlider]);
 				if numClusters > numCols
-					hScroll = uicontrol('Style', 'slider', 'Units', 'Normalized', 'Position', [0, 0, 1, yScroll],...
-						'Min', 0, 'Max', numClusters/numCols - 1,...
-						'Callback', {@(hScroll, ~) set(hPanel, 'Position', [-hScroll.Value, yScroll, numClusters/numCols, 1 - yScroll])});
+					hSlider = uicontrol('Style', 'slider', 'Units', 'Normalized', 'Position', [0, 0, 1, ySlider],...
+						'Min', 0, 'Max', numClusters/numCols - 1, 'SliderStep', (numClusters/numCols - 1)./[numClusters, numClusters/numCols],...
+						'Callback', {@(hSlider, ~) set(hPanel, 'Position', [-hSlider.Value, ySlider, numClusters/numCols, 1 - ySlider])});
 				end
 				hWaveform = gobjects(1, numClusters);
 				hFeature = gobjects(1, numClusters);
@@ -1906,11 +1910,6 @@ classdef TetrodeRecording < handle
 						'Ax', [hFeature(iAx), hWaveform(iAx)]);
 				end
 			end
-
-			if ~isempty(hFigureMain) && isfield(hFigureMain.UserData, 'PlotMean')
-				plotMean = hFigureMain.UserData.PlotMean;
-			end
-
 		end
 
 		function ReplotChannel(obj, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
@@ -2110,7 +2109,7 @@ classdef TetrodeRecording < handle
 			obj.GUIBusy(hFigure, false);
 		end
 
-		function GUIPlotAllClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+		function GUIPlotAllClusters(obj, hButton, evnt, iChannel, hFigure)
 			obj.GUIBusy(hFigure, true);
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
 
@@ -2124,7 +2123,7 @@ classdef TetrodeRecording < handle
 			if ok
 				referenceCluster = cellfun(@str2num, liststr(referenceCluster));
 				% Expand and plot all clusters
-				obj.PlotAllClusters(iChannel, 'Clusters', hFigure.UserData.SelectedClusters, 'ReferenceCluster', referenceCluster);
+				obj.PlotAllClusters(iChannel, 'Clusters', hFigure.UserData.SelectedClusters, 'ReferenceCluster', referenceCluster, 'FigMain', hFigure);
 			end
 			obj.GUIBusy(hFigure, false);
 		end
@@ -2164,7 +2163,7 @@ classdef TetrodeRecording < handle
 			p = inputParser;
 			addParameter(p, 'Channels', [], @isnumeric);
 			addParameter(p, 'PercentShown', 5, @isnumeric); % What percentage of waveforms are plotted (0 - 100)
-			addParameter(p, 'MaxShown', 1000, @isnumeric);
+			addParameter(p, 'MaxShown', 200, @isnumeric);
 			addParameter(p, 'Fontsize', 8, @isnumeric);
 			addParameter(p, 'PlotMethod', 'all', @ischar); % 'all', 'mean'
 			addParameter(p, 'YLim', [-400, 400], @isnumeric); % 'all', 'mean'
