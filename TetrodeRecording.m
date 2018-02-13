@@ -1617,21 +1617,21 @@ classdef TetrodeRecording < handle
 			xMargin = 0.04;
 			yMargin = 0.06;
 			fMargin = 0.04;
+			buttonWidth = 0.04;
+			buttonHeight = 0.03;
+			buttonSpacing = 0.0075;
 			hUp 	= (1 - 2*fMargin)*yRatio - 2*yMargin;
 			hUpHalf = (hUp - 2*yMargin)/2;
 			hDown 	= (1 - 2*fMargin)*(1 - yRatio) - 2*yMargin;
 			w 		= 1 - 2*fMargin - 2*xMargin;
 			wLeft	= (1 - 2*fMargin)*xRatio - 2*xMargin;
 			wRight	= (1 - 2*fMargin)*(1 - xRatio) - 2*xMargin;
-			buttonWidth = 0.035;
-			buttonHeight = 0.02;
-			buttonSpacing = 0.0075;
 
 			for iChannel = channels
 				expName = obj.GetExpName();				
 				displayName = [expName, ' (Channel ', num2str(iChannel), ')'];
 
-				hFigure 	= figure('Units', 'Normalized', 'Position', [0.125, 0, 0.75, 1], 'Name', displayName, 'DefaultAxesFontSize', fontSize,...
+				hFigure 	= figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'Name', displayName, 'DefaultAxesFontSize', fontSize,...
 					'GraphicsSmoothing', 'on');
 				hWaveform 	= subplot('Position', [fMargin + xMargin, fMargin + 5*yMargin + hDown + hUpHalf, wLeft, hUpHalf]);
 				hPCA 		= subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hDown, wLeft, hUpHalf]);
@@ -1645,8 +1645,6 @@ classdef TetrodeRecording < handle
 				end
 
 				hTitle = suptitle(displayName);
-
-				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
 
 				hButtonPlot = uicontrol(...
 					'Style', 'pushbutton',...
@@ -1686,12 +1684,14 @@ classdef TetrodeRecording < handle
 
 				hButtonDeleteChn = uicontrol(...
 					'Style', 'pushbutton',...
-					'String', 'Delete Channel ...',...
+					'String', 'Delete Chn ...',...
 					'Callback', {@obj.GUIDeleteChannel, iChannel},...
 					'Units', 'Normalized',...
 					'Position', hPrev.Position);
 				hButtonDeleteChn.Position(1) = hButtonDeleteChn.Position(1) + hButtonDeleteChn.Position(3) + buttonSpacing;
 				hPrev = hButtonDeleteChn;
+
+				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
 			end
 		end
 
