@@ -962,7 +962,7 @@ classdef TetrodeRecording < handle
 					classesUntouched = obj.Spikes(iChannel).Cluster.Classes(~selected);
 					numClassesTotal = length(unique(classesUntouched)) + length(unique(classesSelected));
 					map = setdiff(1:numClassesTotal, classesUntouched);
-					for iClass = 1:length(unique(classesSelected))
+					for iClass = unique(classesSelected)'
 						classesSelected(classesSelected == iClass) = map(iClass);
 					end
 				end
@@ -998,6 +998,8 @@ classdef TetrodeRecording < handle
 
 			feature = feature(selectedWaveforms, 1:dimension);
 
+			warning('off')
+
 			if isempty(numClusters)
 				stats = evalclusters(feature, 'kmeans', 'CalinskiHarabasz', 'KList', 2:maxNumClusters);
 				numClusters = stats.OptimalK;
@@ -1006,6 +1008,7 @@ classdef TetrodeRecording < handle
 			end
 			classes = kmeans(feature, numClusters, 'Replicates', 10);
 
+			warning('on')
 			varargout = {classes, stats};
 		end
 
@@ -1574,9 +1577,9 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function PlotChannel(obj, channels, varargin)
+		function PlotChannel(obj, channel, varargin)
 			p = inputParser;
-			addRequired(p, 'Channels', @isnumeric);
+			addRequired(p, 'Channel', @isnumeric);
 			addParameter(p, 'Reference', 'CueOn', @ischar);
 			addParameter(p, 'Event', 'PressOn', @ischar);
 			addParameter(p, 'Exclude', 'LickOn', @ischar);
@@ -1591,8 +1594,9 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'WaveformYLim', [-300, 300], @isnumeric);
 			addParameter(p, 'FontSize', 8, @isnumeric);
 			addParameter(p, 'FrameRate', 0, @isnumeric);
-			parse(p, channels, varargin{:});
-			channels 		= p.Results.Channels;
+			addParameter(p, 'Fig', []);
+			parse(p, channel, varargin{:});
+			iChannel 		= p.Results.Channel;
 			reference 		= p.Results.Reference;
 			event 			= p.Results.Event;
 			exclude 		= p.Results.Exclude;
@@ -1607,9 +1611,11 @@ classdef TetrodeRecording < handle
 			waveformYLim	= p.Results.WaveformYLim;
 			fontSize 		= p.Results.FontSize;
 			frameRate 		= p.Results.FrameRate;
+			hFigure 		= p.Results.Fig;
 
-			if isempty(channels)
-				channels = [obj.Spikes.Channel];
+			allChannels = [obj.Spikes.Channel];
+			if isempty(iChannel)
+				iChannel = allChannels(1);
 			end
 
 			xRatio 	= 0.4;
@@ -1627,72 +1633,120 @@ classdef TetrodeRecording < handle
 			wLeft	= (1 - 2*fMargin)*xRatio - 2*xMargin;
 			wRight	= (1 - 2*fMargin)*(1 - xRatio) - 2*xMargin;
 
-			for iChannel = channels
-				expName = obj.GetExpName();				
-				displayName = [expName, ' (Channel ', num2str(iChannel), ')'];
+			expName = obj.GetExpName();				
+			displayName = [expName, ' (Channel ', num2str(iChannel), ')'];
 
-				hFigure 	= figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'Name', displayName, 'DefaultAxesFontSize', fontSize,...
-					'GraphicsSmoothing', 'on');
-				hWaveform 	= subplot('Position', [fMargin + xMargin, fMargin + 5*yMargin + hDown + hUpHalf, wLeft, hUpHalf]);
-				hPCA 		= subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hDown, wLeft, hUpHalf]);
-				hRaster		= subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + 3*yMargin + hDown, wRight, hUp]);
-				hPETH 		= subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hDown]);
-
-				if isempty(clusters)
-					hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
-				else
-					hFigure.UserData.SelectedClusters = clusters;
-				end
-
-				hTitle = suptitle(displayName);
-
-				hButtonPlot = uicontrol(...
-					'Style', 'pushbutton',...
-					'String', 'Plot ...',...
-					'Callback', {@obj.GUIPlotClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
-					'Units', 'Normalized',...
-					'Position', [xMargin, 1 - yMargin, buttonWidth, min(yMargin, buttonHeight)]);
-				hButtonPlot.Position(1) = hButtonPlot.Position(1) + hButtonPlot.Position(3);
-				hPrev = hButtonPlot;
-
-				hButtonMerge = uicontrol(...
-					'Style', 'pushbutton',...
-					'String', 'Merge ...',...
-					'Callback', {@obj.GUIMergeClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
-					'Units', 'Normalized',...
-					'Position', hPrev.Position);
-				hButtonMerge.Position(1) = hButtonMerge.Position(1) + hButtonMerge.Position(3) + buttonSpacing;
-				hPrev = hButtonMerge;
-
-				hButtonRemove = uicontrol(...
-					'Style', 'pushbutton',...
-					'String', 'Remove ...',...
-					'Callback', {@obj.GUIRemoveClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
-					'Units', 'Normalized',...
-					'Position', hPrev.Position);
-				hButtonRemove.Position(1) = hButtonRemove.Position(1) + hButtonRemove.Position(3) + buttonSpacing;
-				hPrev = hButtonRemove;
-
-				hButtonRecluster = uicontrol(...
-					'Style', 'pushbutton',...
-					'String', 'Recluster ...',...
-					'Callback', {@obj.GUIRecluster, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
-					'Units', 'Normalized',...
-					'Position', hPrev.Position);
-				hButtonRecluster.Position(1) = hButtonRecluster.Position(1) + hButtonRecluster.Position(3) + buttonSpacing;
-				hPrev = hButtonRecluster;
-
-				hButtonDeleteChn = uicontrol(...
-					'Style', 'pushbutton',...
-					'String', 'Delete Chn ...',...
-					'Callback', {@obj.GUIDeleteChannel, iChannel},...
-					'Units', 'Normalized',...
-					'Position', hPrev.Position);
-				hButtonDeleteChn.Position(1) = hButtonDeleteChn.Position(1) + hButtonDeleteChn.Position(3) + buttonSpacing;
-				hPrev = hButtonDeleteChn;
-
-				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+			if ~isempty(hFigure)
+				clf(hFigure)
+			else
+				hFigure	= figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'GraphicsSmoothing', 'on');
 			end
+			hFigure.Name = displayName;
+			set(hFigure, 'DefaultAxesFontSize', fontSize);
+
+			hWaveform 	= subplot('Position', [fMargin + xMargin, fMargin + 5*yMargin + hDown + hUpHalf, wLeft, hUpHalf]);
+			hPCA 		= subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hDown, wLeft, hUpHalf]);
+			hRaster		= subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + 3*yMargin + hDown, wRight, hUp]);
+			hPETH 		= subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hDown]);
+
+			if isempty(clusters)
+				hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+			else
+				hFigure.UserData.SelectedClusters = clusters;
+			end
+
+			hTitle = suptitle(displayName);
+
+			hButtonPlot = uicontrol(...
+				'Style', 'pushbutton',...
+				'String', 'Plot ...',...
+				'Callback', {@obj.GUIPlotClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Position', [xMargin, 1 - yMargin, buttonWidth, min(yMargin, buttonHeight)]);
+			hButtonPlot.Position(1) = hButtonPlot.Position(1) + hButtonPlot.Position(3);
+			hPrev = hButtonPlot;
+
+			hButtonMerge = uicontrol(...
+				'Style', 'pushbutton',...
+				'String', 'Merge ...',...
+				'Callback', {@obj.GUIMergeClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Position', hPrev.Position);
+			hButtonMerge.Position(1) = hButtonMerge.Position(1) + hButtonMerge.Position(3) + buttonSpacing;
+			hPrev = hButtonMerge;
+
+			hButtonRemove = uicontrol(...
+				'Style', 'pushbutton',...
+				'String', 'Remove ...',...
+				'Callback', {@obj.GUIRemoveClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Position', hPrev.Position);
+			hButtonRemove.Position(1) = hButtonRemove.Position(1) + hButtonRemove.Position(3) + buttonSpacing;
+			hPrev = hButtonRemove;
+
+			hButtonRecluster = uicontrol(...
+				'Style', 'pushbutton',...
+				'String', 'Recluster ...',...
+				'Callback', {@obj.GUIRecluster, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Position', hPrev.Position);
+			hButtonRecluster.Position(1) = hButtonRecluster.Position(1) + hButtonRecluster.Position(3) + buttonSpacing;
+			hPrev = hButtonRecluster;
+
+			nextChn = find(allChannels == iChannel) + 1;
+			nextChn = mod(nextChn, length(allChannels));
+			if nextChn == 0
+				nextChn = length(allChannels);
+			end
+			nextChn = allChannels(nextChn);
+
+			prevChn = find(allChannels == iChannel) - 1;
+			prevChn = mod(prevChn, length(allChannels));
+			if prevChn == 0
+				prevChn = length(allChannels);
+			end
+			prevChn = allChannels(prevChn);
+
+			hButtonNextChn = uicontrol(hFigure,...
+				'Style', 'pushbutton',...
+				'String', 'Next Chn',...
+				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Fig', hFigure), nextChn, hFigure},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Position', [1 - xMargin - 2*buttonWidth, 1 - yMargin, buttonWidth, min(yMargin, buttonHeight)]);
+			hPrev = hButtonNextChn;
+
+			hAxesTextCurChn = axes('Position', hPrev.Position, 'Visible', 'off');
+			hTextCurChn = text(hAxesTextCurChn, 0.5, 0.5,...
+				['Chn ', num2str(find(allChannels == iChannel)), '/', num2str(length(allChannels))],...
+				'HorizontalAlignment', 'center');
+			hAxesTextCurChn.Position(1) = hAxesTextCurChn.Position(1) - hAxesTextCurChn.Position(3) - buttonSpacing;
+			hPrev = hAxesTextCurChn;
+
+			hButtonDeleteChn = uicontrol(hFigure,...
+				'Style', 'pushbutton',...
+				'String', 'Delete Chn',...
+				'Callback', {@obj.GUIDeleteChannel, iChannel, nextChn, hFigure},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Position', hPrev.Position);
+			hButtonDeleteChn.Position(2) = hButtonDeleteChn.Position(2) - hButtonDeleteChn.Position(4);
+
+			hButtonPrevChn = uicontrol(hFigure,...
+				'Style', 'pushbutton',...
+				'String', 'Prev Chn',...
+				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Fig', hFigure), prevChn, hFigure},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Position', hPrev.Position);
+			hButtonPrevChn.Position(1) = hButtonPrevChn.Position(1) - hButtonPrevChn.Position(3) - buttonSpacing;
+			hPrev = hButtonPrevChn;
+
+			obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
 		end
 
 		function ReplotChannel(obj, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
@@ -1749,6 +1803,7 @@ classdef TetrodeRecording < handle
 				'InitialValue', []);
 
 			if (ok && ~isempty(clusters))
+				clusters = cellfun(@str2num, liststr(clusters));
 				% Replot clusters
 				hFigure.UserData.SelectedClusters = clusters;
 				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
@@ -1766,6 +1821,7 @@ classdef TetrodeRecording < handle
 				'InitialValue', []);
 
 			if (ok && ~isempty(clusters))
+				clusters = cellfun(@str2num, liststr(clusters));
 				answer = questdlg(...
 					['Permanently remove selected clusters (', mat2str(clusters), ')?'],...
 					'Remove Cluster(s)',...
@@ -1793,6 +1849,7 @@ classdef TetrodeRecording < handle
 				'InitialValue', []);
 
 			if (ok && ~isempty(clusters))
+				clusters = cellfun(@str2num, liststr(clusters));
 				answer = questdlg(...
 					['Merge selected clusters (', mat2str(clusters), ')?'],...
 					'Merge Clusters',...
@@ -1822,6 +1879,7 @@ classdef TetrodeRecording < handle
 				'InitialValue', []);
 
 			if (ok && ~isempty(clusters))
+				clusters = cellfun(@str2num, liststr(clusters));
 				answer = questdlg(...
 					['Recluster selected clusters (', mat2str(clusters), ')?'],...
 					'Recluster Clusters',...
@@ -1839,7 +1897,7 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function GUIDeleteChannel(obj, hButton, evnt, iChannel)
+		function GUIDeleteChannel(obj, hButton, evnt, iChannel, nextChn, hFigure)
 			answer = questdlg(...
 				['Permanently delete current channel (', num2str(iChannel), ')?'],...
 				'Delete channel',...
@@ -1850,6 +1908,11 @@ classdef TetrodeRecording < handle
 				fields = fieldnames(obj.Spikes);
 				for iField = 1:length(fields)
 					obj.Spikes(iChannel).(fields{iField}) = [];
+				end
+				if nextChn == iChannel
+					close(hFigure)
+				else
+					obj.PlotChannel(nextChn, 'Fig', hFigure)
 				end
 			end			
 		end
