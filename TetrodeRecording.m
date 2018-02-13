@@ -2097,7 +2097,7 @@ classdef TetrodeRecording < handle
 			tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
 			tr.SpikeSort(channels, 'FeatureMethod', featureMethod, 'ClusterMethod', clusterMethod, 'Dimension', dimension);
 			tr.ClearCache();
-			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false, 'MaxChannels', 6);
+			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false, 'MaxChannels', 5);
 		end
 
 		function tr = BatchLoad()
@@ -2113,11 +2113,13 @@ classdef TetrodeRecording < handle
 					channels = [S(iFile).tr.Spikes.Channel];
 					S(partOne).tr.Spikes(channels) = S(iFile).tr.Spikes(channels);
 					S(partOne).tr.Part(2) = S(partOne).tr.Part(2) - 1;
-					S(iFile) = [];
+					S(iFile).tr.Part = [];
 				end
 			end
 
-			tr = [S.tr];
+			partOne = cellfun(@(tr) ~isempty(tr.Part), {S.tr});
+
+			tr = [S(partOne).tr];
 		end
 
 		function BatchSave(TR, varargin)
