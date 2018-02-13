@@ -963,8 +963,9 @@ classdef TetrodeRecording < handle
 					classesUntouched = obj.Spikes(iChannel).Cluster.Classes(~selected);
 					numClassesTotal = length(unique(classesUntouched)) + length(unique(classesSelected));
 					map = setdiff(1:numClassesTotal, classesUntouched);
-					for iClass = unique(classesSelected)'
-						classesSelected(classesSelected == iClass) = map(iClass);
+					classesSelectedCopy = classesSelected;
+					for iClass = unique(classesSelectedCopy)'
+						classesSelected(classesSelectedCopy == iClass) = map(iClass);
 					end
 				end
 				obj.Spikes(iChannel).Cluster.Classes(selected) = classesSelected;
@@ -1747,7 +1748,9 @@ classdef TetrodeRecording < handle
 			hButtonPrevChn.Position(1) = hButtonPrevChn.Position(1) - hButtonPrevChn.Position(3) - buttonSpacing;
 			hPrev = hButtonPrevChn;
 
+			obj.GUIBusy(hFigure, true);
 			obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+			obj.GUIBusy(hFigure, false);
 		end
 
 		function ReplotChannel(obj, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
@@ -1794,6 +1797,7 @@ classdef TetrodeRecording < handle
 		end
 
 		function GUIPlotClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+			obj.GUIBusy(hFigure, true);
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
 
 			[clusters, ok] = listdlg(...
@@ -1809,9 +1813,11 @@ classdef TetrodeRecording < handle
 				hFigure.UserData.SelectedClusters = clusters;
 				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
 			end
+			obj.GUIBusy(hFigure, false);
 		end
 
 		function GUIRemoveClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+			obj.GUIBusy(hFigure, true);
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
 
 			[clusters, ok] = listdlg(...
@@ -1837,9 +1843,11 @@ classdef TetrodeRecording < handle
 					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
 				end
 			end
+			obj.GUIBusy(hFigure, false);
 		end
 
 		function GUIMergeClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+			obj.GUIBusy(hFigure, true);
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
 
 			[clusters, ok] = listdlg(...
@@ -1867,9 +1875,11 @@ classdef TetrodeRecording < handle
 					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
 				end
 			end
+			obj.GUIBusy(hFigure, false);
 		end
 
 		function GUIRecluster(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+			obj.GUIBusy(hFigure, true);
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
 
 			[clusters, ok] = listdlg(...
@@ -1896,9 +1906,11 @@ classdef TetrodeRecording < handle
 					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
 				end
 			end
+			obj.GUIBusy(hFigure, false);
 		end
 
 		function GUIDeleteChannel(obj, hButton, evnt, iChannel, nextChn, hFigure)
+			obj.GUIBusy(hFigure, true);
 			answer = questdlg(...
 				['Permanently delete current channel (', num2str(iChannel), ')?'],...
 				'Delete channel',...
@@ -1914,7 +1926,18 @@ classdef TetrodeRecording < handle
 				else
 					obj.PlotChannel(nextChn, 'Fig', hFigure)
 				end
-			end			
+			end
+			obj.GUIBusy(hFigure, false);
+		end
+
+		function GUIBusy(obj, hFigure, busy)
+			hButtons = findobj(hFigure.Children, 'Type', 'uicontrol');
+
+			if busy
+				set(hButtons, 'Enable', 'off')
+			else
+				set(hButtons, 'Enable', 'on')
+			end
 		end
 
 		function PlotAllChannels(obj, varargin)
