@@ -1286,12 +1286,6 @@ classdef TetrodeRecording < handle
 			waveforms = obj.Spikes(channel).Waveforms;
 			numWaveformsTotal = size(waveforms, 1);
 
-			if numWaveformsTotal > maxShown
-				percentShown = max(1, round(100*(maxShown/numWaveformsTotal)));
-			else
-				percentShown = 100;
-			end
-
 			if isempty(yRange)
 				yRange = [min(waveforms(:)), max(waveforms(:))];
 			end
@@ -1370,6 +1364,11 @@ classdef TetrodeRecording < handle
 				title(hAxes2, 'Waveforms');
 				for iCluster = unique(nonzeros(clusterID))'
 					thisWaveforms = waveforms(clusterID==iCluster, :);
+					if size(thisWaveforms, 1) > maxShown
+						percentShown = max(1, round(100*(maxShown/size(thisWaveforms, 1))));
+					else
+						percentShown = 100;
+					end
 					thisWaveforms = thisWaveforms(1:ceil(100/percentShown):end, :);
 					[thisColor, thisStyle] = TetrodeRecording.GetColorAndStyle(iCluster);
 					line(hAxes2, t, thisWaveforms, 'LineStyle', thisStyle, 'Color', thisColor);
