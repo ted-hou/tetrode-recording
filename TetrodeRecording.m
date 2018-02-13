@@ -980,7 +980,7 @@ classdef TetrodeRecording < handle
 			addRequired(p, 'Channel', @isnumeric);
 			addParameter(p, 'Dimension', [], @isnumeric);
 			addParameter(p, 'NumClusters', [], @isnumeric);
-			addParameter(p, 'MaxNumClusters', 7, @isnumeric);
+			addParameter(p, 'MaxNumClusters', 5, @isnumeric);
 			addParameter(p, 'SelectedWaveforms', [], @(x) (islogical(x) | isnumeric(x)));
 			parse(p, channel, varargin{:});
 			channel 			= p.Results.Channel;
@@ -1972,6 +1972,15 @@ classdef TetrodeRecording < handle
 			cla(hRaster)
 			cla(hPETH)
 
+			% Replot newly selected clusters
+			obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
+				'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
+				'Ax', hRaster, 'Sort', true);
+			obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
+				'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
+				'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
+				'Ax', hPETH);
+
 			if length(clusters) == 1
 				selectedCluster = clusters;
 				clusters = [];
@@ -1982,19 +1991,11 @@ classdef TetrodeRecording < handle
 				selectedCluster = [];
 				referenceCluster = [];
 			end
-
-			% Replot newly selected clusters
+			
 			obj.PlotWaveforms(iChannel, 'Clusters', clusters, 'WaveformWindow', waveformWindow,...
 				'YLim', waveformYLim, 'FrameRate', frameRate, 'PlotMean', plotMean,...
 				'ReferenceCluster', referenceCluster, 'SelectedCluster', selectedCluster,...
 				'Ax', [hPCA, hWaveform]);
-			obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
-				'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
-				'Ax', hRaster, 'Sort', true);
-			obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
-				'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
-				'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
-				'Ax', hPETH);
 		end
 
 		function GUIPlotClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
