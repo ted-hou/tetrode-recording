@@ -2,6 +2,7 @@ classdef TetrodeRecording < handle
 	properties
 		Files = []
 		Path = []
+		Part = [1, 1]
 		Notes
 		FrequencyParameters
 		ChannelMap
@@ -1905,10 +1906,9 @@ classdef TetrodeRecording < handle
 				'Cancel');
 			if strcmpi(answer, 'Delete')
 				% Delete channel
-				fields = fieldnames(obj.Spikes);
-				for iField = 1:length(fields)
-					obj.Spikes(iChannel).(fields{iField}) = [];
-				end
+				for field = fieldnames(obj.Spikes)'
+					obj.Spikes(iChannel).(field{1}) = [];
+				end				
 				if nextChn == iChannel
 					close(hFigure)
 				else
@@ -2097,7 +2097,7 @@ classdef TetrodeRecording < handle
 			tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
 			tr.SpikeSort(channels, 'FeatureMethod', featureMethod, 'ClusterMethod', clusterMethod, 'Dimension', dimension);
 			tr.ClearCache();
-			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false);
+			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false, 'MaxChannels', 6);
 		end
 
 		function tr = BatchLoad()
@@ -2105,6 +2105,18 @@ classdef TetrodeRecording < handle
 			for iFile = 1:length(files)
 				S(iFile) = load(files{iFile}, 'tr');
 			end
+			% Merge multi-part files
+			for iFile = 1:length(files)
+				part = S(iFile).tr.Part;
+				if nnz(part > 1) == 2
+					partOne = cellfun(@(tr) strcmpi(tr.Path, S(iFile).tr.Path) && tr.Part(1) == 1, {S.tr});
+					channels = [S(iFile).tr.Spikes.Channel];
+					S(partOne).tr.Spikes(channels) = S(iFile).tr.Spikes(channels);
+					S(partOne).tr.Part(2) = S(partOne).tr.Part(2) - 1;
+					S(iFile) = [];
+				end
+			end
+
 			tr = [S.tr];
 		end
 
@@ -2112,9 +2124,11 @@ classdef TetrodeRecording < handle
 			p = inputParser;
 			addParameter(p, 'Prefix', '', @ischar);
 			addParameter(p, 'DiscardData', false, @islogical);
+			addParameter(p, 'MaxChannels', [], @isnumeric);
 			parse(p, varargin{:});
 			prefix = p.Results.Prefix;
 			discardData = p.Results.DiscardData;
+			maxChannels = p.Results.MaxChannels;
 
 			for iTr = 1:length(TR)
 				tr = TR(iTr);
@@ -2126,8 +2140,40 @@ classdef TetrodeRecording < handle
 				if ~isfolder([tr.Path, '..\SpikeSort'])
 					mkdir([tr.Path, '..\SpikeSort'])
 				end
-				file = [tr.Path, '..\SpikeSort\', prefix, expName, '.mat'];
-				save(file, 'tr');
+				partition = false;
+				if ~isempty(maxChannels)
+					allChannels = [tr.Spikes.Channel];
+					numParts = ceil(length(allChannels)/maxChannels);
+					if numParts > 1
+						partition = true;
+					end
+				end
+
+				if partition
+					spikes = tr.Spikes;
+					try
+						for iPart = 1:numParts
+							tr.Part = [iPart, numParts];
+							for iChannel = 1:length(tr.Spikes)
+								for field = fieldnames(tr.Spikes)'
+									tr.Spikes(iChannel).(field{1}) = [];
+								end
+							end
+							for iChannel = allChannels((iPart - 1)*maxChannels + 1:min(length(allChannels), iPart*maxChannels))
+								tr.Spikes(iChannel) = spikes(iChannel);
+							end
+							file = [tr.Path, '..\SpikeSort\', prefix, expName, '(', num2str(iPart), ')', '.mat'];
+							save(file, 'tr');
+						end
+					catch ME
+						tr.Spikes = spikes;
+						rethrow(ME)
+					end
+					tr.Spikes = spikes;
+				else
+					file = [tr.Path, '..\SpikeSort\', prefix, expName, '.mat'];
+					save(file, 'tr');					
+				end
 			end
 		end
 
