@@ -1266,6 +1266,8 @@ classdef TetrodeRecording < handle
 			addRequired(p, 'Channel', @isnumeric);
 			addOptional(p, 'NumWaveforms', 50, @isnumeric);
 			addParameter(p, 'Clusters', [], @isnumeric);
+			addParameter(p, 'SelectedCluster', [], @isnumeric);
+			addParameter(p, 'ReferenceCluster', [], @isnumeric);
 			addParameter(p, 'YLim', [], @isnumeric);
 			addParameter(p, 'FrameRate', 120, @isnumeric);
 			addParameter(p, 'MaxShown', 1000, @isnumeric);
@@ -1273,15 +1275,17 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'PlotMean', false, @islogical);
 			addParameter(p, 'Ax', []);
 			parse(p, channel, varargin{:});
-			channel = p.Results.Channel;
-			numWaveforms = p.Results.NumWaveforms;
-			clusters = p.Results.Clusters;
-			yRange = p.Results.YLim;
-			frameRate = p.Results.FrameRate;
-			maxShown = p.Results.MaxShown;
-			waveformWindow = p.Results.WaveformWindow;
-			plotMean = p.Results.PlotMean;
-			ax = p.Results.Ax;
+			channel 			= p.Results.Channel;
+			numWaveforms 		= p.Results.NumWaveforms;
+			clusters 			= p.Results.Clusters;
+			selectedCluster 	= p.Results.SelectedCluster;
+			referenceCluster 	= p.Results.ReferenceCluster;
+			yRange 				= p.Results.YLim;
+			frameRate 			= p.Results.FrameRate;
+			maxShown 			= p.Results.MaxShown;
+			waveformWindow 		= p.Results.WaveformWindow;
+			plotMean 			= p.Results.PlotMean;
+			ax 					= p.Results.Ax;
 
 			waveforms = obj.Spikes(channel).Waveforms;
 			numWaveformsTotal = size(waveforms, 1);
@@ -1310,88 +1314,131 @@ classdef TetrodeRecording < handle
 				clusterID = ones(numWaveformsTotal, 1);
 			end
 
-			if isempty(ax)
+			if isempty(ax) || nnz(ishandle(ax)) == 0
 				hFigure = figure('Units', 'Normalized', 'OuterPosition', [0.7, 0, 0.3, 1]);
 				hAxes1 = subplot(2, 1, 1);
 				hAxes2 = subplot(2, 1, 2);
 			else
 				hAxes1 = ax(1);
 				hAxes2 = ax(2);
-				hFigure = hAxes1.Parent;
-			end
-
-			axes(hAxes1)
-			hold(hAxes1, 'on')
-			for iCluster = unique(nonzeros(clusterID))'
-				inCluster = clusterID == iCluster;
-				if sum(inCluster) == 0
-					continue
-				end
-				percentage = 100*sum(inCluster)/size(obj.Spikes(channel).Waveforms, 1);
-				percentage = [num2str(percentage, '%.1f'), '%'];
-				count = sum(inCluster);
-				if count < 1000
-					count = num2str(count);
+				if ishandle(hAxes1)
+					hFigure = hAxes1.Parent;
 				else
-					count = [num2str(count/1000, '%.1f'), 'k'];
+					hFigure = hAxes2.Parent;
 				end
-				[thisColor, ~] = TetrodeRecording.GetColorAndStyle(iCluster);
-				scatter3(hAxes1, score(inCluster, 1), score(inCluster, 2), score(inCluster, 3), 1, thisColor, 'DisplayName', ['Cluster ', num2str(iCluster), ' (', percentage, ' | ', count, ')'])
 			end
-			hold(hAxes1, 'off')
-			xlabel(hAxes1, '1st Coefficient')
-			ylabel(hAxes1, '2nd Coefficient')
-			zlabel(hAxes1, '3rd Coefficient')
-			title(hAxes1, 'Feature space')
-			legend(hAxes1, 'Location', 'Best')
 
-			axes(hAxes2)
-			hold(hAxes2, 'on')
-			hLegends = [];
-			hAxes2.UserData.hWaveforms = [];
-			hAxes2.UserData.iWaveform = 0;
-			hLegends = [hLegends, line(hAxes2, 'XData', [obj.Spikes(channel).WaveformWindow(1), 0], 'YData', repmat(mean(obj.Spikes(channel).Threshold.Threshold), [1, 2]), 'Color', 'k', 'LineWidth', 3, 'DisplayName', ['Threshold (', num2str(mean(obj.Spikes(channel).Threshold.Threshold)), ' \muV)'])];
-			legend(hLegends, 'AutoUpdate', 'off', 'Location', 'Best')
-			xlim(hAxes2, waveformWindow)
-			ylim(hAxes2, yRange)
-
-			if frameRate > 0
-				hTimer = timer(...
-					'ExecutionMode', 'FixedSpacing',...
-				 	'Period', round((1/frameRate)*1000)/1000,...
-				 	'TimerFcn', {@TetrodeRecording.OnPlotChannelRefresh, hAxes2, t, waveforms, numWaveforms, numWaveformsTotal, clusterID}...
-				 	);
-				hAxes2.UserData.hTimer = hTimer;
-				hFigure.KeyPressFcn = {@TetrodeRecording.OnKeyPress, hTimer};
-				hFigure.CloseRequestFcn = {@TetrodeRecording.OnFigureClosed, hTimer};
-				start(hTimer);
-			else
-				xlabel(hAxes2, 'Time (ms)');
-				ylabel(hAxes2, 'Voltage (\muV)');
-				title(hAxes2, 'Waveforms');
+			if ishandle(hAxes1)
+				axes(hAxes1)
+				hold(hAxes1, 'on')
+				hLegends = [];
 				for iCluster = unique(nonzeros(clusterID))'
-					thisWaveforms = waveforms(clusterID==iCluster, :);
-					[thisColor, thisStyle] = TetrodeRecording.GetColorAndStyle(iCluster);
-					if plotMean
-						thisMean = mean(thisWaveforms, 1);
-						thisStd = std(thisWaveforms, 0, 1);
-						thisUp = prctile(thisWaveforms, 95, 1);
-						thisDown = prctile(thisWaveforms, 5, 1);
-						line(hAxes2, t, thisMean, 'LineStyle', thisStyle, 'Color', thisColor);
-						patch(hAxes2, [t, t(end:-1:1)], [thisDown, thisUp(end:-1:1)], thisColor,...
-							'FaceAlpha', 0.15, 'EdgeColor', 'none');
-						patch(hAxes2, [t, t(end:-1:1)], [thisMean - thisStd, thisMean(end:-1:1) + thisStd(end:-1:1)], thisColor,...
-							'FaceAlpha', 0.4, 'EdgeColor', 'none');
-						line(hAxes2, t, [thisMean - thisStd; thisMean + thisStd], 'LineStyle', '--', 'Color', thisColor);
-						line(hAxes2, t, [thisDown; thisUp], 'LineStyle', ':', 'Color', thisColor);
+					inCluster = clusterID == iCluster;
+					if sum(inCluster) == 0
+						continue
+					end
+					percentage = 100*sum(inCluster)/size(obj.Spikes(channel).Waveforms, 1);
+					percentage = [num2str(percentage, '%.1f'), '%'];
+					count = sum(inCluster);
+					if count < 1000
+						count = num2str(count);
 					else
-						if size(thisWaveforms, 1) > maxShown
-							percentShown = max(1, round(100*(maxShown/size(thisWaveforms, 1))));
+						count = [num2str(count/1000, '%.1f'), 'k'];
+					end
+
+					if isempty(selectedCluster)
+						[thisColor, ~] = TetrodeRecording.GetColorAndStyle(iCluster);
+					else
+						if iCluster == selectedCluster
+							[thisColor, ~] = TetrodeRecording.GetColorAndStyle(iCluster);
+							if thisColor == 'k'
+								thisColor = 'r';
+							end
 						else
-							percentShown = 100;
+							thisColor = 'k';
 						end
-						thisWaveforms = thisWaveforms(1:ceil(100/percentShown):end, :);
-						line(hAxes2, t, thisWaveforms, 'LineStyle', thisStyle, 'Color', thisColor);
+					end
+					dispName = ['Cluster ', num2str(iCluster), ' (', percentage, ' | ', count, ')'];
+					h = scatter3(hAxes1, score(inCluster, 1), score(inCluster, 2), score(inCluster, 3), 1, thisColor, 'DisplayName', dispName);
+					if isempty(selectedCluster) || (~isempty(selectedCluster) && iCluster == selectedCluster)
+						hLegends = [hLegends, h];
+						if iCluster == selectedCluster
+							title(hAxes2, dispName)
+						end
+					end
+				end
+				hold(hAxes1, 'off')
+				xlabel(hAxes1, '1st Coefficient')
+				ylabel(hAxes1, '2nd Coefficient')
+				zlabel(hAxes1, '3rd Coefficient')
+				if isempty(selectedCluster)
+					title(hAxes1, 'Feature space')
+				end
+				legend(hLegends, 'Location', 'Best')
+			end
+
+			if ishandle(hAxes2)
+				axes(hAxes2)
+				hold(hAxes2, 'on')
+				hLegends = [];
+				hAxes2.UserData.hWaveforms = [];
+				hAxes2.UserData.iWaveform = 0;
+				hLegends = [hLegends, line(hAxes2, 'XData', [obj.Spikes(channel).WaveformWindow(1), 0], 'YData', repmat(mean(obj.Spikes(channel).Threshold.Threshold), [1, 2]), 'Color', 'k', 'LineWidth', 3, 'DisplayName', ['Threshold (', num2str(mean(obj.Spikes(channel).Threshold.Threshold)), ' \muV)'])];
+				legend(hLegends, 'AutoUpdate', 'off', 'Location', 'Best')
+				xlim(hAxes2, waveformWindow)
+				ylim(hAxes2, yRange)
+
+				if frameRate > 0
+					hTimer = timer(...
+						'ExecutionMode', 'FixedSpacing',...
+					 	'Period', round((1/frameRate)*1000)/1000,...
+					 	'TimerFcn', {@TetrodeRecording.OnPlotChannelRefresh, hAxes2, t, waveforms, numWaveforms, numWaveformsTotal, clusterID}...
+					 	);
+					hAxes2.UserData.hTimer = hTimer;
+					hFigure.KeyPressFcn = {@TetrodeRecording.OnKeyPress, hTimer};
+					hFigure.CloseRequestFcn = {@TetrodeRecording.OnFigureClosed, hTimer};
+					start(hTimer);
+				else
+					xlabel(hAxes2, 'Time (ms)');
+					ylabel(hAxes2, 'Voltage (\muV)');
+					if isempty(selectedCluster)
+						title(hAxes2, 'Waveforms');
+					end
+					for iCluster = unique(nonzeros(clusterID))'
+						% Skip this cluster in some modes
+						if (~isempty(selectedCluster) && ~ismember(iCluster, [selectedCluster, referenceCluster]))
+							continue
+						end
+
+						thisWaveforms = waveforms(clusterID==iCluster, :);
+						
+						if iCluster == referenceCluster
+							thisColor = 'k';
+							thisStyle = '--';
+						else
+							[thisColor, thisStyle] = TetrodeRecording.GetColorAndStyle(iCluster);
+						end
+						if plotMean
+							thisMean = mean(thisWaveforms, 1);
+							thisStd = std(thisWaveforms, 0, 1);
+							thisUp = prctile(thisWaveforms, 95, 1);
+							thisDown = prctile(thisWaveforms, 5, 1);
+							line(hAxes2, t, thisMean, 'LineStyle', thisStyle, 'Color', thisColor);
+							patch(hAxes2, [t, t(end:-1:1)], [thisDown, thisUp(end:-1:1)], thisColor,...
+								'FaceAlpha', 0.15, 'EdgeColor', 'none');
+							patch(hAxes2, [t, t(end:-1:1)], [thisMean - thisStd, thisMean(end:-1:1) + thisStd(end:-1:1)], thisColor,...
+								'FaceAlpha', 0.4, 'EdgeColor', 'none');
+							line(hAxes2, t, [thisMean - thisStd; thisMean + thisStd], 'LineStyle', '--', 'Color', thisColor);
+							line(hAxes2, t, [thisDown; thisUp], 'LineStyle', ':', 'Color', thisColor);
+						else
+							if size(thisWaveforms, 1) > maxShown
+								percentShown = max(1, round(100*(maxShown/size(thisWaveforms, 1))));
+							else
+								percentShown = 100;
+							end
+							thisWaveforms = thisWaveforms(1:ceil(100/percentShown):end, :);
+							line(hAxes2, t, thisWaveforms, 'LineStyle', thisStyle, 'Color', thisColor);
+						end
 					end
 				end
 			end
@@ -1740,6 +1787,17 @@ classdef TetrodeRecording < handle
 				'Position', [buttonSpacing, hWaveform.Position(2) + hWaveform.Position(4) - buttonHeight, buttonWidth, buttonHeight]);
 			hPrev = hButtonPlotMean;
 
+			hButtonPlotAllClusters = uicontrol(...
+				'Style', 'pushbutton',...
+				'String', 'Expand ...',...
+				'Callback', {@obj.GUIPlotAllClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Value', hFigure.UserData.PlotMean,...
+				'Position', hPrev.Position);
+			hButtonPlotAllClusters.Position(2) = hButtonPlotAllClusters.Position(2) - hButtonPlotAllClusters.Position(4) - buttonHeight;
+			hPrev = hButtonPlotAllClusters;
+
 			nextChn = find(allChannels == iChannel) + 1;
 			nextChn = mod(nextChn, length(allChannels));
 			if nextChn == 0
@@ -1792,6 +1850,67 @@ classdef TetrodeRecording < handle
 			obj.GUIBusy(hFigure, true);
 			obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
 			obj.GUIBusy(hFigure, false);
+		end
+
+		function PlotAllClusters(obj, channel, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addParameter(p, 'Clusters', [], @isnumeric);
+			addParameter(p, 'ReferenceCluster', [], @isnumeric);
+			addParameter(p, 'WaveformWindow', [], @isnumeric);
+			addParameter(p, 'WaveformYLim', [-200, 200], @isnumeric);
+			addParameter(p, 'FontSize', 8, @isnumeric);
+			addParameter(p, 'FrameRate', 0, @isnumeric);
+			addParameter(p, 'PlotMean', true, @islogical);
+			addParameter(p, 'Fig', []);
+			addParameter(p, 'FigMain', []);
+			parse(p, channel, varargin{:});
+			iChannel 			= p.Results.Channel;
+			clusters 			= p.Results.Clusters;
+			referenceCluster 	= p.Results.ReferenceCluster;
+			waveformWindow 		= p.Results.WaveformWindow;
+			waveformYLim		= p.Results.WaveformYLim;
+			fontSize 			= p.Results.FontSize;
+			frameRate 			= p.Results.FrameRate;
+			plotMean 			= p.Results.PlotMean;
+			hFigure 			= p.Results.Fig;
+			hFigureMain 		= p.Results.FigMain;
+
+			if isempty(clusters)
+				clusters = unique(obj.Spikes(channel).Cluster.Classes);
+			end
+			numClusters = length(clusters);
+			numCols = 4;
+
+			xPadding = 0.03*numCols/numClusters;
+			yPadding = 0.03;
+			wAx = (1 - (numClusters + 1)*xPadding)/numClusters;
+			hAx = (1 - 3*yPadding)/2;
+			yScroll = 0.025;
+
+			if isempty(hFigure)
+				hFigure	= figure('Units', 'Normalized', 'Position', [0, 0.1, 1, 0.7], 'GraphicsSmoothing', 'off');
+				hPanel = uipanel('Parent', hFigure, 'Position', [0, yScroll, numClusters/numCols, 1 - yScroll]);
+				if numClusters > numCols
+					hScroll = uicontrol('Style', 'slider', 'Units', 'Normalized', 'Position', [0, 0, 1, yScroll],...
+						'Min', 0, 'Max', numClusters/numCols - 1,...
+						'Callback', {@(hScroll, ~) set(hPanel, 'Position', [-hScroll.Value, yScroll, numClusters/numCols, 1 - yScroll])});
+				end
+				hWaveform = gobjects(1, numClusters);
+				hFeature = gobjects(1, numClusters);
+				for iAx = 1:numClusters
+					hWaveform(iAx) = axes(hPanel, 'Units', 'Normalized', 'OuterPosition', [iAx*xPadding + (iAx - 1)*wAx, 2*yPadding + hAx, wAx, hAx]);
+					hFeature(iAx) = axes(hPanel, 'Units', 'Normalized', 'OuterPosition', [iAx*xPadding + (iAx - 1)*wAx, yPadding, wAx, hAx]);
+					obj.PlotWaveforms(channel, 'Clusters', clusters, 'SelectedCluster', iAx, 'ReferenceCluster', referenceCluster,...
+						'WaveformWindow', waveformWindow, 'YLim', waveformYLim, 'FrameRate', frameRate, 'PlotMean', plotMean,...
+						'Ax', [hFeature(iAx), hWaveform(iAx)]);
+				end
+			end
+
+			if ~isempty(hFigureMain) && isfield(hFigureMain.UserData, 'PlotMean')
+				plotMean = hFigureMain.UserData.PlotMean;
+			end
+
 		end
 
 		function ReplotChannel(obj, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
@@ -1987,6 +2106,25 @@ classdef TetrodeRecording < handle
 			if logical(hButton.Value) ~= hFigure.UserData.PlotMean
 				hFigure.UserData.PlotMean = logical(hButton.Value);
 				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+			end
+			obj.GUIBusy(hFigure, false);
+		end
+
+		function GUIPlotAllClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+			obj.GUIBusy(hFigure, true);
+			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
+
+			[referenceCluster, ok] = listdlg(...
+				'PromptString', 'Select cluster as reference:',...
+				'SelectionMode', 'single',...
+				'OKString', 'Reference',...
+				'ListString', liststr,...
+				'InitialValue', []);
+
+			if ok
+				referenceCluster = cellfun(@str2num, liststr(referenceCluster));
+				% Expand and plot all clusters
+				obj.PlotAllClusters(iChannel, 'Clusters', hFigure.UserData.SelectedClusters, 'ReferenceCluster', referenceCluster);
 			end
 			obj.GUIBusy(hFigure, false);
 		end
