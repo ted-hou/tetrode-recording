@@ -1373,11 +1373,17 @@ classdef TetrodeRecording < handle
 					thisWaveforms = waveforms(clusterID==iCluster, :);
 					[thisColor, thisStyle] = TetrodeRecording.GetColorAndStyle(iCluster);
 					if plotMean
-						line(hAxes2, t, mean(thisWaveforms, 1), 'LineStyle', thisStyle, 'Color', thisColor);
-						patch(hAxes2, [t, t(end:-1:1)], [mean(thisWaveforms, 1) - std(thisWaveforms, 0, 1), mean(thisWaveforms(:, end:-1:1), 1) + std(thisWaveforms(:, end:-1:1), 0, 1)], thisColor,...
-							'FaceAlpha', 0.25, 'EdgeColor', 'none');
-						line(hAxes2, t, mean(thisWaveforms, 1) - std(thisWaveforms, 0, 1), 'LineStyle', ':', 'Color', thisColor);
-						line(hAxes2, t, mean(thisWaveforms, 1) + std(thisWaveforms, 0, 1), 'LineStyle', ':', 'Color', thisColor);
+						thisMean = mean(thisWaveforms, 1);
+						thisStd = std(thisWaveforms, 0, 1);
+						thisUp = prctile(thisWaveforms, 95, 1);
+						thisDown = prctile(thisWaveforms, 5, 1);
+						line(hAxes2, t, thisMean, 'LineStyle', thisStyle, 'Color', thisColor);
+						patch(hAxes2, [t, t(end:-1:1)], [thisDown, thisUp(end:-1:1)], thisColor,...
+							'FaceAlpha', 0.15, 'EdgeColor', 'none');
+						patch(hAxes2, [t, t(end:-1:1)], [thisMean - thisStd, thisMean(end:-1:1) + thisStd(end:-1:1)], thisColor,...
+							'FaceAlpha', 0.4, 'EdgeColor', 'none');
+						line(hAxes2, t, [thisMean - thisStd; thisMean + thisStd], 'LineStyle', '--', 'Color', thisColor);
+						line(hAxes2, t, [thisDown; thisUp], 'LineStyle', ':', 'Color', thisColor);
 					else
 						if size(thisWaveforms, 1) > maxShown
 							percentShown = max(1, round(100*(maxShown/size(thisWaveforms, 1))));
@@ -1607,7 +1613,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'BinMethod', 'percentile', @ischar);
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
 			addParameter(p, 'RasterXLim', [], @isnumeric);
-			addParameter(p, 'WaveformYLim', [-300, 300], @isnumeric);
+			addParameter(p, 'WaveformYLim', [-200, 200], @isnumeric);
 			addParameter(p, 'FontSize', 8, @isnumeric);
 			addParameter(p, 'FrameRate', 0, @isnumeric);
 			addParameter(p, 'Fig', []);
@@ -1655,8 +1661,8 @@ classdef TetrodeRecording < handle
 			if ~isempty(hFigure)
 				clf(hFigure)
 			else
-				hFigure	= figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'GraphicsSmoothing', 'on');
-				hFigure.UserData.PlotMean = false;
+				hFigure	= figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'GraphicsSmoothing', 'off');
+				hFigure.UserData.PlotMean = true;
 			end
 			hFigure.Name = displayName;
 			set(hFigure, 'DefaultAxesFontSize', fontSize);
@@ -1730,6 +1736,7 @@ classdef TetrodeRecording < handle
 				'Callback', {@obj.GUIPlotMean, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
+				'Value', hFigure.UserData.PlotMean,...
 				'Position', [buttonSpacing, hWaveform.Position(2) + hWaveform.Position(4) - buttonHeight, buttonWidth, buttonHeight]);
 			hPrev = hButtonPlotMean;
 
