@@ -1270,6 +1270,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'FrameRate', 120, @isnumeric);
 			addParameter(p, 'MaxShown', 1000, @isnumeric);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
+			addParameter(p, 'PlotMean', false, @islogical);
 			addParameter(p, 'Ax', []);
 			parse(p, channel, varargin{:});
 			channel = p.Results.Channel;
@@ -1279,6 +1280,7 @@ classdef TetrodeRecording < handle
 			frameRate = p.Results.FrameRate;
 			maxShown = p.Results.MaxShown;
 			waveformWindow = p.Results.WaveformWindow;
+			plotMean = p.Results.PlotMean;
 			ax = p.Results.Ax;
 
 			waveforms = obj.Spikes(channel).Waveforms;
@@ -1362,14 +1364,22 @@ classdef TetrodeRecording < handle
 				title(hAxes2, 'Waveforms');
 				for iCluster = unique(nonzeros(clusterID))'
 					thisWaveforms = waveforms(clusterID==iCluster, :);
-					if size(thisWaveforms, 1) > maxShown
-						percentShown = max(1, round(100*(maxShown/size(thisWaveforms, 1))));
-					else
-						percentShown = 100;
-					end
-					thisWaveforms = thisWaveforms(1:ceil(100/percentShown):end, :);
 					[thisColor, thisStyle] = TetrodeRecording.GetColorAndStyle(iCluster);
-					line(hAxes2, t, thisWaveforms, 'LineStyle', thisStyle, 'Color', thisColor);
+					if plotMean
+						line(hAxes2, t, mean(thisWaveforms, 1), 'LineStyle', thisStyle, 'Color', thisColor);
+						patch(hAxes2, [t, t(end:-1:1)], [mean(thisWaveforms, 1) - std(thisWaveforms, 0, 1), mean(thisWaveforms(:, end:-1:1), 1) + std(thisWaveforms(:, end:-1:1), 0, 1)], thisColor,...
+							'FaceAlpha', 0.25, 'EdgeColor', 'none');
+						line(hAxes2, t, mean(thisWaveforms, 1) - std(thisWaveforms, 0, 1), 'LineStyle', ':', 'Color', thisColor);
+						line(hAxes2, t, mean(thisWaveforms, 1) + std(thisWaveforms, 0, 1), 'LineStyle', ':', 'Color', thisColor);
+					else
+						if size(thisWaveforms, 1) > maxShown
+							percentShown = max(1, round(100*(maxShown/size(thisWaveforms, 1))));
+						else
+							percentShown = 100;
+						end
+						thisWaveforms = thisWaveforms(1:ceil(100/percentShown):end, :);
+						line(hAxes2, t, thisWaveforms, 'LineStyle', thisStyle, 'Color', thisColor);
+					end
 				end
 			end
 		end
@@ -1639,6 +1649,7 @@ classdef TetrodeRecording < handle
 				clf(hFigure)
 			else
 				hFigure	= figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'GraphicsSmoothing', 'on');
+				hFigure.UserData.PlotMean = false;
 			end
 			hFigure.Name = displayName;
 			set(hFigure, 'DefaultAxesFontSize', fontSize);
@@ -1705,6 +1716,15 @@ classdef TetrodeRecording < handle
 				'Position', hPrev.Position);
 			hButtonRecluster.Position(1) = hButtonRecluster.Position(1) + hButtonRecluster.Position(3) + buttonSpacing;
 			hPrev = hButtonRecluster;
+
+			hButtonPlotMean = uicontrol(...
+				'Style', 'togglebutton',...
+				'String', 'Mean',...
+				'Callback', {@obj.GUIPlotMean, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Position', [buttonSpacing, hWaveform.Position(2) + hWaveform.Position(4) - buttonHeight, buttonWidth, buttonHeight]);
+			hPrev = hButtonPlotMean;
 
 			nextChn = find(allChannels == iChannel) + 1;
 			nextChn = mod(nextChn, length(allChannels));
@@ -1775,6 +1795,7 @@ classdef TetrodeRecording < handle
 			frameRate 		= p.Results.FrameRate;
 
 			clusters = hFigure.UserData.SelectedClusters;
+			plotMean = hFigure.UserData.PlotMean;
 
 			% Stop refresh if frameRate > 0
 			if isfield(hWaveform.UserData, 'hTimer')
@@ -1791,8 +1812,8 @@ classdef TetrodeRecording < handle
 			cla(hPETH)
 
 			% Replot newly selected clusters
-			obj.PlotWaveforms(iChannel, 'Clusters', clusters, 'WaveformWindow',...
-				waveformWindow, 'YLim', waveformYLim, 'FrameRate', frameRate,...
+			obj.PlotWaveforms(iChannel, 'Clusters', clusters, 'WaveformWindow', waveformWindow,...
+				'YLim', waveformYLim, 'FrameRate', frameRate, 'PlotMean', plotMean,...
 				'Ax', [hPCA, hWaveform]);
 			obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
 				'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
@@ -1943,6 +1964,15 @@ classdef TetrodeRecording < handle
 					% Replot clusters
 					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
 				end
+			end
+			obj.GUIBusy(hFigure, false);
+		end
+
+		function GUIPlotMean(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+			obj.GUIBusy(hFigure, true);
+			if logical(hButton.Value) ~= hFigure.UserData.PlotMean
+				hFigure.UserData.PlotMean = logical(hButton.Value);
+				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
 			end
 			obj.GUIBusy(hFigure, false);
 		end
