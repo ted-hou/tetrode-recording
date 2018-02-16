@@ -1252,14 +1252,23 @@ classdef TetrodeRecording < handle
 				waveformWindow = obj.Spikes(channel).WaveformWindow;
 			end
 
+			sampleIndex	= obj.Spikes(channel).SampleIndex;
 			waveforms 	= obj.Spikes(channel).Waveforms;
 			t 			= obj.Spikes(channel).WaveformTimestamps;
 			score 		= obj.Spikes(channel).Feature.Coeff;
 			clusterID 	= obj.Spikes(channel).Cluster.Classes;
 			toKeep 		= ismember(clusterID, clusters);
+
+			sampleIndex = sampleIndex(toKeep);
+			clusterID 	= clusterID(toKeep);
+			waveforms 	= waveforms(toKeep, :);
+			score 		= score(toKeep, :);
+
 			if ~isempty(selectedSampleIndex)
-				toKeep = toKeep & ismember(obj.Spikes(channel).SampleIndex, selectedSampleIndex);
+				toKeep = ismember(sampleIndex, selectedSampleIndex);
 			end
+
+			sampleIndex = sampleIndex(toKeep);
 			clusterID 	= clusterID(toKeep);
 			waveforms 	= waveforms(toKeep, :);
 			score 		= score(toKeep, :);
@@ -1452,8 +1461,16 @@ classdef TetrodeRecording < handle
 
 			% Bin spikes into trials
 			for iChannel = channels
-				[~, spikes, trials] = obj.GetSpikesByTrial(iChannel, 'Reference', reference, 'Event', event, 'Clusters', clusters,...
+				[sampleIndex, spikes, trials] = obj.GetSpikesByTrial(iChannel, 'Reference', reference, 'Event', event, 'Clusters', clusters,...
 					'Window', extendedWindow, 'WindowReference', 'StartAndEnd');
+
+				if ~isempty(selectedSampleIndex)
+					selected = ismember(sampleIndex, selectedSampleIndex);
+					sampleIndex = sampleIndex(selected);
+					spikes 		= spikes(selected);
+					trials 		= trials(selected);
+				end
+
 				% Sort trials by time to movement
 				if doSort
 					[~, I] = sort(reference - event);
@@ -1506,7 +1523,6 @@ classdef TetrodeRecording < handle
 				hold off
 
 				hAxes.UserData.PlotParams = p.Results;
-				hAxes.UserData.PlotParams.TrialsSorted = ;
 			end
 		end
 
@@ -1571,8 +1587,15 @@ classdef TetrodeRecording < handle
 			[NTrials, ~, bins] = histcounts(trialLength, edges);
 
 			for iChannel = channels
-				[~, spikes, trials] = obj.GetSpikesByTrial(iChannel, 'Reference', reference, 'Event', event, 'Clusters', clusters,...
+				[sampleIndex, spikes, trials] = obj.GetSpikesByTrial(iChannel, 'Reference', reference, 'Event', event, 'Clusters', clusters,...
 					'Window', extendedWindow, 'WindowReference', 'StartAndEnd');
+
+				if ~isempty(selectedSampleIndex)
+					selected = ismember(sampleIndex, selectedSampleIndex);
+					sampleIndex = sampleIndex(selected);
+					spikes 		= spikes(selected);
+					trials 		= trials(selected);
+				end
 
 				if isempty(ax)
 					hAxes = axes(figure());
@@ -1791,15 +1814,24 @@ classdef TetrodeRecording < handle
 
 			hTitle = suptitle(displayName);
 
-			hButtonPlot = uicontrol(...
+			hButtonSelClusters = uicontrol(...
 				'Style', 'pushbutton',...
-				'String', 'Plot ...',...
+				'String', 'Clusters ...',...
 				'Callback', {@obj.GUIPlotClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', [xMargin, 1 - yMargin, buttonWidth, min(yMargin, buttonHeight)]);
-			hButtonPlot.Position(1) = hButtonPlot.Position(1) + hButtonPlot.Position(3);
-			hPrev = hButtonPlot;
+			hButtonSelClusters.Position(1) = hButtonSelClusters.Position(1) + hButtonSelClusters.Position(3);
+			hPrev = hButtonSelClusters;
+
+			hButtonSelSpikes = uicontrol(...
+				'Style', 'pushbutton',...
+				'String', 'Spikes ...',...
+				'Callback', {@obj.GUISelectSpikes, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Position', hPrev.Position);
+			hButtonSelSpikes.Position(2) = hButtonSelSpikes.Position(2) - hButtonSelSpikes.Position(4) - buttonSpacing;
 
 			hButtonMerge = uicontrol(...
 				'Style', 'pushbutton',...
@@ -2012,6 +2044,7 @@ classdef TetrodeRecording < handle
 			clusters = hFigure.UserData.SelectedClusters;
 			plotMean = hFigure.UserData.PlotMean;
 			referenceCluster = hFigure.UserData.ReferenceCluster;
+			selectedSampleIndex = hFigure.UserData.SelectedSampleIndex;
 
 			% Stop refresh if frameRate > 0
 			if isfield(hWaveform.UserData, 'hTimer')
@@ -2030,10 +2063,12 @@ classdef TetrodeRecording < handle
 			% Replot newly selected clusters
 			obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
 				'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
-				'Ax', hRaster, 'Sort', true);
+				'SelectedSampleIndex', selectedSampleIndex, 'Sort', true,...
+				'Ax', hRaster);
 			obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
 				'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
 				'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
+				'SelectedSampleIndex', selectedSampleIndex,...
 				'Ax', hPETH);
 
 			if length(clusters) == 1
@@ -2050,7 +2085,18 @@ classdef TetrodeRecording < handle
 			obj.PlotWaveforms(iChannel, 'Clusters', clusters, 'WaveformWindow', waveformWindow,...
 				'YLim', waveformYLim, 'FrameRate', frameRate, 'PlotMean', plotMean,...
 				'ReferenceCluster', referenceCluster, 'SelectedCluster', selectedCluster,...
+				'SelectedSampleIndex', selectedSampleIndex,...
 				'Ax', [hPCA, hWaveform]);
+		end
+
+		function GUIBusy(obj, hFigure, busy)
+			hButtons = findobj(hFigure.Children, 'Type', 'uicontrol');
+
+			if busy
+				set(hButtons, 'Enable', 'off')
+			else
+				set(hButtons, 'Enable', 'on')
+			end
 		end
 
 		function GUIPlotClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
@@ -2275,36 +2321,25 @@ classdef TetrodeRecording < handle
 			obj.GUIBusy(hFigure, false);
 		end
 
-		function GUIBusy(obj, hFigure, busy)
-			hButtons = findobj(hFigure.Children, 'Type', 'uicontrol');
+		function GUISelectSpikes(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+			obj.GUIBusy(hFigure, true);
 
-			if busy
-				set(hButtons, 'Enable', 'off')
-			else
-				set(hButtons, 'Enable', 'on')
-			end
-		end
-
-		function GUISelectSpikes(obj, hButton, evnt, channel, hWaveform, hPCA, hRaster)
 			% Add onButtonDown EH for all axes
-			set(hWaveform, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, channel, [hWaveform, hPCA, hRaster], 'Waveform'});
-			set(hPCA, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, channel, [hWaveform, hPCA, hRaster], 'Feature'});
-			set(hRaster, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, channel, [hWaveform, hPCA, hRaster], 'Raster'});
+			set(hWaveform, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH, 'Waveform'});
+			set(hPCA, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH, 'Feature'});
+			set(hRaster, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH, 'Raster'});
 		end
 
-		function GUISelectSpikesOnAxesSelected(obj, hAxes, evnt, channel, hAxesAll, selectionMode)
-			set(hAxesAll, 'ButtonDownFcn', '');
+		function GUISelectSpikesOnAxesSelected(obj, hAxes, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH, selectionMode)
 			% Remove onButtonDown EH for all axes
-			selectedSampleIndex = obj.SelectSpikes(channel);
-
-			hFigure = hAxes.Parent;
+			set([hWaveform, hPCA, hRaster], 'ButtonDownFcn', '');
 
 			switch lower(selectionMode)
 				case 'waveform'
 					[x, y] = getline(hAxes, 'closed');
 					polygon = [x, y];
 					if size(polygon, 1) >= 3
-						hFigure.UserData.SelectedSampleIndex = obj.GetSpikesByWaveform(channel, polygon, 'Clusters', hFigure.UserData.SelectedClusters);
+						hFigure.UserData.SelectedSampleIndex = obj.GetSpikesByWaveform(iChannel, polygon, 'Clusters', hFigure.UserData.SelectedClusters);
 					else
 						hFigure.UserData.SelectedSampleIndex = [];
 					end
@@ -2312,7 +2347,7 @@ classdef TetrodeRecording < handle
 					[x, y] = getline(hAxes, 'closed');
 					polygon = [x, y];
 					if size(polygon, 1) >= 3
-						hFigure.UserData.SelectedSampleIndex = obj.GetSpikesByFeature(channel, polygon, 'Clusters', hFigure.UserData.SelectedClusters);
+						hFigure.UserData.SelectedSampleIndex = obj.GetSpikesByFeature(iChannel, polygon, 'Clusters', hFigure.UserData.SelectedClusters);
 					else
 						hFigure.UserData.SelectedSampleIndex = [];
 					end
@@ -2320,19 +2355,23 @@ classdef TetrodeRecording < handle
 					rect = getrect(hAxes);
 
 					if nnz(rect(3:4)) == 2
-						p = hAxes.UserData.PlotParams;
-						switch lower(p.AlignTo)
-							case 'Reference'
+						pp = hAxes.UserData.PlotParams;
+						switch lower(pp.AlignTo)
+							case 'reference'
 								windowReference = 'Start';
-							case 'Event'
+							case 'event'
 								windowReference = 'End';
 						end
-						hFigure.UserData.SelectedSampleIndex = obj.GetSpikesByTrial(channel, 'Reference', p.Reference, 'Event', p.Event, 'Exclude', p.Exclude,...
+						hFigure.UserData.SelectedSampleIndex = obj.GetSpikesByTrial(iChannel, 'Reference', pp.Reference, 'Event', pp.Event, 'Exclude', pp.Exclude,...
 							'Clusters', hFigure.UserData.SelectedClusters, 'Window', [rect(1), rect(1) + rect(3)], 'WindowReference', windowReference);
 					else
 						hFigure.UserData.SelectedSampleIndex = [];
 					end
 			end
+
+			obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+
+			obj.GUIBusy(hFigure, false);
 		end
 
 		% Sort spikes and digital events into trial structure
@@ -2366,10 +2405,10 @@ classdef TetrodeRecording < handle
 				else
 					exclude	= obj.DigitalEvents.(exclude);
 				end
-				[trialStart, trielEnd] = TetrodeRecording.FindFirstInTrial(reference, event, exclude);
+				[trialStart, trialEnd] = TetrodeRecording.FindFirstInTrial(reference, event, exclude);
 			else
 				trialStart = reference;
-				trielEnd = event;
+				trialEnd = event;
 			end
 
 			trialStart 	= reshape(trialStart, 1, []);
@@ -2403,15 +2442,15 @@ classdef TetrodeRecording < handle
 				timestamps 	= timestamps(oddBins);
 				sampleIndex = sampleIndex(oddBins);
 				trials 		= (bins(oddBins) + 1)/2;
-			end
-
-			varargout = {sampleIndex, timestamps, trials};
+                
+                varargout = {sampleIndex, timestamps, trials};
+            end
 		end
 
 		function varargout = GetSpikesByFeature(obj, channel, polygon, varargin)
 			p = inputParser;
 			addRequired(p, 'Channel', @isnumeric);
-			addRequired(p, 'Polygon', [], @isnumeric);
+			addRequired(p, 'Polygon', @isnumeric);
 			addParameter(p, 'Clusters', [], @isnumeric);
 			parse(p, channel, polygon, varargin{:});
 			channel 		= p.Results.Channel;
@@ -2430,8 +2469,8 @@ classdef TetrodeRecording < handle
 				inCluster = true(size(obj.Spikes(channel).SampleIndex));
 			end
 
-			sampleIndex = obj.Spikes(channel).SampleIndex(inCluster | inPolygon);
-			timestamps = obj.Spikes(channel).Timestamps(inCluster | inPolygon);
+			sampleIndex = obj.Spikes(channel).SampleIndex(inCluster & inPolygon);
+			timestamps = obj.Spikes(channel).Timestamps(inCluster & inPolygon);
 
 			varargout = {sampleIndex, timestamps};
 		end
@@ -2439,7 +2478,7 @@ classdef TetrodeRecording < handle
 		function varargout = GetSpikesByWaveform(obj, channel, polygon, varargin)
 			p = inputParser;
 			addRequired(p, 'Channel', @isnumeric);
-			addRequired(p, 'Polygon', [], @isnumeric);
+			addRequired(p, 'Polygon', @isnumeric);
 			addParameter(p, 'Clusters', [], @isnumeric);
 			parse(p, channel, polygon, varargin{:});
 			channel 		= p.Results.Channel;
@@ -2461,8 +2500,13 @@ classdef TetrodeRecording < handle
 
 			intersectsWithPolygon = true(nnz(inCluster), 1);
 			if ~isempty(polygon)
+				upSampleRate = 10;
+				% Upsample waveformtimestamps
+				tUp = interp1(1:length(t), t, 1:(1/upSampleRate):length(t));
 				for iWaveform = 1:nnz(inCluster)
-					intersectsWithPolygon(iWaveform) = length(polyxpoly(t, waveforms(iWaveform, ;), polygon(:, 1), polygon(:, 2))) > 0;
+					thisWaveform = waveforms(iWaveform, :);
+					thisWaveformUp = interp1(1:length(t), thisWaveform, 1:(1/upSampleRate):length(t)); % Upsample waveform
+					intersectsWithPolygon(iWaveform) = nnz(inpolygon(tUp, thisWaveformUp, polygon(:, 1), polygon(:, 2))) > 0;
 				end
 			end
 
@@ -2472,26 +2516,6 @@ classdef TetrodeRecording < handle
 			varargout = {sampleIndex, timestamps};
 		end
 	end
-
-			% Sort spikes and digital events into trial structure
-		function varargout = GetSpikesByTrial(obj, channel, varargin)
-			p = inputParser;
-			addRequired(p, 'Channel', @isnumeric);
-			addParameter(p, 'Reference', 'CueOn', @(x) isnumeric(x) || ischar(x)); % Timestamps for trial start events, or event name, 'CueOn'
-			addParameter(p, 'Event', 'PressOn', @(x) isnumeric(x) || ischar(x)); % Timestamps for trial end events, or event name, 'PressOn'
-			addParameter(p, 'Exclude', 'Lick', @ischar); % Event name, 'LickOn'
-			addParameter(p, 'Clusters', [], @isnumeric);
-			addParameter(p, 'Window', [], @isnumeric);
-			addParameter(p, 'WindowReference', 'StartAndEnd', @ischar); % Start: window + trialStart, End: window + trialEnd, StartAndEnd: window + [trialStart, trialEnd]
-			parse(p, channel, varargin{:});
-			channel 		= p.Results.Channel;
-			reference 		= p.Results.Reference;
-			event 			= p.Results.Event;
-			exclude 		= p.Results.Exclude;
-			clusters 		= p.Results.Clusters;
-			window			= p.Results.Window;
-			windowReference = p.Results.WindowReference;
-
 
 	methods (Static)
 		function previewObj = BatchPreview()
