@@ -2555,7 +2555,7 @@ classdef TetrodeRecording < handle
 					selected = find(ismember(sampleIndex, sampleIndexInBoth));
 				end
 			end
-			liststr
+
 			numSelectedSpikes = length(selected);
 			[selection, ok] = listdlg(...
 				'PromptString', ['Move ' , num2str(numSelectedSpikes), ' spikes from ', num2str(numSeletecdClusters), ' clusters to selected cluster:'],...
