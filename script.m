@@ -46,3 +46,18 @@ for iFile = 1:length(files)
 end
 tr = [S.tr];
 clear iFile files S
+
+% Batch plot
+for iTr = 1:length(tr)
+	for iChannel = [tr(iTr).Spikes.Channel]
+		for iCluster = 1:(max(tr(iTr).Spikes(iChannel).Cluster.Classes) - 1)
+			hFigure = tr(iTr).PlotChannel(iChannel, 'PrintMode', true, 'Clusters', iCluster, 'Reference', 'CueOn', 'Event', 'LickOn', 'Exclude', 'PressOn');
+			tr(iTr).GUISavePlot([], [], hFigure, ['C:\MATLAB\DATA\daisy_1\SpikeSort\', tr(iTr).GetExpName(), '_Chn', num2str(iChannel), 'Clu', num2str(iCluster), '_FirstLick'])
+			close(hFigure)
+			hFigure = tr(iTr).PlotChannel(iChannel, 'PrintMode', true, 'Clusters', iCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn');
+			tr(iTr).GUISavePlot([], [], hFigure, ['C:\MATLAB\DATA\daisy_1\SpikeSort\', tr(iTr).GetExpName(), '_Chn', num2str(iChannel), 'Clu', num2str(iCluster), '_FirstPress'])
+			close(hFigure)
+		end
+	end
+end
+clear iTr iChannel iCluster

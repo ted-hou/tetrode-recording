@@ -1769,7 +1769,7 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function PlotChannel(obj, channel, varargin)
+		function varargout = PlotChannel(obj, channel, varargin)
 			p = inputParser;
 			addRequired(p, 'Channel', @isnumeric);
 			addParameter(p, 'Reference', 'CueOn', @ischar);
@@ -1852,6 +1852,8 @@ classdef TetrodeRecording < handle
 			hPCA 		= subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hDown, wLeft, hUpHalf]);
 			hRaster		= subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + 3*yMargin + hDown, wRight, hUp]);
 			hPETH 		= subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hDown]);
+
+			varargout = {hFigure, hWaveform, hPCA, hRaster, hPETH};
 
 			if isempty(clusters)
 				hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
@@ -2228,7 +2230,8 @@ classdef TetrodeRecording < handle
 				'SelectionMode', 'multiple',...
 				'OKString', 'Plot',...
 				'ListString', liststr,...
-				'InitialValue', []);
+				'InitialValue', [],...
+				'ListSize', [250, 150]);
 
 			if (ok && ~isempty(clusters))
 				clusters = cellfun(@str2num, liststr(clusters));
@@ -2248,7 +2251,8 @@ classdef TetrodeRecording < handle
 				'SelectionMode', 'multiple',...
 				'OKString', 'Remove',...
 				'ListString', liststr,...
-				'InitialValue', []);
+				'InitialValue', [],...
+				'ListSize', [250, 150]);
 
 			if (ok && ~isempty(clusters))
 				clusters = cellfun(@str2num, liststr(clusters));
@@ -2278,7 +2282,8 @@ classdef TetrodeRecording < handle
 				'SelectionMode', 'multiple',...
 				'OKString', 'Decimate',...
 				'ListString', liststr,...
-				'InitialValue', []);
+				'InitialValue', [],...
+				'ListSize', [250, 150]);
 
 			if (ok && ~isempty(clusters))
 				clusters = cellfun(@str2num, liststr(clusters));
@@ -2309,7 +2314,8 @@ classdef TetrodeRecording < handle
 				'SelectionMode', 'multiple',...
 				'OKString', 'Merge',...
 				'ListString', liststr,...
-				'InitialValue', []);
+				'InitialValue', [],...
+				'ListSize', [250, 150]);
 
 			if (ok && ~isempty(clusters))
 				clusters = cellfun(@str2num, liststr(clusters));
@@ -2341,7 +2347,8 @@ classdef TetrodeRecording < handle
 				'SelectionMode', 'multiple',...
 				'OKString', 'Recluster',...
 				'ListString', liststr,...
-				'InitialValue', []);
+				'InitialValue', [],...
+				'ListSize', [250, 150]);
 
 			if (ok && ~isempty(clusters))
 				clusters = cellfun(@str2num, liststr(clusters));
@@ -2373,7 +2380,8 @@ classdef TetrodeRecording < handle
 				'OKString', 'Reference',...
 				'CancelString', 'No Reference',...
 				'ListString', liststr,...
-				'InitialValue', []);
+				'InitialValue', [],...
+				'ListSize', [250, 150]);
 
 			if ok
 				hFigure.UserData.ReferenceCluster = cellfun(@str2num, liststr(referenceCluster));
@@ -2403,7 +2411,8 @@ classdef TetrodeRecording < handle
 				'SelectionMode', 'single',...
 				'OKString', 'Reference',...
 				'ListString', liststr,...
-				'InitialValue', []);
+				'InitialValue', [],...
+				'ListSize', [250, 150]);
 
 			if ok
 				referenceCluster = cellfun(@str2num, liststr(referenceCluster));
@@ -2413,13 +2422,21 @@ classdef TetrodeRecording < handle
 			obj.GUIBusy(hFigure, false);
 		end
 
-		function GUISavePlot(obj, hButton, evnt, hFigure)
+		function GUISavePlot(obj, hButton, evnt, hFigure, filename)
+			if nargin < 5
+				filename = '';
+			end
+
 			hButtons = findobj(hFigure.Children, 'Type', 'uicontrol');
 			hTexts = findobj(hFigure.Children, 'Type', 'Text', 'Tag', 'HideWhenSaving');
 
 			set(hButtons, 'Visible', 'off');
 			set(hTexts, 'Visible', 'off');
-			print(hFigure, '-clipboard', '-dbitmap')
+			if isempty(filename)
+				print(hFigure, '-clipboard', '-dbitmap')
+			else
+				print(hFigure, filename, '-djpeg')
+			end
 			set(hButtons, 'Visible', 'on');
 			set(hTexts, 'Visible', 'on');
 		end
@@ -2612,7 +2629,8 @@ classdef TetrodeRecording < handle
 				'SelectionMode', 'single',...
 				'OKString', 'Move',...
 				'ListString', liststr,...
-				'InitialValue', []);
+				'InitialValue', [],...
+				'ListSize', [250, 150]);
 
 			if ok
 				if strcmpi(liststr{selection}, 'New')
