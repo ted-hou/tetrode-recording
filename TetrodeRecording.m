@@ -9,11 +9,13 @@ classdef TetrodeRecording < handle
 		SelectedChannels
 		Spikes
 		DigitalEvents
+		AnalogIn
 	end
 
 	properties (Transient)
 		Amplifier
 		BoardDigIn
+		BoardADC
 	end
 
 	%----------------------------------------------------
@@ -59,8 +61,8 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Chunks', 'first');
 			addParameter(p, 'SubstractMean', true, @islogical);
 			addParameter(p, 'RemoveTransient', true, @islogical);
-			addParameter(p, 'SpikeDetect', false, @islogical);
-			addParameter(p, 'DigitalDetect', false, @islogical);
+			addParameter(p, 'SpikeDetect', false, @islogical);		% Convert amplifier data to discrete spike timestamps
+			addParameter(p, 'DigitalDetect', false, @islogical);	% Convert digitalInput data to discrete event timestamps
 			parse(p, varargin{:});
 			chunkSize = p.Results.ChunkSize;
 			chunks = p.Results.Chunks;
@@ -93,11 +95,15 @@ classdef TetrodeRecording < handle
                 if removeTransient
 					obj.RemoveTransient();
 				end
-				if spikeDetect
-					obj.SpikeDetect([obj.Spikes.Channel], 'Append', true);
-					obj.GetDigitalData('Append', true);
-				else
+				if iChunk == 1
 					obj.GetDigitalData('Append', false);
+					obj.GetAnalogData('Append', false);
+				else
+					if spikeDetect
+						obj.SpikeDetect([obj.Spikes.Channel], 'Append', true);
+					end
+					obj.GetDigitalData('Append', true);
+					obj.GetAnalogData('Append', true);
 				end
 			end
 			if digitalDetect
@@ -229,6 +235,7 @@ classdef TetrodeRecording < handle
 				% Create structure arrays for each type of data channel.
 				objTemp(iFile).Amplifier.Channels = struct(channel_struct);
 				objTemp(iFile).BoardDigIn.Channels = struct(channel_struct);
+				objTemp(iFile).BoardADC.Channels = struct(channel_struct);
 
 				amplifier_index = 1;
 				aux_input_index = 1;
@@ -278,6 +285,7 @@ classdef TetrodeRecording < handle
 									case 2
 										supply_voltage_index = supply_voltage_index + 1;
 									case 3
+										objTemp(iFile).BoardADC.Channels(board_adc_index) = new_channel;
 										board_adc_index = board_adc_index + 1;
 									case 4
 										objTemp(iFile).BoardDigIn.Channels(board_dig_in_index) = new_channel;
@@ -346,6 +354,7 @@ classdef TetrodeRecording < handle
 					objTemp(iFile).Amplifier.Timestamps = zeros(1, num_amplifier_samples);
 					objTemp(iFile).Amplifier.Data = zeros(num_amplifier_channels, num_amplifier_samples);
 					objTemp(iFile).BoardDigIn.Data = zeros(num_board_dig_in_channels, num_board_dig_in_samples);
+					objTemp(iFile).BoardADC.Data = zeros(num_board_adc_channels, num_board_adc_samples);
 					board_dig_in_raw = zeros(1, num_board_dig_in_samples);
 					board_dig_out_raw = zeros(1, num_board_dig_out_samples);
 
@@ -427,10 +436,17 @@ classdef TetrodeRecording < handle
 
 					% Scale voltage levels appropriately.
 					objTemp(iFile).Amplifier.Data = 0.195 * (objTemp(iFile).Amplifier.Data - 32768); % units = microvolts
-
+					if (eval_board_mode == 1)
+						objTemp(iFile).BoardADC.Data = 152.59e-6 * (objTemp(iFile).BoardADC.Data - 32768); % units = volts
+					elseif (eval_board_mode == 13) % Intan Recording Controller
+						objTemp(iFile).BoardADC.Data = 312.5e-6 * (objTemp(iFile).BoardADC.Data - 32768); % units = volts    
+					else
+						objTemp(iFile).BoardADC.Data = 50.354e-6 * objTemp(iFile).BoardADC.Data; % units = volts
+					end
 					% Scale time steps (units = seconds).
 					objTemp(iFile).Amplifier.Timestamps = objTemp(iFile).Amplifier.Timestamps / sample_rate;
 					objTemp(iFile).BoardDigIn.Timestamps = objTemp(iFile).Amplifier.Timestamps;
+					objTemp(iFile).BoardADC.Timestamps = objTemp(iFile).Amplifier.Timestamps;
 				end
 				TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 			end
@@ -438,9 +454,11 @@ classdef TetrodeRecording < handle
 			% Count number of samples in all files
 			obj.Amplifier.NumSamples = 0;
 			obj.BoardDigIn.NumSamples = 0;
+			obj.BoardADC.NumSamples = 0;
 			for iFile = 1:length(files)
 				obj.Amplifier.NumSamples = obj.Amplifier.NumSamples + size(objTemp(iFile).Amplifier.Timestamps, 2);
 				obj.BoardDigIn.NumSamples = obj.BoardDigIn.NumSamples + size(objTemp(iFile).BoardDigIn.Timestamps, 2);
+				obj.BoardADC.NumSamples = obj.BoardADC.NumSamples + size(objTemp(iFile).BoardADC.Timestamps, 2);
 			end
 
 			% Combine files
@@ -450,22 +468,29 @@ classdef TetrodeRecording < handle
 			obj.FrequencyParameters = frequency_parameters;
 			obj.Amplifier.Channels = objTemp(1).Amplifier.Channels;
 			obj.BoardDigIn.Channels = objTemp(1).BoardDigIn.Channels;
+			obj.BoardADC.Channels = objTemp(1).BoardADC.Channels;
 
 			obj.Amplifier.Timestamps = zeros(1, obj.Amplifier.NumSamples);
 			obj.Amplifier.Data = zeros(length(obj.Amplifier.Channels), obj.Amplifier.NumSamples);
 			obj.BoardDigIn.Timestamps = zeros(1, obj.BoardDigIn.NumSamples);
 			obj.BoardDigIn.Data = zeros(length(obj.BoardDigIn.Channels), obj.BoardDigIn.NumSamples);
+			obj.BoardADC.Timestamps = zeros(1, obj.BoardADC.NumSamples);
+			obj.BoardADC.Data = zeros(length(obj.BoardADC.Channels), obj.BoardADC.NumSamples);
 
 			iSample.Amplifier = 0;
 			iSample.BoardDigIn = 0;
+			iSample.BoardADC = 0;
 			for iFile = 1:length(files)
 				obj.Amplifier.Timestamps(1, iSample.Amplifier + 1:iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2)) = objTemp(iFile).Amplifier.Timestamps;
 				obj.Amplifier.Data(:, iSample.Amplifier + 1:iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2)) = objTemp(iFile).Amplifier.Data;
 				obj.BoardDigIn.Timestamps(1, iSample.BoardDigIn + 1:iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2)) = objTemp(iFile).BoardDigIn.Timestamps;
 				obj.BoardDigIn.Data(:, iSample.BoardDigIn + 1:iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2)) = objTemp(iFile).BoardDigIn.Data;
+				obj.BoardADC.Timestamps(1, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Timestamps;
+				obj.BoardADC.Data(:, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Data;
 
 				iSample.Amplifier = iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2);
 				iSample.BoardDigIn = iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2);
+				iSample.BoardADC = iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2);
 			end
 			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 		end
@@ -738,6 +763,27 @@ classdef TetrodeRecording < handle
 			end
 		end
 
+		function GetAnalogData(obj, varargin)
+			p = inputParser;
+			addParameter(p, 'ChannelAccelerometerX', 1, @isnumeric);
+			addParameter(p, 'ChannelAccelerometerY', 2, @isnumeric);
+			addParameter(p, 'ChannelAccelerometerZ', 3, @isnumeric);
+			addParameter(p, 'Append', false, @islogical);
+			parse(p, varargin{:});
+			channelAccelerometerX	= p.Results.ChannelAccelerometerX;
+			channelAccelerometerY 	= p.Results.ChannelAccelerometerY;
+			channelAccelerometerZ 	= p.Results.ChannelAccelerometerZ;
+			append 					= p.Results.Append;
+
+			if append
+				obj.AnalogIn.Data = [obj.AnalogIn.Data, obj.BoardADC.Data([channelAccelerometerX, channelAccelerometerY, channelAccelerometerZ], :)];
+				obj.AnalogIn.Timestamps = [obj.AnalogIn.Timestamps, obj.BoardADC.Timestamps];
+			else
+				obj.AnalogIn.Data = obj.BoardADC.Data([channelAccelerometerX, channelAccelerometerY, channelAccelerometerZ], :);
+				obj.AnalogIn.Timestamps = obj.BoardADC.Timestamps;
+			end
+		end
+
 		function GetDigitalData(obj, varargin)
 			p = inputParser;
 			addParameter(p, 'ChannelCue', 4, @isnumeric);
@@ -785,6 +831,7 @@ classdef TetrodeRecording < handle
 		function ClearCache(obj)
 			obj.Amplifier = [];
 			obj.BoardDigIn = [];
+			obj.BoardADC = [];
 			mem = memory();
 			TetrodeRecording.TTS(['Cached data cleared. System memory: ', num2str(round(mem.MemUsedMATLAB/1024^2)), ' MB used (', num2str(round(mem.MemAvailableAllArrays/1024^2)), ' MB available).\n']);
 		end
