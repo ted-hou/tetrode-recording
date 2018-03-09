@@ -35,7 +35,7 @@ classdef TetrodeRecording < handle
 			chunkSize 		= p.Results.ChunkSize;
 			hideResults 	= p.Results.HideResults;
 
-			obj.ReadFiles(chunkSize);
+			obj.ReadFiles(chunkSize, 'Chunks', 'first');
 			if isempty(channels)
 				channels = obj.MapChannelID([obj.Amplifier.Channels.NativeOrder]);
 			end
@@ -61,15 +61,15 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Chunks', 'first');
 			addParameter(p, 'SubstractMean', true, @islogical);
 			addParameter(p, 'RemoveTransient', true, @islogical);
-			addParameter(p, 'SpikeDetect', false, @islogical);		% Convert amplifier data to discrete spike timestamps
-			addParameter(p, 'DigitalDetect', false, @islogical);	% Convert digitalInput data to discrete event timestamps
+			addParameter(p, 'DigitalChannels', {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}, @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}
+			addParameter(p, 'AnalogChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'AccX', 1; 'AccY', 2; 'AccZ', 3;}
 			parse(p, varargin{:});
-			chunkSize = p.Results.ChunkSize;
-			chunks = p.Results.Chunks;
-			substractMean = p.Results.SubstractMean;
+			chunkSize 		= p.Results.ChunkSize;
+			chunks 			= p.Results.Chunks;
+			substractMean 	= p.Results.SubstractMean;
 			removeTransient = p.Results.RemoveTransient;
-			spikeDetect = p.Results.SpikeDetect;
-			digitalDetect = p.Results.DigitalDetect;
+			digitalChannels = p.Results.DigitalChannels;
+			analogChannels 	= p.Results.AnalogChannels;
 
 			files = obj.Files;
 			numChunks = ceil(length(files)/chunkSize);
@@ -96,17 +96,15 @@ classdef TetrodeRecording < handle
 					obj.RemoveTransient();
 				end
 				if iChunk == 1
-					obj.GetDigitalData('Append', false);
-					obj.GetAnalogData('Append', false);
+					obj.GetDigitalData('ChannelLabels', digitalChannels, 'Append', false);
+					obj.GetAnalogData('ChannelLabels', analogChannels, 'Append', false);
 				else
-					if spikeDetect
-						obj.SpikeDetect([obj.Spikes.Channel], 'Append', true);
-					end
-					obj.GetDigitalData('Append', true);
-					obj.GetAnalogData('Append', true);
+					obj.SpikeDetect([obj.Spikes.Channel], 'Append', true);
+					obj.GetDigitalData('ChannelLabels', digitalChannels, 'Append', true);
+					obj.GetAnalogData('ChannelLabels', analogChannels, 'Append', true);
 				end
 			end
-			if digitalDetect
+			if numChunks == 1 || iChunk > 1
 				obj.GetDigitalEvents(true);
 			end
 		end
@@ -578,7 +576,7 @@ classdef TetrodeRecording < handle
 				error('Board digital input has a different sampling rate from amplifier. Aborted.');
 			end
 
-			tic, TetrodeRecording.TTS('	Removing lick/touch-related transients. This might take a while...');
+			tic, TetrodeRecording.TTS('	Removing lick/touch-related transients...');
 			if dilate
 				mask = false(1, obj.Amplifier.NumSamples);
 				for thisChannel = digChannel
@@ -765,44 +763,64 @@ classdef TetrodeRecording < handle
 
 		function GetAnalogData(obj, varargin)
 			p = inputParser;
-			addParameter(p, 'ChannelAccelerometerX', 1, @isnumeric);
-			addParameter(p, 'ChannelAccelerometerY', 2, @isnumeric);
-			addParameter(p, 'ChannelAccelerometerZ', 3, @isnumeric);
+			addParameter(p, 'ChannelLabels', {}, @(x) iscell(x) || ischar(x)); %e.g. {'AccelerometerX', 4; 'AccelerometerY', 2; 'AccelerometerZ', 3}
 			addParameter(p, 'Append', false, @islogical);
 			parse(p, varargin{:});
-			channelAccelerometerX	= p.Results.ChannelAccelerometerX;
-			channelAccelerometerY 	= p.Results.ChannelAccelerometerY;
-			channelAccelerometerZ 	= p.Results.ChannelAccelerometerZ;
-			append 					= p.Results.Append;
+			channelLabels 	= p.Results.ChannelLabels;
+			append 			= p.Results.Append;
+
+			if ischar(channelLabels) && strcmpi(channelLabels, 'auto')
+				channelLabels = transpose([{obj.BoardADC.Channels.CustomChannelName}; num2cell(1:length(obj.BoardADC.Channels))]);
+			end
+
+			if isempty(channelLabels)
+				obj.AnalogIn.ChannelNames = {};
+				obj.AnalogIn.Data = [];
+				obj.AnalogIn.Timestamps = [];
+				return
+			end
+
+			channels = cell2mat(channelLabels(:, 2));
+			channelNames = channelLabels(:, 1);
 
 			if append
-				obj.AnalogIn.Data = [obj.AnalogIn.Data, obj.BoardADC.Data([channelAccelerometerX, channelAccelerometerY, channelAccelerometerZ], :)];
+				obj.AnalogIn.Data = [obj.AnalogIn.Data, obj.BoardADC.Data(channels, :)];
 				obj.AnalogIn.Timestamps = [obj.AnalogIn.Timestamps, obj.BoardADC.Timestamps];
 			else
-				obj.AnalogIn.Data = obj.BoardADC.Data([channelAccelerometerX, channelAccelerometerY, channelAccelerometerZ], :);
+				obj.AnalogIn.ChannelNames = channelNames;
+				obj.AnalogIn.Data = obj.BoardADC.Data(channels, :);
 				obj.AnalogIn.Timestamps = obj.BoardADC.Timestamps;
 			end
 		end
 
 		function GetDigitalData(obj, varargin)
 			p = inputParser;
-			addParameter(p, 'ChannelCue', 4, @isnumeric);
-			addParameter(p, 'ChannelPress', 2, @isnumeric);
-			addParameter(p, 'ChannelLick', 3, @isnumeric);
-			addParameter(p, 'ChannelReward', 5, @isnumeric);
+			addParameter(p, 'ChannelLabels', {}, @(x) iscell(x) || ischar(x)); % {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}
 			addParameter(p, 'Append', false, @islogical);
 			parse(p, varargin{:});
-			channelCue 		= p.Results.ChannelCue;
-			channelPress 	= p.Results.ChannelPress;
-			channelLick 	= p.Results.ChannelLick;
-			channelReward 	= p.Results.ChannelReward;
+			channelLabels 	= p.Results.ChannelLabels;
 			append 			= p.Results.Append;
 
+			if ischar(channelLabels) && strcmpi(channelLabels, 'auto')
+				channelLabels = transpose([{obj.BoardDigIn.Channels.CustomChannelName}; num2cell(1:length(obj.BoardDigIn.Channels))]);
+			end
+
+			if isempty(channelLabels)
+				obj.DigitalEvents.ChannelNames = {};
+				obj.DigitalEvents.Data = [];
+				obj.DigitalEvents.Timestamps = [];
+				return
+			end
+
+			channels = cell2mat(channelLabels(:, 2));
+			channelNames = channelLabels(:, 1);
+
 			if append
-				obj.DigitalEvents.Data = [obj.DigitalEvents.Data, obj.BoardDigIn.Data([channelCue, channelPress, channelLick, channelReward], :)];
+				obj.DigitalEvents.Data = [obj.DigitalEvents.Data, obj.BoardDigIn.Data(channels, :)];
 				obj.DigitalEvents.Timestamps = [obj.DigitalEvents.Timestamps, obj.BoardDigIn.Timestamps];
 			else
-				obj.DigitalEvents.Data = obj.BoardDigIn.Data([channelCue, channelPress, channelLick, channelReward], :);
+				obj.DigitalEvents.ChannelNames = channelNames;
+				obj.DigitalEvents.Data = obj.BoardDigIn.Data(channels, :);
 				obj.DigitalEvents.Timestamps = obj.BoardDigIn.Timestamps;
 			end
 		end
@@ -812,13 +830,18 @@ classdef TetrodeRecording < handle
 				clearCache = false;
 			end
 
-			tic, TetrodeRecording.TTS('	Extracting digital events...');
 			% Get digital signals
-			[obj.DigitalEvents.CueOn, obj.DigitalEvents.CueOff] 		= TetrodeRecording.FindEdges(obj.DigitalEvents.Data(1, :), obj.DigitalEvents.Timestamps);
-			[obj.DigitalEvents.PressOn, obj.DigitalEvents.PressOff] 	= TetrodeRecording.FindEdges(obj.DigitalEvents.Data(2, :), obj.DigitalEvents.Timestamps);
-			[obj.DigitalEvents.LickOn, obj.DigitalEvents.LickOff] 		= TetrodeRecording.FindEdges(obj.DigitalEvents.Data(3, :), obj.DigitalEvents.Timestamps);
-			[obj.DigitalEvents.RewardOn, obj.DigitalEvents.RewardOff] 	= TetrodeRecording.FindEdges(obj.DigitalEvents.Data(4, :), obj.DigitalEvents.Timestamps);
+			channelNames = obj.DigitalEvents.ChannelNames;
+			if isempty(channelNames)
+				return
+			end
 
+			tic, TetrodeRecording.TTS('	Extracting digital events...');
+
+			for iChannel = 1:length(channelNames)
+				[obj.DigitalEvents.([channelNames{iChannel}, 'On']), obj.DigitalEvents.([channelNames{iChannel}, 'Off'])] = TetrodeRecording.FindEdges(obj.DigitalEvents.Data(iChannel, :), obj.DigitalEvents.Timestamps);
+			end
+			
 			if clearCache
 				obj.DigitalEvents.Timestamps = [];
 				obj.DigitalEvents.Data = [];
@@ -2934,9 +2957,9 @@ classdef TetrodeRecording < handle
 			tr.Path = thisPath;
 			files = dir([tr.Path, '*.rhd']);
 			tr.Files = {files.name};
-			tr.ReadFiles(chunkSize, 'DigitalDetect', true);
+			tr.ReadFiles(chunkSize, 'Chunks', 'first');
 			tr.SpikeDetect(channels, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow);
-			tr.ReadFiles(chunkSize, 'Chunks', 'remaining', 'SpikeDetect', true, 'DigitalDetect', true);
+			tr.ReadFiles(chunkSize, 'Chunks', 'remaining');
 			tr.SpikeSort(channels, 'FeatureMethod', featureMethod, 'ClusterMethod', clusterMethod, 'Dimension', dimension);
 			tr.ClearCache();
 			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false, 'MaxChannels', 5);
