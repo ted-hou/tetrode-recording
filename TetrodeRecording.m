@@ -35,11 +35,10 @@ classdef TetrodeRecording < handle
 			chunkSize 		= p.Results.ChunkSize;
 			hideResults 	= p.Results.HideResults;
 
-			obj.ReadFiles(chunkSize, 'Chunks', 'first');
-			if isempty(channels)
-				channels = obj.MapChannelID([obj.Amplifier.Channels.NativeOrder]);
+			if isempty(obj.Path)
+				obj.SelectFiles();
 			end
-			obj.SpikeDetect(channels, 'NumSigmas', 4, 'WaveformWindow', [-0.5, 0.5]);
+			obj.ReadFiles(chunkSize, 'Channels', channels, 'NumSigmas', 4, 'WaveformWindow', [-0.5, 0.5]);
 			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
 			if ~hideResults
 				obj.PlotAllChannels();
@@ -58,34 +57,29 @@ classdef TetrodeRecording < handle
 		function ReadFiles(obj, varargin)
 			p = inputParser;
 			addOptional(p, 'ChunkSize', 2, @isnumeric);
-			addParameter(p, 'Chunks', 'first');
 			addParameter(p, 'SubstractMean', true, @islogical);
 			addParameter(p, 'RemoveTransient', true, @islogical);
 			addParameter(p, 'DigitalChannels', {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}, @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}
 			addParameter(p, 'AnalogChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'AccX', 1; 'AccY', 2; 'AccZ', 3;}
+			addParameter(p, 'Channels', [], @isnumeric);
+			addParameter(p, 'NumSigmas', 4, @isnumeric);
+			addParameter(p, 'Direction', 'negative', @ischar);
+			addParameter(p, 'WaveformWindow', [-1.25, 1.25], @isnumeric);
 			parse(p, varargin{:});
 			chunkSize 		= p.Results.ChunkSize;
-			chunks 			= p.Results.Chunks;
 			substractMean 	= p.Results.SubstractMean;
 			removeTransient = p.Results.RemoveTransient;
 			digitalChannels = p.Results.DigitalChannels;
 			analogChannels 	= p.Results.AnalogChannels;
+			channels 		= p.Results.Channels;
+			numSigmas 		= p.Results.NumSigmas;
+			direction 		= p.Results.Direction;
+			waveformWindow 	= p.Results.WaveformWindow;
 
 			files = obj.Files;
 			numChunks = ceil(length(files)/chunkSize);
-			if ischar(chunks)
-				switch lower(chunks)
-					case 'all'
-						chunks = 1:numChunks;
-					case 'remaining'
-						chunks = 2:numChunks;
-					case 'first'
-						chunks = 1;
-				end
-			end
 
-			for iChunk = chunks
-				obj.ClearCache();
+			for iChunk = 1:numChunks
 				TetrodeRecording.TTS(['Processing chunk ', num2str(iChunk), '/', num2str(numChunks), ':\n']);
 				obj.ReadRHD(obj.Files((iChunk - 1)*chunkSize + 1:min(iChunk*chunkSize, length(obj.Files))))
 				obj.MapChannels();
@@ -95,18 +89,15 @@ classdef TetrodeRecording < handle
                 if removeTransient
 					obj.RemoveTransient();
 				end
-				if iChunk == 1
-					obj.GetDigitalData('ChannelLabels', digitalChannels, 'Append', false);
-					obj.GetAnalogData('ChannelLabels', analogChannels, 'Append', false);
-				else
-					obj.SpikeDetect([obj.Spikes.Channel], 'Append', true);
-					obj.GetDigitalData('ChannelLabels', digitalChannels, 'Append', true);
-					obj.GetAnalogData('ChannelLabels', analogChannels, 'Append', true);
+				if isempty(channels)
+					channels = obj.MapChannelID([obj.Amplifier.Channels.NativeOrder]);
 				end
+				obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', iChunk > 1);
+				obj.GetDigitalData('ChannelLabels', digitalChannels, 'Append', iChunk > 1);
+				obj.GetAnalogData('ChannelLabels', analogChannels, 'Append', iChunk > 1);
+				obj.ClearCache();
 			end
-			if numChunks == 1 || iChunk > 1
-				obj.GetDigitalEvents(true);
-			end
+			obj.GetDigitalEvents(true);
 		end
 
 		function ReadRHD(obj, files)
@@ -693,22 +684,15 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Append', false, @islogical);
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
+			numSigmas = p.Results.NumSigmas;
+			directionMode = p.Results.Direction;
+			waveformWindow = p.Results.WaveformWindow;
 			append = p.Results.Append;
 
 			TetrodeRecording.TTS('	Detecting spikes:\n');
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
 
 			for iChannel = channels
-				% If append mode
-				if ~append
-					numSigmas = p.Results.NumSigmas;
-					directionMode = p.Results.Direction;
-					waveformWindow = p.Results.WaveformWindow;
-				else
-					numSigmas = obj.Spikes(iChannel).Threshold.NumSigmas;
-					directionMode = obj.Spikes(iChannel).Threshold.Direction;
-					waveformWindow = obj.Spikes(iChannel).WaveformWindow;
-				end
 				% Auto-threshold for spikes
 				% median(abs(x))/0.6745 is a better estimation of noise amplitude than std() when there are spikes -- Quiroga, 2004
 				threshold = numSigmas*nanmedian(abs(obj.Amplifier.Data(iChannel, :)))/0.6745;
@@ -875,6 +859,10 @@ classdef TetrodeRecording < handle
 			waveformWindow = p.Results.WaveformWindow;
 			clusterMethod = p.Results.ClusterMethod;
 			numClusters = p.Results.NumClusters;
+
+			if isempty(channels)
+				channels = [obj.Spikes.Channel];
+			end
 
 			obj.RemoveNaNs(channels);
 			obj.FeatureExtract(channels, 'WaveformWindow', waveformWindow, 'Method', featureMethod, 'Dimension', dimension);
@@ -2957,11 +2945,8 @@ classdef TetrodeRecording < handle
 			tr.Path = thisPath;
 			files = dir([tr.Path, '*.rhd']);
 			tr.Files = {files.name};
-			tr.ReadFiles(chunkSize, 'Chunks', 'first');
-			tr.SpikeDetect(channels, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow);
-			tr.ReadFiles(chunkSize, 'Chunks', 'remaining');
+			tr.ReadFiles(chunkSize, 'Channels', channels, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow);
 			tr.SpikeSort(channels, 'FeatureMethod', featureMethod, 'ClusterMethod', clusterMethod, 'Dimension', dimension);
-			tr.ClearCache();
 			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false, 'MaxChannels', 5);
 		end
 
