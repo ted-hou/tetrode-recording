@@ -1319,7 +1319,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Clusters', [], @isnumeric);
 			addParameter(p, 'SelectedCluster', [], @isnumeric);
 			addParameter(p, 'ReferenceCluster', [], @isnumeric);
-			addParameter(p, 'YLim', [], @isnumeric);
+			addParameter(p, 'YLim', [], @(x) isnumeric(x) || ischar(x));
 			addParameter(p, 'FrameRate', 120, @isnumeric);
 			addParameter(p, 'MaxShown', 200, @isnumeric);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
@@ -1643,6 +1643,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
 			addParameter(p, 'ExtendedWindow', [0, 0], @isnumeric);
 			addParameter(p, 'SelectedSampleIndex', [], @isnumeric);
+			addParameter(p, 'XLim', [], @isnumeric);
 			addParameter(p, 'Ax', []);
 			parse(p, channels, varargin{:});
 			channels 			= p.Results.Channels;
@@ -1656,6 +1657,7 @@ classdef TetrodeRecording < handle
 			spikeRateWindow 	= p.Results.SpikeRateWindow;
 			extendedWindow 		= p.Results.ExtendedWindow;
 			selectedSampleIndex	= p.Results.SelectedSampleIndex;
+			xRange 				= p.Results.XLim;			
 			ax 					= p.Results.Ax;
 
 			if ~isempty(reference)
@@ -1731,9 +1733,12 @@ classdef TetrodeRecording < handle
 						'LineWidth', 2.5);
 				end
 				xlabel(hAxes, ['Time relative to ', eventDisplayName, ' (s)']);
-				ylabel(hAxes, 'Mean firing rate (Hz)')
+				ylabel(hAxes, 'Mean firing rate (Spikes/s)')
 				legend(hAxes, 'Location', 'Best');
 				title(hAxes, 'Peri-event time histogram');
+				if ~isempty(xRange)
+					xlim(hAxes, xRange);
+				end				
 				hold off
 			end
 		end
@@ -1745,7 +1750,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'MaxShown', 200, @isnumeric);
 			addParameter(p, 'Fontsize', 8, @isnumeric);
 			addParameter(p, 'PlotMethod', 'all', @ischar); % 'all', 'mean'
-			addParameter(p, 'YLim', [-400, 400], @isnumeric); % 'all', 'mean'
+			addParameter(p, 'YLim', [-400, 400], @(x) isnumeric(x) || ischar(x));
 			parse(p, varargin{:});
 			channels 		= p.Results.Channels;
 			percentShown 	= p.Results.PercentShown;
@@ -1834,6 +1839,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Event', 'PressOn', @ischar);
 			addParameter(p, 'Exclude', 'LickOn', @ischar);
 			addParameter(p, 'Clusters', [], @isnumeric);
+			addParameter(p, 'ReferenceCluster', [], @isnumeric);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'ExtendedWindow', [0, 0], @isnumeric);
 			addParameter(p, 'MinTrialLength', 0, @isnumeric);
@@ -1841,29 +1847,30 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'BinMethod', 'percentile', @ischar);
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
 			addParameter(p, 'RasterXLim', [], @isnumeric);
-			addParameter(p, 'WaveformYLim', [-200, 200], @isnumeric);
+			addParameter(p, 'WaveformYLim', [-200, 200], @(x) isnumeric(x) || ischar(x));
 			addParameter(p, 'FontSize', 8, @isnumeric);
 			addParameter(p, 'PrintMode', false, @islogical);
 			addParameter(p, 'FrameRate', 0, @isnumeric);
 			addParameter(p, 'Fig', []);
 			parse(p, channel, varargin{:});
-			iChannel 		= p.Results.Channel;
-			reference 		= p.Results.Reference;
-			event 			= p.Results.Event;
-			exclude 		= p.Results.Exclude;
-			clusters 		= p.Results.Clusters;
-			waveformWindow 	= p.Results.WaveformWindow;
-			extendedWindow 	= p.Results.ExtendedWindow;
-			minTrialLength 	= p.Results.MinTrialLength;
-			bins 			= p.Results.Bins;
-			binMethod 		= p.Results.BinMethod;
-			spikeRateWindow = p.Results.SpikeRateWindow;
-			rasterXLim 		= p.Results.RasterXLim;
-			waveformYLim	= p.Results.WaveformYLim;
-			fontSize 		= p.Results.FontSize;
-			printMode 		= p.Results.PrintMode;
-			frameRate 		= p.Results.FrameRate;
-			hFigure 		= p.Results.Fig;
+			iChannel 			= p.Results.Channel;
+			reference 			= p.Results.Reference;
+			event 				= p.Results.Event;
+			exclude 			= p.Results.Exclude;
+			clusters 			= p.Results.Clusters;
+			referenceCluster	= p.Results.ReferenceCluster;
+			waveformWindow 		= p.Results.WaveformWindow;
+			extendedWindow 		= p.Results.ExtendedWindow;
+			minTrialLength 		= p.Results.MinTrialLength;
+			bins 				= p.Results.Bins;
+			binMethod 			= p.Results.BinMethod;
+			spikeRateWindow 	= p.Results.SpikeRateWindow;
+			rasterXLim 			= p.Results.RasterXLim;
+			waveformYLim		= p.Results.WaveformYLim;
+			fontSize 			= p.Results.FontSize;
+			printMode 			= p.Results.PrintMode;
+			frameRate 			= p.Results.FrameRate;
+			hFigure 			= p.Results.Fig;
 
 			allChannels = [obj.Spikes.Channel];
 			if isempty(iChannel)
@@ -1894,7 +1901,7 @@ classdef TetrodeRecording < handle
 			else
 				hFigure	= figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'GraphicsSmoothing', 'on');
 				hFigure.UserData.PlotMean = true;
-				hFigure.UserData.ReferenceCluster = [];
+				hFigure.UserData.ReferenceCluster = referenceCluster;
 			end
 			hFigure.UserData.SelectedSampleIndex = []; % Selectively plot waveforms by sampleIndex. Reset everytime.
 			hFigure.Name = displayName;
@@ -1902,7 +1909,8 @@ classdef TetrodeRecording < handle
 			if printMode
 				fontSize = 14;
 				hFigure.Units = 'pixels';
-				hFigure.InnerPosition = [0, 0, 1332, 999];
+				% hFigure.InnerPosition = [0, 0, 1332, 999];
+				hFigure.InnerPosition = [0, 0, 1776, 999];
 			end
 			set(hFigure, 'DefaultAxesFontSize', fontSize);
 
@@ -2153,7 +2161,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Clusters', [], @isnumeric);
 			addParameter(p, 'ReferenceCluster', [], @isnumeric);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
-			addParameter(p, 'WaveformYLim', [-200, 200], @isnumeric);
+			addParameter(p, 'WaveformYLim', [-200, 200], @(x) isnumeric(x) || ischar(x));
 			addParameter(p, 'FontSize', 8, @isnumeric);
 			addParameter(p, 'FrameRate', 0, @isnumeric);
 			addParameter(p, 'PlotMean', true, @islogical);
