@@ -1,5 +1,6 @@
 classdef TetrodeRecording < handle
 	properties
+		System = ''
 		Files = []
 		Path = []
 		Part = [1, 1]
@@ -16,6 +17,8 @@ classdef TetrodeRecording < handle
 		Amplifier
 		BoardDigIn
 		BoardADC
+		NEV
+		NSx
 	end
 
 	%----------------------------------------------------
@@ -51,7 +54,14 @@ classdef TetrodeRecording < handle
 		end
 
 		function SelectFiles(obj)
-			[obj.Files, obj.Path, ~] = uigetfile('*.rhd', 'Select an RHD2000 Data File', 'MultiSelect', 'on');
+			[obj.Files, obj.Path, filterindex] = uigetfile({'*.nev; *.ns*; *.ccf', 'Blackrock Files (*.nev, *.ns*, *.ccf)'; '*.rhd', 'Intan RHD2000 Files (*.rhd)'}, 'Select files', 'MultiSelect', 'on');
+			switch filterindex
+				case 1
+					obj.System = 'Blackrock';
+				case 2
+					obj.System = 'Intan';
+			end
+				
 		end
 
 		function ReadFiles(obj, varargin)
@@ -79,28 +89,37 @@ classdef TetrodeRecording < handle
 			files = obj.Files;
 			numChunks = ceil(length(files)/chunkSize);
 
-			for iChunk = 1:numChunks
-				TetrodeRecording.TTS(['Processing chunk ', num2str(iChunk), '/', num2str(numChunks), ':\n']);
-				obj.ReadRHD(obj.Files((iChunk - 1)*chunkSize + 1:min(iChunk*chunkSize, length(obj.Files))))
-				obj.MapChannels();
-                if substractMean
-                    obj.SubstractMean();
-                end
-                if removeTransient
-					obj.RemoveTransient();
-				end
-				if isempty(channels)
-					channels = obj.MapChannelID([obj.Amplifier.Channels.NativeOrder]);
-				end
-				obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', iChunk > 1);
-				obj.GetDigitalData('ChannelLabels', digitalChannels, 'Append', iChunk > 1);
-				obj.GetAnalogData('ChannelLabels', analogChannels, 'Append', iChunk > 1);
-				obj.ClearCache();
+			switch lower(obj.System)
+				case 'intan'
+					for iChunk = 1:numChunks
+						TetrodeRecording.TTS(['Processing chunk ', num2str(iChunk), '/', num2str(numChunks), ':\n']);
+						obj.ReadIntan(obj.Files((iChunk - 1)*chunkSize + 1:min(iChunk*chunkSize, length(obj.Files))))
+						obj.MapChannels('HeadstageType', 'Intan');
+						if substractMean
+							obj.SubstractMean();
+						end
+						if removeTransient
+							obj.RemoveTransient();
+						end
+						if isempty(channels)
+							channels = obj.MapChannelID([obj.Amplifier.Channels.NativeOrder]);
+						end
+						obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', iChunk > 1);
+						obj.GetDigitalData('ChannelLabels', digitalChannels, 'Append', iChunk > 1);
+						obj.GetAnalogData('ChannelLabels', analogChannels, 'Append', iChunk > 1);
+						obj.ClearCache();
+					end
+					obj.GetDigitalEvents(true);
+				case 'blackrock'
+					obj.ReadBlackrock('DigitalChannels', {'Lever', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7});
+					obj.MapChannels('HeadstageType', 'BlackRock');
+					obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
+					obj.ClearCache();
 			end
-			obj.GetDigitalEvents(true);
+
 		end
 
-		function ReadRHD(obj, files)
+		function ReadIntan(obj, files)
 			TetrodeRecording.TTS(['	Loading data:\n'])
 			for iFile = 1:length(files)
 				filename = [obj.Path, files{iFile}];
@@ -484,6 +503,55 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 		end
 
+		function ReadBlackrock(obj, varargin)
+			p = inputParser;
+			addParameter(p, 'DigitalChannels', {'Lever', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7}, @iscell); % {'Lever', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7}
+			parse(p, varargin{:});
+			digitalChannels = p.Results.DigitalChannels;
+
+			tic, TetrodeRecording.TTS(['	Loading data...'])
+			% Load NEV
+			isNEV = contains(obj.Files, '.nev'); 
+			if nnz(isNEV) == 1
+				obj.NEV = openNEV(obj.Files{isNEV}, 'nosave', 'nomat');
+			elseif nnz(isNEV) > 1
+				warning('More than one NEV file specified so none will be loaded. Digital events might be missing.')
+			else
+				warning('No NEV file loaded. Digital events might be missing.')
+			end
+
+			% Load NSx
+			isNSx = contains(obj.Files, '.ns'); 
+			if nnz(isNSx) == 1
+				obj.NSx = openNSx(obj.Files{isNSx});
+			elseif nnz(isNSx) > 1
+				warning('More than one NSx file specified so none will be loaded.')
+			else
+				warning('No NSx file specified.')
+			end
+			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
+
+			% Process amplifier data
+			sampleRate = obj.NSx.MetaTags.SamplingFreq; obj.FrequencyParameters.AmplifierSampleRate = sampleRate;
+			numSamples = obj.NSx.MetaTags.DataPoints;
+
+			obj.Amplifier.NumSamples = numSamples;
+			obj.Amplifier.Timestamps = (0:(numSamples - 1))/sampleRate;
+			obj.Amplifier.Data = obj.NSx.Data;
+
+			obj.NSx.Data = [];
+
+			% Parse digital events
+			digitalData = flip(dec2bin(obj.NEV.Data.SerialDigitalIO.UnparsedData), 2);
+			digitalTimestamps = obj.NEV.Data.SerialDigitalIO.TimeStampSec;
+
+			for iChannel = 1:size(digitalChannels, 1)
+				iBit = digitalChannels{iChannel, 2} + 1;
+				channelName = digitalChannels{iChannel, 1};
+				[obj.DigitalEvents.([channelName, 'On']), obj.DigitalEvents.([channelName, 'Off'])] = obj.FindEdges(transpose(digitalData(:, iBit)), digitalTimestamps);
+			end
+		end
+
 		% Used to preview a small portion of loaded data. Will remove used data from workspace.
 		function TrimData(obj, numSamples)
 			obj.BoardDigIn.NumSamples = numSamples;
@@ -495,37 +563,49 @@ classdef TetrodeRecording < handle
 		end
 
 		% Amplifier data arranged in tetrode order (i.e., first four elements in array is first tetrode)
-		function MapChannels(obj, EIBMap, headstageType)
+		function MapChannels(obj, varargin)
+			p = inputParser;
+			addParameter(p, 'EIBMap', [], @isnumeric);
+			addParameter(p, 'HeadstageType', 'intan', @ischar);
+			parse(p, varargin{:});
+			EIBMap 			= p.Results.EIBMap;
+			headstageType 	= p.Results.HeadstageType;
+
 			tic, TetrodeRecording.TTS('	Remapping amplifier channels in tetrode order...');
 
-			if nargin < 3
-				headstageType = 'intan';
-			end
-			if nargin < 2
+			if isempty(EIBMap)
 				EIBMap = [15, 13, 11, 9, 7, 5, 3, 1, 2, 4, 6, 8, 10, 12, 14, 16];
 				EIBMap = [EIBMap, EIBMap + 16];
 				[~, EIBMap] = sort(EIBMap);
 			end
 
-			switch headstageType
+			switch lower(headstageType)
 				case 'intan'
 					HSMap = [25:32, 1:8, 24:-1:9];
-				case 'open ephys'
+				case 'openephys'
 					HSMap = [26, 25, 27, 28, 29, 30, 31, 1, 32, 3, 2, 5, 4, 7, 6, 8, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9];
+				case 'blackrock'
+					HSMap = [2:2:32, 1:2:31];
 				otherwise
 					error('Unrecognized headstage type.'); 
 			end
 
 			tetrodeMap = HSMap(EIBMap);
-			recordedChannels = [obj.Amplifier.Channels.NativeOrder] + 1;
+
+			switch lower(obj.System)
+				case 'intan'
+					recordedChannels = [obj.Amplifier.Channels.NativeOrder] + 1;
+				case 'blackrock'
+					recordedChannels = [obj.NSx.ElectrodesInfo.ElectrodeID];					
+			end
 			
-			obj.Amplifier.DataMapped = NaN(32, size(obj.Amplifier.Data, 2));
+			% obj.Amplifier.DataMapped = NaN(32, size(obj.Amplifier.Data, 2));
 			iChn = 0;
 			for targetChannel = tetrodeMap
 				iChn = iChn + 1;
 				sourceChannel = find(recordedChannels == targetChannel, 1);
 				if ~isempty(sourceChannel)
-					obj.Amplifier.DataMapped(iChn, :) = obj.Amplifier.Data(sourceChannel, :);
+					obj.Amplifier.DataMapped(iChn, 1:size(obj.Amplifier.Data, 2)) = obj.Amplifier.Data(sourceChannel, :);
 				end
 			end
 			obj.ChannelMap.ElectrodeInterfaceBoard = EIBMap;
@@ -3066,7 +3146,11 @@ classdef TetrodeRecording < handle
 		end
 
 		function [eventOn, eventOff] = FindEdges(event, t)
-			grad = diff([0, event]);
+			if ischar(event)
+				grad = diff(['0', event]);
+			else
+				grad = diff([0, event]);
+			end
 			eventOn = grad == 1;
 			eventOff = grad == -1;
 
@@ -3176,7 +3260,10 @@ classdef TetrodeRecording < handle
 				'Rocking, rocking and rolling. Down to the beach I''m strolling. But the seagulls poke at my head, not fun! I said "Seagulls... mmgh! Stop it now!"',...
 				'Some day when you are older you could get hit by a boulder. While you''re lying there screaming come help me please, the seagulls come poke your knees.',...
 				'Even though it looks like it''s the future. It''s really a long long time ago when there were knights and they got into fights using sabres of light!"',...
-				'Twenty nights in the ice is a long time when there''s hostiles on the hill. It''s not about what they want, you just gotta walk your walk.'...
+				'Twenty nights in the ice is a long time when there''s hostiles on the hill. It''s not about what they want, you just gotta walk your walk.',...
+				'They''ve got the ultimate power in the universe. Before it gets better it''s getting worse.',...
+				'It''s not a satellite but it can light up the sky when it blows. Evil comes in round shapes.',...
+				'I don''t care what you said to the man with the black head. Where is the rubber band? You''re ruining my plan!'...
 			};
 			TetrodeRecording.TTS([words{randi(length(words))}, '\n'], true)
 		end
