@@ -94,7 +94,7 @@ classdef TetrodeRecording < handle
 					for iChunk = 1:numChunks
 						TetrodeRecording.TTS(['Processing chunk ', num2str(iChunk), '/', num2str(numChunks), ':\n']);
 						obj.ReadIntan(obj.Files((iChunk - 1)*chunkSize + 1:min(iChunk*chunkSize, length(obj.Files))))
-						obj.MapChannels('HeadstageType', 'Intan');
+						obj.GenerateChannelMap('HeadstageType', 'Intan');
 						if substractMean
 							obj.SubstractMean();
 						end
@@ -112,7 +112,7 @@ classdef TetrodeRecording < handle
 					obj.GetDigitalEvents(true);
 				case 'blackrock'
 					obj.ReadBlackrock('DigitalChannels', {'Lever', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7});
-					obj.MapChannels('HeadstageType', 'BlackRock');
+					obj.GenerateChannelMap('HeadstageType', 'BlackRock');
 					obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
 					obj.ClearCache();
 			end
@@ -563,7 +563,7 @@ classdef TetrodeRecording < handle
 		end
 
 		% Amplifier data arranged in tetrode order (i.e., first four elements in array is first tetrode)
-		function MapChannels(obj, varargin)
+		function GenerateChannelMap(obj, varargin)
 			p = inputParser;
 			addParameter(p, 'EIBMap', [], @isnumeric);
 			addParameter(p, 'HeadstageType', 'intan', @ischar);
@@ -592,27 +592,27 @@ classdef TetrodeRecording < handle
 
 			tetrodeMap = HSMap(EIBMap);
 
-			switch lower(obj.System)
-				case 'intan'
-					recordedChannels = [obj.Amplifier.Channels.NativeOrder] + 1;
-				case 'blackrock'
-					recordedChannels = [obj.NSx.ElectrodesInfo.ElectrodeID];					
-			end
+			% switch lower(obj.System)
+			% 	case 'intan'
+			% 		recordedChannels = [obj.Amplifier.Channels.NativeOrder] + 1;
+			% 	case 'blackrock'
+			% 		recordedChannels = [obj.NSx.ElectrodesInfo.ElectrodeID];					
+			% end
 			
 			% obj.Amplifier.DataMapped = NaN(32, size(obj.Amplifier.Data, 2));
-			iChn = 0;
-			for targetChannel = tetrodeMap
-				iChn = iChn + 1;
-				sourceChannel = find(recordedChannels == targetChannel, 1);
-				if ~isempty(sourceChannel)
-					obj.Amplifier.DataMapped(iChn, 1:size(obj.Amplifier.Data, 2)) = obj.Amplifier.Data(sourceChannel, :);
-				end
-			end
+			% iChn = 0;
+			% for targetChannel = tetrodeMap
+			% 	iChn = iChn + 1;
+			% 	sourceChannel = find(recordedChannels == targetChannel, 1);
+			% 	if ~isempty(sourceChannel)
+			% 		obj.Amplifier.DataMapped(iChn, 1:size(obj.Amplifier.Data, 2)) = obj.Amplifier.Data(sourceChannel, :);
+			% 	end
+			% end
 			obj.ChannelMap.ElectrodeInterfaceBoard = EIBMap;
 			obj.ChannelMap.Headstage = HSMap;
 			obj.ChannelMap.Tetrode = tetrodeMap;
-			obj.Amplifier.Data = obj.Amplifier.DataMapped; 
-			obj.Amplifier = rmfield(obj.Amplifier, 'DataMapped');
+			% obj.Amplifier.Data = obj.Amplifier.DataMapped; 
+			% obj.Amplifier = rmfield(obj.Amplifier, 'DataMapped');
 			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 		end
 
