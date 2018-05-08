@@ -30,10 +30,12 @@ classdef TetrodeRecording < handle
 
 		function Preview(obj, varargin)
 			p = inputParser;
+			addParameter(p, 'Duration', [300, 330], @isnumeric); % start:stop in seconds
 			addParameter(p, 'Channels', [], @isnumeric);
 			addParameter(p, 'ChunkSize', 10, @isnumeric);
 			addParameter(p, 'HideResults', false, @islogical);
 			parse(p, varargin{:});
+			duration 		= p.Results.Duration;
 			channels 		= p.Results.Channels;
 			chunkSize 		= p.Results.ChunkSize;
 			hideResults 	= p.Results.HideResults;
@@ -41,7 +43,7 @@ classdef TetrodeRecording < handle
 			if isempty(obj.Path)
 				obj.SelectFiles();
 			end
-			obj.ReadFiles(chunkSize, 'Channels', channels, 'NumSigmas', 4, 'WaveformWindow', [-0.5, 0.5]);
+			obj.ReadFiles(chunkSize, 'Duration', duration, 'Channels', channels, 'NumSigmas', 4, 'WaveformWindow', [-0.5, 0.5]);
 			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
 			if ~hideResults
 				obj.PlotAllChannels();
@@ -67,21 +69,25 @@ classdef TetrodeRecording < handle
 		function ReadFiles(obj, varargin)
 			p = inputParser;
 			addOptional(p, 'ChunkSize', 2, @isnumeric);
+			addParameter(p, 'Duration', [], @isnumeric); % [0, 60] to read 0 - 60 seconds of data. For blackrock only
 			addParameter(p, 'SubstractMean', true, @islogical);
 			addParameter(p, 'RemoveTransient', true, @islogical);
 			addParameter(p, 'DigitalChannels', {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}, @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}
 			addParameter(p, 'AnalogChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'AccX', 1; 'AccY', 2; 'AccZ', 3;}
 			addParameter(p, 'Channels', [], @isnumeric);
+			addParameter(p, 'ChannelsToRead', [], @isnumeric);
 			addParameter(p, 'NumSigmas', 4, @isnumeric);
 			addParameter(p, 'Direction', 'negative', @ischar);
 			addParameter(p, 'WaveformWindow', [-1.25, 1.25], @isnumeric);
 			parse(p, varargin{:});
 			chunkSize 		= p.Results.ChunkSize;
+			duration 		= p.Results.Duration;
 			substractMean 	= p.Results.SubstractMean;
 			removeTransient = p.Results.RemoveTransient;
 			digitalChannels = p.Results.DigitalChannels;
 			analogChannels 	= p.Results.AnalogChannels;
 			channels 		= p.Results.Channels;
+			channelsToRead	= p.Results.ChannelsToRead;
 			numSigmas 		= p.Results.NumSigmas;
 			direction 		= p.Results.Direction;
 			waveformWindow 	= p.Results.WaveformWindow;
@@ -93,8 +99,8 @@ classdef TetrodeRecording < handle
 				case 'intan'
 					for iChunk = 1:numChunks
 						TetrodeRecording.TTS(['Processing chunk ', num2str(iChunk), '/', num2str(numChunks), ':\n']);
-						obj.ReadIntan(obj.Files((iChunk - 1)*chunkSize + 1:min(iChunk*chunkSize, length(obj.Files))))
 						obj.GenerateChannelMap('HeadstageType', 'Intan');
+						obj.ReadIntan(obj.Files((iChunk - 1)*chunkSize + 1:min(iChunk*chunkSize, length(obj.Files))))
 						if substractMean
 							obj.SubstractMean();
 						end
@@ -111,15 +117,14 @@ classdef TetrodeRecording < handle
 					end
 					obj.GetDigitalEvents(true);
 				case 'blackrock'
-					obj.ReadBlackrock('DigitalChannels', {'Press', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7});
 					obj.GenerateChannelMap('HeadstageType', 'BlackRock');
+					obj.ReadBlackrock('Channels', channelsToRead, 'DigitalChannels', {'Press', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7}, 'Duration', duration);
 					if isempty(channels)
 						channels = obj.MapChannel_RawToTetrode([obj.NSx.ElectrodesInfo.ElectrodeID]);
 					end
 					obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
 					obj.ClearCache();
 			end
-
 		end
 
 		function ReadIntan(obj, files)
@@ -508,15 +513,38 @@ classdef TetrodeRecording < handle
 
 		function ReadBlackrock(obj, varargin)
 			p = inputParser;
+			addParameter(p, 'Channels', [], @isnumeric);
 			addParameter(p, 'DigitalChannels', {'Lever', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7}, @iscell); % {'Lever', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7}
+			addParameter(p, 'Duration', [], @isnumeric); % [0, 60] seconds
 			parse(p, varargin{:});
+			channels 		= p.Results.Channels;
 			digitalChannels = p.Results.DigitalChannels;
+			duration 		= p.Results.Duration;
+
+			if ~isempty(duration) && length(duration) == 2
+				duration = ['t:', num2str(duration(1)), ':', num2str(duration(2))];
+			else
+				duration = [];
+			end
 
 			tic, TetrodeRecording.TTS(['	Loading data...'])
 			% Load NEV
 			isNEV = contains(obj.Files, '.nev'); 
 			if nnz(isNEV) == 1
-				obj.NEV = openNEV(obj.Files{isNEV}, 'nosave', 'nomat');
+				filename = [obj.Path, obj.Files{isNEV}];
+				if isempty(channels)
+					if isempty(duration)
+						obj.NEV = openNEV(filename, 'nosave', 'nomat');
+					else
+						obj.NEV = openNEV(filename, 'nosave', 'nomat', duration);
+					end
+				else
+					if isempty(duration)
+						obj.NEV = openNEV(filename, 'nosave', 'nomat', 'channels', channels);
+					else
+						obj.NEV = openNEV(filename, 'nosave', 'nomat', 'channels', channels, duration);
+					end
+				end
 			elseif nnz(isNEV) > 1
 				warning('More than one NEV file specified so none will be loaded. Digital events might be missing.')
 			else
@@ -526,7 +554,20 @@ classdef TetrodeRecording < handle
 			% Load NSx
 			isNSx = contains(obj.Files, '.ns'); 
 			if nnz(isNSx) == 1
-				obj.NSx = openNSx(obj.Files{isNSx});
+				filename = [obj.Path, obj.Files{isNSx}];
+				% if isempty(channels)
+					if isempty(duration)
+						obj.NSx = openNSx(filename);
+					else
+						obj.NSx = openNSx(filename, duration, 'sec');
+					end
+				% else
+				% 	if isempty(duration)
+				% 		obj.NSx = openNSx(filename, 'channels', channels);
+				% 	else
+				% 		obj.NSx = openNSx(filename, 'channels', channels, duration, 'sec');
+				% 	end
+				% end
 			elseif nnz(isNSx) > 1
 				warning('More than one NSx file specified so none will be loaded.')
 			else
@@ -535,7 +576,8 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 
 			% Process amplifier data
-			sampleRate = obj.NSx.MetaTags.SamplingFreq; obj.FrequencyParameters.AmplifierSampleRate = sampleRate;
+			sampleRate = obj.NSx.MetaTags.SamplingFreq;
+			obj.FrequencyParameters.AmplifierSampleRate = sampleRate;
 			numSamples = obj.NSx.MetaTags.DataPoints;
 
 			obj.Amplifier.NumSamples = numSamples;
@@ -597,27 +639,9 @@ classdef TetrodeRecording < handle
 
 			tetrodeMap = HSMap(EIBMap);
 
-			% switch lower(obj.System)
-			% 	case 'intan'
-			% 		recordedChannels = [obj.Amplifier.Channels.NativeOrder] + 1;
-			% 	case 'blackrock'
-			% 		recordedChannels = [obj.NSx.ElectrodesInfo.ElectrodeID];					
-			% end
-			
-			% obj.Amplifier.DataMapped = NaN(32, size(obj.Amplifier.Data, 2));
-			% iChn = 0;
-			% for targetChannel = tetrodeMap
-			% 	iChn = iChn + 1;
-			% 	sourceChannel = find(recordedChannels == targetChannel, 1);
-			% 	if ~isempty(sourceChannel)
-			% 		obj.Amplifier.DataMapped(iChn, 1:size(obj.Amplifier.Data, 2)) = obj.Amplifier.Data(sourceChannel, :);
-			% 	end
-			% end
 			obj.ChannelMap.ElectrodeInterfaceBoard = EIBMap;
 			obj.ChannelMap.Headstage = HSMap;
 			obj.ChannelMap.Tetrode = tetrodeMap;
-			% obj.Amplifier.Data = obj.Amplifier.DataMapped; 
-			% obj.Amplifier = rmfield(obj.Amplifier, 'DataMapped');
 			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 		end
 
@@ -630,7 +654,7 @@ classdef TetrodeRecording < handle
 		% Convert tetrode id to raw channel id
 		function rawChannel = MapChannel_TetrodeToRaw(obj, tetrodeChannel)
 			rawChannel = obj.ChannelMap.Headstage(obj.ChannelMap.ElectrodeInterfaceBoard(tetrodeChannel));
-		end
+        end
 
 		% Convert tetrode id to row index in raw data
 		function rawChannel = MapChannel_TetrodeToRecorded(obj, tetrodeChannel)
@@ -735,9 +759,6 @@ classdef TetrodeRecording < handle
 				end
 			end
 
-			% Blackrock stores raw data as int16, this might cause problems with processing later
-			waveforms = double(waveforms);
-
 			% Output
 			varargout = {waveforms, t, timestamps, sampleIndex};
 		end
@@ -829,8 +850,8 @@ classdef TetrodeRecording < handle
 				alignmentShift = i(maxIndex);
 				[waveforms, t, timestamps, sampleIndex] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex + alignmentShift, 'IndexType', 'SampleIndex');
 
-				% Compress data
-				waveforms = int16(waveforms);
+				% Doubly data
+				waveforms = double(waveforms);
 
 				% Store data
 				if ~append
@@ -1139,6 +1160,11 @@ classdef TetrodeRecording < handle
 			tic, TetrodeRecording.TTS(['	Clustering (', methodDisplayName, '):\n']);
 			for iChannel = channels
 				numWaveforms = size(obj.Spikes(iChannel).Waveforms, 1);
+
+				if numWaveforms == 0
+					continue
+				end
+
 				if isempty(clusters)
 					selected = true(1, numWaveforms);
 				else
@@ -1861,7 +1887,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'MaxShown', 200, @isnumeric);
 			addParameter(p, 'Fontsize', 8, @isnumeric);
 			addParameter(p, 'PlotMethod', 'all', @ischar); % 'all', 'mean'
-			addParameter(p, 'YLim', [-400, 400], @(x) isnumeric(x) || ischar(x));
+			addParameter(p, 'YLim', [-400, 400], @(x) isnumeric(x) || ischar(x)); % [-200, 200], or 'auto'
 			parse(p, varargin{:});
 			channels 		= p.Results.Channels;
 			percentShown 	= p.Results.PercentShown;
@@ -1882,6 +1908,10 @@ classdef TetrodeRecording < handle
 			hAxes = gobjects(1, 35);
 
 			for iChannel = channels
+				if isempty(obj.Spikes(iChannel).Waveforms)
+					continue
+				end
+
 				hAxes(iChannel)	= subplot(5, 7, iChannel);
 				hAxes(iChannel).UserData.Channel = iChannel;
 				hAxes(iChannel).ButtonDownFcn = @obj.OnAxesClicked;
@@ -3014,18 +3044,35 @@ classdef TetrodeRecording < handle
 			dirs = dirs(isfolder(dirs));
 			for iDir = 1:length(dirs)
 				files = dir([dirs{iDir}, '\*.rhd']);
-				stepSize = round(length(files)/6);
-				files = {files(stepSize:stepSize:5*stepSize).name};
+				if ~isempty(files)
+					stepSize = round(length(files)/6);
+					files = {files(stepSize:stepSize:5*stepSize).name};
+					sysName = 'Intan';
+				else
+					files = dir([dirs{iDir}, '\*.nev']);
+					if ~isempty(files)
+						filename = strsplit(dirs{iDir}, '\');
+						filename = filename{end};
+						filenameNEV = [filename, '.nev'];
+						filenameNSx = [filename, '.ns5'];
+						files = {filenameNEV, filenameNSx};
+						sysName = 'Blackrock';
+					else
+						warning(['No blackrock/intan files found in folder (', dirs{iDir}, ').'])
+						continue
+					end
+				end
 				previewObj(iDir) = TetrodeRecording();
+				previewObj(iDir).System = sysName;
 				previewObj(iDir).Path = [dirs{iDir}, '\'];
 				previewObj(iDir).Files = files;
 				previewObj(iDir).Preview('HideResults', true);
 			end
 			for iDir = 1:length(dirs)
-				previewObj(iDir).PlotAllChannels();
+				previewObj(iDir).PlotAllChannels('YLim', [-1000, 1000]);
 				previewObj(iDir).ClearCache();
 			end
-			TetrodeRecording.RandomWords();
+			% TetrodeRecording.RandomWords();
 		end
 
 		function BatchProcess(previewObj, varargin)
@@ -3052,19 +3099,42 @@ classdef TetrodeRecording < handle
 			allPaths = {previewObj.Path};
 			for iDir = 1:length(selectedChannels)
 				channels = selectedChannels{iDir};
+				switch lower(previewObj(iDir).System)
+					case 'intan'
+						channelsToRead = []; % not needed for intan, all channels are read anyway
+					case 'blackrock'
+						channelsToRead = previewObj(iDir).MapChannel_TetrodeToRecorded(channels);
+				end
 				if ~isempty(channels)
-					TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels, numSigmas, waveformWindow, featureMethod, clusterMethod, dimension, prefix);
+					TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels, channelsToRead, numSigmas, waveformWindow, featureMethod, clusterMethod, dimension, prefix);
 				end
 			end
 			TetrodeRecording.RandomWords();
 		end
 
-		function ProcessFolder(thisPath, chunkSize, channels, numSigmas, waveformWindow, featureMethod, clusterMethod, dimension, prefix)
+		function ProcessFolder(thisPath, chunkSize, channels, channelsToRead, numSigmas, waveformWindow, featureMethod, clusterMethod, dimension, prefix)
 			tr = TetrodeRecording();
 			tr.Path = thisPath;
 			files = dir([tr.Path, '*.rhd']);
-			tr.Files = {files.name};
-			tr.ReadFiles(chunkSize, 'Channels', channels, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow);
+			if ~isempty(files)
+				tr.System = 'Intan';
+				tr.Files = {files.name};
+			else
+				files = dir([tr.Path, '*.nev']);
+				if ~isempty(files)
+					filename = strsplit(tr.Path, '\');
+					filename = filename{end - 1};
+					filenameNEV = [filename, '.nev'];
+					filenameNSx = [filename, '.ns5'];
+					tr.Files = {filenameNEV, filenameNSx};
+					tr.System = 'Blackrock';
+				else
+					warning(['No blackrock/intan files found in folder (', tr.Path, ').'])
+					return
+				end
+			end
+
+			tr.ReadFiles(chunkSize, 'Channels', channels, 'ChannelsToRead', channelsToRead, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow);
 			tr.SpikeSort(channels, 'FeatureMethod', featureMethod, 'ClusterMethod', clusterMethod, 'Dimension', dimension);
 			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false, 'MaxChannels', 5);
 		end
