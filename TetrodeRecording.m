@@ -102,7 +102,7 @@ classdef TetrodeRecording < handle
 							obj.RemoveTransient();
 						end
 						if isempty(channels)
-							channels = obj.MapChannelID([obj.Amplifier.Channels.NativeOrder]);
+							channels = obj.MapChannel_RawToTetrode([obj.Amplifier.Channels.NativeOrder] + 1);
 						end
 						obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', iChunk > 1);
 						obj.GetDigitalData('ChannelLabels', digitalChannels, 'Append', iChunk > 1);
@@ -113,8 +113,11 @@ classdef TetrodeRecording < handle
 				case 'blackrock'
 					obj.ReadBlackrock('DigitalChannels', {'Lever', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7});
 					obj.GenerateChannelMap('HeadstageType', 'BlackRock');
+					if isempty(channels)
+						channels = obj.MapChannel_RawToTetrode([obj.NSx.ElectrodesInfo.ElectrodeID]);
+					end
 					obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
-					obj.ClearCache();
+					% obj.ClearCache();
 			end
 
 		end
@@ -617,11 +620,17 @@ classdef TetrodeRecording < handle
 		end
 
 		% Convert zero-based raw channel id to remapped tetrode id
-		function tetrodeChannel = MapChannelID(obj, rawChannel)
+		function tetrodeChannel = MapChannel_RawToTetrode(obj, rawChannel)
+			% TODO: There must be a more Elegant way of doing this YOU INSUFFERABLE FOOL
 			tetrodeChannel = [];
 			for iChannel = rawChannel
-				tetrodeChannel = [tetrodeChannel, find(obj.ChannelMap.Tetrode == (iChannel + 1))];
+				tetrodeChannel = [tetrodeChannel, find(obj.ChannelMap.Tetrode == iChannel)];
 			end
+		end
+
+		% Convert tetrode id to raw channel id
+		function rawChannel = MapChannel_TetrodeToRaw(obj, tetrodeChannel)
+			rawChannel = obj.ChannelMap.Headstage(tetrodeChannel);
 		end
 
 		% Substract by 32 chn mean
@@ -673,10 +682,10 @@ classdef TetrodeRecording < handle
 			addOptional(p, 'Index', NaN, @isnumeric);
 			addParameter(p, 'IndexType', 'SampleIndex', @ischar);
 			parse(p, channel, waveformWindow, varargin{:});
-			channel = p.Results.Channel;
-			waveformWindow = p.Results.WaveformWindow;
-			index = p.Results.Index;
-			indexType = p.Results.IndexType;
+			channel 		= p.Results.Channel;
+			waveformWindow 	= p.Results.WaveformWindow;
+			index 			= p.Results.Index;
+			indexType 		= p.Results.IndexType;
 
 			if length(index) == 1 && isnan(index)
 				index = obj.Spikes(channel).SampleIndex;
@@ -707,9 +716,9 @@ classdef TetrodeRecording < handle
 			for iWaveform = 1:length(sampleIndex)
 				iQuery = sampleIndex(iWaveform) + i;
 				if (sum(rem(iQuery, 1) == 0) == length(iQuery)) && min(iQuery) > 0 && max(iQuery) <= size(obj.Amplifier.Data, 2)
-					waveforms(iWaveform, :) = obj.Amplifier.Data(channel, iQuery);
+					waveforms(iWaveform, :) = obj.Amplifier.Data(obj.MapChannel_TetrodeToRaw(channel), iQuery);
 				else
-					waveforms(iWaveform, :) = interp1(1:size(obj.Amplifier.Data, 2), obj.Amplifier.Data(channel, :), iQuery, 'pchip', NaN);
+					waveforms(iWaveform, :) = interp1(1:size(obj.Amplifier.Data, 2), obj.Amplifier.Data(obj.MapChannel_TetrodeToRaw(channel), :), iQuery, 'pchip', NaN);
 				end
 			end
 
@@ -773,23 +782,25 @@ classdef TetrodeRecording < handle
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
 
 			for iChannel = channels
+				iChannelRaw = obj.MapChannel_TetrodeToRaw(iChannel);
+
 				% Auto-threshold for spikes
 				% median(abs(x))/0.6745 is a better estimation of noise amplitude than std() when there are spikes -- Quiroga, 2004
-				threshold = numSigmas*nanmedian(abs(obj.Amplifier.Data(iChannel, :)))/0.6745;
+				threshold = numSigmas*nanmedian(abs(obj.Amplifier.Data(iChannelRaw, :)))/0.6745;
 				switch lower(directionMode)
 					case 'negative'
 						direction = -1;
 					case 'positive'
 						direction = 1;
 					case 'auto'
-						direction = sign(median(obj.Amplifier.Data(iChannel, abs(obj.Amplifier.Data(iChannel, :)) > 1.5*threshold))); % Check if spikes are positive or negative
+						direction = sign(median(obj.Amplifier.Data(iChannelRaw, abs(obj.Amplifier.Data(iChannelRaw, :)) > 1.5*threshold))); % Check if spikes are positive or negative
 					otherwise
 						error(['Unrecognized spike detection mode ''', directionMode, '''.'])
 				end
 				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), ' (', num2str(char(952)), ' = ', num2str(numSigmas), num2str(char(963)), ' = ', num2str(direction*threshold), ')...']);
 				
 				% Find spikes
-				[~, sampleIndex] = findpeaks(direction*obj.Amplifier.Data(iChannel, :), 'MinPeakHeight', threshold, 'MinPeakProminence', threshold);
+				[~, sampleIndex] = findpeaks(direction*obj.Amplifier.Data(iChannelRaw, :), 'MinPeakHeight', threshold, 'MinPeakProminence', threshold);
 
 				% Extract waveforms
 				[waveforms, t] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex, 'IndexType', 'SampleIndex');
