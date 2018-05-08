@@ -99,8 +99,8 @@ classdef TetrodeRecording < handle
 				case 'intan'
 					for iChunk = 1:numChunks
 						TetrodeRecording.TTS(['Processing chunk ', num2str(iChunk), '/', num2str(numChunks), ':\n']);
-						obj.GenerateChannelMap('HeadstageType', 'Intan');
 						obj.ReadIntan(obj.Files((iChunk - 1)*chunkSize + 1:min(iChunk*chunkSize, length(obj.Files))))
+						obj.GenerateChannelMap('HeadstageType', 'Intan');
 						if substractMean
 							obj.SubstractMean();
 						end
@@ -117,8 +117,8 @@ classdef TetrodeRecording < handle
 					end
 					obj.GetDigitalEvents(true);
 				case 'blackrock'
-					obj.GenerateChannelMap('HeadstageType', 'BlackRock');
 					obj.ReadBlackrock('Channels', channelsToRead, 'DigitalChannels', {'Press', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7}, 'Duration', duration);
+					obj.GenerateChannelMap('HeadstageType', 'BlackRock');
 					if isempty(channels)
 						channels = obj.MapChannel_RawToTetrode([obj.NSx.ElectrodesInfo.ElectrodeID]);
 					end
@@ -532,18 +532,10 @@ classdef TetrodeRecording < handle
 			isNEV = contains(obj.Files, '.nev'); 
 			if nnz(isNEV) == 1
 				filename = [obj.Path, obj.Files{isNEV}];
-				if isempty(channels)
-					if isempty(duration)
-						obj.NEV = openNEV(filename, 'nosave', 'nomat');
-					else
-						obj.NEV = openNEV(filename, 'nosave', 'nomat', duration);
-					end
+				if isempty(duration)
+					obj.NEV = openNEV(filename, 'nosave', 'nomat');
 				else
-					if isempty(duration)
-						obj.NEV = openNEV(filename, 'nosave', 'nomat', 'channels', channels);
-					else
-						obj.NEV = openNEV(filename, 'nosave', 'nomat', 'channels', channels, duration);
-					end
+					obj.NEV = openNEV(filename, 'nosave', 'nomat', duration);
 				end
 			elseif nnz(isNEV) > 1
 				warning('More than one NEV file specified so none will be loaded. Digital events might be missing.')
@@ -555,19 +547,19 @@ classdef TetrodeRecording < handle
 			isNSx = contains(obj.Files, '.ns'); 
 			if nnz(isNSx) == 1
 				filename = [obj.Path, obj.Files{isNSx}];
-				% if isempty(channels)
+				if isempty(channels)
 					if isempty(duration)
 						obj.NSx = openNSx(filename);
 					else
 						obj.NSx = openNSx(filename, duration, 'sec');
 					end
-				% else
-				% 	if isempty(duration)
-				% 		obj.NSx = openNSx(filename, 'channels', channels);
-				% 	else
-				% 		obj.NSx = openNSx(filename, 'channels', channels, duration, 'sec');
-				% 	end
-				% end
+				else
+					if isempty(duration)
+						obj.NSx = openNSx(filename, 'channels', channels);
+					else
+						obj.NSx = openNSx(filename, 'channels', channels, duration, 'sec');
+					end
+				end
 			elseif nnz(isNSx) > 1
 				warning('More than one NSx file specified so none will be loaded.')
 			else
@@ -637,11 +629,19 @@ classdef TetrodeRecording < handle
 					error('Unrecognized headstage type.'); 
 			end
 
+			switch lower(obj.System)
+				case 'intan'
+					recordedChannels = [obj.Amplifier.Channels.NativeOrder] + 1;
+				case 'blackrock'
+					recordedChannels = [obj.NSx.ElectrodesInfo.ElectrodeID];					
+			end
+
 			tetrodeMap = HSMap(EIBMap);
 
 			obj.ChannelMap.ElectrodeInterfaceBoard = EIBMap;
 			obj.ChannelMap.Headstage = HSMap;
 			obj.ChannelMap.Tetrode = tetrodeMap;
+			obj.ChannelMap.Recorded = recordedChannels;
 			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 		end
 
@@ -659,15 +659,7 @@ classdef TetrodeRecording < handle
 		% Convert tetrode id to row index in raw data
 		function rawChannel = MapChannel_TetrodeToRecorded(obj, tetrodeChannel)
 			rawChannel = obj.ChannelMap.Headstage(obj.ChannelMap.ElectrodeInterfaceBoard(tetrodeChannel));
-
-			switch lower(obj.System)
-				case 'intan'
-					recordedChannels = [obj.Amplifier.Channels.NativeOrder] + 1;
-				case 'blackrock'
-					recordedChannels = [obj.NSx.ElectrodesInfo.ElectrodeID];					
-			end
-			
-			rawChannel = arrayfun(@(x) find(recordedChannels==x), rawChannel);
+			rawChannel = arrayfun(@(x) find(obj.ChannelMap.Recorded==x), rawChannel);
 		end
 
 		% Substract by 32 chn mean
@@ -3080,7 +3072,7 @@ classdef TetrodeRecording < handle
 			addRequired(p, 'Obj', @(x) isa(x, 'TetrodeRecording'));
 			addParameter(p, 'ChunkSize', 10, @isnumeric);
 			addParameter(p, 'NumSigmas', 4, @isnumeric);
-			addParameter(p, 'WaveformWindow', [-1, 1], @isnumeric);
+			addParameter(p, 'WaveformWindow', [-0.5, 0.5], @isnumeric);
 			addParameter(p, 'FeatureMethod', 'WaveletTransform', @ischar);
 			addParameter(p, 'ClusterMethod', 'kmeans', @ischar);
 			addParameter(p, 'Dimension', 10, @isnumeric);
