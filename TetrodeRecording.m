@@ -723,17 +723,20 @@ classdef TetrodeRecording < handle
 			end
 
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
-			waveforms = NaN(length(sampleIndex), 1 + round(sampleRate*(waveformWindow(2) - waveformWindow(1))));
-			t = waveformWindow(1):1/sampleRate:waveformWindow(2);
+			t = [flip(0:-1/sampleRate:waveformWindow(1)), 1/sampleRate:1/sampleRate:waveformWindow(2)];
+			waveforms = NaN(length(sampleIndex), length(t));
 			i = sampleRate*t;
 			for iWaveform = 1:length(sampleIndex)
 				iQuery = sampleIndex(iWaveform) + i;
 				if (sum(rem(iQuery, 1) == 0) == length(iQuery)) && min(iQuery) > 0 && max(iQuery) <= size(obj.Amplifier.Data, 2)
 					waveforms(iWaveform, :) = obj.Amplifier.Data(obj.MapChannel_TetrodeToRecorded(channel), iQuery);
 				else
-					waveforms(iWaveform, :) = int16(interp1(1:size(obj.Amplifier.Data, 2), double(obj.Amplifier.Data(obj.MapChannel_TetrodeToRecorded(channel), :)), iQuery, 'pchip', NaN));
+					waveforms(iWaveform, :) = interp1(1:size(obj.Amplifier.Data, 2), double(obj.Amplifier.Data(obj.MapChannel_TetrodeToRecorded(channel), :)), iQuery, 'pchip', NaN);
 				end
 			end
+
+			% Blackrock stores raw data as int16, this might cause problems with processing later
+			waveforms = double(waveforms);
 
 			% Output
 			varargout = {waveforms, t, timestamps, sampleIndex};
@@ -1955,7 +1958,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'BinMethod', 'percentile', @ischar);
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
 			addParameter(p, 'RasterXLim', [], @isnumeric);
-			addParameter(p, 'WaveformYLim', [-200, 200], @(x) isnumeric(x) || ischar(x));
+			addParameter(p, 'WaveformYLim', [], @(x) isnumeric(x) || ischar(x));
 			addParameter(p, 'FontSize', 8, @isnumeric);
 			addParameter(p, 'PrintMode', false, @islogical);
 			addParameter(p, 'FrameRate', 0, @isnumeric);
