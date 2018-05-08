@@ -78,7 +78,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'ChannelsToRead', [], @isnumeric);
 			addParameter(p, 'NumSigmas', 4, @isnumeric);
 			addParameter(p, 'Direction', 'negative', @ischar);
-			addParameter(p, 'WaveformWindow', [-0.5, 0.5], @isnumeric);
+			addParameter(p, 'WaveformWindow', [-1.25, 1.25], @isnumeric);
 			parse(p, varargin{:});
 			chunkSize 		= p.Results.ChunkSize;
 			duration 		= p.Results.Duration;
@@ -806,7 +806,7 @@ classdef TetrodeRecording < handle
 			addRequired(p, 'Channels', @isnumeric);
 			addParameter(p, 'NumSigmas', 4, @isnumeric);
 			addParameter(p, 'Direction', 'negative', @ischar);
-			addParameter(p, 'WaveformWindow', [-0.5, 0.5], @isnumeric);
+			addParameter(p, 'WaveformWindow', [-1.25, 1.25], @isnumeric);
 			addParameter(p, 'Append', false, @islogical);
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
@@ -3080,7 +3080,7 @@ classdef TetrodeRecording < handle
 			addRequired(p, 'Obj', @(x) isa(x, 'TetrodeRecording'));
 			addParameter(p, 'ChunkSize', 10, @isnumeric);
 			addParameter(p, 'NumSigmas', 4, @isnumeric);
-			addParameter(p, 'WaveformWindow', [-0.5, 0.5], @isnumeric);
+			addParameter(p, 'WaveformWindow', [-1, 1], @isnumeric);
 			addParameter(p, 'FeatureMethod', 'WaveletTransform', @ischar);
 			addParameter(p, 'ClusterMethod', 'kmeans', @ischar);
 			addParameter(p, 'Dimension', 10, @isnumeric);
