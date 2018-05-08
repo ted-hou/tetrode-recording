@@ -111,13 +111,13 @@ classdef TetrodeRecording < handle
 					end
 					obj.GetDigitalEvents(true);
 				case 'blackrock'
-					obj.ReadBlackrock('DigitalChannels', {'Lever', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7});
+					obj.ReadBlackrock('DigitalChannels', {'Press', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7});
 					obj.GenerateChannelMap('HeadstageType', 'BlackRock');
 					if isempty(channels)
 						channels = obj.MapChannel_RawToTetrode([obj.NSx.ElectrodesInfo.ElectrodeID]);
 					end
 					obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
-					% obj.ClearCache();
+					obj.ClearCache();
 			end
 
 		end
@@ -557,9 +557,11 @@ classdef TetrodeRecording < handle
 
 		% Used to preview a small portion of loaded data. Will remove used data from workspace.
 		function TrimData(obj, numSamples)
-			obj.BoardDigIn.NumSamples = numSamples;
-			obj.BoardDigIn.Timestamps = obj.BoardDigIn.Timestamps(1:numSamples);
-			obj.BoardDigIn.Data = obj.BoardDigIn.Data(:, 1:numSamples);
+			if ~isempty(obj.BoardDigIn)
+				obj.BoardDigIn.NumSamples = numSamples;
+				obj.BoardDigIn.Timestamps = obj.BoardDigIn.Timestamps(1:numSamples);
+				obj.BoardDigIn.Data = obj.BoardDigIn.Data(:, 1:numSamples);
+			end
 			obj.Amplifier.NumSamples = numSamples;
 			obj.Amplifier.Timestamps = obj.Amplifier.Timestamps(1:numSamples);
 			obj.Amplifier.Data = obj.Amplifier.Data(:, 1:numSamples);
@@ -619,18 +621,29 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 		end
 
-		% Convert zero-based raw channel id to remapped tetrode id
+		% Convert 1-based raw channel id to remapped tetrode id
 		function tetrodeChannel = MapChannel_RawToTetrode(obj, rawChannel)
 			% TODO: There must be a more Elegant way of doing this YOU INSUFFERABLE FOOL
-			tetrodeChannel = [];
-			for iChannel = rawChannel
-				tetrodeChannel = [tetrodeChannel, find(obj.ChannelMap.Tetrode == iChannel)];
-			end
+			tetrodeChannel = arrayfun(@(x) find(obj.ChannelMap.Tetrode==x), rawChannel);
 		end
 
 		% Convert tetrode id to raw channel id
 		function rawChannel = MapChannel_TetrodeToRaw(obj, tetrodeChannel)
-			rawChannel = obj.ChannelMap.Headstage(tetrodeChannel);
+			rawChannel = obj.ChannelMap.Headstage(obj.ChannelMap.ElectrodeInterfaceBoard(tetrodeChannel));
+		end
+
+		% Convert tetrode id to row index in raw data
+		function rawChannel = MapChannel_TetrodeToRecorded(obj, tetrodeChannel)
+			rawChannel = obj.ChannelMap.Headstage(obj.ChannelMap.ElectrodeInterfaceBoard(tetrodeChannel));
+
+			switch lower(obj.System)
+				case 'intan'
+					recordedChannels = [obj.Amplifier.Channels.NativeOrder] + 1;
+				case 'blackrock'
+					recordedChannels = [obj.NSx.ElectrodesInfo.ElectrodeID];					
+			end
+			
+			rawChannel = arrayfun(@(x) find(recordedChannels==x), rawChannel);
 		end
 
 		% Substract by 32 chn mean
@@ -716,9 +729,9 @@ classdef TetrodeRecording < handle
 			for iWaveform = 1:length(sampleIndex)
 				iQuery = sampleIndex(iWaveform) + i;
 				if (sum(rem(iQuery, 1) == 0) == length(iQuery)) && min(iQuery) > 0 && max(iQuery) <= size(obj.Amplifier.Data, 2)
-					waveforms(iWaveform, :) = obj.Amplifier.Data(obj.MapChannel_TetrodeToRaw(channel), iQuery);
+					waveforms(iWaveform, :) = obj.Amplifier.Data(obj.MapChannel_TetrodeToRecorded(channel), iQuery);
 				else
-					waveforms(iWaveform, :) = interp1(1:size(obj.Amplifier.Data, 2), obj.Amplifier.Data(obj.MapChannel_TetrodeToRaw(channel), :), iQuery, 'pchip', NaN);
+					waveforms(iWaveform, :) = int16(interp1(1:size(obj.Amplifier.Data, 2), double(obj.Amplifier.Data(obj.MapChannel_TetrodeToRecorded(channel), :)), iQuery, 'pchip', NaN));
 				end
 			end
 
@@ -782,7 +795,7 @@ classdef TetrodeRecording < handle
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
 
 			for iChannel = channels
-				iChannelRaw = obj.MapChannel_TetrodeToRaw(iChannel);
+				iChannelRaw = obj.MapChannel_TetrodeToRecorded(iChannel);
 
 				% Auto-threshold for spikes
 				% median(abs(x))/0.6745 is a better estimation of noise amplitude than std() when there are spikes -- Quiroga, 2004
@@ -800,7 +813,8 @@ classdef TetrodeRecording < handle
 				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), ' (', num2str(char(952)), ' = ', num2str(numSigmas), num2str(char(963)), ' = ', num2str(direction*threshold), ')...']);
 				
 				% Find spikes
-				[~, sampleIndex] = findpeaks(direction*obj.Amplifier.Data(iChannelRaw, :), 'MinPeakHeight', threshold, 'MinPeakProminence', threshold);
+				[~, sampleIndex] = findpeaks(double(direction*obj.Amplifier.Data(iChannelRaw, :)), 'MinPeakHeight', threshold, 'MinPeakProminence', threshold);
+				% isMax = islocalmax(direction*obj.Amplifier.Data(iChannelRaw, :), 'MinProminence', threshold); sampleIndex = find(isMax); % 10 times slower. Slightly faster than findpeaks() if pre-processed via `data(data<threshold)=0`.
 
 				% Extract waveforms
 				[waveforms, t] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex, 'IndexType', 'SampleIndex');
@@ -811,6 +825,9 @@ classdef TetrodeRecording < handle
 				[~, maxIndex] = max(direction*waveforms, [], 2);
 				alignmentShift = i(maxIndex);
 				[waveforms, t, timestamps, sampleIndex] = obj.GetWaveforms(iChannel, waveformWindow, sampleIndex + alignmentShift, 'IndexType', 'SampleIndex');
+
+				% Compress data
+				waveforms = int16(waveforms);
 
 				% Store data
 				if ~append
