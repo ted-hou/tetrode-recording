@@ -3091,13 +3091,13 @@ classdef TetrodeRecording < handle
 			allPaths = {previewObj.Path};
 			for iDir = 1:length(selectedChannels)
 				channels = selectedChannels{iDir};
-				switch lower(previewObj(iDir).System)
-					case 'intan'
-						channelsToRead = []; % not needed for intan, all channels are read anyway
-					case 'blackrock'
-						channelsToRead = previewObj(iDir).MapChannel_TetrodeToRecorded(channels);
-				end
 				if ~isempty(channels)
+					switch lower(previewObj(iDir).System)
+						case 'intan'
+							channelsToRead = []; % not needed for intan, all channels are read anyway
+						case 'blackrock'
+							channelsToRead = previewObj(iDir).MapChannel_TetrodeToRecorded(channels);
+					end					
 					TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels, channelsToRead, numSigmas, waveformWindow, featureMethod, clusterMethod, dimension, prefix);
 				end
 			end
@@ -3205,7 +3205,12 @@ classdef TetrodeRecording < handle
 					tr.Spikes = spikes;
 				else
 					file = [tr.Path, '..\SpikeSort\', prefix, expName, '.mat'];
-					save(file, 'tr');					
+					try
+						save(file, 'tr');
+					catch
+						file = ['C:\DATA\SpikeSortEmergencyDump\', prefix, expName, '.mat'];
+						save
+					end					
 				end
 			end
 		end
