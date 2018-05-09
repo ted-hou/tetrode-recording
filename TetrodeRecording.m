@@ -610,8 +610,6 @@ classdef TetrodeRecording < handle
 			EIBMap 			= p.Results.EIBMap;
 			headstageType 	= p.Results.HeadstageType;
 
-			tic, TetrodeRecording.TTS('	Remapping amplifier channels in tetrode order...');
-
 			if isempty(EIBMap)
 				EIBMap = [15, 13, 11, 9, 7, 5, 3, 1, 2, 4, 6, 8, 10, 12, 14, 16];
 				EIBMap = [EIBMap, EIBMap + 16];
@@ -642,7 +640,6 @@ classdef TetrodeRecording < handle
 			obj.ChannelMap.Headstage = HSMap;
 			obj.ChannelMap.Tetrode = tetrodeMap;
 			obj.ChannelMap.Recorded = recordedChannels;
-			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 		end
 
 		% Convert 1-based raw channel id to remapped tetrode id
@@ -2047,10 +2044,10 @@ classdef TetrodeRecording < handle
 			end
 			set(hFigure, 'DefaultAxesFontSize', fontSize);
 
-			hWaveform 	= subplot('Position', [fMargin + xMargin, fMargin + 5*yMargin + hDown + hUpHalf, wLeft, hUpHalf]);
-			hPCA 		= subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hDown, wLeft, hUpHalf]);
-			hRaster		= subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + 3*yMargin + hDown, wRight, hUp]);
-			hPETH 		= subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hDown]);
+			hWaveform 	= subplot('Position', [fMargin + xMargin, fMargin + 5*yMargin + hDown + hUpHalf, wLeft, hUpHalf], 'Tag', 'Waveform');
+			hPCA 		= subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hDown, wLeft, hUpHalf], 'Tag', 'PCA');
+			hRaster		= subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + 3*yMargin + hDown, wRight, hUp], 'Tag', 'Raster');
+			hPETH 		= subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hDown], 'Tag', 'PETH');
 
 			varargout = {hFigure, hWaveform, hPCA, hRaster, hPETH};
 
@@ -2621,23 +2618,47 @@ classdef TetrodeRecording < handle
 			obj.GUIBusy(hFigure, false);
 		end
 
-		function GUISavePlot(obj, hButton, evnt, hFigure, filename)
-			if nargin < 5
-				filename = '';
-			end
+		function GUISavePlot(obj, hButton, evnt, hFigure, varargin)
+			p = inputParser;
+			addParameter(p, 'Filename', '', @ischar); % '' to copy to clipboard
+			addParameter(p, 'Reformat', 'Raw', @ischar); % 'Raw', 'PETH', 'Raster', 'RasterAndPETH', 'RasterAndPETHAndWaveform'
+			parse(p, channel, varargin{:});
+			filename = p.Results.Filename;
+			reformat = p.Results.Reformat;
 
 			hButtons = findobj(hFigure.Children, 'Type', 'uicontrol');
 			hTexts = findobj(hFigure.Children, 'Type', 'Text', 'Tag', 'HideWhenSaving');
 
-			set(hButtons, 'Visible', 'off');
-			set(hTexts, 'Visible', 'off');
-			if isempty(filename)
-				print(hFigure, '-clipboard', '-dbitmap')
-			else
-				print(hFigure, filename, '-djpeg')
+			hWaveform 	= findobj(hFigure, 'Tag', 'Waveform');
+			hPCA 		= findobj(hFigure, 'Tag', 'PCA');
+			hRaster 	= findobj(hFigure, 'Tag', 'Raster');
+			hPETH 		= findobj(hFigure, 'Tag', 'PETH');
+
+			switch lower(reformat)
+				case lower('Raw')
+					set(hButtons, 'Visible', 'off');
+					set(hTexts, 'Visible', 'off');
+					if isempty(filename)
+						print(hFigure, '-clipboard', '-dbitmap')
+					else
+						print(hFigure, filename, '-djpeg')
+					end
+					set(hButtons, 'Visible', 'on');
+					set(hTexts, 'Visible', 'on');					
+				case lower('PETH')
+					hFigureNew = figure('Name', hFigure.Name);
+					hPETHNew = copyobj(hPETH, hFigureNew);
+					hTitleNew = suptitle(hFigure.Name);
+					if isempty(filename)
+						print(hFigureNew, '-clipboard', '-dbitmap')
+					else
+						print(hFigureNew, filename, '-djpeg')
+					end
+				case lower('Raster')
+				case lower('RasterAndPETH')
+				case lower('RasterAndPETHAndWaveform')
 			end
-			set(hButtons, 'Visible', 'on');
-			set(hTexts, 'Visible', 'on');
+
 		end
 
 		function GUIDeleteChannel(obj, hButton, evnt, iChannel, nextChn, hFigure)
