@@ -1478,6 +1478,13 @@ classdef TetrodeRecording < handle
 			waveforms 	= obj.Spikes(channel).Waveforms;
 			classes 	= obj.Spikes(channel).Cluster.Classes;
 			feature 	= obj.Spikes(channel).Feature.Coeff;
+			threshold 	= obj.Spikes(channel).Threshold.Threshold;
+
+			% If blackrock, convert data to 'uV'
+			if strcmpi(obj.System, 'Blackrock')
+				waveforms = waveforms/4;
+				threshold = double(threshold)/4;
+			end
 
 			if ~isempty(clusters)
 				selected 	= ismember(classes, clusters);
@@ -1578,7 +1585,7 @@ classdef TetrodeRecording < handle
 				hLegends = [];
 				hAxes2.UserData.hWaveforms = [];
 				hAxes2.UserData.iWaveform = 0;
-				hLegends = [hLegends, line(hAxes2, 'XData', [obj.Spikes(channel).WaveformWindow(1), 0], 'YData', repmat(mean(obj.Spikes(channel).Threshold.Threshold), [1, 2]), 'Color', 'k', 'LineWidth', 3, 'DisplayName', ['Threshold (', num2str(mean(obj.Spikes(channel).Threshold.Threshold)), ' \muV)'])];
+				hLegends = [hLegends, line(hAxes2, 'XData', [obj.Spikes(channel).WaveformWindow(1), 0], 'YData', repmat(mean(threshold), [1, 2]), 'Color', 'k', 'LineWidth', 3, 'DisplayName', ['Threshold (', num2str(mean(threshold)), ' \muV)'])];
 				legend(hLegends, 'AutoUpdate', 'off', 'Location', 'Best')
 				xlim(hAxes2, waveformWindow)
 				ylim(hAxes2, yRange)
@@ -1977,7 +1984,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'BinMethod', 'percentile', @ischar);
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
 			addParameter(p, 'RasterXLim', [], @isnumeric);
-			addParameter(p, 'WaveformYLim', [], @(x) isnumeric(x) || ischar(x));
+			addParameter(p, 'WaveformYLim', 'auto', @(x) isnumeric(x) || ischar(x)); % [-200, 200], 'auto', []
 			addParameter(p, 'FontSize', 8, @isnumeric);
 			addParameter(p, 'PrintMode', false, @islogical);
 			addParameter(p, 'FrameRate', 0, @isnumeric);
