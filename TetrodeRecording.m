@@ -30,7 +30,7 @@ classdef TetrodeRecording < handle
 
 		function Preview(obj, varargin)
 			p = inputParser;
-			addParameter(p, 'Duration', [300, 330], @isnumeric); % start:stop in seconds
+			addParameter(p, 'Duration', [1800, 1900], @isnumeric); % start:stop in seconds
 			addParameter(p, 'Channels', [], @isnumeric);
 			addParameter(p, 'ChunkSize', 10, @isnumeric);
 			addParameter(p, 'HideResults', false, @islogical);
