@@ -2634,31 +2634,32 @@ classdef TetrodeRecording < handle
 			hRaster 	= findobj(hFigure, 'Tag', 'Raster');
 			hPETH 		= findobj(hFigure, 'Tag', 'PETH');
 
+			propertiesToCopy = {'Name', 'Units', 'Position', 'InnerPosition', 'GraphicsSmoothing', 'DefaultAxesFontSize'};
+
+			set(hButtons, 'Visible', 'off');
+			set(hTexts, 'Visible', 'off');
+
 			switch lower(reformat)
 				case lower('Raw')
-					set(hButtons, 'Visible', 'off');
-					set(hTexts, 'Visible', 'off');
-					if isempty(filename)
-						print(hFigure, '-clipboard', '-dbitmap')
-					else
-						print(hFigure, filename, '-djpeg')
-					end
-					set(hButtons, 'Visible', 'on');
-					set(hTexts, 'Visible', 'on');					
 				case lower('PETH')
-					hFigureNew = figure('Name', hFigure.Name);
+					hFigureNew = figure();
+					for iProp = 1:length(propertiesToCopy)
+						set(hFigureNew, propertiesToCopy{iProp}, get(hFigure, propertiesToCopy{iProp}));
+					end
 					hPETHNew = copyobj(hPETH, hFigureNew);
 					hTitleNew = suptitle(hFigure.Name);
-					if isempty(filename)
-						print(hFigureNew, '-clipboard', '-dbitmap')
-					else
-						print(hFigureNew, filename, '-djpeg')
-					end
 				case lower('Raster')
 				case lower('RasterAndPETH')
 				case lower('RasterAndPETHAndWaveform')
 			end
 
+			if isempty(filename)
+				print(hFigure, '-clipboard', '-dbitmap')
+			else
+				print(hFigure, filename, '-djpeg')
+			end
+			set(hButtons, 'Visible', 'on');
+			set(hTexts, 'Visible', 'on');					
 		end
 
 		function GUIDeleteChannel(obj, hButton, evnt, iChannel, nextChn, hFigure)
