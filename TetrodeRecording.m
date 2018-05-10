@@ -2630,10 +2630,12 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Filename', '', @ischar); % '' to copy to clipboard
 			addParameter(p, 'Reformat', 'Raw', @ischar); % 'Raw', 'PETH', 'Raster', 'RasterAndPETH', 'RasterAndPETHAndWaveform'
 			addParameter(p, 'CopyLegend', true, @islogical);
+			addParameter(p, 'CopyLabel', true, @islogical);
 			parse(p, varargin{:});
 			filename 	= p.Results.Filename;
 			reformat 	= p.Results.Reformat;
 			copyLegend 	= p.Results.CopyLegend;
+			copyLabel 	= p.Results.CopyLabel;
 
 			hButtons 	= findobj(hFigure.Children, 'Type', 'uicontrol');
 			hTexts 		= findobj(hFigure.Children, 'Type', 'Text', 'Tag', 'HideWhenSaving');
@@ -2652,7 +2654,7 @@ classdef TetrodeRecording < handle
 				case lower('Raw')
 					hFigurePrint = hFigure;
 				case lower('PETH')
-					hFigureNew = figure();
+					hFigureNew = figure('Position', [0, 0, 1776/4, 999/3]);
 					for iProp = 1:length(propertiesToCopy)
 						set(hFigureNew, propertiesToCopy{iProp}, get(hFigure, propertiesToCopy{iProp}));
 					end
@@ -2660,8 +2662,15 @@ classdef TetrodeRecording < handle
 					title(hPETHNew, hFigure.Name, 'Interpreter', 'none');
 					hPETHNew.OuterPosition = [0, 0, 1, 1];
 
-					if (copyLegend)
+					set(hPETHNew, 'XLim', get(hRaster, 'XLim'));
+
+					if copyLegend
 						legend(hPETHNew, 'Location', 'northwest');
+					end
+
+					if ~copyLabel
+						xlabel(hPETHNew, '');
+						ylabel(hPETHNew, '');
 					end
 
 					hFigurePrint = hFigureNew;
@@ -2674,8 +2683,15 @@ classdef TetrodeRecording < handle
 					title(hRasterNew, hFigure.Name, 'Interpreter', 'none');
 					hRasterNew.OuterPosition = [0, 0, 1, 1];
 
-					if (copyLegend)
+					set(hRasterNew, 'XLim', get(hRaster, 'XLim'));
+
+					if copyLegend
 						legend(hRaster, 'Location', 'northwest');
+					end
+
+					if ~copyLabel
+						xlabel(hRaster, '');
+						ylabel(hRaster, '');
 					end
 
 					hFigurePrint = hFigureNew;
@@ -2693,7 +2709,7 @@ classdef TetrodeRecording < handle
 
 					set(hPETHNew, 'XLim', get(hRasterNew, 'XLim'));
 
-					if (copyLegend)
+					if copyLegend
 						legend(hRaster, 'Location', 'northwest');
 						legend(hPETHNew, 'Location', 'northwest');
 					end
@@ -2721,9 +2737,9 @@ classdef TetrodeRecording < handle
 
 					set(hPETHNew, 'XLim', get(hRasterNew, 'XLim'));
 
-					if (copyLegend)
+					if copyLegend
 						legend(hRasterNew, 'Location', 'north');
-						legend(hPETHNew, 'Location', 'northwest');
+						legend(hPETHNew, 'Location', 'best');
 					end
 
 					% hTitle = suptitle(hFigure.Name);
@@ -3314,38 +3330,38 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function BatchPlot(TR, varargin)
+		function BatchPlot(TR, list, varargin)
 			p = inputParser;
-			addParameter(p, 'List', {}, @iscell);
 			addParameter(p, 'Reformat', 'RasterAndPETHAndWaveform', @ischar);
 			addParameter(p, 'WaveformYLim', [-300, 300], @(x) isnumeric(x) || ischar(x));
 			addParameter(p, 'RasterXLim', [-5, 0], @isnumeric);
 			addParameter(p, 'ExtendedWindow', [-1, 0], @isnumeric);
 			addParameter(p, 'CopyLegend', false, @islogical);
+			addParameter(p, 'CopyLabel', true, @islogical);
 			parse(p, varargin{:});
-			list 			= p.Results.List;
 			reformat 		= p.Results.Reformat;
 			waveformYLim 	= p.Results.WaveformYLim;
 			rasterXLim 		= p.Results.RasterXLim;
 			extendedWindow 	= p.Results.ExtendedWindow;
 			copyLegend 		= p.Results.CopyLegend;
+			copyLabel 		= p.Results.CopyLabel;
 
-			if isempty(list)
-				list = {...
-					'Daisy1', 20171114, 32, 1;...
-					'Daisy1', 20171117, 10, 1;...
-					'Daisy1', 20171117, 7, 1;...
-					'Daisy1', 20171121, 24, 1;...
-					'Daisy1', 20171121, 28, 1;...
-					'Daisy1', 20171121, 1, 1;...
-					'Daisy1', 20171122, 12, 1;...
-					'Daisy1', 20171122, 15, 1;...
-					'Daisy1', 20171128, 19, 1;...
-					'Daisy1', 20171128, 28, 1;...
-					'Daisy1', 20171130, 19, 1;...
-					'Daisy3', 20180429, 30, 1 ...
-					};
-			end
+			% if isempty(list)
+			% 	list = {...
+			% 		'Daisy1', 20171114, 32, 1;...
+			% 		'Daisy1', 20171117, 10, 1;...
+			% 		'Daisy1', 20171117, 7, 1;...
+			% 		'Daisy1', 20171121, 24, 1;...
+			% 		'Daisy1', 20171121, 28, 1;...
+			% 		'Daisy1', 20171121, 1, 1;...
+			% 		'Daisy1', 20171122, 12, 1;...
+			% 		'Daisy1', 20171122, 15, 1;...
+			% 		'Daisy1', 20171128, 19, 1;...
+			% 		'Daisy1', 20171128, 28, 1;...
+			% 		'Daisy1', 20171130, 19, 1;...
+			% 		'Daisy3', 20180429, 30, 1 ...
+			% 		};
+			% end
 
 			for iPlot = 1:size(list, 1)
 				thisAnimal = list{iPlot, 1};
@@ -3357,7 +3373,7 @@ classdef TetrodeRecording < handle
 					if ~isempty(strfind(TR(iTr).Path, thisAnimal)) && ~isempty(strfind(TR(iTr).Path, num2str(thisDate)))
 						thisRefCluster = max(TR(iTr).Spikes(thisChannel).Cluster.Classes);
 						hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'WaveformYLim', waveformYLim, 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow);
-						TR(iTr).GUISavePlot([], [], hFigure, 'Reformat', reformat, 'CopyLegend', copyLegend)
+						TR(iTr).GUISavePlot([], [], hFigure, 'Reformat', reformat, 'CopyLegend', copyLegend, 'CopyLabel', copyLabel)
 						input('Type anything to continue...\n');
 						close(hFigure)
 						break

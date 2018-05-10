@@ -45,22 +45,7 @@ batchPlotList = {...
 	'Daisy3', 20180429, 30, 1 ...
 	};
 
-for iPlot = 1:size(batchPlotList, 1)
-	thisAnimal = batchPlotList{iPlot, 1};
-	thisDate = batchPlotList{iPlot, 2};
-	thisChannel = batchPlotList{iPlot, 3};
-	thisCluster = batchPlotList{iPlot, 4};
+TetrodeRecording.BatchPlot(tr, batchPlotList, 'Reformat', 'RasterAndPETHAndWaveform', 'WaveformYLim', 'auto', 'RasterXLim', [-7, 0], 'ExtendedWindow', [-1, 0], 'CopyLegend', true);
+TetrodeRecording.BatchPlot(tr, batchPlotList, 'Reformat', 'PETH', 'RasterXLim', [-7, 0], 'ExtendedWindow', [-1, 0], 'CopyLegend', false, 'CopyLabel', false);
 
-	for iTr = 1:length(tr)
-		if ~isempty(strfind(tr(iTr).Path, thisAnimal)) && ~isempty(strfind(tr(iTr).Path, num2str(thisDate)))
-			thisRefCluster = max(tr(iTr).Spikes(thisChannel).Cluster.Classes);
-			hFigure = tr(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'WaveformYLim', 'auto', 'RasterXLim', [-6, 0], 'ExtendedWindow', [-1, 0]);
-			tr(iTr).GUISavePlot([], [], hFigure, 'Reformat', 'RasterAndPETHAndWaveform')
-			input('Type anything to continue...\n');
-			close(hFigure)
-			break
-		end
-	end
-end
-
-clear iPlot thisDate thisChannel thisCluster iTr hFigure
+clear batchPlotList
