@@ -2254,7 +2254,7 @@ classdef TetrodeRecording < handle
 			hButtonNextChn = uicontrol(hFigure,...
 				'Style', 'pushbutton',...
 				'String', 'Next Chn',...
-				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Fig', hFigure, 'PrintMode', printMode, 'ExtendedWindow', extendedWindow), nextChn, hFigure},...
+				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Fig', hFigure, 'PrintMode', printMode, 'ExtendedWindow', extendedWindow, 'WaveformYLim', waveformYLim), nextChn, hFigure},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', [1 - xMargin - 2*buttonWidth, 1 - yMargin, buttonWidth, min(yMargin, buttonHeight)]);
@@ -2279,7 +2279,7 @@ classdef TetrodeRecording < handle
 			hButtonPrevChn = uicontrol(hFigure,...
 				'Style', 'pushbutton',...
 				'String', 'Prev Chn',...
-				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Fig', hFigure, 'PrintMode', printMode), prevChn, hFigure},...
+				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Fig', hFigure, 'PrintMode', printMode, 'ExtendedWindow', extendedWindow, 'WaveformYLim', waveformYLim), prevChn, hFigure},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2629,9 +2629,11 @@ classdef TetrodeRecording < handle
 			p = inputParser;
 			addParameter(p, 'Filename', '', @ischar); % '' to copy to clipboard
 			addParameter(p, 'Reformat', 'Raw', @ischar); % 'Raw', 'PETH', 'Raster', 'RasterAndPETH', 'RasterAndPETHAndWaveform'
+			addParameter(p, 'CopyLegend', true, @islogical);
 			parse(p, varargin{:});
-			filename = p.Results.Filename;
-			reformat = p.Results.Reformat;
+			filename 	= p.Results.Filename;
+			reformat 	= p.Results.Reformat;
+			copyLegend 	= p.Results.CopyLegend;
 
 			hButtons 	= findobj(hFigure.Children, 'Type', 'uicontrol');
 			hTexts 		= findobj(hFigure.Children, 'Type', 'Text', 'Tag', 'HideWhenSaving');
@@ -2641,7 +2643,6 @@ classdef TetrodeRecording < handle
 			hRaster 	= findobj(hFigure, 'Tag', 'Raster');
 			hPETH 		= findobj(hFigure, 'Tag', 'PETH');
 
-			% propertiesToCopy = {'Name', 'Units', 'Position', 'InnerPosition', 'GraphicsSmoothing', 'DefaultAxesFontSize'};
 			propertiesToCopy = {'Name', 'GraphicsSmoothing', 'DefaultAxesFontSize'};
 
 			set(hButtons, 'Visible', 'off');
@@ -2658,6 +2659,11 @@ classdef TetrodeRecording < handle
 					hPETHNew = copyobj(hPETH, hFigureNew);
 					title(hPETHNew, hFigure.Name, 'Interpreter', 'none');
 					hPETHNew.OuterPosition = [0, 0, 1, 1];
+
+					if (copyLegend)
+						legend(hPETHNew, 'Location', 'northwest');
+					end
+
 					hFigurePrint = hFigureNew;
 				case lower('Raster')
 					hFigureNew = figure();
@@ -2667,9 +2673,14 @@ classdef TetrodeRecording < handle
 					hRasterNew = copyobj(hRaster, hFigureNew);
 					title(hRasterNew, hFigure.Name, 'Interpreter', 'none');
 					hRasterNew.OuterPosition = [0, 0, 1, 1];
+
+					if (copyLegend)
+						legend(hRaster, 'Location', 'northwest');
+					end
+
 					hFigurePrint = hFigureNew;
 				case lower('RasterAndPETH')
-					hFigureNew = figure();
+					hFigureNew = figure('Position', [2 42 958 954]);
 					for iProp = 1:length(propertiesToCopy)
 						set(hFigureNew, propertiesToCopy{iProp}, get(hFigure, propertiesToCopy{iProp}));
 					end
@@ -2678,13 +2689,19 @@ classdef TetrodeRecording < handle
 
 					hPETHNew = copyobj(hPETH, hFigureNew);
 					hPETHNew.OuterPosition = [0, 0, 1, 0.5];
+					ylabel(hPETHNew, 'Spikes/s')
 
-					set(hRasterNew, 'XLim', get(hPETHNew, 'XLim'));
+					set(hPETHNew, 'XLim', get(hRasterNew, 'XLim'));
 
-					hTitle = suptitle(hFigure.Name);
+					if (copyLegend)
+						legend(hRaster, 'Location', 'northwest');
+						legend(hPETHNew, 'Location', 'northwest');
+					end
+
+					% hTitle = suptitle(hFigure.Name);
 					hFigurePrint = hFigureNew;
 				case lower('RasterAndPETHAndWaveform')
-					hFigureNew = figure();
+					hFigureNew = figure('Position', [2 42 958 954]);
 					for iProp = 1:length(propertiesToCopy)
 						set(hFigureNew, propertiesToCopy{iProp}, get(hFigure, propertiesToCopy{iProp}));
 					end
@@ -2693,6 +2710,7 @@ classdef TetrodeRecording < handle
 
 					hPETHNew = copyobj(hPETH, hFigureNew);
 					hPETHNew.OuterPosition = [0, 0, 1, 0.5];
+					ylabel(hPETHNew, 'Spikes/s')
 
 					hWaveformNew = copyobj(hWaveform, hFigureNew);
 					hWaveformNew.Position(1) = hRasterNew.Position(1) + 1/16*hRasterNew.Position(3);
@@ -2701,7 +2719,12 @@ classdef TetrodeRecording < handle
 					hWaveformNew.Position(2) = hRasterNew.Position(2) + hRasterNew.Position(4) - hWaveformNew.Position(3);
 					hWaveformNew.Visible = 'off';
 
-					set(hRasterNew, 'XLim', get(hPETHNew, 'XLim'));
+					set(hPETHNew, 'XLim', get(hRasterNew, 'XLim'));
+
+					if (copyLegend)
+						legend(hRasterNew, 'Location', 'north');
+						legend(hPETHNew, 'Location', 'northwest');
+					end
 
 					% hTitle = suptitle(hFigure.Name);
 					hFigurePrint = hFigureNew;
@@ -2873,7 +2896,7 @@ classdef TetrodeRecording < handle
 		function GUISpikesToCluster(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
 			obj.GUIBusy(hFigure, true);
 			liststr = {'New'};
-			liststr = [liststr; cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false)];
+			liststr = [liststr, cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false)];
 
 			selectedClusters 	= hFigure.UserData.SelectedClusters;
 			selectedSampleIndex = hFigure.UserData.SelectedSampleIndex;
@@ -2920,7 +2943,7 @@ classdef TetrodeRecording < handle
 					obj.ClusterMerge(iChannel, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)));
 					hFigure.UserData.SelectedClusters = [];
 				else
-					hFigure.UserData.SelectedClusters = unique([hFigure.UserData.SelectedClusters; newClass]);
+					hFigure.UserData.SelectedClusters = unique([hFigure.UserData.SelectedClusters, newClass]);
 				end
 				hFigure.UserData.SelectedSampleIndex = [];
 
@@ -3287,6 +3310,58 @@ classdef TetrodeRecording < handle
 				else
 					file = [tr.Path, '..\SpikeSort\', prefix, expName, '.mat'];
 					save(file, 'tr');
+				end
+			end
+		end
+
+		function BatchPlot(TR, varargin)
+			p = inputParser;
+			addParameter(p, 'List', {}, @iscell);
+			addParameter(p, 'Reformat', 'RasterAndPETHAndWaveform', @ischar);
+			addParameter(p, 'WaveformYLim', [-300, 300], @(x) isnumeric(x) || ischar(x));
+			addParameter(p, 'RasterXLim', [-5, 0], @isnumeric);
+			addParameter(p, 'ExtendedWindow', [-1, 0], @isnumeric);
+			addParameter(p, 'CopyLegend', false, @islogical);
+			parse(p, varargin{:});
+			list 			= p.Results.List;
+			reformat 		= p.Results.Reformat;
+			waveformYLim 	= p.Results.WaveformYLim;
+			rasterXLim 		= p.Results.RasterXLim;
+			extendedWindow 	= p.Results.ExtendedWindow;
+			copyLegend 		= p.Results.CopyLegend;
+
+			if isempty(list)
+				list = {...
+					'Daisy1', 20171114, 32, 1;...
+					'Daisy1', 20171117, 10, 1;...
+					'Daisy1', 20171117, 7, 1;...
+					'Daisy1', 20171121, 24, 1;...
+					'Daisy1', 20171121, 28, 1;...
+					'Daisy1', 20171121, 1, 1;...
+					'Daisy1', 20171122, 12, 1;...
+					'Daisy1', 20171122, 15, 1;...
+					'Daisy1', 20171128, 19, 1;...
+					'Daisy1', 20171128, 28, 1;...
+					'Daisy1', 20171130, 19, 1;...
+					'Daisy3', 20180429, 30, 1 ...
+					};
+			end
+
+			for iPlot = 1:size(list, 1)
+				thisAnimal = list{iPlot, 1};
+				thisDate = list{iPlot, 2};
+				thisChannel = list{iPlot, 3};
+				thisCluster = list{iPlot, 4};
+
+				for iTr = 1:length(TR)
+					if ~isempty(strfind(TR(iTr).Path, thisAnimal)) && ~isempty(strfind(TR(iTr).Path, num2str(thisDate)))
+						thisRefCluster = max(TR(iTr).Spikes(thisChannel).Cluster.Classes);
+						hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'WaveformYLim', waveformYLim, 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow);
+						TR(iTr).GUISavePlot([], [], hFigure, 'Reformat', reformat, 'CopyLegend', copyLegend)
+						input('Type anything to continue...\n');
+						close(hFigure)
+						break
+					end
 				end
 			end
 		end
