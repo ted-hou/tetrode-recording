@@ -30,7 +30,7 @@ classdef TetrodeRecording < handle
 
 		function Preview(obj, varargin)
 			p = inputParser;
-			addParameter(p, 'Duration', [1800, 1900], @isnumeric); % start:stop in seconds
+			addParameter(p, 'Duration', [0, 10], @isnumeric); % start:stop in seconds
 			addParameter(p, 'Channels', [], @isnumeric);
 			addParameter(p, 'ChunkSize', 10, @isnumeric);
 			addParameter(p, 'HideResults', false, @islogical);
@@ -43,7 +43,7 @@ classdef TetrodeRecording < handle
 			if isempty(obj.Path)
 				obj.SelectFiles();
 			end
-			obj.ReadFiles(chunkSize, 'Duration', duration, 'Channels', channels, 'NumSigmas', 4, 'WaveformWindow', [-0.5, 0.5]);
+			obj.ReadFiles(chunkSize, 'Duration', duration, 'Channels', channels, 'NumSigmas', 3, 'WaveformWindow', [-0.5, 0.5]);
 			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
 			if ~hideResults
 				obj.PlotAllChannels();
@@ -2254,7 +2254,7 @@ classdef TetrodeRecording < handle
 			hButtonNextChn = uicontrol(hFigure,...
 				'Style', 'pushbutton',...
 				'String', 'Next Chn',...
-				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Fig', hFigure, 'PrintMode', printMode), nextChn, hFigure},...
+				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Fig', hFigure, 'PrintMode', printMode, 'ExtendedWindow', extendedWindow), nextChn, hFigure},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', [1 - xMargin - 2*buttonWidth, 1 - yMargin, buttonWidth, min(yMargin, buttonHeight)]);
@@ -2530,7 +2530,7 @@ classdef TetrodeRecording < handle
 				if strcmpi(answer, 'Merge')
 					% Merge selected clusters
 					allClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
-					mergeList = [{clusters}; num2cell(allClusters(~ismember(allClusters, clusters)))];
+					mergeList = [{clusters}, num2cell(allClusters(~ismember(allClusters, clusters)))];
 					obj.ClusterMerge(iChannel, mergeList);
 					hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
 
@@ -2629,41 +2629,88 @@ classdef TetrodeRecording < handle
 			p = inputParser;
 			addParameter(p, 'Filename', '', @ischar); % '' to copy to clipboard
 			addParameter(p, 'Reformat', 'Raw', @ischar); % 'Raw', 'PETH', 'Raster', 'RasterAndPETH', 'RasterAndPETHAndWaveform'
-			parse(p, channel, varargin{:});
+			parse(p, varargin{:});
 			filename = p.Results.Filename;
 			reformat = p.Results.Reformat;
 
-			hButtons = findobj(hFigure.Children, 'Type', 'uicontrol');
-			hTexts = findobj(hFigure.Children, 'Type', 'Text', 'Tag', 'HideWhenSaving');
+			hButtons 	= findobj(hFigure.Children, 'Type', 'uicontrol');
+			hTexts 		= findobj(hFigure.Children, 'Type', 'Text', 'Tag', 'HideWhenSaving');
 
 			hWaveform 	= findobj(hFigure, 'Tag', 'Waveform');
 			hPCA 		= findobj(hFigure, 'Tag', 'PCA');
 			hRaster 	= findobj(hFigure, 'Tag', 'Raster');
 			hPETH 		= findobj(hFigure, 'Tag', 'PETH');
 
-			propertiesToCopy = {'Name', 'Units', 'Position', 'InnerPosition', 'GraphicsSmoothing', 'DefaultAxesFontSize'};
+			% propertiesToCopy = {'Name', 'Units', 'Position', 'InnerPosition', 'GraphicsSmoothing', 'DefaultAxesFontSize'};
+			propertiesToCopy = {'Name', 'GraphicsSmoothing', 'DefaultAxesFontSize'};
 
 			set(hButtons, 'Visible', 'off');
 			set(hTexts, 'Visible', 'off');
 
 			switch lower(reformat)
 				case lower('Raw')
+					hFigurePrint = hFigure;
 				case lower('PETH')
 					hFigureNew = figure();
 					for iProp = 1:length(propertiesToCopy)
 						set(hFigureNew, propertiesToCopy{iProp}, get(hFigure, propertiesToCopy{iProp}));
 					end
 					hPETHNew = copyobj(hPETH, hFigureNew);
-					hTitleNew = suptitle(hFigure.Name);
+					title(hPETHNew, hFigure.Name, 'Interpreter', 'none');
+					hPETHNew.OuterPosition = [0, 0, 1, 1];
+					hFigurePrint = hFigureNew;
 				case lower('Raster')
+					hFigureNew = figure();
+					for iProp = 1:length(propertiesToCopy)
+						set(hFigureNew, propertiesToCopy{iProp}, get(hFigure, propertiesToCopy{iProp}));
+					end
+					hRasterNew = copyobj(hRaster, hFigureNew);
+					title(hRasterNew, hFigure.Name, 'Interpreter', 'none');
+					hRasterNew.OuterPosition = [0, 0, 1, 1];
+					hFigurePrint = hFigureNew;
 				case lower('RasterAndPETH')
+					hFigureNew = figure();
+					for iProp = 1:length(propertiesToCopy)
+						set(hFigureNew, propertiesToCopy{iProp}, get(hFigure, propertiesToCopy{iProp}));
+					end
+					hRasterNew = copyobj(hRaster, hFigureNew);
+					hRasterNew.OuterPosition = [0, 0.5, 1, 0.5];
+
+					hPETHNew = copyobj(hPETH, hFigureNew);
+					hPETHNew.OuterPosition = [0, 0, 1, 0.5];
+
+					set(hRasterNew, 'XLim', get(hPETHNew, 'XLim'));
+
+					hTitle = suptitle(hFigure.Name);
+					hFigurePrint = hFigureNew;
 				case lower('RasterAndPETHAndWaveform')
+					hFigureNew = figure();
+					for iProp = 1:length(propertiesToCopy)
+						set(hFigureNew, propertiesToCopy{iProp}, get(hFigure, propertiesToCopy{iProp}));
+					end
+					hRasterNew = copyobj(hRaster, hFigureNew);
+					hRasterNew.OuterPosition = [0, 0.5, 1, 0.5];
+
+					hPETHNew = copyobj(hPETH, hFigureNew);
+					hPETHNew.OuterPosition = [0, 0, 1, 0.5];
+
+					hWaveformNew = copyobj(hWaveform, hFigureNew);
+					hWaveformNew.Position(1) = hRasterNew.Position(1) + 1/16*hRasterNew.Position(3);
+					hWaveformNew.Position(3) = 0.125*hRasterNew.Position(3);
+					hWaveformNew.Position(4) = 0.2*hRasterNew.Position(4);
+					hWaveformNew.Position(2) = hRasterNew.Position(2) + hRasterNew.Position(4) - hWaveformNew.Position(3);
+					hWaveformNew.Visible = 'off';
+
+					set(hRasterNew, 'XLim', get(hPETHNew, 'XLim'));
+
+					% hTitle = suptitle(hFigure.Name);
+					hFigurePrint = hFigureNew;
 			end
 
 			if isempty(filename)
-				print(hFigure, '-clipboard', '-dbitmap')
+				print(hFigurePrint, '-clipboard', '-dbitmap')
 			else
-				print(hFigure, filename, '-djpeg')
+				print(hFigurePrint, filename, '-djpeg')
 			end
 			set(hButtons, 'Visible', 'on');
 			set(hTexts, 'Visible', 'on');					
