@@ -70,9 +70,9 @@ classdef TetrodeRecording < handle
 			p = inputParser;
 			addOptional(p, 'ChunkSize', 2, @isnumeric);
 			addParameter(p, 'Duration', [], @isnumeric); % [0, 60] to read 0 - 60 seconds of data. For blackrock only
-			addParameter(p, 'SubstractMean', true, @islogical);
-			addParameter(p, 'RemoveTransient', true, @islogical);
-			addParameter(p, 'DigitalChannels', {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}, @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}
+			addParameter(p, 'SubstractMean', false, @islogical);
+			addParameter(p, 'RemoveTransient', false, @islogical);
+			addParameter(p, 'DigitalChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}
 			addParameter(p, 'AnalogChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'AccX', 1; 'AccY', 2; 'AccZ', 3;}
 			addParameter(p, 'Channels', [], @isnumeric);
 			addParameter(p, 'ChannelsToRead', [], @isnumeric);
@@ -1969,6 +1969,7 @@ classdef TetrodeRecording < handle
 			end
 		end
 
+		% PlotChannel(iChannel, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', hFigure)
 		function varargout = PlotChannel(obj, channel, varargin)
 			p = inputParser;
 			addRequired(p, 'Channel', @isnumeric);
@@ -2254,7 +2255,7 @@ classdef TetrodeRecording < handle
 			hButtonNextChn = uicontrol(hFigure,...
 				'Style', 'pushbutton',...
 				'String', 'Next Chn',...
-				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Fig', hFigure, 'PrintMode', printMode, 'ExtendedWindow', extendedWindow, 'WaveformYLim', waveformYLim), nextChn, hFigure},...
+				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', hFigure), nextChn, hFigure},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', [1 - xMargin - 2*buttonWidth, 1 - yMargin, buttonWidth, min(yMargin, buttonHeight)]);
@@ -2279,7 +2280,7 @@ classdef TetrodeRecording < handle
 			hButtonPrevChn = uicontrol(hFigure,...
 				'Style', 'pushbutton',...
 				'String', 'Prev Chn',...
-				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Fig', hFigure, 'PrintMode', printMode, 'ExtendedWindow', extendedWindow, 'WaveformYLim', waveformYLim), prevChn, hFigure},...
+				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', hFigure), prevChn, hFigure},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2730,8 +2731,8 @@ classdef TetrodeRecording < handle
 
 					hWaveformNew = copyobj(hWaveform, hFigureNew);
 					hWaveformNew.Position(1) = hRasterNew.Position(1) + 1/16*hRasterNew.Position(3);
-					hWaveformNew.Position(3) = 0.125*hRasterNew.Position(3);
-					hWaveformNew.Position(4) = 0.2*hRasterNew.Position(4);
+					hWaveformNew.Position(3) = 0.25*hRasterNew.Position(3);
+					hWaveformNew.Position(4) = 0.4*hRasterNew.Position(4);
 					hWaveformNew.Position(2) = hRasterNew.Position(2) + hRasterNew.Position(4) - hWaveformNew.Position(3);
 					hWaveformNew.Visible = 'off';
 
@@ -3173,11 +3174,20 @@ classdef TetrodeRecording < handle
 				previewObj(iDir).System = sysName;
 				previewObj(iDir).Path = [dirs{iDir}, '\'];
 				previewObj(iDir).Files = files;
-				previewObj(iDir).Preview('HideResults', true);
+				try
+					previewObj(iDir).Preview('HideResults', true);
+				catch ME
+					warning(['Error when processing folder (', dirs{iDir}, ') - this one will be skipped.'])
+					ME
+				end				
 			end
 			for iDir = 1:length(dirs)
-				previewObj(iDir).PlotAllChannels('YLim', [-1000, 1000]);
-				previewObj(iDir).ClearCache();
+				try
+					previewObj(iDir).PlotAllChannels('YLim', [-1000, 1000]);
+					previewObj(iDir).ClearCache();
+				catch ME
+					warning(['Error when processing folder (', dirs{iDir}, ') - this one will be skipped.'])
+				end
 			end
 			% TetrodeRecording.RandomWords();
 		end
@@ -3285,6 +3295,9 @@ classdef TetrodeRecording < handle
 
 			for iTr = 1:length(TR)
 				tr = TR(iTr);
+				if isempty(tr.Path)
+					continue
+				end
 				expName = tr.GetExpName();
 				if discardData
 					tr.Spikes = [];
@@ -3345,7 +3358,15 @@ classdef TetrodeRecording < handle
 			extendedWindow 	= p.Results.ExtendedWindow;
 			copyLegend 		= p.Results.CopyLegend;
 			copyLabel 		= p.Results.CopyLabel;
+			for iPlot = 1:size(list, 1)
+				thisAnimal = list{iPlot, 1};
+				thisDate = list{iPlot, 2};
+				thisChannel = list{iPlot, 3};
+				thisCluster = list{iPlot, 4};
 
+				for iTr = 1:length(TR)
+					if ~isempty(strfind(TR(iTr).Path, thisAnimal)) && ~isempty(strfind(TR(iTr).Path, num2str(thisDate)))
+				
 			% if isempty(list)
 			% 	list = {...
 			% 		'Daisy1', 20171114, 32, 1;...
@@ -3363,15 +3384,7 @@ classdef TetrodeRecording < handle
 			% 		};
 			% end
 
-			for iPlot = 1:size(list, 1)
-				thisAnimal = list{iPlot, 1};
-				thisDate = list{iPlot, 2};
-				thisChannel = list{iPlot, 3};
-				thisCluster = list{iPlot, 4};
-
-				for iTr = 1:length(TR)
-					if ~isempty(strfind(TR(iTr).Path, thisAnimal)) && ~isempty(strfind(TR(iTr).Path, num2str(thisDate)))
-						thisRefCluster = max(TR(iTr).Spikes(thisChannel).Cluster.Classes);
+		thisRefCluster = max(TR(iTr).Spikes(thisChannel).Cluster.Classes);
 						hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'WaveformYLim', waveformYLim, 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow);
 						TR(iTr).GUISavePlot([], [], hFigure, 'Reformat', reformat, 'CopyLegend', copyLegend, 'CopyLabel', copyLabel)
 						input('Type anything to continue...\n');
@@ -3383,7 +3396,7 @@ classdef TetrodeRecording < handle
 		end
 
 		function [thisColor, thisStyle] = GetColorAndStyle(iClass)
-			colors = 'rgbcmyk';
+			colors = 'rgbmyck';
 			styles = {'-', '--', ':', '-.'};
 
 			iStyle = ceil(iClass/length(colors));
