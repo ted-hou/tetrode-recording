@@ -3269,8 +3269,8 @@ classdef TetrodeRecording < handle
 			% Merge multi-part files
 			for iFile = 1:length(files)
 				part = S(iFile).tr.Part;
-				if nnz(part > 1) == 2
-					partOne = cellfun(@(tr) strcmpi(tr.Path, S(iFile).tr.Path) && tr.Part(1) == 1, {S.tr});
+				if nnz(part > 1) > 1
+					partOne = cellfun(@(tr) strcmpi(tr.Path, S(iFile).tr.Path) && ~isempty(tr.Part) && tr.Part(1) == 1, {S.tr});
 					channels = [S(iFile).tr.Spikes.Channel];
 					S(partOne).tr.Spikes(channels) = S(iFile).tr.Spikes(channels);
 					S(partOne).tr.Part(2) = S(partOne).tr.Part(2) - 1;
