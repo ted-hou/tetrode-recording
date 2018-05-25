@@ -2811,12 +2811,23 @@ classdef TetrodeRecording < handle
 			switch lower(selectionMode)
 				case 'waveform'
 					set([hPCA, hRaster], 'Box', 'off', 'LineWidth', 0.5, 'XColor', 'k', 'YColor', 'k');
-					[x, y] = getline(hAxes, 'closed');
-					polygon = [x, y];
-					if size(polygon, 1) >= 4
-						selection = obj.GetSpikesByWaveform(iChannel, polygon, 'Clusters', hFigure.UserData.SelectedClusters, 'SampleIndex', hFigure.UserData.SelectedSampleIndex);
-					else
-						selection = [];
+					switch evnt.Button
+						case 1 % LMB - hoop mode
+							[x, y] = getline(hAxes);
+							hoop = [x, y];
+							if size(hoop, 1) == 2
+								selection = obj.GetSpikesByHoop(iChannel, hoop, 'Clusters', hFigure.UserData.SelectedClusters, 'SampleIndex', hFigure.UserData.SelectedSampleIndex);
+							else
+								selection = [];
+							end
+						case 3 % RMB - threshold mode
+							axes(hAxes);
+							[~, threshold] = ginput(1);
+							if ~isempty(threshold)
+								selection = obj.GetSpikesByThreshold(iChannel, threshold, 'Clusters', hFigure.UserData.SelectedClusters, 'SampleIndex', hFigure.UserData.SelectedSampleIndex);
+							else
+								selection = [];
+							end
 					end
 				case 'feature'
 					set([hWaveform, hRaster], 'Box', 'off', 'LineWidth', 0.5, 'XColor', 'k', 'YColor', 'k');
@@ -3094,6 +3105,52 @@ classdef TetrodeRecording < handle
 			varargout = {sampleIndex, timestamps};
 		end
 
+		function varargout = GetSpikesByThreshold(obj, channel, threshold, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addRequired(p, 'Threshold', @isnumeric);
+			addParameter(p, 'SampleIndex', [], @isnumeric);
+			addParameter(p, 'Clusters', [], @isnumeric);
+			parse(p, channel, threshold, varargin{:});
+			channel 			= p.Results.Channel;
+			threshold 			= p.Results.Threshold;
+			selectedSampleIndex	= p.Results.SampleIndex;
+			clusters 			= p.Results.Clusters;
+
+			t 			= obj.Spikes(channel).WaveformTimestamps;
+			sampleIndex = obj.Spikes(channel).SampleIndex;
+			timestamps 	= obj.Spikes(channel).Timestamps;
+			waveforms 	= obj.Spikes(channel).Waveforms;
+			classes 	= obj.Spikes(channel).Cluster.Classes;
+
+			% If blackrock, convert data to 'uV'
+			if strcmpi(obj.System, 'Blackrock')
+				waveforms = waveforms/4;
+			end
+
+			if ~isempty(clusters)
+				selected 	= ismember(classes, clusters);
+				sampleIndex = sampleIndex(selected);
+				timestamps 	= timestamps(selected);
+				waveforms 	= waveforms(selected, :);
+			end
+
+			if ~isempty(selectedSampleIndex)
+				selected 	= ismember(sampleIndex, selectedSampleIndex);
+				sampleIndex = sampleIndex(selected);
+				timestamps 	= timestamps(selected);
+				waveforms 	= waveforms(selected, :);
+			end
+
+			if ~isempty(threshold) && threshold ~= 0
+				thresholded = max(sign(threshold)*waveforms, [], 2) >= abs(threshold);
+				sampleIndex = sampleIndex(thresholded);
+				timestamps 	= timestamps(thresholded);
+			end
+
+			varargout = {sampleIndex, timestamps};
+		end
+
 		function varargout = GetSpikesByWaveform(obj, channel, polygon, varargin)
 			p = inputParser;
 			addRequired(p, 'Channel', @isnumeric);
@@ -3111,6 +3168,11 @@ classdef TetrodeRecording < handle
 			timestamps 	= obj.Spikes(channel).Timestamps;
 			waveforms 	= obj.Spikes(channel).Waveforms;
 			classes 	= obj.Spikes(channel).Cluster.Classes;
+
+			% If blackrock, convert data to 'uV'
+			if strcmpi(obj.System, 'Blackrock')
+				waveforms = waveforms/4;
+			end
 
 			if ~isempty(clusters)
 				selected 	= ismember(classes, clusters);
@@ -3140,6 +3202,66 @@ classdef TetrodeRecording < handle
 
 			sampleIndex = sampleIndex(intersectsWithPolygon);
 			timestamps 	= timestamps(intersectsWithPolygon);
+
+			varargout = {sampleIndex, timestamps};
+		end
+
+		function varargout = GetSpikesByHoop(obj, channel, hoop, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addRequired(p, 'Hoop', @isnumeric);
+			addParameter(p, 'SampleIndex', [], @isnumeric);
+			addParameter(p, 'Clusters', [], @isnumeric);
+			parse(p, channel, hoop, varargin{:});
+			channel 			= p.Results.Channel;
+			hoop 				= p.Results.Hoop;
+			selectedSampleIndex	= p.Results.SampleIndex;
+			clusters 			= p.Results.Clusters;
+
+			t 			= obj.Spikes(channel).WaveformTimestamps;
+			sampleIndex = obj.Spikes(channel).SampleIndex;
+			timestamps 	= obj.Spikes(channel).Timestamps;
+			waveforms 	= obj.Spikes(channel).Waveforms;
+			classes 	= obj.Spikes(channel).Cluster.Classes;
+
+			% If blackrock, convert data to 'uV'
+			if strcmpi(obj.System, 'Blackrock')
+				waveforms = waveforms/4;
+			end
+
+			if ~isempty(clusters)
+				selected 	= ismember(classes, clusters);
+				sampleIndex = sampleIndex(selected);
+				timestamps 	= timestamps(selected);
+				waveforms 	= waveforms(selected, :);
+			end
+
+			y = hoop(1:2, 2);
+			if y(1)*y(2) > 0
+				threshold = sign(y(1))*min(abs(y));
+				selectedSampleIndex = obj.GetSpikesByThreshold(channel, threshold, 'SampleIndex', selectedSampleIndex, 'Clusters', clusters);
+			end
+
+			if ~isempty(selectedSampleIndex)
+				selected 	= ismember(sampleIndex, selectedSampleIndex);
+				sampleIndex = sampleIndex(selected);
+				timestamps 	= timestamps(selected);
+				waveforms 	= waveforms(selected, :);
+			end
+
+			if length(hoop) == 2
+				intersectsWithHoop = true(length(sampleIndex), 1);
+				if ~isempty(hoop)
+					for iWaveform = 1:length(sampleIndex)
+						intersectsWithHoop(iWaveform) = ~isempty(polyxpoly(t, waveforms(iWaveform, :), hoop(1:2, 1), hoop(1:2, 2)));
+					end
+				end
+
+				sampleIndex = sampleIndex(intersectsWithHoop);
+				timestamps 	= timestamps(intersectsWithHoop);
+			else
+				warning('Hoop can only contain two points')
+			end
 
 			varargout = {sampleIndex, timestamps};
 		end
