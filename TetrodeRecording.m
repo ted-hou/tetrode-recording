@@ -1447,7 +1447,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'ReferenceCluster', [], @isnumeric);
 			addParameter(p, 'YLim', [], @(x) isnumeric(x) || ischar(x));
 			addParameter(p, 'FrameRate', 120, @isnumeric);
-			addParameter(p, 'MaxShown', 200, @isnumeric);
+			addParameter(p, 'MaxShown', 500, @isnumeric);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'SelectedSampleIndex', [], @isnumeric);
 			addParameter(p, 'FeatureAxisLim', [], @isnumeric);
@@ -1633,12 +1633,13 @@ classdef TetrodeRecording < handle
 							line(hAxes2, t, [thisMean - thisStd; thisMean + thisStd], 'LineStyle', '--', 'Color', thisColor);
 							line(hAxes2, t, [thisDown; thisUp], 'LineStyle', ':', 'Color', thisColor);
 						else
-							if size(thisWaveforms, 1) > maxShown
-								percentShown = max(1, round(100*(maxShown/size(thisWaveforms, 1))));
-							else
+							if isempty(maxShown) || maxShown == 0 || size(thisWaveforms, 1) <= maxShown
 								percentShown = 100;
+							else
+								percentShown = max(1, round(100*(maxShown/size(thisWaveforms, 1))));
+								[~, I] = sort(sum(thisWaveforms, 2));
+								thisWaveforms = thisWaveforms(I(1:ceil(100/percentShown):end), :);
 							end
-							thisWaveforms = thisWaveforms(1:ceil(100/percentShown):end, :);
 							line(hAxes2, t, thisWaveforms, 'LineStyle', thisStyle, 'Color', thisColor);
 						end
 					end
@@ -2559,17 +2560,35 @@ classdef TetrodeRecording < handle
 				answer = questdlg(...
 					['Recluster selected clusters (', mat2str(clusters), ')?'],...
 					'Recluster Clusters',...
-					'Recluster', 'Cancel',...
+					'Recluster', 'Refeature & recluster', 'Cancel',...
 					'Cancel');
-				if strcmpi(answer, 'Recluster')
-					% Recluster selected clusters
-					clusterMethod = obj.Spikes(iChannel).Cluster.Method;
-					obj.Cluster(iChannel, 'Clusters', clusters, 'Method', clusterMethod);
-					hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
 
-					% Replot clusters
-					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+				if strcmpi(answer, 'Cancel')
+					obj.GUIBusy(hFigure, false);
+					return
 				end
+
+				if strcmpi(answer, 'Refeature & recluster')
+					% Re-feature extract
+					featureMethod = obj.Spikes(iChannel).Feature.Method;
+					params = obj.Spikes(iChannel).Feature.Parameters;
+					% switch lower(featureMethod)
+					% 	case 'wavelettransform'
+					% 		obj.FeatureExtract(iChannel, 'Method', featureMethod, 'Dimension', params.Dimension, 'WaveformWindow', params.WaveformWindow, 'WaveDecLevel', params.Level);
+					% 	case 'pca'							
+					% 		obj.FeatureExtract(iChannel, 'Method', featureMethod, 'Dimension', params.Dimension, 'WaveformWindow', params.WaveformWindow);
+					% end
+					obj.FeatureExtract(iChannel, 'Method', 'PCA', 'Dimension', params.Dimension, 'WaveformWindow', params.WaveformWindow);
+				end
+
+				% Recluster selected clusters
+				clusterMethod = obj.Spikes(iChannel).Cluster.Method;
+				% obj.Cluster(iChannel, 'Clusters', clusters, 'Method', clusterMethod);
+				obj.Cluster(iChannel, 'Clusters', clusters, 'Method', clusterMethod, 'NumClusters', 2);
+				hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+
+				% Replot clusters
+				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
 			end
 			obj.GUIBusy(hFigure, false);
 		end
