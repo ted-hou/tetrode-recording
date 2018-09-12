@@ -30,7 +30,7 @@ classdef TetrodeRecording < handle
 
 		function Preview(obj, varargin)
 			p = inputParser;
-			addParameter(p, 'Duration', [0, 10], @isnumeric); % start:stop in seconds
+			addParameter(p, 'Duration', [0, 60], @isnumeric); % start:stop in seconds
 			addParameter(p, 'Channels', [], @isnumeric);
 			addParameter(p, 'ChunkSize', 10, @isnumeric);
 			addParameter(p, 'HideResults', false, @islogical);
@@ -3315,7 +3315,6 @@ classdef TetrodeRecording < handle
 					previewObj(iDir).Preview('HideResults', true);
 				catch ME
 					warning(['Error when processing folder (', dirs{iDir}, ') - this one will be skipped.'])
-					ME
 				end				
 			end
 			for iDir = 1:length(dirs)
