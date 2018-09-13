@@ -3363,7 +3363,6 @@ classdef TetrodeRecording < handle
 						TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels, channelsToRead, numSigmas, waveformWindow, featureMethod, clusterMethod, dimension, prefix);
 					catch ME
 						warning(['Error when processing folder (', allPaths{iDir}, ') - this one will be skipped.'])
-						ME
 					end
 				end
 			end
