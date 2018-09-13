@@ -527,7 +527,7 @@ classdef TetrodeRecording < handle
 				duration = [];
 			end
 
-			tic, TetrodeRecording.TTS(['	Loading data...'])
+			tic, TetrodeRecording.TTS(['	Loading data (', obj.Path, ')...'])
 			% Load NEV
 			isNEV = contains(obj.Files, '.nev'); 
 			if nnz(isNEV) == 1
