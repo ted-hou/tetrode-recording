@@ -780,8 +780,16 @@ if strcmpi(Flags.ReadData, 'read')
             NEV.Data.Reconfig.TimeStamp     = Timestamp(reconfigPacketIDIndices);
             NEV.Data.Reconfig.ChangeType    = tRawData(7:8, reconfigPacketIDIndices);
             NEV.Data.Reconfig.ChangeType    = typecast(NEV.Data.Reconfig.ChangeType(:), 'uint16').';
-            NEV.Data.Reconfig.CompName      = char(tRawData(9:24, reconfigPacketIDIndices));
-            NEV.Data.Reconfig.ConfigChanged = char(tRawData(25:Trackers.countPacketBytes, reconfigPacketIDIndices));
+            try
+                NEV.Data.Reconfig.CompName      = char(tRawData(9:24, reconfigPacketIDIndices));
+            catch ME
+				warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
+            end
+            try
+                NEV.Data.Reconfig.ConfigChanged = char(tRawData(25:Trackers.countPacketBytes, reconfigPacketIDIndices));
+            catch ME
+				warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
+            end
             clear reconfigPacketIDIndices;
         end
     end % end if ~isempty(allExtraDataPacketIndices)
