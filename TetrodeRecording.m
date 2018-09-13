@@ -3315,6 +3315,7 @@ classdef TetrodeRecording < handle
 					previewObj(iDir).Preview('HideResults', true);
 				catch ME
 					warning(['Error when processing folder (', dirs{iDir}, ') - this one will be skipped.'])
+					warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
 				end				
 			end
 			for iDir = 1:length(dirs)
@@ -3323,6 +3324,7 @@ classdef TetrodeRecording < handle
 					previewObj(iDir).ClearCache();
 				catch ME
 					warning(['Error when processing folder (', dirs{iDir}, ') - this one will be skipped.'])
+					warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
 				end
 			end
 			% TetrodeRecording.RandomWords();
@@ -3363,6 +3365,7 @@ classdef TetrodeRecording < handle
 						TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels, channelsToRead, numSigmas, waveformWindow, featureMethod, clusterMethod, dimension, prefix);
 					catch ME
 						warning(['Error when processing folder (', allPaths{iDir}, ') - this one will be skipped.'])
+						warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
 					end
 				end
 			end
