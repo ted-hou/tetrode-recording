@@ -1636,9 +1636,8 @@ classdef TetrodeRecording < handle
 							if isempty(maxShown) || maxShown == 0 || size(thisWaveforms, 1) <= maxShown
 								percentShown = 100;
 							else
-								percentShown = max(1, round(100*(maxShown/size(thisWaveforms, 1))));
 								[~, I] = sort(sum(thisWaveforms, 2));
-								thisWaveforms = thisWaveforms(I(1:ceil(100/percentShown):end), :);
+								thisWaveforms = thisWaveforms(I(1:ceil(size(thisWaveforms, 1)/maxShown):end), :);
 							end
 							line(hAxes2, t, thisWaveforms, 'LineStyle', thisStyle, 'Color', thisColor);
 						end
@@ -2470,6 +2469,7 @@ classdef TetrodeRecording < handle
 					% Remove selected clusters
 					obj.ClusterRemove(iChannel, clusters);
 					hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+					hFigure.UserData.SelectedSampleIndex = [];
 
 					% Replot clusters
 					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
@@ -2502,6 +2502,8 @@ classdef TetrodeRecording < handle
 					for iCluster = clusters
 						obj.ClusterDecimate(iChannel, iCluster);
 					end
+
+					hFigure.UserData.SelectedSampleIndex = [];
 
 					% Replot clusters
 					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
@@ -2927,7 +2929,7 @@ classdef TetrodeRecording < handle
 				'Delete', 'Cancel',...
 				'Cancel');
 			if strcmpi(answer, 'Delete')
-				obj.DeleteWaveforms(iChannel, hFigure.UserData.SelectedSampleIndex, 'IndexType', 'SampleIndex', 'Clusters', hFigure.UserData.SelectedClusters);
+				obj.DeleteWaveforms(iChannel, selectedSampleIndex, 'IndexType', 'SampleIndex', 'Clusters', selectedClusters);
 				hFigure.UserData.SelectedSampleIndex = [];
 				hFigure.UserData.SelectedCluster = [];
 				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
