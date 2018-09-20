@@ -3320,7 +3320,7 @@ classdef TetrodeRecording < handle
 	end
 
 	methods (Static)
-		function previewObj = BatchPreview()
+		function previewObj = BatchPreview(showResults)
 			previewObj = TetrodeRecording();
 			dirs = uipickfiles('Prompt', 'Select (multiple) folders...');
 			dirs = dirs(isfolder(dirs));
@@ -3355,13 +3355,19 @@ classdef TetrodeRecording < handle
 					warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
 				end				
 			end
-			for iDir = 1:length(dirs)
-				try
-					previewObj(iDir).PlotAllChannels('YLim', [-1000, 1000]);
-					previewObj(iDir).ClearCache();
-				catch ME
-					warning(['Error when processing folder (', dirs{iDir}, ') - this one will be skipped.'])
-					warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
+
+			if nargin < 1
+				showResults = true;
+			end
+			if showResults
+				for iDir = 1:length(dirs)
+					try
+						previewObj(iDir).PlotAllChannels('YLim', [-500, 500]);
+						previewObj(iDir).ClearCache();
+					catch ME
+						warning(['Error when processing folder (', dirs{iDir}, ') - this one will be skipped.'])
+						warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
+					end
 				end
 			end
 			% TetrodeRecording.RandomWords();
