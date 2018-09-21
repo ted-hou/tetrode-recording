@@ -3409,6 +3409,7 @@ classdef TetrodeRecording < handle
 							channelsToRead = previewObj(iDir).MapChannel_TetrodeToRecorded(channels);
 					end
 					try
+						TetrodeRecording.TTS(['Processing folder ', num2str(iDir), '/', num2str(length(selectedChannels)), ':\n']);
 						TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels, channelsToRead, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix);
 					catch ME
 						warning(['Error when processing folder (', allPaths{iDir}, ') - this one will be skipped.'])
