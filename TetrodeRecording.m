@@ -2296,7 +2296,7 @@ classdef TetrodeRecording < handle
 			hButtonNextChn = uicontrol(h.Figure,...
 				'Style', 'pushbutton',...
 				'String', 'Next Chn',...
-				'Callback', {@(~, ~) obj.PlotChannel(nextChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', h.Figure)},...
+				'Callback', {@(~, ~) obj.PlotChannel(nextChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', h.Figure)},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', [1 - xMargin - 2*buttonWidth, 1 - yMargin, buttonWidth, min(yMargin, buttonHeight)]);
@@ -2313,7 +2313,7 @@ classdef TetrodeRecording < handle
 			hButtonDeleteChn = uicontrol(h.Figure,...
 				'Style', 'pushbutton',...
 				'String', 'Delete Chn',...
-				'Callback', {@obj.GUIDeleteChannel, iChannel, nextChn, h},...
+				'Callback', {@obj.GUIDeleteChannel, iChannel, nextChn, p, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2322,7 +2322,7 @@ classdef TetrodeRecording < handle
 			hButtonPrevChn = uicontrol(h.Figure,...
 				'Style', 'pushbutton',...
 				'String', 'Prev Chn',...
-				'Callback', {@(~, ~) obj.PlotChannel(prevChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', h.Figure)},...
+				'Callback', {@(~, ~) obj.PlotChannel(prevChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', h.Figure)},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2508,7 +2508,7 @@ classdef TetrodeRecording < handle
 			if (ok && ~isempty(clusters))
 				clusters = cellfun(@str2num, liststr(clusters));
 				% Replot clusters
-				hFigure.UserData.SelectedClusters = clusters;
+				h.Figure.UserData.SelectedClusters = clusters;
 				obj.ReplotChannel(iChannel, p, h);
 			end
 			obj.GUIBusy(h.Figure, false);
@@ -2536,8 +2536,8 @@ classdef TetrodeRecording < handle
 				if strcmpi(answer, 'Remove')
 					% Remove selected clusters
 					obj.ClusterRemove(iChannel, clusters);
-					hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
-					hFigure.UserData.SelectedSampleIndex = [];
+					h.Figure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+					h.Figure.UserData.SelectedSampleIndex = [];
 
 					% Replot clusters
 					obj.ReplotChannel(iChannel, p, h);
@@ -2571,7 +2571,7 @@ classdef TetrodeRecording < handle
 						obj.ClusterDecimate(iChannel, iCluster);
 					end
 
-					hFigure.UserData.SelectedSampleIndex = [];
+					h.Figure.UserData.SelectedSampleIndex = [];
 
 					% Replot clusters
 					obj.ReplotChannel(iChannel, p, h);
@@ -2732,7 +2732,7 @@ classdef TetrodeRecording < handle
 			if ok
 				referenceCluster = cellfun(@str2num, liststr(referenceCluster));
 				% Expand and plot all clusters
-				obj.PlotAllClusters(iChannel, 'Clusters', hFigure.UserData.SelectedClusters, 'ReferenceCluster', referenceCluster, 'FigMain', hFigure);
+				obj.PlotAllClusters(iChannel, 'Clusters', h.Figure.UserData.SelectedClusters, 'ReferenceCluster', referenceCluster, 'FigMain', h.Figure);
 			end
 			obj.GUIBusy(h.Figure, false);
 		end
@@ -2749,14 +2749,14 @@ classdef TetrodeRecording < handle
 			copyLegend 	= p.Results.CopyLegend;
 			copyLabel 	= p.Results.CopyLabel;
 
-			hButtons 	= findobj(hFigure.Children, 'Type', 'uicontrol');
-			hTexts 		= findobj(hFigure.Children, 'Type', 'Text', 'Tag', 'HideWhenSaving');
+			hButtons 	= findobj(h.Figure.Children, 'Type', 'uicontrol');
+			hTexts 		= findobj(h.Figure.Children, 'Type', 'Text', 'Tag', 'HideWhenSaving');
 
-			hWaveform 	= findobj(hFigure, 'Tag', 'Waveform');
-			hPCA 		= findobj(hFigure, 'Tag', 'PCA');
-			hRaster 	= findobj(hFigure, 'Tag', 'Raster');
-			hRaster2 	= findobj(hFigure, 'Tag', 'Raster2');
-			hPETH 		= findobj(hFigure, 'Tag', 'PETH');
+			hWaveform 	= findobj(h.Figure, 'Tag', 'Waveform');
+			hPCA 		= findobj(h.Figure, 'Tag', 'PCA');
+			hRaster 	= findobj(h.Figure, 'Tag', 'Raster');
+			hRaster2 	= findobj(h.Figure, 'Tag', 'Raster2');
+			hPETH 		= findobj(h.Figure, 'Tag', 'PETH');
 
 			propertiesToCopy = {'Name', 'GraphicsSmoothing', 'DefaultAxesFontSize'};
 
@@ -2765,14 +2765,14 @@ classdef TetrodeRecording < handle
 
 			switch lower(reformat)
 				case lower('Raw')
-					hFigurePrint = hFigure;
+					hFigurePrint = h.Figure;
 				case lower('PETH')
 					hFigureNew = figure('Position', [0, 0, 1776/4, 999/3]);
 					for iProp = 1:length(propertiesToCopy)
-						set(hFigureNew, propertiesToCopy{iProp}, get(hFigure, propertiesToCopy{iProp}));
+						set(hFigureNew, propertiesToCopy{iProp}, get(h.Figure, propertiesToCopy{iProp}));
 					end
 					hPETHNew = copyobj(hPETH, hFigureNew);
-					title(hPETHNew, hFigure.Name, 'Interpreter', 'none');
+					title(hPETHNew, h.Figure.Name, 'Interpreter', 'none');
 					hPETHNew.OuterPosition = [0, 0, 1, 1];
 
 					set(hPETHNew, 'XLim', get(hRaster, 'XLim'));
@@ -2790,10 +2790,10 @@ classdef TetrodeRecording < handle
 				case lower('Raster')
 					hFigureNew = figure();
 					for iProp = 1:length(propertiesToCopy)
-						set(hFigureNew, propertiesToCopy{iProp}, get(hFigure, propertiesToCopy{iProp}));
+						set(hFigureNew, propertiesToCopy{iProp}, get(h.Figure, propertiesToCopy{iProp}));
 					end
 					hRasterNew = copyobj(hRaster, hFigureNew);
-					title(hRasterNew, hFigure.Name, 'Interpreter', 'none');
+					title(hRasterNew, h.Figure.Name, 'Interpreter', 'none');
 					hRasterNew.OuterPosition = [0, 0, 1, 1];
 
 					set(hRasterNew, 'XLim', get(hRaster, 'XLim'));
@@ -2811,7 +2811,7 @@ classdef TetrodeRecording < handle
 				case lower('RasterAndPETH')
 					hFigureNew = figure('Position', [2 42 958 954]);
 					for iProp = 1:length(propertiesToCopy)
-						set(hFigureNew, propertiesToCopy{iProp}, get(hFigure, propertiesToCopy{iProp}));
+						set(hFigureNew, propertiesToCopy{iProp}, get(h.Figure, propertiesToCopy{iProp}));
 					end
 					hRasterNew = copyobj(hRaster, hFigureNew);
 					hRasterNew.OuterPosition = [0, 0.5, 1, 0.5];
@@ -2827,12 +2827,12 @@ classdef TetrodeRecording < handle
 						legend(hPETHNew, 'Location', 'northwest');
 					end
 
-					% hTitle = suptitle(hFigure.Name);
+					% hTitle = suptitle(h.Figure.Name);
 					hFigurePrint = hFigureNew;
 				case lower('RasterAndPETHAndWaveform')
 					hFigureNew = figure('Position', [2 42 958 954]);
 					for iProp = 1:length(propertiesToCopy)
-						set(hFigureNew, propertiesToCopy{iProp}, get(hFigure, propertiesToCopy{iProp}));
+						set(hFigureNew, propertiesToCopy{iProp}, get(h.Figure, propertiesToCopy{iProp}));
 					end
 					hRasterNew = copyobj(hRaster, hFigureNew);
 					hRasterNew.OuterPosition = [0, 0.5, 1, 0.5];
@@ -2855,7 +2855,7 @@ classdef TetrodeRecording < handle
 						legend(hPETHNew, 'Location', 'best');
 					end
 
-					% hTitle = suptitle(hFigure.Name);
+					% hTitle = suptitle(h.Figure.Name);
 					hFigurePrint = hFigureNew;
 			end
 
@@ -2868,7 +2868,7 @@ classdef TetrodeRecording < handle
 			set(hTexts, 'Visible', 'on');					
 		end
 
-		function GUIDeleteChannel(obj, hButton, evnt, iChannel, nextChn, h)
+		function GUIDeleteChannel(obj, hButton, evnt, iChannel, nextChn, p, h)
 			obj.GUIBusy(h.Figure, true);
 			answer = questdlg(...
 				['Permanently delete current channel (', num2str(iChannel), ')?'],...
@@ -2883,7 +2883,26 @@ classdef TetrodeRecording < handle
 				if nextChn == iChannel
 					close(h.Figure)
 				else
-					obj.PlotChannel(nextChn, 'Fig', h.Figure)
+					reference 			= p.Results.Reference;
+					event 				= p.Results.Event;
+					exclude 			= p.Results.Exclude;
+					event2 				= p.Results.Event2;
+					exclude2 			= p.Results.Exclude2;
+					clusters 			= p.Results.Clusters;
+					referenceCluster	= p.Results.ReferenceCluster;
+					waveformWindow 		= p.Results.WaveformWindow;
+					extendedWindow 		= p.Results.ExtendedWindow;
+					minTrialLength 		= p.Results.MinTrialLength;
+					bins 				= p.Results.Bins;
+					binMethod 			= p.Results.BinMethod;
+					spikeRateWindow 	= p.Results.SpikeRateWindow;
+					rasterXLim 			= p.Results.RasterXLim;
+					waveformYLim		= p.Results.WaveformYLim;
+					fontSize 			= p.Results.FontSize;
+					printMode 			= p.Results.PrintMode;
+					frameRate 			= p.Results.FrameRate;
+
+					obj.PlotChannel(nextChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', h.Figure)
 				end
 			end
 			obj.GUIBusy(h.Figure, false);
