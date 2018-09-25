@@ -1918,7 +1918,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'MaxShown', 200, @isnumeric);
 			addParameter(p, 'Fontsize', 8, @isnumeric);
 			addParameter(p, 'PlotMethod', 'all', @ischar); % 'all', 'mean'
-			addParameter(p, 'YLim', [-400, 400], @(x) isnumeric(x) || ischar(x)); % [-200, 200], or 'auto'
+			addParameter(p, 'YLim', 'auto', @(x) isnumeric(x) || ischar(x)); % [-200, 200], or 'auto'
 			parse(p, varargin{:});
 			channels 		= p.Results.Channels;
 			percentShown 	= p.Results.PercentShown;
