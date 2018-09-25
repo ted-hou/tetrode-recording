@@ -1812,6 +1812,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'ExtendedWindow', [0, 0], @isnumeric);
 			addParameter(p, 'SelectedSampleIndex', [], @isnumeric);
 			addParameter(p, 'XLim', [], @isnumeric);
+			addParameter(p, 'LineStyle', '-', @ischar);
 			addParameter(p, 'Ax', []);
 			parse(p, channels, varargin{:});
 			channels 			= p.Results.Channels;
@@ -1826,6 +1827,7 @@ classdef TetrodeRecording < handle
 			extendedWindow 		= p.Results.ExtendedWindow;
 			selectedSampleIndex	= p.Results.SelectedSampleIndex;
 			xRange 				= p.Results.XLim;			
+			lineStyle			= p.Results.LineStyle;			
 			ax 					= p.Results.Ax;
 
 			if ~isempty(reference)
@@ -1895,10 +1897,10 @@ classdef TetrodeRecording < handle
 					thisSpikeRate = (1000*thisSpikeRate/spikeRateWindow)/NTrials(iBin);
 					thisCenters = (thisEdges(1:end - 1) + thisEdges(2:end))/2;
 
-					[thisColor, thisStyle] = TetrodeRecording.GetColorAndStyle(iBin);
+					[thisColor, thisStyle] = TetrodeRecording.GetColorAndStyle(iBin, 'Styles', {lineStyle});
 					plot(hAxes, thisCenters, thisSpikeRate, [thisColor, thisStyle],...
 						'DisplayName', ['[', num2str(-cutOff, 2), ' s, ', num2str(edges(iBin + 1), 2), ' s] (', num2str(NTrials(iBin)), ' trials)'],...
-						'LineWidth', 2.5);
+						'LineWidth', 1);
 				end
 				xlabel(hAxes, ['Time relative to ', eventDisplayName, ' (s)']);
 				ylabel(hAxes, 'Mean firing rate (Spikes/s)')
@@ -2011,6 +2013,8 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Reference', 'CueOn', @ischar);
 			addParameter(p, 'Event', 'PressOn', @ischar);
 			addParameter(p, 'Exclude', 'LickOn', @ischar);
+			addParameter(p, 'Event2', 'LickOn', @ischar);
+			addParameter(p, 'Exclude2', 'PressOn', @ischar);
 			addParameter(p, 'Clusters', [], @isnumeric);
 			addParameter(p, 'ReferenceCluster', [], @isnumeric);
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
@@ -2030,6 +2034,8 @@ classdef TetrodeRecording < handle
 			reference 			= p.Results.Reference;
 			event 				= p.Results.Event;
 			exclude 			= p.Results.Exclude;
+			event2 				= p.Results.Event2;
+			exclude2 			= p.Results.Exclude2;
 			clusters 			= p.Results.Clusters;
 			referenceCluster	= p.Results.ReferenceCluster;
 			waveformWindow 		= p.Results.WaveformWindow;
@@ -2043,17 +2049,17 @@ classdef TetrodeRecording < handle
 			fontSize 			= p.Results.FontSize;
 			printMode 			= p.Results.PrintMode;
 			frameRate 			= p.Results.FrameRate;
-			hFigure 			= p.Results.Fig;
+			h.Figure 			= p.Results.Fig;
 
 			allChannels = [obj.Spikes.Channel];
 			if isempty(iChannel)
 				iChannel = allChannels(1);
 			end
 
-			xRatio 	= 0.4;
+			xRatio 	= 0.2;
 			yRatio 	= 0.6;
-			xMargin = 0.04;
-			yMargin = 0.06;
+			xMargin = 0.02;
+			yMargin = 0.03;
 			fMargin = 0.04;
 			buttonWidth = 0.04;
 			buttonHeight = 0.025;
@@ -2062,6 +2068,7 @@ classdef TetrodeRecording < handle
 			hUp 	= (1 - 2*fMargin)*yRatio - 2*yMargin;
 			hUpHalf = (hUp - 2*yMargin)/2;
 			hDown 	= (1 - 2*fMargin)*(1 - yRatio) - 2*yMargin;
+			hHalf 	= (1 - 2*fMargin - 5*yMargin)*0.5;
 			w 		= 1 - 2*fMargin - 2*xMargin;
 			wLeft	= (1 - 2*fMargin)*xRatio - 2*xMargin;
 			wRight	= (1 - 2*fMargin)*(1 - xRatio) - 2*xMargin;
@@ -2069,35 +2076,34 @@ classdef TetrodeRecording < handle
 			expName = obj.GetExpName();				
 			displayName = [expName, ' (Channel ', num2str(iChannel), ')'];
 
-			if ~isempty(hFigure)
-				clf(hFigure)
+			if ~isempty(h.Figure)
+				clf(h.Figure)
 			else
-				hFigure	= figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'GraphicsSmoothing', 'on');
-				hFigure.UserData.PlotMean = true;
-				hFigure.UserData.ReferenceCluster = referenceCluster;
+				h.Figure = figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'GraphicsSmoothing', 'on');
+				h.Figure.UserData.PlotMean = true;
+				h.Figure.UserData.ReferenceCluster = referenceCluster;
 			end
-			hFigure.UserData.SelectedSampleIndex = []; % Selectively plot waveforms by sampleIndex. Reset everytime.
-			hFigure.Name = displayName;
+			h.Figure.UserData.SelectedSampleIndex = []; % Selectively plot waveforms by sampleIndex. Reset everytime.
+			h.Figure.Name = displayName;
 
 			if printMode
 				fontSize = 14;
-				hFigure.Units = 'pixels';
-				% hFigure.InnerPosition = [0, 0, 1332, 999];
-				hFigure.InnerPosition = [0, 0, 1776, 999];
+				h.Figure.Units = 'pixels';
+				% h.Figure.InnerPosition = [0, 0, 1332, 999];
+				h.Figure.InnerPosition = [0, 0, 1776, 999];
 			end
-			set(hFigure, 'DefaultAxesFontSize', fontSize);
+			set(h.Figure, 'DefaultAxesFontSize', fontSize);
 
-			hWaveform 	= subplot('Position', [fMargin + xMargin, fMargin + 5*yMargin + hDown + hUpHalf, wLeft, hUpHalf], 'Tag', 'Waveform');
-			hPCA 		= subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hDown, wLeft, hUpHalf], 'Tag', 'PCA');
-			hRaster		= subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + 3*yMargin + hDown, wRight, hUp], 'Tag', 'Raster');
-			hPETH 		= subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hDown], 'Tag', 'PETH');
-
-			varargout = {hFigure, hWaveform, hPCA, hRaster, hPETH};
+			h.Waveform 	= subplot('Position', [fMargin + xMargin, fMargin + 5*yMargin + hDown + hUpHalf, wLeft, hUpHalf], 'Tag', 'Waveform');
+			h.PCA 		= subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hDown, wLeft, hUpHalf], 'Tag', 'PCA');
+			h.Raster	= subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + 3*yMargin + hHalf, wRight, hHalf], 'Tag', 'Raster');
+			h.Raster2	= subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + yMargin, wRight, hHalf], 'Tag', 'Raster2');
+			h.PETH 		= subplot('Position', [fMargin + xMargin, fMargin + yMargin, wLeft, hDown], 'Tag', 'PETH');
 
 			if isempty(clusters)
-				hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+				h.Figure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
 			else
-				hFigure.UserData.SelectedClusters = clusters;
+				h.Figure.UserData.SelectedClusters = clusters;
 			end
 
 			hTitle = suptitle(displayName);
@@ -2113,7 +2119,7 @@ classdef TetrodeRecording < handle
 			hButtonSelClusters = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Select ...',...
-				'Callback', {@obj.GUIPlotClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'Callback', {@obj.GUIPlotClusters, iChannel, p, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2123,7 +2129,7 @@ classdef TetrodeRecording < handle
 			hButtonSelRef = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Ref ...',...
-				'Callback', {@obj.GUISelRef, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'Callback', {@obj.GUISelRef, iChannel, p, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2133,7 +2139,7 @@ classdef TetrodeRecording < handle
 			hButtonPlotAllClusters = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Expand ...',...
-				'Callback', {@obj.GUIPlotAllClusters, iChannel, hFigure},...
+				'Callback', {@obj.GUIPlotAllClusters, iChannel, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2143,7 +2149,7 @@ classdef TetrodeRecording < handle
 			hButtonMerge = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Merge ...',...
-				'Callback', {@obj.GUIMergeClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'Callback', {@obj.GUIMergeClusters, iChannel, p, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2153,7 +2159,7 @@ classdef TetrodeRecording < handle
 			hButtonRemove = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Remove ...',...
-				'Callback', {@obj.GUIRemoveClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'Callback', {@obj.GUIRemoveClusters, iChannel, p, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2163,7 +2169,7 @@ classdef TetrodeRecording < handle
 			hButtonDecimate = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Decimate ...',...
-				'Callback', {@obj.GUIDecimateClusters, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'Callback', {@obj.GUIDecimateClusters, iChannel, p, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2173,7 +2179,7 @@ classdef TetrodeRecording < handle
 			hButtonRecluster = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Recluster ...',...
-				'Callback', {@obj.GUIRecluster, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'Callback', {@obj.GUIRecluster, iChannel, p, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2193,7 +2199,7 @@ classdef TetrodeRecording < handle
 			hButtonSelSpikes = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Select ...',...
-				'Callback', {@obj.GUISelectSpikes, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'Callback', {@obj.GUISelectSpikes, iChannel, p, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2203,7 +2209,7 @@ classdef TetrodeRecording < handle
 			hButtonExcludeSpikes = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Exclude ...',...
-				'Callback', {@obj.GUIExcludeSpikes, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'Callback', {@obj.GUIExcludeSpikes, iChannel, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2213,7 +2219,7 @@ classdef TetrodeRecording < handle
 			hButtonSelReset = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Reset',...
-				'Callback', {@obj.GUISelectAllSpikes, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'Callback', {@obj.GUISelectAllSpikes, iChannel, p, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2223,7 +2229,7 @@ classdef TetrodeRecording < handle
 			hButtonDeleteSpikes = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Delete ...',...
-				'Callback', {@obj.GUIDeleteSpikes, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'Callback', {@obj.GUIDeleteSpikes, iChannel, p, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2233,7 +2239,7 @@ classdef TetrodeRecording < handle
 			hButtonSpikesToCluster = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'To cluster ...',...
-				'Callback', {@obj.GUISpikesToCluster, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'Callback', {@obj.GUISpikesToCluster, iChannel, p, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2246,17 +2252,17 @@ classdef TetrodeRecording < handle
 			hButtonPlotMean = uicontrol(...
 				'Style', 'togglebutton',...
 				'String', 'Mean',...
-				'Callback', {@obj.GUIPlotMean, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH},...
+				'Callback', {@obj.GUIPlotMean, iChannel, p, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
-				'Value', hFigure.UserData.PlotMean,...
-				'Position', [buttonXSpacing, hWaveform.Position(2) + hWaveform.Position(4) - buttonHeight, buttonWidth, buttonHeight]);
+				'Value', h.Figure.UserData.PlotMean,...
+				'Position', [buttonXSpacing, h.Waveform.Position(2) + h.Waveform.Position(4) - buttonHeight, buttonWidth, buttonHeight]);
 			hPrev = hButtonPlotMean;
 
 			hButtonYLim = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'YLim',...
-				'Callback', {@(~, ~, ax) ylim(ax, 'auto'), hWaveform},...
+				'Callback', {@(~, ~, ax) ylim(ax, 'auto'), h.Waveform},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2266,7 +2272,7 @@ classdef TetrodeRecording < handle
 			hButtonSavePlot = uicontrol(...
 				'Style', 'pushbutton',...
 				'String', 'Clipboard',...
-				'Callback', {@obj.GUISavePlot, hFigure},...
+				'Callback', {@obj.GUISavePlot, h.Figure},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2287,10 +2293,10 @@ classdef TetrodeRecording < handle
 			end
 			prevChn = allChannels(prevChn);
 
-			hButtonNextChn = uicontrol(hFigure,...
+			hButtonNextChn = uicontrol(h.Figure,...
 				'Style', 'pushbutton',...
 				'String', 'Next Chn',...
-				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', hFigure), nextChn, hFigure},...
+				'Callback', {@(~, ~) obj.PlotChannel(nextChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', h.Figure)},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', [1 - xMargin - 2*buttonWidth, 1 - yMargin, buttonWidth, min(yMargin, buttonHeight)]);
@@ -2300,32 +2306,45 @@ classdef TetrodeRecording < handle
 			hTextCurChn = text(hAxesTextCurChn, 0.5, 0.5,...
 				['Chn ', num2str(find(allChannels == iChannel)), '/', num2str(length(allChannels))],...
 				'Tag', 'HideWhenSaving', 'HorizontalAlignment', 'center', 'FontSize', 10, 'FontWeight', 'bold');
+			assignin('base', 'hText', hTextCurChn)
 			hAxesTextCurChn.Position(1) = hAxesTextCurChn.Position(1) - hAxesTextCurChn.Position(3) - buttonXSpacing;
 			hPrev = hAxesTextCurChn;
 
-			hButtonDeleteChn = uicontrol(hFigure,...
+			hButtonDeleteChn = uicontrol(h.Figure,...
 				'Style', 'pushbutton',...
 				'String', 'Delete Chn',...
-				'Callback', {@obj.GUIDeleteChannel, iChannel, nextChn, hFigure},...
+				'Callback', {@obj.GUIDeleteChannel, iChannel, nextChn, h},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
 			hButtonDeleteChn.Position(2) = hButtonDeleteChn.Position(2) - hButtonDeleteChn.Position(4);
 
-			hButtonPrevChn = uicontrol(hFigure,...
+			hButtonPrevChn = uicontrol(h.Figure,...
 				'Style', 'pushbutton',...
 				'String', 'Prev Chn',...
-				'Callback', {@(~, ~, iChannel, hFigure) obj.PlotChannel(iChannel, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', hFigure), prevChn, hFigure},...
+				'Callback', {@(~, ~) obj.PlotChannel(prevChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', h.Figure)},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
 			hButtonPrevChn.Position(1) = hButtonPrevChn.Position(1) - hButtonPrevChn.Position(3) - buttonXSpacing;
 			hPrev = hButtonPrevChn;
 
-			obj.GUIBusy(hFigure, true);
-			obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
-			obj.GUIBusy(hFigure, false);
-			set(hFigure, 'Visible', 'on');
+			obj.GUIBusy(h.Figure, true);
+			obj.ReplotChannel(iChannel, p, h);
+
+			numTrials = max(h.Raster.Children(1).YData);
+			numTrials2 = max(h.Raster2.Children(1).YData);
+			hRasterUp = (1 - 2*fMargin - 5*yMargin)*numTrials/(numTrials + numTrials2);
+			hRasterDown = (1 - 2*fMargin - 5*yMargin)*numTrials2/(numTrials + numTrials2);
+			h.Raster.Position(2) = fMargin + 3*yMargin + hRasterDown;
+			h.Raster2.Position(2) = fMargin + yMargin;
+			h.Raster.Position(4) = hRasterUp;
+			h.Raster2.Position(4) = hRasterDown;
+
+			obj.GUIBusy(h.Figure, false);
+			set(h.Figure, 'Visible', 'on');
+
+			varargout = {h};			
 		end
 
 		function PlotAllClusters(obj, channel, varargin)
@@ -2388,10 +2407,12 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function ReplotChannel(obj, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
+		function ReplotChannel(obj, iChannel, p, h)
 			reference 		= p.Results.Reference;
 			event 			= p.Results.Event;
 			exclude 		= p.Results.Exclude;
+			event2 			= p.Results.Event2;
+			exclude2 		= p.Results.Exclude2;
 			waveformWindow 	= p.Results.WaveformWindow;
 			extendedWindow 	= p.Results.ExtendedWindow;
 			minTrialLength 	= p.Results.MinTrialLength;
@@ -2402,35 +2423,47 @@ classdef TetrodeRecording < handle
 			waveformYLim	= p.Results.WaveformYLim;
 			frameRate 		= p.Results.FrameRate;
 
-			clusters = hFigure.UserData.SelectedClusters;
-			plotMean = hFigure.UserData.PlotMean;
-			referenceCluster = hFigure.UserData.ReferenceCluster;
-			selectedSampleIndex = hFigure.UserData.SelectedSampleIndex;
+			clusters = h.Figure.UserData.SelectedClusters;
+			plotMean = h.Figure.UserData.PlotMean;
+			referenceCluster = h.Figure.UserData.ReferenceCluster;
+			selectedSampleIndex = h.Figure.UserData.SelectedSampleIndex;
 
 			% Stop refresh if frameRate > 0
-			if isfield(hWaveform.UserData, 'hTimer')
-				if isvalid(hWaveform.UserData.hTimer)
-					stop(hWaveform.UserData.hTimer);
-					delete(hWaveform.UserData.hTimer);
+			if isfield(h.Waveform.UserData, 'hTimer')
+				if isvalid(h.Waveform.UserData.hTimer)
+					stop(h.Waveform.UserData.hTimer);
+					delete(h.Waveform.UserData.hTimer);
 				end
 			end
 
 			% Clear axes
-			cla(hPCA)
-			cla(hWaveform)
-			cla(hRaster)
-			cla(hPETH)
+			hNames = fieldnames(h);
+			for iHandle = 1:length(hNames)
+				if isgraphics(h.(hNames{iHandle}), 'Axes')
+					cla(h.(hNames{iHandle}))
+				end
+			end
 
 			% Replot newly selected clusters
 			obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
 				'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
 				'SelectedSampleIndex', selectedSampleIndex, 'Sort', true,...
-				'Ax', hRaster);
+				'Ax', h.Raster);
+			obj.Raster(iChannel, reference, event2, exclude2, 'Clusters', clusters,...
+				'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
+				'SelectedSampleIndex', selectedSampleIndex, 'Sort', true,...
+				'Ax', h.Raster2);
 			obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
 				'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
 				'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
 				'SelectedSampleIndex', selectedSampleIndex,...
-				'Ax', hPETH);
+				'Ax', h.PETH);
+			obj.PETH(iChannel, reference, event2, exclude2, 'Clusters', clusters,...
+				'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
+				'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
+				'SelectedSampleIndex', selectedSampleIndex,...
+				'LineStyle', '--',...
+				'Ax', h.PETH);
 
 			if length(clusters) == 1
 				selectedCluster = clusters;
@@ -2447,7 +2480,7 @@ classdef TetrodeRecording < handle
 				'YLim', waveformYLim, 'FrameRate', frameRate, 'PlotMean', plotMean,...
 				'ReferenceCluster', referenceCluster, 'SelectedCluster', selectedCluster,...
 				'SelectedSampleIndex', selectedSampleIndex,...
-				'Ax', [hPCA, hWaveform]);
+				'Ax', [h.PCA, h.Waveform]);
 		end
 
 		function GUIBusy(obj, hFigure, busy)
@@ -2460,8 +2493,8 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function GUIPlotClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
-			obj.GUIBusy(hFigure, true);
+		function GUIPlotClusters(obj, hButton, evnt, iChannel, p, h)
+			obj.GUIBusy(h.Figure, true);
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
 
 			[clusters, ok] = listdlg(...
@@ -2476,13 +2509,13 @@ classdef TetrodeRecording < handle
 				clusters = cellfun(@str2num, liststr(clusters));
 				% Replot clusters
 				hFigure.UserData.SelectedClusters = clusters;
-				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+				obj.ReplotChannel(iChannel, p, h);
 			end
-			obj.GUIBusy(hFigure, false);
+			obj.GUIBusy(h.Figure, false);
 		end
 
-		function GUIRemoveClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
-			obj.GUIBusy(hFigure, true);
+		function GUIRemoveClusters(obj, hButton, evnt, iChannel, p, h)
+			obj.GUIBusy(h.Figure, true);
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
 
 			[clusters, ok] = listdlg(...
@@ -2507,14 +2540,14 @@ classdef TetrodeRecording < handle
 					hFigure.UserData.SelectedSampleIndex = [];
 
 					% Replot clusters
-					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+					obj.ReplotChannel(iChannel, p, h);
 				end
 			end
-			obj.GUIBusy(hFigure, false);
+			obj.GUIBusy(h.Figure, false);
 		end
 
-		function GUIDecimateClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
-			obj.GUIBusy(hFigure, true);
+		function GUIDecimateClusters(obj, hButton, evnt, iChannel, p, h)
+			obj.GUIBusy(h.Figure, true);
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
 
 			[clusters, ok] = listdlg(...
@@ -2541,14 +2574,14 @@ classdef TetrodeRecording < handle
 					hFigure.UserData.SelectedSampleIndex = [];
 
 					% Replot clusters
-					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+					obj.ReplotChannel(iChannel, p, h);
 				end
 			end
-			obj.GUIBusy(hFigure, false);
+			obj.GUIBusy(h.Figure, false);
 		end
 
-		function GUIMergeClusters(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
-			obj.GUIBusy(hFigure, true);
+		function GUIMergeClusters(obj, hButton, evnt, iChannel, p, h)
+			obj.GUIBusy(h.Figure, true);
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
 
 			[clusters, ok] = listdlg(...
@@ -2571,17 +2604,17 @@ classdef TetrodeRecording < handle
 					allClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
 					mergeList = [{clusters}, num2cell(allClusters(~ismember(allClusters, clusters)))];
 					obj.ClusterMerge(iChannel, mergeList);
-					hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+					h.Figure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
 
 					% Replot clusters
-					obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+					obj.ReplotChannel(iChannel, p, h);
 				end
 			end
-			obj.GUIBusy(hFigure, false);
+			obj.GUIBusy(h.Figure, false);
 		end
 
-		function GUIRecluster(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
-			obj.GUIBusy(hFigure, true);
+		function GUIRecluster(obj, hButton, evnt, iChannel, p, h)
+			obj.GUIBusy(h.Figure, true);
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
 
 			[clusters, ok] = listdlg(...
@@ -2601,7 +2634,7 @@ classdef TetrodeRecording < handle
 					'Cancel');
 
 				if strcmp(answer, 'Cancel')
-					obj.GUIBusy(hFigure, false);
+					obj.GUIBusy(h.Figure, false);
 					return					
 				end
 
@@ -2615,7 +2648,7 @@ classdef TetrodeRecording < handle
 						'Cancel');
 
 					if strcmp(answerFeatureMethod, 'Cancel')
-						obj.GUIBusy(hFigure, false);
+						obj.GUIBusy(h.Figure, false);
 						return					
 					end
 				end
@@ -2644,16 +2677,16 @@ classdef TetrodeRecording < handle
 				end
 				if ismember(answer, {'Recluster', 'Refeature & recluster'})
 					obj.Cluster(iChannel, 'Clusters', clusters, 'Method', clusterMethod, 'NumClusters', numClusters);
-					hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+					h.Figure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
 				end
 				% Replot clusters
-				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+				obj.ReplotChannel(iChannel, p, h);
 			end
-			obj.GUIBusy(hFigure, false);
+			obj.GUIBusy(h.Figure, false);
 		end
 
-		function GUISelRef(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
-			obj.GUIBusy(hFigure, true);
+		function GUISelRef(obj, hButton, evnt, iChannel, p, h)
+			obj.GUIBusy(h.Figure, true);
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
 
 			[referenceCluster, ok] = listdlg(...
@@ -2666,26 +2699,26 @@ classdef TetrodeRecording < handle
 				'ListSize', [250, 150]);
 
 			if ok
-				hFigure.UserData.ReferenceCluster = cellfun(@str2num, liststr(referenceCluster));
+				h.Figure.UserData.ReferenceCluster = cellfun(@str2num, liststr(referenceCluster));
 			else
-				hFigure.UserData.ReferenceCluster = [];
+				h.Figure.UserData.ReferenceCluster = [];
 			end
-			obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+			obj.ReplotChannel(iChannel, p, h);
 
-			obj.GUIBusy(hFigure, false);
+			obj.GUIBusy(h.Figure, false);
 		end
 
-		function GUIPlotMean(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
-			obj.GUIBusy(hFigure, true);
-			if logical(hButton.Value) ~= hFigure.UserData.PlotMean
-				hFigure.UserData.PlotMean = logical(hButton.Value);
-				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+		function GUIPlotMean(obj, hButton, evnt, iChannel, p, h)
+			obj.GUIBusy(h.Figure, true);
+			if logical(hButton.Value) ~= h.Figure.UserData.PlotMean
+				h.Figure.UserData.PlotMean = logical(hButton.Value);
+				obj.ReplotChannel(iChannel, p, h);
 			end
-			obj.GUIBusy(hFigure, false);
+			obj.GUIBusy(h.Figure, false);
 		end
 
-		function GUIPlotAllClusters(obj, hButton, evnt, iChannel, hFigure)
-			obj.GUIBusy(hFigure, true);
+		function GUIPlotAllClusters(obj, hButton, evnt, iChannel, h)
+			obj.GUIBusy(h.Figure, true);
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
 
 			[referenceCluster, ok] = listdlg(...
@@ -2701,10 +2734,10 @@ classdef TetrodeRecording < handle
 				% Expand and plot all clusters
 				obj.PlotAllClusters(iChannel, 'Clusters', hFigure.UserData.SelectedClusters, 'ReferenceCluster', referenceCluster, 'FigMain', hFigure);
 			end
-			obj.GUIBusy(hFigure, false);
+			obj.GUIBusy(h.Figure, false);
 		end
 
-		function GUISavePlot(obj, hButton, evnt, hFigure, varargin)
+		function GUISavePlot(obj, hButton, evnt, h, varargin)
 			p = inputParser;
 			addParameter(p, 'Filename', '', @ischar); % '' to copy to clipboard
 			addParameter(p, 'Reformat', 'Raw', @ischar); % 'Raw', 'PETH', 'Raster', 'RasterAndPETH', 'RasterAndPETHAndWaveform'
@@ -2722,6 +2755,7 @@ classdef TetrodeRecording < handle
 			hWaveform 	= findobj(hFigure, 'Tag', 'Waveform');
 			hPCA 		= findobj(hFigure, 'Tag', 'PCA');
 			hRaster 	= findobj(hFigure, 'Tag', 'Raster');
+			hRaster2 	= findobj(hFigure, 'Tag', 'Raster2');
 			hPETH 		= findobj(hFigure, 'Tag', 'PETH');
 
 			propertiesToCopy = {'Name', 'GraphicsSmoothing', 'DefaultAxesFontSize'};
@@ -2834,8 +2868,8 @@ classdef TetrodeRecording < handle
 			set(hTexts, 'Visible', 'on');					
 		end
 
-		function GUIDeleteChannel(obj, hButton, evnt, iChannel, nextChn, hFigure)
-			obj.GUIBusy(hFigure, true);
+		function GUIDeleteChannel(obj, hButton, evnt, iChannel, nextChn, h)
+			obj.GUIBusy(h.Figure, true);
 			answer = questdlg(...
 				['Permanently delete current channel (', num2str(iChannel), ')?'],...
 				'Delete channel',...
@@ -2847,54 +2881,56 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).(field{1}) = [];
 				end				
 				if nextChn == iChannel
-					close(hFigure)
+					close(h.Figure)
 				else
-					obj.PlotChannel(nextChn, 'Fig', hFigure)
+					obj.PlotChannel(nextChn, 'Fig', h.Figure)
 				end
 			end
-			obj.GUIBusy(hFigure, false);
+			obj.GUIBusy(h.Figure, false);
 		end
 
-		function GUISelectSpikes(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
-			obj.GUIBusy(hFigure, true);
+		function GUISelectSpikes(obj, hButton, evnt, iChannel, p, h)
+			obj.GUIBusy(h.Figure, true);
 
 			% Add onButtonDown EH for all axes
-			set(hWaveform, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH, 'Waveform', false});
-			set(hPCA, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH, 'Feature', false});
-			set(hRaster, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH, 'Raster', false});
-			set([hWaveform, hPCA, hRaster], 'Box', 'on', 'LineWidth', 2, 'XColor', 'r', 'YColor', 'r');
+			set(h.Waveform, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, h, 'Waveform', false});
+			set(h.PCA, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, h, 'Feature', false});
+			set(h.Raster, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, h, 'Raster', false});
+			set(h.Raster2, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, h, 'Raster', false});
+			set([h.Waveform, h.PCA, h.Raster, h.Raster2], 'Box', 'on', 'LineWidth', 2, 'XColor', 'r', 'YColor', 'r');
 		end
 
-		function GUIExcludeSpikes(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
-			obj.GUIBusy(hFigure, true);
+		function GUIExcludeSpikes(obj, hButton, evnt, iChannel, p, h)
+			obj.GUIBusy(h.Figure, true);
 
 			% Add onButtonDown EH for all axes
-			set(hWaveform, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH, 'Waveform', true});
-			set(hPCA, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH, 'Feature', true});
-			set(hRaster, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH, 'Raster', true});
-			set([hWaveform, hPCA, hRaster], 'Box', 'on', 'LineWidth', 2, 'XColor', 'r', 'YColor', 'r');
+			set(h.Waveform, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, h, 'Waveform', true});
+			set(h.PCA, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, h, 'Feature', true});
+			set(h.Raster, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, h, 'Raster', true});
+			set(h.Raster2, 'ButtonDownFcn', {@obj.GUISelectSpikesOnAxesSelected, iChannel, p, h, 'Raster', true});
+			set([h.Waveform, h.PCA, h.Raster, h.Raster2], 'Box', 'on', 'LineWidth', 2, 'XColor', 'r', 'YColor', 'r');
 		end
 
-		function GUISelectAllSpikes(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
-			obj.GUIBusy(hFigure, true);
-			hFigure.UserData.SelectedSampleIndex = [];
-			obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
-			obj.GUIBusy(hFigure, false);
+		function GUISelectAllSpikes(obj, hButton, evnt, iChannel, p, h)
+			obj.GUIBusy(h.Figure, true);
+			h.Figure.UserData.SelectedSampleIndex = [];
+			obj.ReplotChannel(iChannel, p, h);
+			obj.GUIBusy(h.Figure, false);
 		end
 
-		function GUISelectSpikesOnAxesSelected(obj, hAxes, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH, selectionMode, exclude)
+		function GUISelectSpikesOnAxesSelected(obj, hAxes, evnt, iChannel, p, h, selectionMode, exclude)
 			% Remove onButtonDown EH for all axes
-			set([hWaveform, hPCA, hRaster], 'ButtonDownFcn', '');
+			set([h.Waveform, h.PCA, h.Raster, h.Raster2], 'ButtonDownFcn', '');
 
 			switch lower(selectionMode)
 				case 'waveform'
-					set([hPCA, hRaster], 'Box', 'off', 'LineWidth', 0.5, 'XColor', 'k', 'YColor', 'k');
+					set([h.PCA, h.Raster], 'Box', 'off', 'LineWidth', 0.5, 'XColor', 'k', 'YColor', 'k');
 					switch evnt.Button
 						case 1 % LMB - hoop mode
 							[x, y] = getline(hAxes);
 							hoop = [x, y];
 							if size(hoop, 1) == 2
-								selection = obj.GetSpikesByHoop(iChannel, hoop, 'Clusters', hFigure.UserData.SelectedClusters, 'SampleIndex', hFigure.UserData.SelectedSampleIndex);
+								selection = obj.GetSpikesByHoop(iChannel, hoop, 'Clusters', h.Figure.UserData.SelectedClusters, 'SampleIndex', h.Figure.UserData.SelectedSampleIndex);
 							else
 								selection = [];
 							end
@@ -2902,22 +2938,22 @@ classdef TetrodeRecording < handle
 							axes(hAxes);
 							[~, threshold] = ginput(1);
 							if ~isempty(threshold)
-								selection = obj.GetSpikesByThreshold(iChannel, threshold, 'Clusters', hFigure.UserData.SelectedClusters, 'SampleIndex', hFigure.UserData.SelectedSampleIndex);
+								selection = obj.GetSpikesByThreshold(iChannel, threshold, 'Clusters', h.Figure.UserData.SelectedClusters, 'SampleIndex', h.Figure.UserData.SelectedSampleIndex);
 							else
 								selection = [];
 							end
 					end
 				case 'feature'
-					set([hWaveform, hRaster], 'Box', 'off', 'LineWidth', 0.5, 'XColor', 'k', 'YColor', 'k');
+					set([h.Waveform, h.Raster], 'Box', 'off', 'LineWidth', 0.5, 'XColor', 'k', 'YColor', 'k');
 					[x, y] = getline(hAxes, 'closed');
 					polygon = [x, y];
 					if size(polygon, 1) >= 3
-						selection = obj.GetSpikesByFeature(iChannel, polygon, 'Clusters', hFigure.UserData.SelectedClusters, 'SampleIndex', hFigure.UserData.SelectedSampleIndex);
+						selection = obj.GetSpikesByFeature(iChannel, polygon, 'Clusters', h.Figure.UserData.SelectedClusters, 'SampleIndex', h.Figure.UserData.SelectedSampleIndex);
 					else
 						selection = [];
 					end
 				case 'raster'
-					set([hWaveform, hPCA], 'Box', 'off', 'LineWidth', 0.5, 'XColor', 'k', 'YColor', 'k');
+					set([h.Waveform, h.PCA], 'Box', 'off', 'LineWidth', 0.5, 'XColor', 'k', 'YColor', 'k');
 					rect = getrect(hAxes);
 					if nnz(rect(3:4)) == 2
 						pp = hAxes.UserData.PlotParams;
@@ -2928,42 +2964,42 @@ classdef TetrodeRecording < handle
 								windowReference = 'End';
 						end
 						selection = obj.GetSpikesByTrial(iChannel, 'Reference', pp.Reference, 'Event', pp.Event, 'Exclude', pp.Exclude,...
-							'Clusters', hFigure.UserData.SelectedClusters, 'SampleIndex', hFigure.UserData.SelectedSampleIndex, 'Window', [rect(1), rect(1) + rect(3)], 'WindowReference', windowReference);
+							'Clusters', h.Figure.UserData.SelectedClusters, 'SampleIndex', h.Figure.UserData.SelectedSampleIndex, 'Window', [rect(1), rect(1) + rect(3)], 'WindowReference', windowReference);
 					else
 						selection = [];
 					end
 				otherwise
-					set([hWaveform, hPCA, hRaster], 'Box', 'off', 'LineWidth', 0.5, 'XColor', 'k', 'YColor', 'k');
-					obj.GUIBusy(hFigure, false);
+					set([h.Waveform, h.PCA, h.Raster, h.Raster2], 'Box', 'off', 'LineWidth', 0.5, 'XColor', 'k', 'YColor', 'k');
+					obj.GUIBusy(h.Figure, false);
 					return
 			end
 
-			if isempty(hFigure.UserData.SelectedSampleIndex)
+			if isempty(h.Figure.UserData.SelectedSampleIndex)
 				originalSelection = obj.Spikes(iChannel).SampleIndex;
 			else
-				originalSelection = hFigure.UserData.SelectedSampleIndex;
+				originalSelection = h.Figure.UserData.SelectedSampleIndex;
 			end
 
 			if ~isempty(selection)
 				if exclude
-					hFigure.UserData.SelectedSampleIndex = setdiff(originalSelection, selection);
+					h.Figure.UserData.SelectedSampleIndex = setdiff(originalSelection, selection);
 				else
-					hFigure.UserData.SelectedSampleIndex = intersect(originalSelection, selection);
+					h.Figure.UserData.SelectedSampleIndex = intersect(originalSelection, selection);
 				end
 			end
 
-			set([hWaveform, hPCA, hRaster], 'Box', 'off', 'LineWidth', 0.5, 'XColor', 'k', 'YColor', 'k');
+			set([h.Waveform, h.PCA, h.Raster, h.Raster2], 'Box', 'off', 'LineWidth', 0.5, 'XColor', 'k', 'YColor', 'k');
 
-			obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+			obj.ReplotChannel(iChannel, p, h);
 
-			obj.GUIBusy(hFigure, false);
+			obj.GUIBusy(h.Figure, false);
 		end
 
-		function GUIDeleteSpikes(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
-			obj.GUIBusy(hFigure, true);
+		function GUIDeleteSpikes(obj, hButton, evnt, iChannel, p, h)
+			obj.GUIBusy(h.Figure, true);
 
-			selectedClusters 	= hFigure.UserData.SelectedClusters;
-			selectedSampleIndex = hFigure.UserData.SelectedSampleIndex;
+			selectedClusters 	= h.Figure.UserData.SelectedClusters;
+			selectedSampleIndex = h.Figure.UserData.SelectedSampleIndex;
 			classes 			= obj.Spikes(iChannel).Cluster.Classes;
 			sampleIndex 		= obj.Spikes(iChannel).SampleIndex;
 
@@ -2991,21 +3027,21 @@ classdef TetrodeRecording < handle
 				'Cancel');
 			if strcmpi(answer, 'Delete')
 				obj.DeleteWaveforms(iChannel, selectedSampleIndex, 'IndexType', 'SampleIndex', 'Clusters', selectedClusters);
-				hFigure.UserData.SelectedSampleIndex = [];
-				hFigure.UserData.SelectedCluster = [];
-				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+				h.Figure.UserData.SelectedSampleIndex = [];
+				h.Figure.UserData.SelectedCluster = [];
+				obj.ReplotChannel(iChannel, p, h);
 			end
 
-			obj.GUIBusy(hFigure, false);
+			obj.GUIBusy(h.Figure, false);
 		end
 
-		function GUISpikesToCluster(obj, hButton, evnt, iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH)
-			obj.GUIBusy(hFigure, true);
+		function GUISpikesToCluster(obj, hButton, evnt, iChannel, p, h)
+			obj.GUIBusy(h.Figure, true);
 			liststr = {'New'};
 			liststr = [liststr, cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false)];
 
-			selectedClusters 	= hFigure.UserData.SelectedClusters;
-			selectedSampleIndex = hFigure.UserData.SelectedSampleIndex;
+			selectedClusters 	= h.Figure.UserData.SelectedClusters;
+			selectedSampleIndex = h.Figure.UserData.SelectedSampleIndex;
 			classes 			= obj.Spikes(iChannel).Cluster.Classes;
 			sampleIndex 		= obj.Spikes(iChannel).SampleIndex;
 
@@ -3047,15 +3083,15 @@ classdef TetrodeRecording < handle
 				% Remove empty clusters and consolidate cluster number
 				if length(unique(obj.Spikes(iChannel).Cluster.Classes)) < max(obj.Spikes(iChannel).Cluster.Classes)
 					obj.ClusterMerge(iChannel, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)));
-					hFigure.UserData.SelectedClusters = [];
+					h.Figure.UserData.SelectedClusters = [];
 				else
-					hFigure.UserData.SelectedClusters = unique([hFigure.UserData.SelectedClusters, newClass]);
+					h.Figure.UserData.SelectedClusters = unique([h.Figure.UserData.SelectedClusters, newClass]);
 				end
-				hFigure.UserData.SelectedSampleIndex = [];
+				h.Figure.UserData.SelectedSampleIndex = [];
 
-				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
+				obj.ReplotChannel(iChannel, p, h);
 			end
-			obj.GUIBusy(hFigure, false);
+			obj.GUIBusy(h.Figure, false);
 		end
 
 		% Sort spikes and digital events into trial structure
@@ -3388,7 +3424,7 @@ classdef TetrodeRecording < handle
 			if showResults
 				for iDir = 1:length(dirs)
 					try
-						previewObj(iDir).PlotAllChannels('YLim', [-500, 500]);
+						previewObj(iDir).PlotAllChannels('YLim', 'auto');
 						previewObj(iDir).ClearCache();
 					catch ME
 						warning(['Error when processing folder (', dirs{iDir}, ') - this one will be skipped.'])
@@ -3607,9 +3643,13 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function [thisColor, thisStyle] = GetColorAndStyle(iClass)
-			colors = 'rgbmyck';
-			styles = {'-', '--', ':', '-.'};
+		function [thisColor, thisStyle] = GetColorAndStyle(iClass, varargin)
+			p = inputParser;
+			addParameter(p, 'Colors', 'rgbmyck', @ischar);
+			addParameter(p, 'Styles', {'-', '--', ':', '-.'}, @iscell);
+			parse(p, varargin{:});
+			colors 	= p.Results.Colors;
+			styles 	= p.Results.Styles;
 
 			iStyle = ceil(iClass/length(colors));
 			iColor = mod(iClass, length(colors));

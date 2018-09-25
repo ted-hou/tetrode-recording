@@ -11,6 +11,9 @@ TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 3, 'NumSigmasReturn', 1.5, 'NumS
 % Batch load
 tr = TetrodeRecording.BatchLoad();
 
+% Plot Channel
+tr(iTr).PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', 'LickOn', 'Exclude', 'PressOn', 'BinMethod', 'percentile', 'Bins', 3, 'RasterXLim', [-5, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', 'auto');
+
 % Batch plot
 for iTr = 1:length(tr)
 	for iChannel = [tr(iTr).Spikes.Channel]
