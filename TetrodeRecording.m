@@ -2608,7 +2608,16 @@ classdef TetrodeRecording < handle
 				% Re-extract features
 				if strcmp(answer, 'Refeature & recluster')
 					params = obj.Spikes(iChannel).Feature.Parameters;
-					obj.FeatureExtract(iChannel, 'Method', 'PCA', 'Dimension', params.Dimension, 'WaveformWindow', params.WaveformWindow);
+					answerFeatureMethod = questdlg(...
+						'Select feature extraction method',...
+						'Refeature',...
+						'PCA', 'WaveletTransform', 'Cancel',...
+						'Cancel');
+
+					if strcmp(answerFeatureMethod, 'Cancel')
+						obj.GUIBusy(hFigure, false);
+						return					
+					end
 				end
 
 				% Recluster
@@ -2616,10 +2625,27 @@ classdef TetrodeRecording < handle
 					% Recluster selected clusters
 					clusterMethod = obj.Spikes(iChannel).Cluster.Method;
 					% obj.Cluster(iChannel, 'Clusters', clusters, 'Method', clusterMethod);
-					obj.Cluster(iChannel, 'Clusters', clusters, 'Method', clusterMethod, 'NumClusters', 2);
-					hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+					answerClusterMethod = inputdlg({'Cluster method:', 'Number of clusters:'}, 'Recluster', 1, {clusterMethod, ''});
+					if ismember(lower(answerClusterMethod{1}), {'kmeans', 'spc', 'gaussian'})
+						clusterMethod = lower(answerClusterMethod{1});
+					else
+						warning(['Unrecognized clustering method. Using ''', clusterMethod, ''' instead.']);
+					end
+					numClusters = [];
+					try
+						numClusters = str2num(answerClusterMethod{2});
+					catch
+						numClusters = [];
+					end
 				end
 
+				if strcmp(answer, 'Refeature & recluster')
+					obj.FeatureExtract(iChannel, 'Method', answerFeatureMethod, 'Dimension', params.Dimension, 'WaveformWindow', params.WaveformWindow);
+				end
+				if ismember(answer, {'Recluster', 'Refeature & recluster'})
+					obj.Cluster(iChannel, 'Clusters', clusters, 'Method', clusterMethod, 'NumClusters', numClusters);
+					hFigure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+				end
 				% Replot clusters
 				obj.ReplotChannel(iChannel, p, hFigure, hWaveform, hPCA, hRaster, hPETH);
 			end
