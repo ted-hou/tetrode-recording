@@ -2020,7 +2020,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'ExtendedWindow', [0, 0], @isnumeric);
 			addParameter(p, 'MinTrialLength', 0, @isnumeric);
-			addParameter(p, 'Bins', 4, @isnumeric);
+			addParameter(p, 'Bins', 2, @isnumeric);
 			addParameter(p, 'BinMethod', 'percentile', @ischar);
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
 			addParameter(p, 'RasterXLim', [], @isnumeric);

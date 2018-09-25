@@ -13,6 +13,7 @@ tr = TetrodeRecording.BatchLoad();
 
 % Plot Channel
 tr(iTr).PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', 'LickOn', 'Exclude', 'PressOn', 'BinMethod', 'percentile', 'Bins', 3, 'RasterXLim', [-5, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', 'auto');
+tr(iTr).PlotChannel([], 'RasterXLim', [-5, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200]);
 
 % Batch plot
 for iTr = 1:length(tr)
