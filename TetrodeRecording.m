@@ -1913,6 +1913,78 @@ classdef TetrodeRecording < handle
 			end
 		end
 
+		function varargout = PETHistCounts(obj, channel, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addParameter(p, 'Reference', 'CueOn', @ischar);
+			addParameter(p, 'Event', 'PressOn', @ischar);
+			addParameter(p, 'Exclude', 'LickOn', @ischar);
+			addParameter(p, 'Clusters', [], @isnumeric);
+			addParameter(p, 'TrialLength', 6, @isnumeric);
+			addParameter(p, 'SpikeRateWindow', 100, @isnumeric); % in ms
+			addParameter(p, 'ExtendedWindow', 1, @isnumeric); % Extend window after event
+			parse(p, channel, varargin{:});
+			channel 			= p.Results.Channel;
+			reference 			= p.Results.Reference;
+			event 				= p.Results.Event;
+			exclude 			= p.Results.Exclude;
+			clusters 			= p.Results.Clusters;
+			trialLength 		= p.Results.TrialLength;
+			spikeRateWindow 	= p.Results.SpikeRateWindow;
+			extendedWindow 		= p.Results.ExtendedWindow;
+
+			if ~isempty(reference)
+				referenceDisplayName = reference;
+				reference = obj.DigitalEvents.(reference);
+			else
+				reference = [];
+			end
+			if ~isempty(event)
+				eventDisplayName = event;
+				event = obj.DigitalEvents.(event);
+			else
+				event = [];
+			end
+			if ~isempty(exclude)
+				exclude = obj.DigitalEvents.(exclude);
+			else
+				exclude = [];
+			end
+
+			[reference, event] = TetrodeRecording.FindFirstInTrial(reference, event, exclude);
+
+			reference = reference(event > trialLength);
+			event = event(event > trialLength);
+
+			if isempty(event)
+				varargout = {[], [], 0};
+				return
+			end
+
+			% Get spike timestamps
+			spikes 	= obj.Spikes(channel).Timestamps;
+			if ~isempty(clusters)
+				spikes 	= spikes(ismember(obj.Spikes(channel).Cluster.Classes, clusters));
+			end
+
+			numTrials = length(event);
+			centers = flip(extendedWindow:-spikeRateWindow/1000:-trialLength);
+			centers = centers(2:end);
+			% centers = centers(2:end) - spikeRateWindow/2000;
+			spikeRate = NaN(numTrials, length(centers));
+
+			for iTrial = 1:numTrials
+				thisEdges = flip((event(iTrial) + extendedWindow):(-spikeRateWindow/1000):(event(iTrial) - trialLength));
+				thisSpikeRate = histcounts(spikes, thisEdges);
+				thisSpikeRate = 1000*thisSpikeRate/spikeRateWindow;
+				spikeRate(iTrial, :) = thisSpikeRate;
+			end
+
+			spikeRate = mean(spikeRate, 1);
+
+			varargout = {spikeRate, centers, numTrials};
+		end
+
 		function PlotAllChannels(obj, varargin)
 			p = inputParser;
 			addParameter(p, 'Channels', [], @isnumeric);
@@ -2310,7 +2382,6 @@ classdef TetrodeRecording < handle
 			hTextCurChn = text(hAxesTextCurChn, 0.5, 0.5,...
 				['Chn ', num2str(find(allChannels == iChannel)), '/', num2str(length(allChannels))],...
 				'Tag', 'HideWhenSaving', 'HorizontalAlignment', 'center', 'FontSize', 10, 'FontWeight', 'bold');
-			assignin('base', 'hText', hTextCurChn)
 			hAxesTextCurChn.Position(1) = hAxesTextCurChn.Position(1) - hAxesTextCurChn.Position(3) - buttonXSpacing;
 			hPrev = hAxesTextCurChn;
 
@@ -3648,31 +3719,185 @@ classdef TetrodeRecording < handle
 
 				for iTr = 1:length(TR)
 					if ~isempty(strfind(TR(iTr).Path, thisAnimal)) && ~isempty(strfind(TR(iTr).Path, num2str(thisDate)))
-				
-			% if isempty(list)
-			% 	list = {...
-			% 		'Daisy1', 20171114, 32, 1;...
-			% 		'Daisy1', 20171117, 10, 1;...
-			% 		'Daisy1', 20171117, 7, 1;...
-			% 		'Daisy1', 20171121, 24, 1;...
-			% 		'Daisy1', 20171121, 28, 1;...
-			% 		'Daisy1', 20171121, 1, 1;...
-			% 		'Daisy1', 20171122, 12, 1;...
-			% 		'Daisy1', 20171122, 15, 1;...
-			% 		'Daisy1', 20171128, 19, 1;...
-			% 		'Daisy1', 20171128, 28, 1;...
-			% 		'Daisy1', 20171130, 19, 1;...
-			% 		'Daisy3', 20180429, 30, 1 ...
-			% 		};
-			% end
-
-		thisRefCluster = max(TR(iTr).Spikes(thisChannel).Cluster.Classes);
+						thisRefCluster = max(TR(iTr).Spikes(thisChannel).Cluster.Classes); % Use the last cluster is 'noise'/reference cluster
 						hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'WaveformYLim', waveformYLim, 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow);
 						TR(iTr).GUISavePlot([], [], hFigure, 'Reformat', reformat, 'CopyLegend', copyLegend, 'CopyLabel', copyLabel)
 						input('Type anything to continue...\n');
 						close(hFigure)
 						break
 					end
+				end
+			end
+		end
+
+		function PETH = BatchPETHistCounts(TR, list, varargin)
+			p = inputParser;
+			addParameter(p, 'TrialLength', 6, @isnumeric);
+			addParameter(p, 'SpikeRateWindow', 100, @isnumeric); % in ms
+			addParameter(p, 'ExtendedWindow', 1, @isnumeric); % Extend window after event
+			parse(p, varargin{:});
+			trialLength 		= p.Results.TrialLength;
+			spikeRateWindow 	= p.Results.SpikeRateWindow;
+			extendedWindow 		= p.Results.ExtendedWindow;
+
+			PETH = [];
+
+			for iPlot = 1:size(list, 1)
+				thisAnimal 	= list{iPlot, 1};
+				thisDate 	= list{iPlot, 2};
+				thisChannel = list{iPlot, 3};
+				thisCluster = list{iPlot, 4};
+
+				for iTr = 1:length(TR)
+					try
+						if ~isempty(strfind(TR(iTr).Path, thisAnimal)) && ~isempty(strfind(TR(iTr).Path, num2str(thisDate)))
+							if isempty(PETH)
+								iPETH = 1;
+							else
+								iPETH = length(PETH) + 1;
+							end
+
+							thisRefCluster = max(TR(iTr).Spikes(thisChannel).Cluster.Classes); % Use the last cluster is 'noise'/reference cluster
+							[PETH(iPETH).Press, PETH(iPETH).Time, PETH(iPETH).NumTrialsPress] = TR(iTr).PETHistCounts(...
+								thisChannel, 'Cluster', thisCluster,...
+								'Event', 'PressOn', 'Exclude', 'LickOn',...
+								'TrialLength', trialLength, 'ExtendedWindow', extendedWindow, 'SpikeRateWindow', spikeRateWindow);
+							[PETH(iPETH).Lick, ~, PETH(iPETH).NumTrialsLick] = TR(iTr).PETHistCounts(...
+								thisChannel, 'Cluster', thisCluster,...
+								'Event', 'LickOn', 'Exclude', 'PressOn',...
+								'TrialLength', trialLength, 'ExtendedWindow', extendedWindow, 'SpikeRateWindow', spikeRateWindow);
+
+							PETH(iPETH).TrialLength = trialLength;
+							PETH(iPETH).SpikeRateWindow = spikeRateWindow;
+							PETH(iPETH).ExtendedWindow = extendedWindow;
+
+							break
+						end
+					catch ME
+						warning(['Error when processing (', thisAnimal, '_', num2str(thisDate), ' Chn ', num2str(thisChannel), ' Cluster ', num2str(thisCluster), ').'])
+						warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
+					end
+						
+				end
+			end
+		end
+
+		function HeatMap(PETH, varargin)
+			p = inputParser;
+			addParameter(p, 'MinNumTrials', 50, @isnumeric);
+			addParameter(p, 'Normalization', 'zscore', @ischar); % zscore, minmax
+			addParameter(p, 'NormalizeBeforeMove', false, @islogical); % use data from before movement initation as basis for normalization
+			addParameter(p, 'Sorting', 'gradient', @ischar); % abs, gradient, latency
+			addParameter(p, 'SortBeforeMove', false, @islogical); % use data from before movement initation as basis for sorting
+			addParameter(p, 'SortsBeforeNorms', true, @islogical); % sort before normalizing
+			parse(p, varargin{:});
+			minNumTrials 		= p.Results.MinNumTrials;
+			normalization 		= p.Results.Normalization;
+			normalizeBeforeMove = p.Results.NormalizeBeforeMove;
+			sorting 			= p.Results.Sorting;
+			sortsbeforeNorms 	= p.Results.Sorting;
+			sortBeforeMove 		= p.Results.SortBeforeMove;
+
+			timestamps 		= PETH(1).Time;
+			selectedPress 	= [PETH.NumTrialsPress] > minNumTrials;
+			selectedLick 	= [PETH.NumTrialsLick] > minNumTrials;
+			pethPress 		= transpose(reshape([PETH(selectedPress).Press], length(timestamps), []));
+			pethLick  		= transpose(reshape([PETH(selectedLick).Lick], length(timestamps), []));
+
+			if normalizeBeforeMove
+				samplesForNormalization = find(timestamps <= 0);
+			else
+				samplesForNormalization = [];
+			end
+
+			if sortBeforeMove
+				samplesForSorting = find(timestamps <= 0);
+			else
+				samplesForSorting = [];
+			end
+
+			% Normalize/sort PETH
+			if ~sortsbeforeNorms
+				pethPress = TetrodeRecording.NormalizePETH(pethPress, 'Method', normalization, 'Samples', samplesForNormalization);
+				pethLick  = TetrodeRecording.NormalizePETH(pethLick, 'Method', normalization, 'Samples', samplesForNormalization);
+			end
+
+			pethPress = TetrodeRecording.SortPETH(pethPress, 'Method', sorting, 'Samples', samplesForSorting);
+			pethLick  = TetrodeRecording.SortPETH(pethLick, 'Method', sorting, 'Samples', samplesForSorting);
+
+			if sortsbeforeNorms
+				pethPress = TetrodeRecording.NormalizePETH(pethPress, 'Method', normalization, 'Samples', samplesForNormalization);
+				pethLick  = TetrodeRecording.NormalizePETH(pethLick, 'Method', normalization, 'Samples', samplesForNormalization);
+			end
+
+			fMargin = 0.1;
+			xMargin = 0.05;
+			yMargin = 0.03;
+			w = 1 - 2*fMargin - 2*xMargin;
+			h = 1 - 2*fMargin - 4*yMargin;
+			hPress = h*size(pethPress, 1)/(size(pethPress, 1) + size(pethLick, 1));
+			hLick  = h*size(pethLick, 1)/(size(pethPress, 1) + size(pethLick, 1));
+
+			hFigure = figure();
+			hAxesPress = subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hLick, w, hPress]);
+			hAxesLick = subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hLick]);
+
+			imagesc(hAxesPress, pethPress);
+			imagesc(hAxesLick, pethLick);
+
+			colorbar('Peer', hAxesPress);
+			colorbar('Peer', hAxesLick);
+
+			set([hAxesPress, hAxesLick], 'XTickLabel', num2cell(timestamps(hAxesPress.XTick)))
+			set([hAxesPress, hAxesLick], 'XTickMode', 'manual')
+			set([hAxesPress, hAxesLick], 'YDir', 'reverse')
+		end
+
+		function peth = SortPETH(peth, varargin)
+			p = inputParser;
+			addParameter(p, 'Method', 'abs', @ischar); % abs, gradient, latency
+			addParameter(p, 'Samples', [], @isnumeric); % number of samples used for normalizing
+			parse(p, varargin{:});
+			method = p.Results.Method;
+			samples = p.Results.Samples;
+
+			if isempty(samples)
+				samples = 1:size(peth, 2);
+			end
+
+			switch lower(method)
+				% Sort by max(abs(trace))
+				case 'abs'
+					[~, I] = sort(max(abs(peth(:, samples)), [], 2));
+				% Sort by max(diff(trace))
+				case 'gradient'
+					[~, I] = sort(max(transpose(abs(diff(transpose(peth(:, samples))))), [], 2));
+				% Sort by how fast gradients change
+				case 'latency'
+			end
+
+			peth = peth(I, :);
+		end
+
+		function peth = NormalizePETH(peth, varargin)
+			p = inputParser;
+			addParameter(p, 'Method', 'zscore', @ischar); % zscore, minmax
+			addParameter(p, 'Samples', [], @isnumeric); % number of samples used for normalizing
+			parse(p, varargin{:});
+			method = p.Results.Method;
+			samples = p.Results.Samples;
+
+			if isempty(samples)
+				samples = 1:size(peth, 2);
+			end
+
+			for iCell = 1:size(peth, 1)
+				thisPeth = peth(iCell, :);
+				switch lower(method)
+					case 'zscore'
+						peth(iCell, :) = (thisPeth - mean(thisPeth(samples)))/std(thisPeth(samples));
+					case 'minmax'
+						peth(iCell, :) = (thisPeth - min(thisPeth(samples)))/(max(thisPeth(samples)) - min(thisPeth(samples)));
 				end
 			end
 		end

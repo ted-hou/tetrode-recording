@@ -2,6 +2,20 @@
 % Ref/noise cluster is last cluster
 
 batchPlotList = {...
+	'Daisy1', 20171114, 32, 1;...
+	'Daisy1', 20171117, 10, 1;...
+	'Daisy1', 20171117, 7, 1;...
+	'Daisy1', 20171121, 24, 1;...
+	'Daisy1', 20171121, 28, 1;...
+	'Daisy1', 20171121, 1, 1;...
+	'Daisy1', 20171122, 12, 1;...
+	'Daisy1', 20171122, 15, 1;...
+	'Daisy1', 20171128, 19, 1;...
+	'Daisy1', 20171128, 28, 1;...
+	'Daisy1', 20171130, 19, 1;...
+
+
+
 	'Daisy2', 20180420, 14, 1;... % Up
 	'Daisy2', 20180420, 32, 1;... % DA
 	'Daisy2', 20180421, 13, 1;... % Up (flat short trials)
@@ -57,6 +71,10 @@ batchPlotList = {...
 	'Daisy2', 20180618, 18, 1;... % flat
 	'Daisy2', 20180618, 18, 2;... % flat
 	'Daisy2', 20180619, 17, 1;... % up
+
+
+
+
 	'Daisy3', 20180419, 32, 1;... % DA/up/reward
 	'Daisy3', 20180420, 3, 1;... % DA/up/reward
 	'Daisy3', 20180420, 29, 1;... % flat/up/down
@@ -143,7 +161,7 @@ batchPlotList = {...
 	'Daisy3', 20180524, 27, 1;... % down?
 	'Daisy3', 20180525, 1, 1;... % DA
 	'Daisy3', 20180525, 1, 2;... % DA
-	'Daisy3', 20180525, 2, 1;... % same as above
+	'Daisy3', 20180525, 4, 1;... % same as above
 	'Daisy3', 20180525, 15, 1;... % down
 	'Daisy3', 20180525, 16, 1;... % DA
 	'Daisy3', 20180525, 27, 1;... % down
@@ -179,7 +197,8 @@ batchPlotList = {...
 	'Daisy3', 20180620, 17, 1;... % up
 
 
-	% I clear,clc'd all of them. Please redo
+
+
 	'desmond10', 20180909, 1, 1;... % up
 	'desmond10', 20180909, 2, 1;... % up
 	'desmond10', 20180909, 4, 1;... % up
@@ -265,6 +284,7 @@ batchPlotList = {...
 
 
 
+
 	'desmond11', 20180909, 5, 1;... % down/up
 	'desmond11', 20180910, 1, 1;... % up
 	'desmond11', 20180910, 27, 1;... % up
@@ -297,7 +317,6 @@ batchPlotList = {...
 	'desmond11', 20180924, 17, 1;... % up
 	'desmond11', 20180924, 28, 1;... % DA
 	'desmond11', 20180925, 2, 1;... % up
-
 	};
 
 batchPlotListMulti = {...
