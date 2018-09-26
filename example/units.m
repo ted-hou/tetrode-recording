@@ -182,6 +182,13 @@ batchPlotList = {...
 	'Daisy3', 20180620, 13, 1;... % up
 	'Daisy3', 20180620, 17, 1;... % up
 
+
+	'desmond10', 20180909, 1, 1;... % up
+	'desmond10', 20180909, 4, 1;... % up
+	'desmond10', 20180909, 5, 1;... % up
+	'desmond10', 20180909, 7, 1;... % up
+	'desmond10', 20180909, 9, 1;... % up
+
 	};
 
 batchPlotListMulti = {...
