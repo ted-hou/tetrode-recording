@@ -15,6 +15,9 @@ tr = TetrodeRecording.BatchLoad();
 tr(iTr).PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', 'LickOn', 'Exclude', 'PressOn', 'BinMethod', 'percentile', 'Bins', 3, 'RasterXLim', [-5, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', 'auto');
 tr(iTr).PlotChannel([], 'RasterXLim', [-5, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200]);
 
+iTrLastSaved = 0;
+TetrodeRecording.BatchSave(tr(iTrLastSaved+1:iTr), 'Prefix', 'tr_sorted_', 'DiscardData', false); iTrLastSaved = iTr;
+
 % Batch plot
 for iTr = 1:length(tr)
 	for iChannel = [tr(iTr).Spikes.Channel]
