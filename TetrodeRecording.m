@@ -3545,6 +3545,7 @@ classdef TetrodeRecording < handle
 		function tr = BatchLoad()
 			files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
 			for iFile = 1:length(files)
+				disp(['Loading file: ', files{iFile}, '...'])
 				S(iFile) = load(files{iFile}, 'tr');
 			end
 			% Merge multi-part files
