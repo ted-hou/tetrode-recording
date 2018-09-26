@@ -35,10 +35,6 @@ batchPlotList = {...
 	'Daisy2', 20180518, 18, 1;... % down
 	'Daisy2', 20180519, 3, 1;... % up
 	'Daisy2', 20180519, 3, 2;... % down
-	'Daisy2', 20180519, 4, 1;... % up (same as above, same tetrode)
-	'Daisy2', 20180519, 4, 2;... % down (same as above, same tetrode)
-	'Daisy2', 20180520, 4, 1;... % up (same as above, same tetrode)
-	'Daisy2', 20180520, 4, 2;... % down (same as above, same tetrode)
 	'Daisy2', 20180520, 18, 1;... % down
 	'Daisy2', 20180521, 21, 1;... % up
 	'Daisy2', 20180521, 24, 1;... % up
@@ -183,11 +179,124 @@ batchPlotList = {...
 	'Daisy3', 20180620, 17, 1;... % up
 
 
+	% I clear,clc'd all of them. Please redo
 	'desmond10', 20180909, 1, 1;... % up
+	'desmond10', 20180909, 2, 1;... % up
 	'desmond10', 20180909, 4, 1;... % up
 	'desmond10', 20180909, 5, 1;... % up
-	'desmond10', 20180909, 7, 1;... % up
+	'desmond10', 20180909, 6, 1;... % up
 	'desmond10', 20180909, 9, 1;... % up
+	'desmond10', 20180909, 10, 1;... % up
+	'desmond10', 20180909, 14, 1;... % up
+	'desmond10', 20180910, 2, 1;... % up
+	'desmond10', 20180910, 5, 1;... % up
+	'desmond10', 20180910, 6, 1;... % DA up
+	'desmond10', 20180910, 9, 1;... % DA up
+	'desmond10', 20180910, 10, 1;... % up
+	'desmond10', 20180910, 14, 1;... % DA
+	'desmond10', 20180911, 1, 1;... % up
+	'desmond10', 20180911, 5, 1;... % up
+	'desmond10', 20180911, 7, 1;... % up
+	'desmond10', 20180911, 9, 1;... % up
+	'desmond10', 20180911, 10, 1;... % up
+	'desmond10', 20180911, 13, 1;... % up
+	'desmond10', 20180912, 5, 1;... % up
+	'desmond10', 20180912, 6, 1;... % up
+	'desmond10', 20180912, 10, 1;... % up
+	'desmond10', 20180913, 4, 1;... % up
+	'desmond10', 20180913, 5, 1;... % DA
+	'desmond10', 20180913, 9, 1;... % burst
+	'desmond10', 20180913, 32, 1;... % off error trials
+	'desmond10', 20180915, 1, 1;... % DA
+	'desmond10', 20180915, 1, 2;... % DA
+	'desmond10', 20180915, 5, 1;... % up
+	'desmond10', 20180915, 5, 2;... % up
+	'desmond10', 20180915, 9, 1;... % up
+	'desmond10', 20180915, 10, 1;... % up
+	'desmond10', 20180916, 2, 1;... % up
+	'desmond10', 20180916, 5, 1;... % up
+	'desmond10', 20180916, 9, 1;... % up
+	'desmond10', 20180916, 13, 1;... % up
+	'desmond10', 20180917, 2, 1;... % DA up
+	'desmond10', 20180917, 5, 1;... % up
+	'desmond10', 20180917, 9, 1;... % up
+	'desmond10', 20180917, 13, 1;... % DA
+	'desmond10', 20180918, 1, 1;... % up
+	'desmond10', 20180918, 2, 1;... % DA up
+	'desmond10', 20180918, 5, 1;... % up
+	'desmond10', 20180918, 9, 1;... % up
+	'desmond10', 20180918, 10, 1;... % up
+	'desmond10', 20180919, 1, 1;... % press not lick
+	'desmond10', 20180919, 2, 1;... % DA up
+	'desmond10', 20180919, 5, 1;... % DA up
+	'desmond10', 20180919, 8, 1;... % flat
+	'desmond10', 20180919, 9, 1;... % up
+	'desmond10', 20180919, 10, 1;... % DA
+	'desmond10', 20180919, 13, 1;... % DA
+	'desmond10', 20180920, 4, 1;... % DA reward
+	'desmond10', 20180920, 5, 1;... % up
+	'desmond10', 20180920, 13, 1;... % DA
+	'desmond10', 20180920, 16, 1;... % DA
+	'desmond10', 20180920, 19, 1;... % flat
+	'desmond10', 20180920, 29, 1;... % flat
+	'desmond10', 20180921, 2, 1;... % up
+	'desmond10', 20180921, 5, 1;... % up
+	'desmond10', 20180921, 30, 1;... % flat
+	'desmond10', 20180922, 4, 1;... % DA
+	'desmond10', 20180922, 5, 1;... % up
+	'desmond10', 20180922, 18, 1;... % lick cell
+	'desmond10', 20180922, 30, 1;... % flat
+	'desmond10', 20180923, 2, 1;... % flat
+	'desmond10', 20180923, 6, 1;... % flat
+	'desmond10', 20180923, 8, 1;... % flat
+	'desmond10', 20180923, 10, 1;... % up
+	'desmond10', 20180923, 30, 1;... % flat
+	'desmond10', 20180924, 19, 1;... % ?
+	'desmond10', 20180924, 25, 1;... % DA
+	'desmond10', 20180924, 29, 1;... % ?
+	'desmond10', 20180924, 30, 1;... % flat
+	'desmond10', 20180925, 7, 1;... % up
+	'desmond10', 20180925, 8, 1;... % flat
+	'desmond10', 20180925, 10, 1;... % DA
+	'desmond10', 20180925, 10, 2;... % flat
+	'desmond10', 20180925, 19, 2;... % ??
+	'desmond10', 20180925, 20, 2;... % DA
+	'desmond10', 20180925, 29, 2;... % ??
+
+
+
+	'desmond11', 20180909, 5, 1;... % down/up
+	'desmond11', 20180910, 1, 1;... % up
+	'desmond11', 20180910, 27, 1;... % up
+	'desmond11', 20180910, 28, 1;... % up
+	'desmond11', 20180911, 10, 1;... % up
+	'desmond11', 20180911, 27, 1;... % DA
+	'desmond11', 20180912, 4, 1;... % up
+	'desmond11', 20180912, 5, 1;... % up
+	'desmond11', 20180912, 28, 1;... % DA ?
+	'desmond11', 20180913, 28, 1;... % servo?
+	'desmond11', 20180914, 27, 1;... % DA
+	'desmond11', 20180914, 29, 1;... % up
+	'desmond11', 20180915, 31, 1;... % up
+	'desmond11', 20180915, 31, 2;... % up
+	'desmond11', 20180916, 4, 2;... % down
+	'desmond11', 20180916, 20, 1;... % DA
+	'desmond11', 20180916, 20, 2;... % up
+	'desmond11', 20180916, 31, 1;... % up
+	'desmond11', 20180917, 8, 1;... % down
+	'desmond11', 20180917, 28, 1;... % down
+	'desmond11', 20180918, 8, 1;... % down
+	'desmond11', 20180919, 23, 1;... % up
+	'desmond11', 20180919, 28, 1;... % up
+	'desmond11', 20180919, 30, 1;... % up
+	'desmond11', 20180920, 18, 1;... % up
+	'desmond11', 20180921, 2, 1;... % lick not press
+	'desmond11', 20180922, 2, 1;... % lick not press
+	'desmond11', 20180922, 28, 1;... % DA
+	'desmond11', 20180924, 2, 1;... % up
+	'desmond11', 20180924, 17, 1;... % up
+	'desmond11', 20180924, 28, 1;... % DA
+	'desmond11', 20180925, 2, 1;... % up
 
 	};
 
@@ -195,6 +304,9 @@ batchPlotListMulti = {...
 	'Daisy3', 20180422, 13, 1;... % multi up
 	'Daisy3', 20180523, 12, 1;... % multi up
 	'Daisy3', 20180524, 27, 1;... % multi up
+	'desmond10', 20180910, 12, 1;... % multi up
+	'desmond11', 20180911, 14, 1;... % multi up
+	'desmond11', 20180915, 10, 1;... % multi up
 	};
 
 TetrodeRecording.BatchPlot(tr, batchPlotList, 'Reformat', 'RasterAndPETHAndWaveform', 'WaveformYLim', 'auto', 'RasterXLim', [-7, 0], 'ExtendedWindow', [-1, 0], 'CopyLegend', true);
