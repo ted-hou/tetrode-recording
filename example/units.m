@@ -1,6 +1,5 @@
 % Batchplot based on date/channel, and paste to clipboard
 % Ref/noise cluster is last cluster
-
 batchPlotList = {...
 	'Daisy1', 20171114, 32, 1;...
 	'Daisy1', 20171117, 10, 1;...
@@ -286,7 +285,7 @@ batchPlotList = {...
 
 
 	'desmond11', 20180909, 5, 1;... % down/up
-	'desmond11', 20180910, 1, 1;... % up
+	'desmond11', 20180910, 5, 1;... % up
 	'desmond11', 20180910, 27, 1;... % up
 	'desmond11', 20180910, 28, 1;... % up
 	'desmond11', 20180911, 10, 1;... % up
@@ -327,6 +326,4 @@ batchPlotListMulti = {...
 	'desmond11', 20180911, 14, 1;... % multi up
 	'desmond11', 20180915, 10, 1;... % multi up
 	};
-
-TetrodeRecording.BatchPlot(tr, batchPlotList, 'Reformat', 'RasterAndPETHAndWaveform', 'WaveformYLim', 'auto', 'RasterXLim', [-7, 0], 'ExtendedWindow', [-1, 0], 'CopyLegend', true);
-TetrodeRecording.BatchPlot(tr, batchPlotList, 'Reformat', 'PETH', 'RasterXLim', [-7, 0], 'ExtendedWindow', [-1, 0], 'CopyLegend', false, 'CopyLabel', false);
+PETH_Daisy1AndDesmond10 = TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'ExtendedWindow', 2);
