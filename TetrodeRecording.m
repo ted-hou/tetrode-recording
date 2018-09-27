@@ -2942,6 +2942,35 @@ classdef TetrodeRecording < handle
 
 					% hTitle = suptitle(h.Figure.Name);
 					hFigurePrint = hFigureNew;
+				case lower('DualRasterAndWaveform')
+					hFigureNew = figure('Position', [2 42 958 954]);
+					for iProp = 1:length(propertiesToCopy)
+						set(hFigureNew, propertiesToCopy{iProp}, get(h.Figure, propertiesToCopy{iProp}));
+					end
+					hRasterNew = copyobj(hRaster, hFigureNew);
+					hRasterNew.OuterPosition = [0, hRaster2.Position(4)/(hRaster.Position(4) + hRaster2.Position(4)), 1, hRaster.Position(4)/(hRaster.Position(4) + hRaster2.Position(4))];
+					xlabel(hRasterNew, '');
+					title(hRasterNew, 'Lever Press')
+
+					hRaster2New = copyobj(hRaster2, hFigureNew);
+					hRaster2New.OuterPosition = [0, 0, 1, hRaster2.Position(4)/(hRaster.Position(4) + hRaster2.Position(4))];
+					xlabel(hRaster2New, 'Time to movement (s)');
+					title(hRaster2New, 'Lick')
+
+					hWaveformNew = copyobj(hWaveform, hFigureNew);
+					hWaveformNew.Position(1) = hRasterNew.Position(1) + 1/16*hRasterNew.Position(3);
+					hWaveformNew.Position(3) = 0.25*hRasterNew.Position(3);
+					hWaveformNew.Position(4) = 0.4*hRasterNew.Position(4);
+					hWaveformNew.Position(2) = hRasterNew.Position(2) + hRasterNew.Position(4) - hWaveformNew.Position(3);
+					hWaveformNew.Visible = 'off';
+
+					if copyLegend
+						legend(hRasterNew, 'Location', 'north');
+						legend(hRaster2New, 'Location', 'north');
+					end
+
+					% hTitle = suptitle(h.Figure.Name);
+					hFigurePrint = hFigureNew;
 			end
 
 			if isempty(filename)
@@ -3723,7 +3752,7 @@ classdef TetrodeRecording < handle
 						hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'WaveformYLim', waveformYLim, 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow);
 						TR(iTr).GUISavePlot([], [], hFigure, 'Reformat', reformat, 'CopyLegend', copyLegend, 'CopyLabel', copyLabel)
 						input('Type anything to continue...\n');
-						close(hFigure)
+						% close(hFigure)
 						break
 					end
 				end
