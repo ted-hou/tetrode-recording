@@ -3787,9 +3787,9 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'MinNumTrials', 50, @isnumeric);
 			addParameter(p, 'Normalization', 'zscore', @ischar); % zscore, minmax
 			addParameter(p, 'NormalizeBeforeMove', false, @islogical); % use data from before movement initation as basis for normalization
-			addParameter(p, 'Sorting', 'gradient', @ischar); % abs, gradient, latency
+			addParameter(p, 'Sorting', 'latency', @ischar); % abs, gradient, latency
 			addParameter(p, 'SortBeforeMove', false, @islogical); % use data from before movement initation as basis for sorting
-			addParameter(p, 'SortsBeforeNorms', true, @islogical); % sort before normalizing
+			addParameter(p, 'SortsBeforeNorms', false, @islogical); % sort before normalizing
 			parse(p, varargin{:});
 			minNumTrials 		= p.Results.MinNumTrials;
 			normalization 		= p.Results.Normalization;
@@ -3874,6 +3874,14 @@ classdef TetrodeRecording < handle
 					[~, I] = sort(max(transpose(abs(diff(transpose(peth(:, samples))))), [], 2));
 				% Sort by how fast gradients change
 				case 'latency'
+					% Because the grad student is dumb
+					for iCell = 1:size(peth, 1)
+						thisPeth = peth(iCell, samples);
+						thisZScoredPeth = (thisPeth - mean(thisPeth))/std(thisPeth);
+						whenDidFiringRateChange(iCell) = find(abs(thisZScoredPeth) >= 0.75*max(abs(thisZScoredPeth)), 1);
+						whenDidFiringRateChange(iCell) = whenDidFiringRateChange(iCell)*sign(thisZScoredPeth(whenDidFiringRateChange(iCell)));
+					end
+					[~, I] = sort(whenDidFiringRateChange);
 			end
 
 			peth = peth(I, :);
