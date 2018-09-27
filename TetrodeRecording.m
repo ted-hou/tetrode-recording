@@ -3785,6 +3785,7 @@ classdef TetrodeRecording < handle
 		function HeatMap(PETH, varargin)
 			p = inputParser;
 			addParameter(p, 'MinNumTrials', 50, @isnumeric);
+			addParameter(p, 'MinSpikeRate', 10, @isnumeric);
 			addParameter(p, 'Normalization', 'zscore', @ischar); % zscore, minmax
 			addParameter(p, 'NormalizeBeforeMove', false, @islogical); % use data from before movement initation as basis for normalization
 			addParameter(p, 'Sorting', 'latency', @ischar); % abs, gradient, latency
@@ -3793,6 +3794,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'ExtendedWindow', [], @isnumeric); % Extend window after event
 			parse(p, varargin{:});
 			minNumTrials 		= p.Results.MinNumTrials;
+			minSpikeRate 		= p.Results.MinSpikeRate;
 			normalization 		= p.Results.Normalization;
 			normalizeBeforeMove = p.Results.NormalizeBeforeMove;
 			sorting 			= p.Results.Sorting;
@@ -3801,8 +3803,8 @@ classdef TetrodeRecording < handle
 			extendedWindow 		= p.Results.ExtendedWindow;
 
 			timestamps 		= PETH(1).Time;
-			selectedPress 	= [PETH.NumTrialsPress] > minNumTrials;
-			selectedLick 	= [PETH.NumTrialsLick] > minNumTrials;
+			selectedPress 	= [PETH.NumTrialsPress] >= minNumTrials & cellfun(@mean, {PETH.Press}) > minSpikeRate;
+			selectedLick 	= [PETH.NumTrialsLick] >= minNumTrials & cellfun(@mean, {PETH.Lick}) > minSpikeRate;
 			pethPress 		= transpose(reshape([PETH(selectedPress).Press], length(timestamps), []));
 			pethLick  		= transpose(reshape([PETH(selectedLick).Lick], length(timestamps), []));
 
@@ -3845,19 +3847,30 @@ classdef TetrodeRecording < handle
 			hPress = h*size(pethPress, 1)/(size(pethPress, 1) + size(pethLick, 1));
 			hLick  = h*size(pethLick, 1)/(size(pethPress, 1) + size(pethLick, 1));
 
-			hFigure = figure();
+			hFigure = figure('DefaultAxesFontSize', 14);
 			hAxesPress = subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hLick, w, hPress]);
 			hAxesLick = subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hLick]);
 
-			imagesc(hAxesPress, pethPress);
-			imagesc(hAxesLick, pethLick);
+			image(hAxesPress, pethPress, 'CDataMapping','scaled');
+			image(hAxesLick, pethLick, 'CDataMapping','scaled');
 
-			colorbar('Peer', hAxesPress);
-			colorbar('Peer', hAxesLick);
+			colorbar('Peer', hAxesPress, 'Location', 'EastOutside');
+			colorbar('Peer', hAxesLick, 'Location', 'EastOutside');
+			colormap(hAxesPress, 'jet')
+			colormap(hAxesLick, 'jet')
 
 			set([hAxesPress, hAxesLick], 'XTickLabel', num2cell(timestamps(hAxesPress.XTick)))
 			set([hAxesPress, hAxesLick], 'XTickMode', 'manual')
+			set(hAxesPress, 'YTick', unique([1:100:sum(selectedPress), sum(selectedPress)]))
+			set(hAxesLick, 'YTick', unique([1:100:sum(selectedLick), sum(selectedLick)]))
+			set([hAxesPress, hAxesLick], 'YTickMode', 'manual')
 			set([hAxesPress, hAxesLick], 'YDir', 'reverse')
+
+			xlabel(hAxesLick, 'Time before movement (s)')
+			ylabel(hAxesLick, 'Unit')
+			ylabel(hAxesPress, 'Unit')
+			title(hAxesLick, 'Lick')
+			title(hAxesPress, 'Lever Press')
 		end
 
 		function peth = SortPETH(peth, varargin)
@@ -3884,11 +3897,14 @@ classdef TetrodeRecording < handle
 					% Because the grad student is dumb
 					for iCell = 1:size(peth, 1)
 						thisPeth = peth(iCell, samples);
-						thisZScoredPeth = (thisPeth - mean(thisPeth))/std(thisPeth);
+						% thisSigma = nanmedian(abs(thisPeth))/0.6745;
+						thisSigma = std(thisPeth);
+						thisZScoredPeth = (thisPeth - mean(thisPeth))/thisSigma;
 						whenDidFiringRateChange(iCell) = find(abs(thisZScoredPeth) >= 0.75*max(abs(thisZScoredPeth)), 1);
 						whenDidFiringRateChange(iCell) = whenDidFiringRateChange(iCell)*sign(thisZScoredPeth(whenDidFiringRateChange(iCell)));
 					end
 					[~, I] = sort(whenDidFiringRateChange);
+					I = flip(I);
 			end
 
 			peth = peth(I, :);
@@ -3910,7 +3926,9 @@ classdef TetrodeRecording < handle
 				thisPeth = peth(iCell, :);
 				switch lower(method)
 					case 'zscore'
-						peth(iCell, :) = (thisPeth - mean(thisPeth(samples)))/std(thisPeth(samples));
+						% thisSigma = nanmedian(abs(thisPeth(samples) - mean(thisPeth(samples))))/0.6745;
+						thisSigma = std(thisPeth(samples));
+						peth(iCell, :) = (thisPeth - mean(thisPeth(samples)))/thisSigma;
 					case 'minmax'
 						peth(iCell, :) = (thisPeth - min(thisPeth(samples)))/(max(thisPeth(samples)) - min(thisPeth(samples)));
 				end

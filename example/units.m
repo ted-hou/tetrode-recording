@@ -326,4 +326,7 @@ batchPlotListMulti = {...
 	'desmond11', 20180911, 14, 1;... % multi up
 	'desmond11', 20180915, 10, 1;... % multi up
 	};
-PETH_Daisy1AndDesmond10 = TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'ExtendedWindow', 2);
+
+PETH = TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'ExtendedWindow', 2);
+
+TetrodeRecording.HeatMap(PETH, 'Normalization', 'minmax', 'Sorting', 'latency', 'ExtendedWindow', 0, 'MinNumTrials', 75, 'MinSpikeRate', 15);
