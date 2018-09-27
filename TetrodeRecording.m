@@ -3784,23 +3784,19 @@ classdef TetrodeRecording < handle
 
 		function HeatMap(PETH, varargin)
 			p = inputParser;
-			addParameter(p, 'MinNumTrials', 50, @isnumeric);
-			addParameter(p, 'MinSpikeRate', 10, @isnumeric);
-			addParameter(p, 'Normalization', 'zscore', @ischar); % zscore, minmax
-			addParameter(p, 'NormalizeBeforeMove', false, @islogical); % use data from before movement initation as basis for normalization
+			addParameter(p, 'MinNumTrials', 75, @isnumeric);
+			addParameter(p, 'MinSpikeRate', 15, @isnumeric);
+			addParameter(p, 'Normalization', 'minmax', @ischar); % zscore, minmax
 			addParameter(p, 'Sorting', 'latency', @ischar); % abs, gradient, latency
-			addParameter(p, 'SortBeforeMove', false, @islogical); % use data from before movement initation as basis for sorting
 			addParameter(p, 'SortsBeforeNorms', false, @islogical); % sort before normalizing
-			addParameter(p, 'ExtendedWindow', [], @isnumeric); % Extend window after event
+			addParameter(p, 'Window', [-PETH(1).TrialLength, PETH(1).ExtendedWindow], @(x) isnumeric(x) && length(x) == 2); % Extend window after event
 			parse(p, varargin{:});
 			minNumTrials 		= p.Results.MinNumTrials;
 			minSpikeRate 		= p.Results.MinSpikeRate;
 			normalization 		= p.Results.Normalization;
-			normalizeBeforeMove = p.Results.NormalizeBeforeMove;
 			sorting 			= p.Results.Sorting;
-			sortsbeforeNorms 	= p.Results.Sorting;
-			sortBeforeMove 		= p.Results.SortBeforeMove;
-			extendedWindow 		= p.Results.ExtendedWindow;
+			sortsbeforeNorms 	= p.Results.SortsBeforeNorms;
+			trialWindow 		= p.Results.Window;
 
 			timestamps 		= PETH(1).Time;
 			selectedPress 	= [PETH.NumTrialsPress] >= minNumTrials & cellfun(@mean, {PETH.Press}) > minSpikeRate;
@@ -3808,35 +3804,23 @@ classdef TetrodeRecording < handle
 			pethPress 		= transpose(reshape([PETH(selectedPress).Press], length(timestamps), []));
 			pethLick  		= transpose(reshape([PETH(selectedLick).Lick], length(timestamps), []));
 
-			if ~isempty(extendedWindow)
-				pethPress = pethPress(:, timestamps <= extendedWindow);
-				pethLick  = pethLick(:, timestamps <= extendedWindow);
-			end
-
-			if normalizeBeforeMove
-				samplesForNormalization = find(timestamps <= 0);
-			else
-				samplesForNormalization = [];
-			end
-
-			if sortBeforeMove
-				samplesForSorting = find(timestamps <= 0);
-			else
-				samplesForSorting = [];
-			end
+			inWindow = timestamps <= trialWindow(2) & timestamps > trialWindow(1);
+			pethPress = pethPress(:, inWindow);
+			pethLick  = pethLick(:, inWindow);
+			timestamps = timestamps(inWindow);
 
 			% Normalize/sort PETH
 			if ~sortsbeforeNorms
-				pethPress = TetrodeRecording.NormalizePETH(pethPress, 'Method', normalization, 'Samples', samplesForNormalization);
-				pethLick  = TetrodeRecording.NormalizePETH(pethLick, 'Method', normalization, 'Samples', samplesForNormalization);
+				pethPress = TetrodeRecording.NormalizePETH(pethPress, 'Method', normalization);
+				pethLick  = TetrodeRecording.NormalizePETH(pethLick, 'Method', normalization);
 			end
 
-			pethPress = TetrodeRecording.SortPETH(pethPress, 'Method', sorting, 'Samples', samplesForSorting);
-			pethLick  = TetrodeRecording.SortPETH(pethLick, 'Method', sorting, 'Samples', samplesForSorting);
+			pethPress = TetrodeRecording.SortPETH(pethPress, 'Method', sorting);
+			pethLick  = TetrodeRecording.SortPETH(pethLick, 'Method', sorting);
 
 			if sortsbeforeNorms
-				pethPress = TetrodeRecording.NormalizePETH(pethPress, 'Method', normalization, 'Samples', samplesForNormalization);
-				pethLick  = TetrodeRecording.NormalizePETH(pethLick, 'Method', normalization, 'Samples', samplesForNormalization);
+				pethPress = TetrodeRecording.NormalizePETH(pethPress, 'Method', normalization);
+				pethLick  = TetrodeRecording.NormalizePETH(pethLick, 'Method', normalization);
 			end
 
 			fMargin = 0.1;
@@ -3861,6 +3845,10 @@ classdef TetrodeRecording < handle
 
 			set([hAxesPress, hAxesLick], 'XTickLabel', num2cell(timestamps(hAxesPress.XTick)))
 			set([hAxesPress, hAxesLick], 'XTickMode', 'manual')
+			set([hAxesPress, hAxesLick], 'XGrid', 'on')
+			set([hAxesPress, hAxesLick], 'GridAlpha', 1)
+			set([hAxesPress, hAxesLick], 'GridColor', 'w')
+			set([hAxesPress, hAxesLick], 'GridLineStyle', '--')
 			set(hAxesPress, 'YTick', unique([1:100:sum(selectedPress), sum(selectedPress)]))
 			set(hAxesLick, 'YTick', unique([1:100:sum(selectedLick), sum(selectedLick)]))
 			set([hAxesPress, hAxesLick], 'YTickMode', 'manual')
@@ -3875,32 +3863,28 @@ classdef TetrodeRecording < handle
 
 		function peth = SortPETH(peth, varargin)
 			p = inputParser;
-			addParameter(p, 'Method', 'abs', @ischar); % abs, gradient, latency
-			addParameter(p, 'Samples', [], @isnumeric); % number of samples used for normalizing
+			addParameter(p, 'Method', 'latency', @ischar); % abs, gradient, latency
+			addParameter(p, 'LatencyThreshold', 0.675, @isnumeric);
 			parse(p, varargin{:});
-			method = p.Results.Method;
-			samples = p.Results.Samples;
-
-			if isempty(samples)
-				samples = 1:size(peth, 2);
-			end
+			method 				= p.Results.Method;
+			latencyThreshold 	= p.Results.LatencyThreshold;
 
 			switch lower(method)
 				% Sort by max(abs(trace))
 				case 'abs'
-					[~, I] = sort(max(abs(peth(:, samples)), [], 2));
+					[~, I] = sort(max(abs(peth), [], 2));
 				% Sort by max(diff(trace))
 				case 'gradient'
-					[~, I] = sort(max(transpose(abs(diff(transpose(peth(:, samples))))), [], 2));
+					[~, I] = sort(max(transpose(abs(diff(transpose(peth)))), [], 2));
 				% Sort by how fast gradients change
 				case 'latency'
 					% Because the grad student is dumb
 					for iCell = 1:size(peth, 1)
-						thisPeth = peth(iCell, samples);
+						thisPeth = peth(iCell, :);
 						% thisSigma = nanmedian(abs(thisPeth))/0.6745;
 						thisSigma = std(thisPeth);
 						thisZScoredPeth = (thisPeth - mean(thisPeth))/thisSigma;
-						whenDidFiringRateChange(iCell) = find(abs(thisZScoredPeth) >= 0.75*max(abs(thisZScoredPeth)), 1);
+						whenDidFiringRateChange(iCell) = find(abs(thisZScoredPeth) >= latencyThreshold*max(abs(thisZScoredPeth)), 1);
 						whenDidFiringRateChange(iCell) = whenDidFiringRateChange(iCell)*sign(thisZScoredPeth(whenDidFiringRateChange(iCell)));
 					end
 					[~, I] = sort(whenDidFiringRateChange);
@@ -3913,24 +3897,17 @@ classdef TetrodeRecording < handle
 		function peth = NormalizePETH(peth, varargin)
 			p = inputParser;
 			addParameter(p, 'Method', 'zscore', @ischar); % zscore, minmax
-			addParameter(p, 'Samples', [], @isnumeric); % number of samples used for normalizing
 			parse(p, varargin{:});
 			method = p.Results.Method;
-			samples = p.Results.Samples;
-
-			if isempty(samples)
-				samples = 1:size(peth, 2);
-			end
 
 			for iCell = 1:size(peth, 1)
 				thisPeth = peth(iCell, :);
 				switch lower(method)
 					case 'zscore'
-						% thisSigma = nanmedian(abs(thisPeth(samples) - mean(thisPeth(samples))))/0.6745;
-						thisSigma = std(thisPeth(samples));
-						peth(iCell, :) = (thisPeth - mean(thisPeth(samples)))/thisSigma;
+						thisSigma = std(thisPeth);
+						peth(iCell, :) = (thisPeth - mean(thisPeth))/thisSigma;
 					case 'minmax'
-						peth(iCell, :) = (thisPeth - min(thisPeth(samples)))/(max(thisPeth(samples)) - min(thisPeth(samples)));
+						peth(iCell, :) = (thisPeth - min(thisPeth))/(max(thisPeth) - min(thisPeth));
 				end
 			end
 		end
