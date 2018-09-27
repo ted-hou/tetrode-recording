@@ -3790,6 +3790,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Sorting', 'latency', @ischar); % abs, gradient, latency
 			addParameter(p, 'SortBeforeMove', false, @islogical); % use data from before movement initation as basis for sorting
 			addParameter(p, 'SortsBeforeNorms', false, @islogical); % sort before normalizing
+			addParameter(p, 'ExtendedWindow', [], @isnumeric); % Extend window after event
 			parse(p, varargin{:});
 			minNumTrials 		= p.Results.MinNumTrials;
 			normalization 		= p.Results.Normalization;
@@ -3797,12 +3798,18 @@ classdef TetrodeRecording < handle
 			sorting 			= p.Results.Sorting;
 			sortsbeforeNorms 	= p.Results.Sorting;
 			sortBeforeMove 		= p.Results.SortBeforeMove;
+			extendedWindow 		= p.Results.ExtendedWindow;
 
 			timestamps 		= PETH(1).Time;
 			selectedPress 	= [PETH.NumTrialsPress] > minNumTrials;
 			selectedLick 	= [PETH.NumTrialsLick] > minNumTrials;
 			pethPress 		= transpose(reshape([PETH(selectedPress).Press], length(timestamps), []));
 			pethLick  		= transpose(reshape([PETH(selectedLick).Lick], length(timestamps), []));
+
+			if ~isempty(extendedWindow)
+				pethPress = pethPress(:, timestamps <= extendedWindow);
+				pethLick  = pethLick(:, timestamps <= extendedWindow);
+			end
 
 			if normalizeBeforeMove
 				samplesForNormalization = find(timestamps <= 0);
