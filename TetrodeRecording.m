@@ -3849,8 +3849,10 @@ classdef TetrodeRecording < handle
 				pethLick  = TetrodeRecording.NormalizePETH(pethLick, 'Method', normalization, 'BaselineSamples', baselineSamples);
 			end
 
-			pethPress = TetrodeRecording.SortPETH(pethPress, 'Method', sorting, 'LatencyThreshold', p.Results.LatencyThreshold);
-			pethLick  = TetrodeRecording.SortPETH(pethLick, 'Method', sorting, 'LatencyThreshold', p.Results.LatencyThreshold);
+			[pethPress, I] = TetrodeRecording.SortPETH(pethPress, 'Method', sorting, 'LatencyThreshold', p.Results.LatencyThreshold);
+			% pethLick  = TetrodeRecording.SortPETH(pethLick, 'Method', sorting, 'LatencyThreshold', p.Results.LatencyThreshold);
+			pethLick = pethLick(I, :);
+
 
 			varargout = {pethPress, pethLick};
 
