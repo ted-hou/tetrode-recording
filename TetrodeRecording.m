@@ -55,6 +55,15 @@ classdef TetrodeRecording < handle
 			expName = expName{end - 1};
 		end
 
+		function startTime = GetStartTime(obj)
+			if isempty(obj.NEV)
+				NEV = openNEV([obj.Path, obj.Files{1}], 'nosave', 'nomat');
+				startTime = NEV.MetaTags.DateTimeRaw;
+			else
+				startTime = obj.NEV.MetaTags.DateTimeRaw;
+			end
+		end
+
 		function SelectFiles(obj)
 			[obj.Files, obj.Path, filterindex] = uigetfile({'*.nev; *.ns*; *.ccf', 'Blackrock Files (*.nev, *.ns*, *.ccf)'; '*.rhd', 'Intan RHD2000 Files (*.rhd)'}, 'Select files', 'MultiSelect', 'on');
 			switch filterindex
