@@ -11,6 +11,7 @@ classdef TetrodeRecording < handle
 		Spikes
 		DigitalEvents
 		AnalogIn
+		StartTime = NaN
 	end
 
 	properties (Transient)
@@ -62,6 +63,10 @@ classdef TetrodeRecording < handle
 			else
 				startTime = obj.NEV.MetaTags.DateTimeRaw;
 			end
+			startTime(7) = startTime(7) + startTime(8)/1000;
+			startTime = startTime([1,2,4,5,6,7]);
+			startTime = datetime(startTime, 'TimeZone', 'UTC');
+			obj.StartTime = startTime;
 		end
 
 		function SelectFiles(obj)
@@ -138,6 +143,8 @@ classdef TetrodeRecording < handle
 					obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
 					obj.ClearCache();
 			end
+
+			obj.GetStartTime();
 		end
 
 		function ReadIntan(obj, files)
@@ -3651,11 +3658,35 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false, 'MaxChannels', 5);
 		end
 
-		function tr = BatchLoad()
-			files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
-			for iFile = 1:length(files)
-				disp(['Loading file: ', files{iFile}, '...'])
-				S(iFile) = load(files{iFile}, 'tr');
+		function varargout = BatchLoad(expNames)
+			iExp = [];
+			if nargin < 1
+				files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
+				for iFile = 1:length(files)
+					disp(['Loading file: ', files{iFile}, '...'])
+					S(iFile) = load(files{iFile}, 'tr');
+				end
+			else
+				files = {};
+				for iFile = 1:length(expNames)
+					thisFile = dir(['C:\SERVER\**\SpikeSort\tr*', expNames{iFile}, '*.mat']);
+					thisFile = thisFile(~[thisFile.isdir]);
+
+					if length(thisFile) > 0
+						iExp = [iExp, iFile];
+						[~, iLongest] = max(cellfun(@length, {thisFile.name}));
+						iLongest = cellfun(@(x) length(x) == length(thisFile(iLongest).name), {thisFile.name});
+						for i = transpose(iLongest(:))
+							files{length(files) + 1} = [thisFile(i).folder, '\', thisFile(i).name];
+						end
+					end
+				end
+
+				for iFile = 1:length(files)
+					% Load files
+					disp(['Loading file: ', files{iFile}, '...'])
+					S(iFile) = load(files{iFile}, 'tr');
+				end
 			end
 			% Merge multi-part files
 			for iFile = 1:length(files)
@@ -3672,6 +3703,8 @@ classdef TetrodeRecording < handle
 			partOne = cellfun(@(tr) ~isempty(tr.Part), {S.tr});
 
 			tr = [S(partOne).tr];
+
+			varargout = {tr, iExp};
 		end
 
 		function BatchSave(TR, varargin)
