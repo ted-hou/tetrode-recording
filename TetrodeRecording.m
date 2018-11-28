@@ -3675,7 +3675,7 @@ classdef TetrodeRecording < handle
 					if length(thisFile) > 0
 						iExp = [iExp, iFile];
 						[~, iLongest] = max(cellfun(@length, {thisFile.name}));
-						iLongest = cellfun(@(x) length(x) == length(thisFile(iLongest).name), {thisFile.name});
+						iLongest = find(cellfun(@(x) length(x) == length(thisFile(iLongest).name), {thisFile.name}));
 						for i = transpose(iLongest(:))
 							files{length(files) + 1} = [thisFile(i).folder, '\', thisFile(i).name];
 						end
