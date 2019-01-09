@@ -836,6 +836,7 @@ classdef TetrodeRecording < handle
 
 				% Auto-threshold for spikes
 				% median(abs(x))/0.6745 is a better estimation of noise amplitude than std() when there are spikes -- Quiroga, 2004
+				% shoud be median(abx(x - median(x))) but for ephys usually median(x) = 0;
 				sigma = nanmedian(abs(obj.Amplifier.Data(iChannelRaw, :)))/0.6745;
 				threshold = numSigmas*sigma;
 				switch lower(directionMode)
