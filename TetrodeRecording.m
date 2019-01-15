@@ -11,7 +11,7 @@ classdef TetrodeRecording < handle
 		Spikes
 		DigitalEvents
 		AnalogIn
-		StartTime = NaN
+		StartTime
 	end
 
 	properties (Transient)
@@ -57,16 +57,20 @@ classdef TetrodeRecording < handle
 		end
 
 		function startTime = GetStartTime(obj)
-			if isempty(obj.NEV)
-				NEV = openNEV([obj.Path, obj.Files{1}], 'nosave', 'nomat');
-				startTime = NEV.MetaTags.DateTimeRaw;
+			if isempty(obj.StartTime)
+				if isempty(obj.NEV)
+					NEV = openNEV([obj.Path, obj.Files{1}], 'nosave', 'nomat');
+					startTime = NEV.MetaTags.DateTimeRaw;
+				else
+					startTime = obj.NEV.MetaTags.DateTimeRaw;
+				end
+				startTime(7) = startTime(7) + startTime(8)/1000;
+				startTime = startTime([1,2,4,5,6,7]);
+				startTime = datetime(startTime, 'TimeZone', 'UTC');
+				obj.StartTime = startTime;
 			else
-				startTime = obj.NEV.MetaTags.DateTimeRaw;
+				startTime = obj.StartTime;
 			end
-			startTime(7) = startTime(7) + startTime(8)/1000;
-			startTime = startTime([1,2,4,5,6,7]);
-			startTime = datetime(startTime, 'TimeZone', 'UTC');
-			obj.StartTime = startTime;
 		end
 
 		function SelectFiles(obj)
