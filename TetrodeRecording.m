@@ -1944,6 +1944,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'TrialLength', 6, @isnumeric);
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric); % in ms
 			addParameter(p, 'ExtendedWindow', 1, @isnumeric); % Extend window after event
+			addParameter(p, 'MoveOnsetCorrection', [], @isnumeric); % Modify movement onset time for each trial, list should be as long as number of trials
 			parse(p, channel, varargin{:});
 			channel 			= p.Results.Channel;
 			reference 			= p.Results.Reference;
@@ -1953,6 +1954,7 @@ classdef TetrodeRecording < handle
 			trialLength 		= p.Results.TrialLength;
 			spikeRateWindow 	= p.Results.SpikeRateWindow;
 			extendedWindow 		= p.Results.ExtendedWindow;
+			moveOnsetCorrection	= p.Results.MoveOnsetCorrection;
 
 			if ~isempty(reference)
 				referenceDisplayName = reference;
@@ -1972,7 +1974,12 @@ classdef TetrodeRecording < handle
 				exclude = [];
 			end
 
-			[reference, event] = TetrodeRecording.FindFirstInTrial(reference, event, exclude);
+			[reference, event, ~, ~, toRemove] = TetrodeRecording.FindFirstInTrial(reference, event, exclude);
+
+			if ~isempty(moveOnsetCorrection)
+				moveOnsetCorrection(toRemove) = [];
+				event = event + moveOnsetCorrection;
+			end
 
 			reference = reference(event > trialLength);
 			event = event(event > trialLength);
@@ -3808,13 +3815,15 @@ classdef TetrodeRecording < handle
 
 		function PETH = BatchPETHistCounts(TR, list, varargin)
 			p = inputParser;
+			addParameter(p, 'PressOnsetCorrection', cell(size(TR)), @iscell); % Correct actual movement onset time (press only)
 			addParameter(p, 'TrialLength', 6, @isnumeric);
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric); % in ms
 			addParameter(p, 'ExtendedWindow', 1, @isnumeric); % Extend window after event
 			parse(p, varargin{:});
-			trialLength 		= p.Results.TrialLength;
-			spikeRateWindow 	= p.Results.SpikeRateWindow;
-			extendedWindow 		= p.Results.ExtendedWindow;
+			pressOnsetCorrection	= p.Results.PressOnsetCorrection;
+			trialLength 			= p.Results.TrialLength;
+			spikeRateWindow 		= p.Results.SpikeRateWindow;
+			extendedWindow 			= p.Results.ExtendedWindow;
 
 			PETH = [];
 
@@ -3823,10 +3832,12 @@ classdef TetrodeRecording < handle
 				thisDate 	= list{iPlot, 2};
 				thisChannel = list{iPlot, 3};
 				thisCluster = list{iPlot, 4};
+				thisExpName = [thisAnimal, '_', num2str(thisDate)];
 
 				for iTr = 1:length(TR)
-					try
-						if ~isempty(strfind(TR(iTr).Path, thisAnimal)) && ~isempty(strfind(TR(iTr).Path, num2str(thisDate)))
+% 					try
+						% if ~isempty(strfind(TR(iTr).Path, thisAnimal)) && ~isempty(strfind(TR(iTr).Path, num2str(thisDate)))
+						if strcmpi(TR(iTr).GetExpName, thisExpName)
 							if isempty(PETH)
 								iPETH = 1;
 							else
@@ -3837,7 +3848,8 @@ classdef TetrodeRecording < handle
 							[PETH(iPETH).Press, PETH(iPETH).Time, PETH(iPETH).NumTrialsPress] = TR(iTr).PETHistCounts(...
 								thisChannel, 'Cluster', thisCluster,...
 								'Event', 'PressOn', 'Exclude', 'LickOn',...
-								'TrialLength', trialLength, 'ExtendedWindow', extendedWindow, 'SpikeRateWindow', spikeRateWindow);
+								'TrialLength', trialLength, 'ExtendedWindow', extendedWindow, 'SpikeRateWindow', spikeRateWindow,...
+								'MoveOnsetCorrection', pressOnsetCorrection{iTr});
 							[PETH(iPETH).Lick, ~, PETH(iPETH).NumTrialsLick] = TR(iTr).PETHistCounts(...
 								thisChannel, 'Cluster', thisCluster,...
 								'Event', 'LickOn', 'Exclude', 'PressOn',...
@@ -3849,10 +3861,10 @@ classdef TetrodeRecording < handle
 
 							break
 						end
-					catch ME
-						warning(['Error when processing (', thisAnimal, '_', num2str(thisDate), ' Chn ', num2str(thisChannel), ' Cluster ', num2str(thisCluster), ').'])
-						warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
-					end
+% 					catch ME
+% 						warning(['Error when processing (', thisAnimal, '_', num2str(thisDate), ' Chn ', num2str(thisChannel), ' Cluster ', num2str(thisCluster), ').'])
+% 						warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
+% 					end
 						
 				end
 			end
@@ -4084,7 +4096,7 @@ classdef TetrodeRecording < handle
 				iEvent(toRemove) = [];
 			end
 
-			varargout = {reference, event, iReference, iEvent};
+			varargout = {reference, event, iReference, iEvent, toRemove};
 		end
 
 		function OnPlotChannelRefresh(~, ~, hAxes, t, waveforms, numWaveforms, numWaveformsTotal, clusterID)
