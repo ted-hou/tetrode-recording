@@ -280,6 +280,20 @@ batchPlotList = {...
 	'desmond10', 20180925, 19, 2;... % ??
 	'desmond10', 20180925, 20, 2;... % DA
 	'desmond10', 20180925, 29, 2;... % ??
+	'desmond10', 20181017, 4, 1;... % DA
+	'desmond10', 20181018, 1, 1;... % down
+	'desmond10', 20181018, 7, 1;... % DA
+	'desmond10', 20181018, 8, 1;... % down
+	'desmond10', 20181018, 8, 2;... % DA
+	'desmond10', 20181019, 1, 1;... % flat
+	'desmond10', 20181019, 1, 2;... % DA
+	'desmond10', 20181019, 7, 1;... % DA
+	'desmond10', 20181019, 9, 1;... % up
+	'desmond10', 20181020, 1, 1;... % up
+	'desmond10', 20181020, 7, 1;... % up
+	'desmond10', 20181022, 1, 1;... % up
+	'desmond10', 20181022, 1, 2;... % DA
+	'desmond10', 20181022, 7, 2;... % up
 
 
 
@@ -316,6 +330,9 @@ batchPlotList = {...
 	'desmond11', 20180924, 17, 1;... % up
 	'desmond11', 20180924, 28, 1;... % DA
 	'desmond11', 20180925, 2, 1;... % up
+	'desmond11', 20181022, 28, 1;... % down
+	'desmond11', 20181023, 28, 1;... % down
+
 	};
 
 batchPlotListMulti = {...
@@ -327,6 +344,38 @@ batchPlotListMulti = {...
 	'desmond11', 20180915, 10, 1;... % multi up
 	};
 
+expNames = cell(length(batchPlotList), 1);
+for iExp = 1:length(batchPlotList)
+	expNames{iExp} = [batchPlotList{iExp, 1}, '_', num2str(batchPlotList{iExp, 2})];
+end
+
+expNamesUnique = unique(expNames);
+
+% for iTr = 1:length(expNamesUnique)
+% 	tr(iTr) = TetrodeRecording.BatchLoad(expNamesUnique(iTr));
+
+% 	channelsToKeep = [batchPlotList{strcmpi(tr(iTr).GetExpName, expNames), 3}];
+% 	channelsToRemove = find(cellfun(@(x) ~isempty(x) && ~ismember(x, channelsToKeep), {tr(iTr).Spikes.Channel}, 'UniformOutput', true));
+
+% 	for iChannel = channelsToRemove
+% 		for field = fieldnames(tr(iTr).Spikes)'
+% 			tr(iTr).Spikes(iChannel).(field{1}) = [];
+% 		end
+% 	end
+% 	memory();
+% end
+
+
+for iTr = 1:length(expNamesUnique)
+	tr = TetrodeRecording.BatchLoad(expNamesUnique(iTr));
+	if iTr == 1;
+		PETH = TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'ExtendedWindow', 2);
+	else
+		PETH = [PETH, TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'ExtendedWindow', 2)];
+	end
+end
+
+
 PETH = TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'ExtendedWindow', 2);
 
-TetrodeRecording.HeatMap(PETH, 'Normalization', 'minmax', 'Sorting', 'latency', 'ExtendedWindow', 0, 'MinNumTrials', 75, 'MinSpikeRate', 15);
+TetrodeRecording.HeatMap(PETH, 'Normalization', 'minmax', 'Sorting', 'latency', 'MinNumTrials', 75, 'MinSpikeRate', 15);

@@ -3897,8 +3897,8 @@ classdef TetrodeRecording < handle
 			end
 
 			[pethPress, I] = TetrodeRecording.SortPETH(pethPress, 'Method', sorting, 'LatencyThreshold', p.Results.LatencyThreshold);
-			% pethLick  = TetrodeRecording.SortPETH(pethLick, 'Method', sorting, 'LatencyThreshold', p.Results.LatencyThreshold);
-			pethLick = pethLick(I, :);
+			pethLick  = TetrodeRecording.SortPETH(pethLick, 'Method', sorting, 'LatencyThreshold', p.Results.LatencyThreshold);
+			% pethLick = pethLick(I, :);
 
 
 			varargout = {pethPress, pethLick};
