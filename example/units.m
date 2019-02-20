@@ -376,6 +376,7 @@ for iTr = 1:length(expNamesUnique)
 end
 
 
-PETH = TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'ExtendedWindow', 2);
 
-TetrodeRecording.HeatMap(PETH, 'Normalization', 'minmax', 'Sorting', 'latency', 'MinNumTrials', 75, 'MinSpikeRate', 15);
+TetrodeRecording.HeatMap(PETH, 'Normalization', 'zscore', 'Sorting', 'latency', 'MinNumTrials', 75, 'MinSpikeRate', 15, 'Window', [-4, 1], 'NormalizationBaselineWindow', [-6, 0]);
+
+TetrodeRecording.HeatMap(PETH(a), 'Normalization', 'zscore', 'Sorting', 'latency', 'MinNumTrials', 0, 'MinSpikeRate', 0);

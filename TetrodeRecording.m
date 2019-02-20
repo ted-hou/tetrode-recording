@@ -3886,6 +3886,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'SortsBeforeNorms', false, @islogical); % sort before normalizing
 			addParameter(p, 'Window', [-PETH(1).TrialLength, PETH(1).ExtendedWindow], @(x) isnumeric(x) && length(x) == 2); % Extend window after event
 			addParameter(p, 'I', [], @isnumeric); % Extend window after event
+			addParameter(p, 'UseSameSorting', false, @islogical); % use the lever press sorting order for lick
 			parse(p, varargin{:});
 			minNumTrials 				= p.Results.MinNumTrials;
 			minSpikeRate 				= p.Results.MinSpikeRate;
@@ -3895,10 +3896,15 @@ classdef TetrodeRecording < handle
 			sortsbeforeNorms 			= p.Results.SortsBeforeNorms;
 			trialWindow 				= p.Results.Window;
 			I 							= p.Results.I;
+			useSameSorting				= p.Results.UseSameSorting;
 
 			timestamps 		= PETH(1).Time;
 			selectedPress 	= [PETH.NumTrialsPress] >= minNumTrials & cellfun(@mean, {PETH.Press}) > minSpikeRate;
 			selectedLick 	= [PETH.NumTrialsLick] >= minNumTrials & cellfun(@mean, {PETH.Lick}) > minSpikeRate;
+			if useSameSorting
+				selectedPress 	= selectedPress & selectedLick;
+				selectedLick 	= selectedPress;
+			end
 			pethPress 		= transpose(reshape([PETH(selectedPress).Press], length(timestamps), []));
 			pethLick  		= transpose(reshape([PETH(selectedLick).Lick], length(timestamps), []));
 
@@ -3920,7 +3926,11 @@ classdef TetrodeRecording < handle
 			else
 				pethPress = pethPress(I, :);
 			end	
-			pethLick  = TetrodeRecording.SortPETH(pethLick, 'Method', sorting, 'LatencyThreshold', p.Results.LatencyThreshold);
+			if useSameSorting
+				pethLick  = pethLick(I, :);
+			else
+				pethLick  = TetrodeRecording.SortPETH(pethLick, 'Method', sorting, 'LatencyThreshold', p.Results.LatencyThreshold);
+			end
 
 			IFull = find(selectedPress);
 			IFull = IFull(I);
