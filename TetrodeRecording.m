@@ -1978,7 +1978,7 @@ classdef TetrodeRecording < handle
 
 			if ~isempty(moveOnsetCorrection)
 				moveOnsetCorrection(toRemove) = [];
-				moveOnsetCorrection(moveOnsetCorrection>0) = 0;
+				moveOnsetCorrection(moveOnsetCorrection>0 | moveOnsetCorrection<-4) = 0;
 				event = event + moveOnsetCorrection;
 			end
 
@@ -3836,41 +3836,34 @@ classdef TetrodeRecording < handle
 				thisExpName = [thisAnimal, '_', num2str(thisDate)];
 
 				for iTr = 1:length(TR)
-% 					try
-						% if ~isempty(strfind(TR(iTr).Path, thisAnimal)) && ~isempty(strfind(TR(iTr).Path, num2str(thisDate)))
-						if strcmpi(TR(iTr).GetExpName, thisExpName)
-							if isempty(PETH)
-								iPETH = 1;
-							else
-								iPETH = length(PETH) + 1;
-							end
-
-							thisRefCluster = max(TR(iTr).Spikes(thisChannel).Cluster.Classes); % Use the last cluster is 'noise'/reference cluster
-							[PETH(iPETH).Press, PETH(iPETH).Time, PETH(iPETH).NumTrialsPress] = TR(iTr).PETHistCounts(...
-								thisChannel, 'Cluster', thisCluster,...
-								'Event', 'PressOn', 'Exclude', 'LickOn',...
-								'TrialLength', trialLength, 'ExtendedWindow', extendedWindow, 'SpikeRateWindow', spikeRateWindow,...
-								'MoveOnsetCorrection', pressOnsetCorrection{iTr});
-							[PETH(iPETH).Lick, ~, PETH(iPETH).NumTrialsLick] = TR(iTr).PETHistCounts(...
-								thisChannel, 'Cluster', thisCluster,...
-								'Event', 'LickOn', 'Exclude', 'PressOn',...
-								'TrialLength', trialLength, 'ExtendedWindow', extendedWindow, 'SpikeRateWindow', spikeRateWindow);
-
-							PETH(iPETH).TrialLength = trialLength;
-							PETH(iPETH).SpikeRateWindow = spikeRateWindow;
-							PETH(iPETH).ExtendedWindow = extendedWindow;
-							PETH(iPETH).ExpName = [thisAnimal, '_', num2str(thisDate)];
-							PETH(iPETH).Channel = thisChannel;
-							PETH(iPETH).Cluster = thisCluster;
-							PETH(iPETH).PressOnsetCorrection = pressOnsetCorrection{iTr};
-
-							break
+					if strcmpi(TR(iTr).GetExpName, thisExpName)
+						if isempty(PETH)
+							iPETH = 1;
+						else
+							iPETH = length(PETH) + 1;
 						end
-% 					catch ME
-% 						warning(['Error when processing (', thisAnimal, '_', num2str(thisDate), ' Chn ', num2str(thisChannel), ' Cluster ', num2str(thisCluster), ').'])
-% 						warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
-% 					end
-						
+
+						thisRefCluster = max(TR(iTr).Spikes(thisChannel).Cluster.Classes); % Use the last cluster is 'noise'/reference cluster
+						[PETH(iPETH).Press, PETH(iPETH).Time, PETH(iPETH).NumTrialsPress] = TR(iTr).PETHistCounts(...
+							thisChannel, 'Cluster', thisCluster,...
+							'Event', 'PressOn', 'Exclude', 'LickOn',...
+							'TrialLength', trialLength, 'ExtendedWindow', extendedWindow, 'SpikeRateWindow', spikeRateWindow,...
+							'MoveOnsetCorrection', pressOnsetCorrection{iTr});
+						[PETH(iPETH).Lick, ~, PETH(iPETH).NumTrialsLick] = TR(iTr).PETHistCounts(...
+							thisChannel, 'Cluster', thisCluster,...
+							'Event', 'LickOn', 'Exclude', 'PressOn',...
+							'TrialLength', trialLength, 'ExtendedWindow', extendedWindow, 'SpikeRateWindow', spikeRateWindow);
+
+						PETH(iPETH).TrialLength = trialLength;
+						PETH(iPETH).SpikeRateWindow = spikeRateWindow;
+						PETH(iPETH).ExtendedWindow = extendedWindow;
+						PETH(iPETH).ExpName = [thisAnimal, '_', num2str(thisDate)];
+						PETH(iPETH).Channel = thisChannel;
+						PETH(iPETH).Cluster = thisCluster;
+						PETH(iPETH).PressOnsetCorrection = pressOnsetCorrection{iTr};
+
+						break
+					end
 				end
 			end
 		end
