@@ -1978,6 +1978,7 @@ classdef TetrodeRecording < handle
 
 			if ~isempty(moveOnsetCorrection)
 				moveOnsetCorrection(toRemove) = [];
+				moveOnsetCorrection(moveOnsetCorrection>0) = 0;
 				event = event + moveOnsetCorrection;
 			end
 
@@ -3858,6 +3859,10 @@ classdef TetrodeRecording < handle
 							PETH(iPETH).TrialLength = trialLength;
 							PETH(iPETH).SpikeRateWindow = spikeRateWindow;
 							PETH(iPETH).ExtendedWindow = extendedWindow;
+							PETH(iPETH).ExpName = [thisAnimal, '_', num2str(thisDate)];
+							PETH(iPETH).Channel = thisChannel;
+							PETH(iPETH).Cluster = thisCluster;
+							PETH(iPETH).PressOnsetCorrection = pressOnsetCorrection{iTr};
 
 							break
 						end
@@ -3880,6 +3885,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'LatencyThreshold', 0.675, @isnumeric);
 			addParameter(p, 'SortsBeforeNorms', false, @islogical); % sort before normalizing
 			addParameter(p, 'Window', [-PETH(1).TrialLength, PETH(1).ExtendedWindow], @(x) isnumeric(x) && length(x) == 2); % Extend window after event
+			addParameter(p, 'I', [], @isnumeric); % Extend window after event
 			parse(p, varargin{:});
 			minNumTrials 				= p.Results.MinNumTrials;
 			minSpikeRate 				= p.Results.MinSpikeRate;
@@ -3888,6 +3894,7 @@ classdef TetrodeRecording < handle
 			sorting 					= p.Results.Sorting;
 			sortsbeforeNorms 			= p.Results.SortsBeforeNorms;
 			trialWindow 				= p.Results.Window;
+			I 							= p.Results.I;
 
 			timestamps 		= PETH(1).Time;
 			selectedPress 	= [PETH.NumTrialsPress] >= minNumTrials & cellfun(@mean, {PETH.Press}) > minSpikeRate;
@@ -3908,12 +3915,16 @@ classdef TetrodeRecording < handle
 				pethLick  = TetrodeRecording.NormalizePETH(pethLick, 'Method', normalization, 'BaselineSamples', baselineSamples);
 			end
 
-			[pethPress, I] = TetrodeRecording.SortPETH(pethPress, 'Method', sorting, 'LatencyThreshold', p.Results.LatencyThreshold);
+			if isempty(I)
+				[pethPress, I] = TetrodeRecording.SortPETH(pethPress, 'Method', sorting, 'LatencyThreshold', p.Results.LatencyThreshold);
+			else
+				pethPress = pethPress(I, :);
+			end	
 			pethLick  = TetrodeRecording.SortPETH(pethLick, 'Method', sorting, 'LatencyThreshold', p.Results.LatencyThreshold);
-			% pethLick = pethLick(I, :);
 
-
-			varargout = {pethPress, pethLick};
+			IFull = find(selectedPress);
+			IFull = IFull(I);
+			varargout = {pethPress, pethLick, I, IFull};
 
 			if sortsbeforeNorms
 				pethPress = TetrodeRecording.NormalizePETH(pethPress, 'Method', normalization, 'BaselineSamples', baselineSamples);
@@ -3937,8 +3948,10 @@ classdef TetrodeRecording < handle
 
 			colorbar('Peer', hAxesPress, 'Location', 'EastOutside');
 			colorbar('Peer', hAxesLick, 'Location', 'EastOutside');
-			caxis(hAxesPress, [-6, 6]);
-			caxis(hAxesLick, [-6, 6]);
+			if ~strcmpi('raw', normalization)
+				caxis(hAxesPress, [-6, 6]);
+				caxis(hAxesLick, [-6, 6]);
+			end
 			colormap(hAxesPress, 'jet')
 			colormap(hAxesLick, 'jet')
 
