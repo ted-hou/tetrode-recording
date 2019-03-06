@@ -380,3 +380,6 @@ end
 TetrodeRecording.HeatMap(PETH, 'Normalization', 'zscore', 'Sorting', 'latency', 'MinNumTrials', 75, 'MinSpikeRate', 15, 'Window', [-4, 1], 'NormalizationBaselineWindow', [-6, 0]);
 
 TetrodeRecording.HeatMap(PETH(a), 'Normalization', 'zscore', 'Sorting', 'latency', 'MinNumTrials', 0, 'MinSpikeRate', 0);
+
+
+TetrodeRecording.HeatMap(PETH, 'Normalization', 'zscore', 'Sorting', 'latency', 'MinNumTrials', 75, 'MinSpikeRate', 15, 'Window', [-4, 1], 'NormalizationBaselineWindow', [-4, 0], 'UseSameSorting', true);
