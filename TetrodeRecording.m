@@ -44,7 +44,7 @@ classdef TetrodeRecording < handle
 			if isempty(obj.Path)
 				obj.SelectFiles();
 			end
-			obj.ReadFiles(chunkSize, 'Duration', duration, 'Channels', channels, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-0.35, 0.35]);
+			obj.ReadFiles(chunkSize, 'Duration', duration, 'Channels', channels, 'ChannelsToRead', 65:96, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-0.35, 0.35]);
 			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
 			if ~hideResults
 				obj.PlotAllChannels();
@@ -3573,7 +3573,7 @@ classdef TetrodeRecording < handle
 				previewObj(iDir).Path = [dirs{iDir}, '\'];
 				previewObj(iDir).Files = files;
 				try
-					previewObj(iDir).Preview('HideResults', true, 'ChannelsToRead', 1:32);
+					previewObj(iDir).Preview('HideResults', true);
 				catch ME
 					warning(['Error when processing folder (', dirs{iDir}, ') - this one will be skipped.'])
 					warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
