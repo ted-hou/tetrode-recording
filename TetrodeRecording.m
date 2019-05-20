@@ -44,7 +44,7 @@ classdef TetrodeRecording < handle
 			if isempty(obj.Path)
 				obj.SelectFiles();
 			end
-			obj.ReadFiles(chunkSize, 'Duration', duration, 'Channels', channels, 'ChannelsToRead', 65:96, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-0.35, 0.35]);
+			obj.ReadFiles(chunkSize, 'Duration', duration, 'Channels', channels, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-0.35, 0.35]);
 			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
 			if ~hideResults
 				obj.PlotAllChannels();
@@ -92,8 +92,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'RemoveTransient', false, @islogical);
 			addParameter(p, 'DigitalChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}
 			addParameter(p, 'AnalogChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'AccX', 1; 'AccY', 2; 'AccZ', 3;}
-			addParameter(p, 'Channels', [], @isnumeric);
-			addParameter(p, 'ChannelsToRead', [], @isnumeric);
+			addParameter(p, 'Channels', [1:32, 65:96], @isnumeric);
 			addParameter(p, 'NumSigmas', 4, @isnumeric);
 			addParameter(p, 'NumSigmasReturn', [], @isnumeric);
 			addParameter(p, 'NumSigmasReject', [], @isnumeric);
@@ -107,7 +106,6 @@ classdef TetrodeRecording < handle
 			digitalChannels = p.Results.DigitalChannels;
 			analogChannels 	= p.Results.AnalogChannels;
 			channels 		= p.Results.Channels;
-			channelsToRead	= p.Results.ChannelsToRead;
 			numSigmas 		= p.Results.NumSigmas;
 			numSigmasReturn = p.Results.NumSigmasReturn;
 			numSigmasReject = p.Results.NumSigmasReject;
@@ -139,10 +137,10 @@ classdef TetrodeRecording < handle
 					end
 					obj.GetDigitalEvents(true);
 				case 'blackrock'
-					obj.ReadBlackrock('Channels', channelsToRead, 'DigitalChannels', {'Press', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7}, 'Duration', duration);
+					obj.ReadBlackrock('Channels', channels, 'DigitalChannels', {'Press', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7}, 'Duration', duration);
 					obj.GenerateChannelMap('HeadstageType', 'BlackRock');
 					if isempty(channels)
-						channels = obj.MapChannel_RawToTetrode([obj.NSx.ElectrodesInfo.ElectrodeID]);
+						channels = [obj.NSx.ElectrodesInfo.ElectrodeID];
 					end
 					obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
 					obj.ClearCache();
@@ -766,9 +764,11 @@ classdef TetrodeRecording < handle
 			for iWaveform = 1:length(sampleIndex)
 				iQuery = sampleIndex(iWaveform) + i;
 				if (sum(rem(iQuery, 1) == 0) == length(iQuery)) && min(iQuery) > 0 && max(iQuery) <= size(obj.Amplifier.Data, 2)
-					waveforms(iWaveform, :) = obj.Amplifier.Data(obj.MapChannel_TetrodeToRecorded(channel), iQuery);
+					% waveforms(iWaveform, :) = obj.Amplifier.Data(obj.MapChannel_TetrodeToRecorded(channel), iQuery);
+					waveforms(iWaveform, :) = obj.Amplifier.Data(channel, iQuery);
 				else
-					waveforms(iWaveform, :) = interp1(1:size(obj.Amplifier.Data, 2), double(obj.Amplifier.Data(obj.MapChannel_TetrodeToRecorded(channel), :)), iQuery, 'pchip', NaN);
+					% waveforms(iWaveform, :) = interp1(1:size(obj.Amplifier.Data, 2), double(obj.Amplifier.Data(obj.MapChannel_TetrodeToRecorded(channel), :)), iQuery, 'pchip', NaN);
+					waveforms(iWaveform, :) = interp1(1:size(obj.Amplifier.Data, 2), double(obj.Amplifier.Data(channel, :)), iQuery, 'pchip', NaN);
 				end
 			end
 
@@ -836,7 +836,8 @@ classdef TetrodeRecording < handle
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
 
 			for iChannel = channels
-				iChannelRaw = obj.MapChannel_TetrodeToRecorded(iChannel);
+				% iChannelRaw = obj.MapChannel_TetrodeToRecorded(iChannel);
+				iChannelRaw = iChannel;
 
 				% Auto-threshold for spikes
 				% median(abs(x))/0.6745 is a better estimation of noise amplitude than std() when there are spikes -- Quiroga, 2004
@@ -3626,15 +3627,9 @@ classdef TetrodeRecording < handle
 			for iDir = 1:length(selectedChannels)
 				channels = selectedChannels{iDir};
 				if ~isempty(channels)
-					switch lower(previewObj(iDir).System)
-						case 'intan'
-							channelsToRead = []; % not needed for intan, all channels are read anyway
-						case 'blackrock'
-							channelsToRead = previewObj(iDir).MapChannel_TetrodeToRecorded(channels);
-					end
 					try
 						TetrodeRecording.TTS(['Processing folder ', num2str(iDir), '/', num2str(length(selectedChannels)), ':\n']);
-						TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels, channelsToRead, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix);
+						TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix);
 					catch ME
 						warning(['Error when processing folder (', allPaths{iDir}, ') - this one will be skipped.'])
 						warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
@@ -3644,7 +3639,7 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.RandomWords();
 		end
 
-		function ProcessFolder(thisPath, chunkSize, channels, channelsToRead, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix)
+		function ProcessFolder(thisPath, chunkSize, channels, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix)
 			tr = TetrodeRecording();
 			tr.Path = thisPath;
 			files = dir([tr.Path, '*.rhd']);
@@ -3666,7 +3661,7 @@ classdef TetrodeRecording < handle
 				end
 			end
 
-			tr.ReadFiles(chunkSize, 'Channels', channels, 'ChannelsToRead', channelsToRead, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow);
+			tr.ReadFiles(chunkSize, 'Channels', channels, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow);
 			tr.SpikeSort(channels, 'FeatureMethod', featureMethod, 'ClusterMethod', clusterMethod, 'Dimension', dimension);
 			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false, 'MaxChannels', 5);
 		end
