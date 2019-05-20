@@ -146,19 +146,20 @@ classdef TetrodeRecording < handle
 					elseif rig == 2
 						digitalChannels = {'Cue', 15; 'Reward', 14; 'Lick', 13; 'Press', 12, ; 'Stim', 11};
 					end
-					obj.ReadBlackrock('Channels', channels, 'DigitalChannels', digitalChannels, 'Duration', duration);
+					obj.ReadBlackrock('DigitalChannels', digitalChannels, 'Duration', duration);
 					if rig == 1
 						channelsToKeep = ismember([obj.NSx.ElectrodesInfo.ElectrodeID], 1:32);
 					elseif rig == 2
 						channelsToKeep = ismember([obj.NSx.ElectrodesInfo.ElectrodeID], 65:96);
 					end
 					obj.Amplifier.Data = obj.Amplifier.Data(channelsToKeep, :);
-					channels = 1:size(obj.Amplifier.Data, 1);
+					if isempty(channels)
+						channels = 1:size(obj.Amplifier.Data, 1);
+					end
 					% obj.GenerateChannelMap('HeadstageType', 'BlackRock');
 					obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
 					obj.ClearCache();
 			end
-
 			obj.GetStartTime();
 		end
 
@@ -3645,11 +3646,18 @@ classdef TetrodeRecording < handle
 			selectedChannels = {previewObj.SelectedChannels};
 			allPaths = {previewObj.Path};
 			for iDir = 1:length(selectedChannels)
+				if contains(allPaths{iDir}, {'desmond12', 'daisy4'})
+					rig = 1;
+				elseif contains(allPaths{iDir}, {'desmond13', 'daisy5'})
+					rig = 2;
+				else
+					error('This version was designed for desmond12/13 daisy4/5 only');
+				end				
 				channels = selectedChannels{iDir};
 				if ~isempty(channels)
 					try
 						TetrodeRecording.TTS(['Processing folder ', num2str(iDir), '/', num2str(length(selectedChannels)), ':\n']);
-						TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix);
+						TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix, rig);
 					catch ME
 						warning(['Error when processing folder (', allPaths{iDir}, ') - this one will be skipped.'])
 						warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
@@ -3659,7 +3667,7 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.RandomWords();
 		end
 
-		function ProcessFolder(thisPath, chunkSize, channels, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix)
+		function ProcessFolder(thisPath, chunkSize, channels, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix, rig)
 			tr = TetrodeRecording();
 			tr.Path = thisPath;
 			files = dir([tr.Path, '*.rhd']);
@@ -3681,7 +3689,7 @@ classdef TetrodeRecording < handle
 				end
 			end
 
-			tr.ReadFiles(chunkSize, 'Channels', channels, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow);
+			tr.ReadFiles(chunkSize, 'Rig', rig, 'Channels', channels, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow);
 			tr.SpikeSort(channels, 'FeatureMethod', featureMethod, 'ClusterMethod', clusterMethod, 'Dimension', dimension);
 			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false, 'MaxChannels', 5);f
 		end
