@@ -31,20 +31,22 @@ classdef TetrodeRecording < handle
 
 		function Preview(obj, varargin)
 			p = inputParser;
-			addParameter(p, 'Duration', [0, 60], @isnumeric); % start:stop in seconds
+			addParameter(p, 'Duration', [300, 360], @isnumeric); % start:stop in seconds
 			addParameter(p, 'Channels', [], @isnumeric);
 			addParameter(p, 'ChunkSize', 10, @isnumeric);
 			addParameter(p, 'HideResults', false, @islogical);
+			addParameter(p, 'Rig', 1, @isnumeric);
 			parse(p, varargin{:});
 			duration 		= p.Results.Duration;
 			channels 		= p.Results.Channels;
 			chunkSize 		= p.Results.ChunkSize;
 			hideResults 	= p.Results.HideResults;
+			rig 			= p.Results.Rig;
 
 			if isempty(obj.Path)
 				obj.SelectFiles();
 			end
-			obj.ReadFiles(chunkSize, 'Duration', duration, 'Channels', channels, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-0.35, 0.35]);
+			obj.ReadFiles(chunkSize, 'Rig', rig, 'Duration', duration, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-0.35, 0.35]);
 			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
 			if ~hideResults
 				obj.PlotAllChannels();
@@ -92,12 +94,13 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'RemoveTransient', false, @islogical);
 			addParameter(p, 'DigitalChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}
 			addParameter(p, 'AnalogChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'AccX', 1; 'AccY', 2; 'AccZ', 3;}
-			addParameter(p, 'Channels', [1:32, 65:96], @isnumeric);
+			addParameter(p, 'Channels', [], @isnumeric);
 			addParameter(p, 'NumSigmas', 4, @isnumeric);
 			addParameter(p, 'NumSigmasReturn', [], @isnumeric);
 			addParameter(p, 'NumSigmasReject', [], @isnumeric);
 			addParameter(p, 'Direction', 'negative', @ischar);
 			addParameter(p, 'WaveformWindow', [-1.25, 1.25], @isnumeric);
+			addParameter(p, 'Rig', 1, @isnumeric);
 			parse(p, varargin{:});
 			chunkSize 		= p.Results.ChunkSize;
 			duration 		= p.Results.Duration;
@@ -111,6 +114,7 @@ classdef TetrodeRecording < handle
 			numSigmasReject = p.Results.NumSigmasReject;
 			direction 		= p.Results.Direction;
 			waveformWindow 	= p.Results.WaveformWindow;
+			rig 			= p.Results.Rig;
 
 			files = obj.Files;
 			numChunks = ceil(length(files)/chunkSize);
@@ -137,11 +141,20 @@ classdef TetrodeRecording < handle
 					end
 					obj.GetDigitalEvents(true);
 				case 'blackrock'
-					obj.ReadBlackrock('Channels', channels, 'DigitalChannels', {'Press', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7}, 'Duration', duration);
-					obj.GenerateChannelMap('HeadstageType', 'BlackRock');
-					if isempty(channels)
-						channels = [obj.NSx.ElectrodesInfo.ElectrodeID];
+					if rig == 1
+						digitalChannels = {'Cue', 0; 'Reward', 1; 'Lick', 1; 'Press', 3, ; 'Stim', 4};
+					elseif rig == 2
+						digitalChannels = {'Cue', 15; 'Reward', 14; 'Lick', 13; 'Press', 12, ; 'Stim', 11};
 					end
+					obj.ReadBlackrock('Channels', channels, 'DigitalChannels', digitalChannels, 'Duration', duration);
+					if rig == 1
+						channelsToKeep = ismember([obj.NSx.ElectrodesInfo.ElectrodeID], 1:32);
+					elseif rig == 2
+						channelsToKeep = ismember([obj.NSx.ElectrodesInfo.ElectrodeID], 65:96);
+					end
+					obj.Amplifier.Data = obj.Amplifier.Data(channelsToKeep, :);
+					channels = 1:size(obj.Amplifier.Data, 1);
+					% obj.GenerateChannelMap('HeadstageType', 'BlackRock');
 					obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
 					obj.ClearCache();
 			end
@@ -3573,8 +3586,15 @@ classdef TetrodeRecording < handle
 				previewObj(iDir).System = sysName;
 				previewObj(iDir).Path = [dirs{iDir}, '\'];
 				previewObj(iDir).Files = files;
+				if contains(previewObj(iDir).Path, {'desmond12', 'daisy4'})
+					rig = 1;
+				elseif contains(previewObj(iDir).Path, {'desmond13', 'daisy5'})
+					rig = 2;
+				else
+					error('This version was designed for desmond12/13 daisy4/5 only');
+				end
 				try
-					previewObj(iDir).Preview('HideResults', true);
+					previewObj(iDir).Preview('Rig', rig, 'HideResults', true);
 				catch ME
 					warning(['Error when processing folder (', dirs{iDir}, ') - this one will be skipped.'])
 					warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
@@ -3663,7 +3683,7 @@ classdef TetrodeRecording < handle
 
 			tr.ReadFiles(chunkSize, 'Channels', channels, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow);
 			tr.SpikeSort(channels, 'FeatureMethod', featureMethod, 'ClusterMethod', clusterMethod, 'Dimension', dimension);
-			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false, 'MaxChannels', 5);
+			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false, 'MaxChannels', 5);f
 		end
 
 		function varargout = BatchLoad(expNames)
