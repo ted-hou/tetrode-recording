@@ -3638,7 +3638,7 @@ classdef TetrodeRecording < handle
 			end
 
 			tr.ReadFiles(chunkSize, 'Rig', rig, 'Channels', channels, 'ChannelsOnRig', channelsOnRig, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow);
-			tr.SpikeSort(channels, 'FeatureMethod', featureMethod, 'ClusterMethod', clusterMethod, 'Dimension', dimension);
+			tr.SpikeSort([], 'FeatureMethod', featureMethod, 'ClusterMethod', clusterMethod, 'Dimension', dimension);
 			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false, 'MaxChannels', 5);
 		end
 
