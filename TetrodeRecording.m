@@ -614,12 +614,16 @@ classdef TetrodeRecording < handle
 			% Process amplifier data
 			sampleRate = obj.NSx.MetaTags.SamplingFreq;
 			obj.FrequencyParameters.AmplifierSampleRate = sampleRate;
-			numSamples = obj.NSx.MetaTags.DataPoints;
+			numSamples = sum(obj.NSx.MetaTags.DataPoints);
 
 			obj.Amplifier.NumSamples = numSamples;
 			obj.Amplifier.Timestamps = (0:(numSamples - 1))/sampleRate;
-			obj.Amplifier.Data = obj.NSx.Data;
-
+			if iscell(obj.NSx.Data)
+				obj.Amplifier.Data = [obj.NSx.Data{:}];
+				warning(['For some readon data was truncated into ', num2str(length(obj.NSx.Data)), ' parts (', mat2str(cellfun(@length, obj.NSx.Data)),'). Timestamps: ', mat2str(obj.NSx.MetaTags.Timestamp),'. I''m guessing this is because the data stream was interrupted for a few samples.']);
+			else
+				obj.Amplifier.Data = obj.NSx.Data;
+			end
 			obj.NSx.Data = [];
 
 			% Parse digital events
