@@ -164,8 +164,7 @@ classdef TetrodeRecording < handle
 					else
 						channelsToRead = channelsOnRig(channels);
 						obj.ReadBlackrock('Channels', channelsToRead, 'DigitalChannels', digitalChannels, 'Duration', duration);
-						obj.Amplifier.Data = obj.Amplifier.Data(channelsOnRig, :);
-						obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
+						obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
 					end
 					obj.ClearCache();
 			end
