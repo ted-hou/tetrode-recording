@@ -102,6 +102,8 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Direction', 'negative', @ischar);
 			addParameter(p, 'WaveformWindow', [-1.25, 1.25], @isnumeric);
 			addParameter(p, 'Rig', 1, @isnumeric);
+			addParameter(p, 'DetectSpikes', true, @islogical);
+			addParameter(p, 'DetectEvents', true, @islogical);
 			parse(p, varargin{:});
 			chunkSize 		= p.Results.ChunkSize;
 			duration 		= p.Results.Duration;
@@ -117,6 +119,8 @@ classdef TetrodeRecording < handle
 			direction 		= p.Results.Direction;
 			waveformWindow 	= p.Results.WaveformWindow;
 			rig 			= p.Results.Rig;
+			detectSpikes	= p.Results.DetectSpikes;
+			detectEvents	= p.Results.DetectEvents;
 
 			files = obj.Files;
 			numChunks = ceil(length(files)/chunkSize);
@@ -143,10 +147,14 @@ classdef TetrodeRecording < handle
 					end
 					obj.GetDigitalEvents(true);
 				case 'blackrock'
-					if rig == 1
-						digitalChannels = {'Cue', 0; 'Reward', 1; 'Lick', 1; 'Press', 3, ; 'Stim', 4};
-					elseif rig == 2
-						digitalChannels = {'Cue', 15; 'Reward', 14; 'Lick', 13; 'Press', 12, ; 'Stim', 11};
+					if ~detectEvents
+						digitalChannels = {};
+					else
+						if rig == 1
+							digitalChannels = {'Cue', 0; 'Reward', 1; 'Lick', 1; 'Press', 3, ; 'Stim', 4};
+						elseif rig == 2
+							digitalChannels = {'Cue', 15; 'Reward', 14; 'Lick', 13; 'Press', 12, ; 'Stim', 11};
+						end
 					end
 					% First read
 					if isnan(channelsOnRig)
@@ -159,16 +167,112 @@ classdef TetrodeRecording < handle
 							channelsOnRig = obj.ChannelMap.Rig2;
 						end
 						obj.Amplifier.Data = obj.Amplifier.Data(channelsOnRig, :);
-						obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
+						if detectSpikes
+							obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
+						end
 					% Second read
 					else
 						channelsToRead = channelsOnRig(channels);
 						obj.ReadBlackrock('Channels', channelsToRead, 'DigitalChannels', digitalChannels, 'Duration', duration);
-						obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
+						if detectSpikes
+							obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
+						end
 					end
-					obj.ClearCache();
+					if detectSpikes
+						obj.ClearCache();
+					end
 			end
 			obj.GetStartTime();
+		end
+
+		function ReadBlackrock(obj, varargin)
+			p = inputParser;
+			addParameter(p, 'Channels', [], @isnumeric);
+			addParameter(p, 'DigitalChannels', {'Lever', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7}, @iscell); % {'Lever', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7}
+			addParameter(p, 'Duration', [], @isnumeric); % [0, 60] seconds
+			parse(p, varargin{:});
+			channels 		= p.Results.Channels;
+			digitalChannels = p.Results.DigitalChannels;
+			duration 		= p.Results.Duration;
+
+			if ~isempty(duration) && length(duration) == 2
+				duration = ['t:', num2str(duration(1)), ':', num2str(duration(2))];
+			else
+				duration = [];
+			end
+
+			tic, TetrodeRecording.TTS(['	Loading data (', obj.GetExpName(), ')...'])
+			% Load NEV
+			isNEV = contains(obj.Files, '.nev'); 
+			if nnz(isNEV) == 1
+				filename = [obj.Path, obj.Files{isNEV}];
+				if isempty(duration)
+					obj.NEV = openNEV(filename, 'nosave', 'nomat');
+				else
+					obj.NEV = openNEV(filename, 'nosave', 'nomat', duration);
+				end
+			elseif nnz(isNEV) > 1
+				warning('More than one NEV file specified so none will be loaded. Digital events might be missing.')
+			else
+				warning('No NEV file loaded. Digital events might be missing.')
+			end
+
+			% Load NSx
+			isNSx = contains(obj.Files, '.ns'); 
+			if nnz(isNSx) == 1
+				filename = [obj.Path, obj.Files{isNSx}];
+				if isempty(channels)
+					if isempty(duration)
+						obj.NSx = openNSx(filename);
+					else
+						obj.NSx = openNSx(filename, 'duration', duration, 'sec');
+					end
+				else
+					if isempty(duration)
+						obj.NSx = openNSx(filename, 'channels', channels);
+					else
+						obj.NSx = openNSx(filename, 'channels', channels, 'duration', duration, 'sec');
+					end
+				end
+			elseif nnz(isNSx) > 1
+				warning('More than one NSx file specified so none will be loaded.')
+			else
+				warning('No NSx file specified.')
+			end
+			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
+
+			% Process amplifier data
+			sampleRate = obj.NSx.MetaTags.SamplingFreq;
+			obj.FrequencyParameters.AmplifierSampleRate = sampleRate;
+			numSamples = sum(obj.NSx.MetaTags.DataPoints);
+
+			obj.Amplifier.NumSamples = numSamples;
+			obj.Amplifier.Timestamps = (0:(numSamples - 1))/sampleRate;
+			if iscell(obj.NSx.Data)
+				obj.Amplifier.Data = [obj.NSx.Data{end}];
+				obj.FrequencyParameters.SysInitDelay.NumSamples = length(obj.NSx.Data{1});
+				obj.FrequencyParameters.SysInitDelay.Duration = length(obj.NSx.Data{1})/sampleRate;
+				obj.FrequencyParameters.SysInitDelay.DataTrimmed = false;
+				warning(['For some readon data was truncated into ', num2str(length(obj.NSx.Data)), ' chunk (', mat2str(cellfun(@(x) length(x)/sampleRate, obj.NSx.Data)),'). Timestamps: ', mat2str(obj.NSx.MetaTags.Timestamp),'. If its only ywo parts and the first chunk is a few seconds long or less, then its discarded data recorded by rig 1 before rig 2 starts recording. If it''s more than a few seconds long or there are more than one data chunk, then you''re screwed because data acquisition was paused and then manually resumed - possibly due to disk being full.']);
+			else
+				obj.FrequencyParameters.SysInitDelay.NumSamples = NaN;
+				obj.FrequencyParameters.SysInitDelay.Duration = NaN;
+				obj.FrequencyParameters.SysInitDelay.DataTrimmed = false;
+				obj.Amplifier.Data = obj.NSx.Data;
+			end
+			obj.NSx.Data = [];
+
+			% Parse digital events
+			if ~isempty(digitalChannels)
+				digitalData = flip(dec2bin(obj.NEV.Data.SerialDigitalIO.UnparsedData), 2);
+				digitalTimestamps = obj.NEV.Data.SerialDigitalIO.TimeStampSec;
+
+				for iChannel = 1:size(digitalChannels, 1)
+					iBit = digitalChannels{iChannel, 2} + 1;
+					channelName = digitalChannels{iChannel, 1};
+					[obj.DigitalEvents.([channelName, 'On']), obj.DigitalEvents.([channelName, 'Off'])] = obj.FindEdges(transpose(digitalData(:, iBit)), digitalTimestamps);
+				end
+			end
 		end
 
 		function ReadIntan(obj, files)
@@ -555,88 +659,6 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 		end
 
-		function ReadBlackrock(obj, varargin)
-			p = inputParser;
-			addParameter(p, 'Channels', [], @isnumeric);
-			addParameter(p, 'DigitalChannels', {'Lever', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7}, @iscell); % {'Lever', 1; 'Lick', 2; 'Cue', 4; 'Reward', 7}
-			addParameter(p, 'Duration', [], @isnumeric); % [0, 60] seconds
-			parse(p, varargin{:});
-			channels 		= p.Results.Channels;
-			digitalChannels = p.Results.DigitalChannels;
-			duration 		= p.Results.Duration;
-
-			if ~isempty(duration) && length(duration) == 2
-				duration = ['t:', num2str(duration(1)), ':', num2str(duration(2))];
-			else
-				duration = [];
-			end
-
-			tic, TetrodeRecording.TTS(['	Loading data (', obj.GetExpName(), ')...'])
-			% Load NEV
-			isNEV = contains(obj.Files, '.nev'); 
-			if nnz(isNEV) == 1
-				filename = [obj.Path, obj.Files{isNEV}];
-				if isempty(duration)
-					obj.NEV = openNEV(filename, 'nosave', 'nomat');
-				else
-					obj.NEV = openNEV(filename, 'nosave', 'nomat', duration);
-				end
-			elseif nnz(isNEV) > 1
-				warning('More than one NEV file specified so none will be loaded. Digital events might be missing.')
-			else
-				warning('No NEV file loaded. Digital events might be missing.')
-			end
-
-			% Load NSx
-			isNSx = contains(obj.Files, '.ns'); 
-			if nnz(isNSx) == 1
-				filename = [obj.Path, obj.Files{isNSx}];
-				if isempty(channels)
-					if isempty(duration)
-						obj.NSx = openNSx(filename);
-					else
-						obj.NSx = openNSx(filename, 'duration', duration, 'sec');
-					end
-				else
-					if isempty(duration)
-						obj.NSx = openNSx(filename, 'channels', channels);
-					else
-						obj.NSx = openNSx(filename, 'channels', channels, 'duration', duration, 'sec');
-					end
-				end
-			elseif nnz(isNSx) > 1
-				warning('More than one NSx file specified so none will be loaded.')
-			else
-				warning('No NSx file specified.')
-			end
-			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
-
-			% Process amplifier data
-			sampleRate = obj.NSx.MetaTags.SamplingFreq;
-			obj.FrequencyParameters.AmplifierSampleRate = sampleRate;
-			numSamples = sum(obj.NSx.MetaTags.DataPoints);
-
-			obj.Amplifier.NumSamples = numSamples;
-			obj.Amplifier.Timestamps = (0:(numSamples - 1))/sampleRate;
-			if iscell(obj.NSx.Data)
-				obj.Amplifier.Data = [obj.NSx.Data{:}];
-				warning(['For some readon data was truncated into ', num2str(length(obj.NSx.Data)), ' parts (', mat2str(cellfun(@length, obj.NSx.Data)),'). Timestamps: ', mat2str(obj.NSx.MetaTags.Timestamp),'. I''m guessing this is because the data stream was interrupted for a few samples.']);
-			else
-				obj.Amplifier.Data = obj.NSx.Data;
-			end
-			obj.NSx.Data = [];
-
-			% Parse digital events
-			digitalData = flip(dec2bin(obj.NEV.Data.SerialDigitalIO.UnparsedData), 2);
-			digitalTimestamps = obj.NEV.Data.SerialDigitalIO.TimeStampSec;
-
-			for iChannel = 1:size(digitalChannels, 1)
-				iBit = digitalChannels{iChannel, 2} + 1;
-				channelName = digitalChannels{iChannel, 1};
-				[obj.DigitalEvents.([channelName, 'On']), obj.DigitalEvents.([channelName, 'Off'])] = obj.FindEdges(transpose(digitalData(:, iBit)), digitalTimestamps);
-			end
-		end
-
 		% Used to preview a small portion of loaded data. Will remove used data from workspace.
 		function TrimData(obj, numSamples)
 			if ~isempty(obj.BoardDigIn)
@@ -762,6 +784,8 @@ classdef TetrodeRecording < handle
 					selected = find(ismember(1:length(obj.Spikes(channel).SampleIndex), index));
 				case 'sampleindex'
 					selected = find(ismember(obj.Spikes(channel).SampleIndex, index));
+				case 'threshold'
+					selected = find(obj.Spikes(channel).SampleIndex <= index);
 			end
 			if ~isempty(clusters)
 				classes = obj.Spikes(channel).Cluster.Classes(selected);
@@ -1715,6 +1739,8 @@ classdef TetrodeRecording < handle
 			% Find the first lever press (true first movement: before any lick/press has occured since cue on)
 
 			% Get spikes between two reference and first event
+			reference = sort(reference);
+			event = sort(event);
 			[reference, event] = TetrodeRecording.FindFirstInTrial(reference, event, exclude);
 
 			% Bin spikes into trials
@@ -1784,6 +1810,93 @@ classdef TetrodeRecording < handle
 			end
 		end
 
+		function RasterStim(obj, channels, varargin)
+			p = inputParser;
+			addRequired(p, 'Channels', @isnumeric);
+			addParameter(p, 'ExtendedWindow', [-2, 2], @isnumeric);
+			addParameter(p, 'Clusters', [], @isnumeric);
+			addParameter(p, 'XLim', [], @isnumeric);
+			addParameter(p, 'SelectedSampleIndex', [], @isnumeric);
+			addParameter(p, 'Ax', []);
+			parse(p, channels, varargin{:});
+			channels 			= p.Results.Channels;
+			extendedWindow 		= p.Results.ExtendedWindow;
+			clusters 			= p.Results.Clusters;
+			xRange 				= p.Results.XLim;
+			selectedSampleIndex	= p.Results.SelectedSampleIndex;
+			ax 					= p.Results.Ax;
+
+			cueOn = sort(obj.DigitalEvents.CueOn);
+			pulseOn = sort(obj.DigitalEvents.StimOn);
+			pulseOff = sort(obj.DigitalEvents.StimOff);
+
+			% Get spikes between first pulse start and last pulse end
+			[cueOnStimTrials, trainOn] = TetrodeRecording.FindFirstInTrial(cueOn, pulseOn);
+			[~, trainOff] = TetrodeRecording.FindLastInTrial(cueOn, pulseOff);
+
+			% Bin spikes into trials
+			for iChannel = channels
+				[sampleIndex, spikes, trials] = obj.GetSpikesByTrial(iChannel, 'Reference', trainOn, 'Event', trainOff, 'Clusters', clusters,...
+					'Window', extendedWindow, 'WindowReference', 'StartAndEnd');
+
+				if ~isempty(selectedSampleIndex)
+					selected 	= ismember(sampleIndex, selectedSampleIndex);
+					sampleIndex = sampleIndex(selected);
+					spikes 		= spikes(selected);
+					trials 		= trials(selected);
+				end
+
+				if isempty(ax)
+					hFigure = figure('Units', 'Normalized', 'OuterPosition', [0, 0, 0.75, 1]);
+					hAxes = axes(hFigure);
+				else
+					hAxes = ax;
+					axes(hAxes);
+				end
+
+				spikesRelative = spikes - trainOn(trials);
+
+				edges = [trainOn, trainOff(end)];
+				[~, ~, trialsPulseOn] = histcounts(pulseOn, edges);
+				[~, ~, trialsPulseOff] = histcounts(pulseOff, edges);
+				pulseOnRelative = pulseOn - trainOn(trialsPulseOn);
+				pulseOffRelative = pulseOff - trainOn(trialsPulseOff);
+
+				hold on
+				plot(hAxes, spikesRelative, trials, '.',...
+					'MarkerSize', 5,...
+					'MarkerEdgeColor', 'k',...
+					'MarkerFaceColor', 'k',...
+					'LineWidth', 1.5,...
+					'DisplayName', 'Spike'...
+				)
+				plot(hAxes, pulseOnRelative, trialsPulseOn, '.',...
+					'MarkerSize', 5,...
+					'MarkerEdgeColor', 'b',...
+					'MarkerFaceColor', 'b',...
+					'LineWidth', 1.5,...
+					'DisplayName', 'Pulse On'...
+				)
+				plot(hAxes, pulseOffRelative, trialsPulseOff, '.',...
+					'MarkerSize', 5,...
+					'MarkerEdgeColor', 'r',...
+					'MarkerFaceColor', 'r',...
+					'LineWidth', 1.5,...
+					'DisplayName', 'Pulse Off'...
+				)
+				title(hAxes, 'Spike raster')
+				xlabel(hAxes, ['Time relative to Stim On (s)'])
+				ylabel(hAxes, 'Trial')
+				legend(hAxes, 'Location', 'Best');
+				if ~isempty(xRange)
+					xlim(hAxes, xRange);
+				end
+				hold off
+
+				hAxes.UserData.PlotParams = p.Results;
+			end
+		end
+
 		function PETH(obj, channels, varargin)
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric);
@@ -1834,6 +1947,8 @@ classdef TetrodeRecording < handle
 				exclude = [];
 			end
 
+			reference = sort(reference);
+			event = sort(event);
 			[reference, event] = TetrodeRecording.FindFirstInTrial(reference, event, exclude);
 
 			% Bin trials according to trial length (t(event) - t(reference))
@@ -1939,6 +2054,8 @@ classdef TetrodeRecording < handle
 				exclude = [];
 			end
 
+			reference = sort(reference);
+			event = sort(event);
 			[reference, event, ~, ~, toRemove] = TetrodeRecording.FindFirstInTrial(reference, event, exclude);
 
 			if ~isempty(moveOnsetCorrection)
@@ -2094,6 +2211,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'FontSize', 8, @isnumeric);
 			addParameter(p, 'PrintMode', false, @islogical);
 			addParameter(p, 'FrameRate', 0, @isnumeric);
+			addParameter(p, 'PlotStim', false, @islogical);
 			addParameter(p, 'Fig', []);
 			parse(p, channel, varargin{:});
 			iChannel 			= p.Results.Channel;
@@ -2115,6 +2233,7 @@ classdef TetrodeRecording < handle
 			fontSize 			= p.Results.FontSize;
 			printMode 			= p.Results.PrintMode;
 			frameRate 			= p.Results.FrameRate;
+			plotStim 			= p.Results.PlotStim;
 			h.Figure 			= p.Results.Fig;
 
 			allChannels = [obj.Spikes.Channel];
@@ -2163,7 +2282,7 @@ classdef TetrodeRecording < handle
 			h.Waveform 	= subplot('Position', [fMargin + xMargin, fMargin + 5*yMargin + hDown + hUpHalf, wLeft, hUpHalf], 'Tag', 'Waveform');
 			h.PCA 		= subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hDown, wLeft, hUpHalf], 'Tag', 'PCA');
 			h.Raster	= subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + 3*yMargin + hHalf, wRight, hHalf], 'Tag', 'Raster');
-			if ~isempty(event2)
+			if (~isempty(event2) || plotStim)
 				h.Raster2 = subplot('Position', [fMargin + xMargin + wLeft + 2*xMargin, fMargin + yMargin, wRight, hHalf], 'Tag', 'Raster2');
 			else
 				h.Raster2 = [];
@@ -2366,7 +2485,7 @@ classdef TetrodeRecording < handle
 			hButtonNextChn = uicontrol(h.Figure,...
 				'Style', 'pushbutton',...
 				'String', 'Next Chn',...
-				'Callback', {@(~, ~) obj.PlotChannel(nextChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', h.Figure)},...
+				'Callback', {@(~, ~) obj.PlotChannel(nextChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'PlotStim', plotStim, 'Fig', h.Figure)},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', [1 - xMargin - 2*buttonWidth, 1 - yMargin, buttonWidth, min(yMargin, buttonHeight)]);
@@ -2391,7 +2510,7 @@ classdef TetrodeRecording < handle
 			hButtonPrevChn = uicontrol(h.Figure,...
 				'Style', 'pushbutton',...
 				'String', 'Prev Chn',...
-				'Callback', {@(~, ~) obj.PlotChannel(prevChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', h.Figure)},...
+				'Callback', {@(~, ~) obj.PlotChannel(prevChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'PlotStim', plotStim, 'Fig', h.Figure)},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -2401,7 +2520,7 @@ classdef TetrodeRecording < handle
 			obj.GUIBusy(h.Figure, true);
 			obj.ReplotChannel(iChannel, p, h);
 
-			if ~isempty(event2)
+			if (~isempty(event2) || plotStim)
 				numTrials = max(h.Raster.Children(1).YData);
 				numTrials2 = max(h.Raster2.Children(1).YData);
 				hRasterUp = (1 - 2*fMargin - 5*yMargin)*numTrials/(numTrials + numTrials2);
@@ -2496,6 +2615,7 @@ classdef TetrodeRecording < handle
 			rasterXLim 		= p.Results.RasterXLim;
 			waveformYLim	= p.Results.WaveformYLim;
 			frameRate 		= p.Results.FrameRate;
+			plotStim 		= p.Results.PlotStim;
 
 			clusters = h.Figure.UserData.SelectedClusters;
 			plotMean = h.Figure.UserData.PlotMean;
@@ -2532,16 +2652,23 @@ classdef TetrodeRecording < handle
 			end
 
 			if isgraphics(h.Raster2, 'Axes')
-				obj.Raster(iChannel, reference, event2, exclude2, 'Clusters', clusters,...
-					'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
-					'SelectedSampleIndex', selectedSampleIndex, 'Sort', true,...
-					'Ax', h.Raster2);			
-				obj.PETH(iChannel, reference, event2, exclude2, 'Clusters', clusters,...
-					'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
-					'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
-					'SelectedSampleIndex', selectedSampleIndex,...
-					'LineStyle', '--',...
-					'Ax', h.PETH);
+				if ~plotStim
+					obj.Raster(iChannel, reference, event2, exclude2, 'Clusters', clusters,...
+						'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
+						'SelectedSampleIndex', selectedSampleIndex, 'Sort', true,...
+						'Ax', h.Raster2);			
+					obj.PETH(iChannel, reference, event2, exclude2, 'Clusters', clusters,...
+						'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
+						'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
+						'SelectedSampleIndex', selectedSampleIndex,...
+						'LineStyle', '--',...
+						'Ax', h.PETH);
+				else
+					obj.RasterStim(iChannel, 'Clusters', clusters,...
+						'ExtendedWindow', extendedWindow, 'XLim', [-1, 1],...
+						'SelectedSampleIndex', selectedSampleIndex,...
+						'Ax', h.Raster2);
+				end
 			end
 
 			if length(clusters) == 1
@@ -3009,8 +3136,9 @@ classdef TetrodeRecording < handle
 					fontSize 			= p.Results.FontSize;
 					printMode 			= p.Results.PrintMode;
 					frameRate 			= p.Results.FrameRate;
+					plotStim 			= p.Results.PlotStim;
 
-					obj.PlotChannel(nextChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', h.Figure);
+					obj.PlotChannel(nextChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', h.Figure, 'PlotStim', plotStim);
 				end
 			end
 			obj.GUIBusy(h.Figure, false);
@@ -3855,6 +3983,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Window', [-PETH(1).TrialLength, PETH(1).ExtendedWindow], @(x) isnumeric(x) && length(x) == 2); % Extend window after event
 			addParameter(p, 'I', [], @isnumeric); % Extend window after event
 			addParameter(p, 'UseSameSorting', false, @islogical); % use the lever press sorting order for lick
+			addParameter(p, 'Lick', false, @islogical);
 			parse(p, varargin{:});
 			minNumTrials 				= p.Results.MinNumTrials;
 			minSpikeRate 				= p.Results.MinSpikeRate;
@@ -3865,20 +3994,27 @@ classdef TetrodeRecording < handle
 			trialWindow 				= p.Results.Window;
 			I 							= p.Results.I;
 			useSameSorting				= p.Results.UseSameSorting;
+			lick						= p.Results.Lick;
 
 			timestamps 		= PETH(1).Time;
 			selectedPress 	= [PETH.NumTrialsPress] >= minNumTrials & cellfun(@mean, {PETH.Press}) > minSpikeRate;
-			selectedLick 	= [PETH.NumTrialsLick] >= minNumTrials & cellfun(@mean, {PETH.Lick}) > minSpikeRate;
-			if useSameSorting
+			if lick
+				selectedLick 	= [PETH.NumTrialsLick] >= minNumTrials & cellfun(@mean, {PETH.Lick}) > minSpikeRate;
+			end
+			if lick && useSameSorting
 				selectedPress 	= selectedPress & selectedLick;
 				selectedLick 	= selectedPress;
 			end
-			pethPress 		= transpose(reshape([PETH(selectedPress).Press], length(timestamps), []));
-			pethLick  		= transpose(reshape([PETH(selectedLick).Lick], length(timestamps), []));
+			pethPress = transpose(reshape([PETH(selectedPress).Press], length(timestamps), []));
+			if lick
+				pethLick = transpose(reshape([PETH(selectedLick).Lick], length(timestamps), []));
+			end
 
 			inWindow = timestamps <= trialWindow(2) & timestamps > trialWindow(1);
 			pethPress = pethPress(:, inWindow);
-			pethLick  = pethLick(:, inWindow);
+			if lick
+				pethLick  = pethLick(:, inWindow);
+			end
 			timestamps = timestamps(inWindow);
 
 			baselineSamples = find(timestamps >= normalizationBaselineWindow(1) & timestamps <= normalizationBaselineWindow(2));
@@ -3886,7 +4022,9 @@ classdef TetrodeRecording < handle
 			% Normalize/sort PETH
 			if ~sortsbeforeNorms
 				pethPress = TetrodeRecording.NormalizePETH(pethPress, 'Method', normalization, 'BaselineSamples', baselineSamples);
-				pethLick  = TetrodeRecording.NormalizePETH(pethLick, 'Method', normalization, 'BaselineSamples', baselineSamples);
+				if lick
+					pethLick  = TetrodeRecording.NormalizePETH(pethLick, 'Method', normalization, 'BaselineSamples', baselineSamples);
+				end
 			end
 
 			if isempty(I)
@@ -3894,19 +4032,23 @@ classdef TetrodeRecording < handle
 			else
 				pethPress = pethPress(I, :);
 			end	
-			if useSameSorting
-				pethLick  = pethLick(I, :);
-			else
-				pethLick  = TetrodeRecording.SortPETH(pethLick, 'Method', sorting, 'LatencyThreshold', p.Results.LatencyThreshold);
+			if lick
+				if useSameSorting
+					pethLick  = pethLick(I, :);
+				else
+					pethLick = TetrodeRecording.SortPETH(pethLick, 'Method', sorting, 'LatencyThreshold', p.Results.LatencyThreshold);
+				end
 			end
 
 			IFull = find(selectedPress);
 			IFull = IFull(I);
-			varargout = {pethPress, pethLick, I, IFull};
+			varargout = {pethPress, I, IFull};
 
 			if sortsbeforeNorms
 				pethPress = TetrodeRecording.NormalizePETH(pethPress, 'Method', normalization, 'BaselineSamples', baselineSamples);
-				pethLick  = TetrodeRecording.NormalizePETH(pethLick, 'Method', normalization, 'BaselineSamples', baselineSamples);
+				if lick
+					pethLick  = TetrodeRecording.NormalizePETH(pethLick, 'Method', normalization, 'BaselineSamples', baselineSamples);
+				end
 			end
 
 			fMargin = 0.1;
@@ -3914,42 +4056,71 @@ classdef TetrodeRecording < handle
 			yMargin = 0.03;
 			w = 1 - 2*fMargin - 2*xMargin;
 			h = 1 - 2*fMargin - 4*yMargin;
-			hPress = h*size(pethPress, 1)/(size(pethPress, 1) + size(pethLick, 1));
-			hLick  = h*size(pethLick, 1)/(size(pethPress, 1) + size(pethLick, 1));
-
+			if lick
+				hPress = h*size(pethPress, 1)/(size(pethPress, 1) + size(pethLick, 1));
+				hLick  = h*size(pethLick, 1)/(size(pethPress, 1) + size(pethLick, 1));
+			else
+				hPress = h;
+			end
 			hFigure = figure('DefaultAxesFontSize', 14);
-			hAxesPress = subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hLick, w, hPress]);
-			hAxesLick = subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hLick]);
+			if lick
+				hAxesPress = subplot('Position', [fMargin + xMargin, fMargin + 3*yMargin + hLick, w, hPress]);
+			else
+				hAxesPress = subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hPress]);
+			end
 
 			image(hAxesPress, pethPress, 'CDataMapping','scaled');
-			image(hAxesLick, pethLick, 'CDataMapping','scaled');
 
 			colorbar('Peer', hAxesPress, 'Location', 'EastOutside');
-			colorbar('Peer', hAxesLick, 'Location', 'EastOutside');
 			if ~strcmpi('raw', normalization)
 				caxis(hAxesPress, [-6, 6]);
-				caxis(hAxesLick, [-6, 6]);
 			end
 			colormap(hAxesPress, 'jet')
-			colormap(hAxesLick, 'jet')
 
-			set([hAxesPress, hAxesLick], 'XTick', find(ismember(timestamps, -100:2:100)))
-			set([hAxesPress, hAxesLick], 'XTickLabel', num2cell(timestamps(hAxesPress.XTick)))
-			set([hAxesPress, hAxesLick], 'XTickMode', 'manual')
-			set([hAxesPress, hAxesLick], 'XGrid', 'on')
-			set([hAxesPress, hAxesLick], 'GridAlpha', 1)
-			set([hAxesPress, hAxesLick], 'GridColor', 'w')
-			set([hAxesPress, hAxesLick], 'GridLineStyle', '--')
+			set(hAxesPress, 'XTick', find(ismember(timestamps, -100:2:100)))
+			set(hAxesPress, 'XTickLabel', num2cell(timestamps(hAxesPress.XTick)))
+			set(hAxesPress, 'XTickMode', 'manual')
+			set(hAxesPress, 'XGrid', 'on')
+			set(hAxesPress, 'GridAlpha', 1)
+			set(hAxesPress, 'GridColor', 'w')
+			set(hAxesPress, 'GridLineStyle', '--')
 			set(hAxesPress, 'YTick', unique([1:100:sum(selectedPress), sum(selectedPress)]))
-			set(hAxesLick, 'YTick', unique([1:100:sum(selectedLick), sum(selectedLick)]))
-			set([hAxesPress, hAxesLick], 'YTickMode', 'manual')
-			set([hAxesPress, hAxesLick], 'YDir', 'reverse')
+			set(hAxesPress, 'YTickMode', 'manual')
+			set(hAxesPress, 'YDir', 'reverse')
 
-			xlabel(hAxesLick, 'Time before movement (s)')
-			ylabel(hAxesLick, 'Unit')
 			ylabel(hAxesPress, 'Unit')
-			title(hAxesLick, 'Lick')
 			title(hAxesPress, 'Lever Press')
+
+
+			if lick
+
+				hAxesLick = subplot('Position', [fMargin + xMargin, fMargin + yMargin, w, hLick]);
+
+				image(hAxesLick, pethLick, 'CDataMapping','scaled');
+
+				colorbar('Peer', hAxesLick, 'Location', 'EastOutside');
+				if ~strcmpi('raw', normalization)
+					caxis(hAxesLick, [-6, 6]);
+				end
+				colormap(hAxesLick, 'jet')
+
+				set(hAxesLick, 'XTick', find(ismember(timestamps, -100:2:100)))
+				set(hAxesLick, 'XTickLabel', num2cell(timestamps(hAxesPress.XTick)))
+				set(hAxesLick, 'XTickMode', 'manual')
+				set(hAxesLick, 'XGrid', 'on')
+				set(hAxesLick, 'GridAlpha', 1)
+				set(hAxesLick, 'GridColor', 'w')
+				set(hAxesLick, 'GridLineStyle', '--')
+				set(hAxesLick, 'YTick', unique([1:100:sum(selectedLick), sum(selectedLick)]))
+				set(hAxesLick, 'YTickMode', 'manual')
+				set(hAxesLick, 'YDir', 'reverse')
+
+				xlabel(hAxesLick, 'Time before movement (s)')
+				ylabel(hAxesLick, 'Unit')
+				title(hAxesLick, 'Lick')
+			end
+
+
 		end
 
 		function varargout = SortPETH(peth, varargin)
@@ -4065,15 +4236,23 @@ classdef TetrodeRecording < handle
 		end
 
 		% Find first event after reference
-		function varargout = FindFirstInTrial(reference, event, eventExclude)
+		function varargout = FindFirstInTrial(reference, event, eventExclude, firstOrLast)
+			if nargin < 4
+				firstOrLast = 'first';
+			end
+			if nargin < 3
+				eventExclude = [];
+			end
 			edges = [reference(1:end - 1), max(event(end), reference(end))];
 			[~, ~, bins] = histcounts(event, edges);
 			event = event(bins ~= 0);
 			bins = nonzeros(bins);
-			[iReference, iEvent] = unique(bins, 'first');
+			[iReference, iEvent] = unique(bins, firstOrLast);
 			reference = reference(iReference);
 			event = event(iEvent);
-
+            
+            toRemove = [];
+            
 			if ~isempty(eventExclude)
 				% Filter out trials where mouse licked before pressing
 				edges = [reference; event];
@@ -4087,6 +4266,15 @@ classdef TetrodeRecording < handle
 				iEvent(toRemove) = [];
 			end
 
+			varargout = {reference, event, iReference, iEvent, toRemove};
+		end
+
+		% Find last event after reference
+		function varargout = FindLastInTrial(reference, event, eventExclude)
+			if nargin < 3
+				eventExclude = [];
+			end
+			[reference, event, iReference, iEvent, toRemove] = TetrodeRecording.FindFirstInTrial(reference, event, eventExclude, 'last');
 			varargout = {reference, event, iReference, iEvent, toRemove};
 		end
 
