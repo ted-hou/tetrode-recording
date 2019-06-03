@@ -355,9 +355,9 @@ for iTr = 1:length(expNamesUnique)
 	tr = TetrodeRecording.BatchLoad(expNamesUnique(iTr));
 	try
 		if iTr == 1;
-			PETH = TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'ExtendedWindow', 0);
+			PETH = TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'ExtendedWindow', 1);
 		else
-			PETH = [PETH, TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'ExtendedWindow', 0)];
+			PETH = [PETH, TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'ExtendedWindow', 1)];
 		end
 	catch ME
 		warning(['Error when processing iTr = ', num2str(iTr), ' - this one will be skipped.'])
@@ -368,14 +368,12 @@ end
 
 
 TetrodeRecording.HeatMap(PETH, 'Normalization', 'zscore', 'Sorting', 'latency', 'MinNumTrials', 75, 'MinSpikeRate', 15, 'Window', [-4, 1], 'NormalizationBaselineWindow', [-6, 0]);
-
-TetrodeRecording.HeatMap(PETH(a), 'Normalization', 'zscore', 'Sorting', 'latency', 'MinNumTrials', 0, 'MinSpikeRate', 0);
-
 TetrodeRecording.HeatMap(PETH, 'Normalization', 'zscore', 'Sorting', 'latency', 'MinNumTrials', 75, 'MinSpikeRate', 15, 'Window', [-4, 1], 'NormalizationBaselineWindow', [-4, 0], 'UseSameSorting', true);
 
 
+% For Daisy3/4 (D1-ChR2) and Desmond12/13 (DAT-ChR2)
 
-batchPlotList = {...
+batchPlotListStim = {...
 	'daisy4', 20190402, 2, 1;...
 	'daisy4', 20190403, 2, 1;... % SAME WAVEFORM/CHN AS ABOVE?
 	'daisy4', 20190404, 1, 1;... % down, stim down (weird effects before stim?)
@@ -552,3 +550,55 @@ batchPlotList = {...
 	'desmond13', 20190515, 2, 1;... % up
 	'desmond13', 20190515, 3, 1;... % down
 	};
+
+expNames = cell(length(batchPlotListStim), 1);
+for iExp = 1:length(batchPlotListStim)
+	expNames{iExp} = [batchPlotListStim{iExp, 1}, '_', num2str(batchPlotListStim{iExp, 2})];
+end
+
+expNamesUnique = unique(expNames);
+
+for iTr = 1:length(expNamesUnique)
+	tr = TetrodeRecording.BatchLoad(expNamesUnique(iTr));
+	try
+		if iTr == 1;
+			PETH = TetrodeRecording.BatchPETHistCounts(tr, batchPlotListStim, 'TrialLength', 6, 'ExtendedWindow', 1, 'SpikeRateWindow', 100, 'ExtendedWindowStim', [-1, 1], 'SpikeRateWindowStim', 10, 'Press', true, 'Lick', false, 'Stim', true);
+		else
+			PETH = [PETH, TetrodeRecording.BatchPETHistCounts(tr, batchPlotListStim, 'TrialLength', 6, 'ExtendedWindow', 1, 'SpikeRateWindow', 100, 'ExtendedWindowStim', [-1, 1], 'SpikeRateWindowStim', 10, 'Press', true, 'Lick', false, 'Stim', true)];
+		end
+	catch ME
+		warning(['Error when processing iTr = ', num2str(iTr), ' - this one will be skipped.'])
+		warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
+	end
+end
+
+
+% BatchPlot stim type 1910 (10 100ms pulse, 100ms spacing)
+I = TetrodeRecording.HeatMapStim(PETHStim, 'Window', [-6, 0], 'NormalizationBaselineWindow', [-6, 0], 'WindowStim', [-0.25, 0.75], 'NormalizationBaselineWindowStim', [-1, 0], 'CLimStim', [-3,3], 'StimTrainTypes', [1910, 1606, 1604, 4002], 'Sorting', 'latency');
+
+
+III = I([6 8 61 79 74 81]);
+names = cellfun(@(x) x{1}, cellfun(@(x) strsplit(x, '_'), {PETHStim(III).ExpName}', 'UniformOutput', false), 'UniformOutput', false);
+dates = cellfun(@(x) str2num(x{2}), cellfun(@(x) strsplit(x, '_'), {PETHStim(III).ExpName}', 'UniformOutput', false), 'UniformOutput', false);
+bpl = [names, dates, {PETHStim(III).Channel}', {PETHStim(III).Cluster}'];
+
+
+expNames = cell(length(bpl), 1);
+for iExp = 1:length(bpl)
+	expNames{iExp} = [bpl{iExp, 1}, '_', num2str(bpl{iExp, 2})];
+end
+for iTr = 1:length(expNames)
+	tr = TetrodeRecording.BatchLoad(expNames(iTr));
+	try
+		TetrodeRecording.BatchPlot(tr, bpl, 'PlotStim', true);
+	catch ME
+		warning(['Error when processing iTr = ', num2str(iTr), ' - this one will be skipped.'])
+		warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
+	end
+end
+
+
+TetrodeRecording.HeatMapStim(PETHStim(cellfun(@(x) contains(x, {'daisy4', 'daisy5'}), {PETHStim.ExpName})), 'Window', [-6, 0], 'NormalizationBaselineWindow', [-6, 0], 'WindowStim', [-0.5, 1], 'NormalizationBaselineWindowStim', [-1, 0], 'CLimStim', [-3,3], 'StimTrainTypes', [1910, 1606, 1604, 4002], 'Sorting', 'latency');
+TetrodeRecording.HeatMapStim(PETHStim(cellfun(@(x) contains(x, {'desmond12', 'desmond13'}), {PETHStim.ExpName})), 'Window', [-6, 0], 'NormalizationBaselineWindow', [-6, 0], 'WindowStim', [-0.5, 1], 'NormalizationBaselineWindowStim', [-1, 0], 'CLimStim', [-3,3], 'StimTrainTypes', [1910, 1606, 1604, 4002], 'Sorting', 'latency');
+
+
