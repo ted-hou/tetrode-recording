@@ -3755,9 +3755,9 @@ classdef TetrodeRecording < handle
 				previewObj(iDir).System = sysName;
 				previewObj(iDir).Path = [dirs{iDir}, '\'];
 				previewObj(iDir).Files = files;
-				if contains(previewObj(iDir).Path, {'desmond12', 'daisy4'})
+				if contains(previewObj(iDir).Path, {'desmond12', 'daisy4', 'desmond14'})
 					rig = 1;
-				elseif contains(previewObj(iDir).Path, {'desmond13', 'daisy5'})
+				elseif contains(previewObj(iDir).Path, {'desmond13', 'daisy5', 'desmond15'})
 					rig = 2;
 				else
 					error('This version was designed for desmond12/13 daisy4/5 only');
