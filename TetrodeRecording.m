@@ -3814,10 +3814,10 @@ classdef TetrodeRecording < handle
 			selectedChannels = {previewObj.SelectedChannels};
 			allPaths = {previewObj.Path};
 			for iDir = 1:length(selectedChannels)
-				if contains(allPaths{iDir}, {'desmond12', 'daisy4', 'desmond14'})
+				if contains(allPaths{iDir}, {'desmond12', 'daisy4', 'desmond14', 'desmond16', 'desmond18'})
 					rig = 1;
 					channelsOnRig = previewObj(iDir).ChannelMap.Rig1;
-				elseif contains(allPaths{iDir}, {'desmond13', 'daisy5', 'desmond15'})
+				elseif contains(allPaths{iDir}, {'desmond13', 'daisy5', 'desmond15', 'desmond17'})
 					rig = 2;
 					channelsOnRig = previewObj(iDir).ChannelMap.Rig2;
 				else
