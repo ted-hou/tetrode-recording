@@ -600,5 +600,3 @@ end
 
 TetrodeRecording.HeatMapStim(PETHStim(cellfun(@(x) contains(x, {'daisy4', 'daisy5'}), {PETHStim.ExpName})), 'Window', [-6, 0], 'NormalizationBaselineWindow', [-6, 0], 'WindowStim', [-0.5, 1], 'NormalizationBaselineWindowStim', [-1, 0], 'CLimStim', [-3,3], 'StimTrainTypes', [1910, 1606, 1604, 4002], 'Sorting', 'latency');
 TetrodeRecording.HeatMapStim(PETHStim(cellfun(@(x) contains(x, {'desmond12', 'desmond13'}), {PETHStim.ExpName})), 'Window', [-6, 0], 'NormalizationBaselineWindow', [-6, 0], 'WindowStim', [-0.5, 1], 'NormalizationBaselineWindowStim', [-1, 0], 'CLimStim', [-3,3], 'StimTrainTypes', [1910, 1606, 1604, 4002], 'Sorting', 'latency');
-
-

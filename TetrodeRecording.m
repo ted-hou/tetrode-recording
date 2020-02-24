@@ -1981,7 +1981,8 @@ classdef TetrodeRecording < handle
 					axes(hAxes);
 				end
 				hold on
-				for iBin = 1:nBins
+				% for iBin = 1:nBins
+				for iBin = 2:nBins
 					inBin = ismember(trials, find(bins == iBin));
 					cutOff = -edges(iBin);
 					spikesRelative = spikes(inBin) - event(trials(inBin)); % Spike times relative to event
@@ -1998,9 +1999,12 @@ classdef TetrodeRecording < handle
 					thisSpikeRate = (1000*thisSpikeRate/spikeRateWindow)/NTrials(iBin);
 					thisCenters = (thisEdges(1:end - 1) + thisEdges(2:end))/2;
 
-					[thisColor, thisStyle] = TetrodeRecording.GetColorAndStyle(iBin, 'Styles', {lineStyle});
+					[thisColor, thisStyle] = TetrodeRecording.GetColorAndStyle(iBin - 1, 'Styles', {lineStyle});
+					% plot(hAxes, thisCenters, thisSpikeRate, [thisColor, thisStyle],...
+					% 	'DisplayName', ['[', num2str(-cutOff, 2), ' s, ', num2str(edges(iBin + 1), 2), ' s] (', num2str(NTrials(iBin)), ' trials)'],...
+					% 	'LineWidth', 1);
 					plot(hAxes, thisCenters, thisSpikeRate, [thisColor, thisStyle],...
-						'DisplayName', ['[', num2str(-cutOff, 2), ' s, ', num2str(edges(iBin + 1), 2), ' s] (', num2str(NTrials(iBin)), ' trials)'],...
+						'DisplayName', [num2str(round(-cutOff*10)/10), '-', num2str(round(edges(iBin + 1)*10)/10), 's'],...
 						'LineWidth', 1);
 				end
 				xlabel(hAxes, ['Time relative to ', eventDisplayName, ' (s)']);
@@ -2009,7 +2013,10 @@ classdef TetrodeRecording < handle
 				title(hAxes, 'Peri-event time histogram');
 				if ~isempty(xRange)
 					xlim(hAxes, xRange);
-				end				
+				else
+					hAxes.XLim(1) = -6;
+					hAxes.XLim(2) = 0;
+				end
 				hold off
 			end
 		end
@@ -2293,7 +2300,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'ExtendedWindow', [0, 0], @isnumeric);
 			addParameter(p, 'MinTrialLength', 0, @isnumeric);
-			addParameter(p, 'Bins', 2, @isnumeric);
+			addParameter(p, 'Bins', 3, @isnumeric);
 			addParameter(p, 'BinMethod', 'percentile', @ischar);
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
 			addParameter(p, 'RasterXLim', [], @isnumeric);
@@ -2362,7 +2369,7 @@ classdef TetrodeRecording < handle
 			h.Figure.Name = displayName;
 
 			if printMode
-				fontSize = 14;
+				fontSize = 11;
 				h.Figure.Units = 'pixels';
 				% h.Figure.InnerPosition = [0, 0, 1332, 999];
 				h.Figure.InnerPosition = [0, 0, 1776, 999];
@@ -2755,7 +2762,7 @@ classdef TetrodeRecording < handle
 						'Ax', h.PETH);
 				else
 					obj.RasterStim(iChannel, 'Clusters', clusters,...
-						'ExtendedWindow', extendedWindow, 'XLim', [-1, 1],...
+						'ExtendedWindow', extendedWindow, 'XLim', extendedWindow,...
 						'SelectedSampleIndex', selectedSampleIndex,...
 						'Ax', h.Raster2);
 				end
@@ -3178,6 +3185,49 @@ classdef TetrodeRecording < handle
 					if copyLegend
 						legend(hRasterNew, 'Location', 'north');
 						legend(hRaster2New, 'Location', 'north');
+					end
+
+					% hTitle = suptitle(h.Figure.Name);
+					hFigurePrint = hFigureNew;
+				case lower('PETHAndRasterStimAndWaveform')
+					% hFigureNew = figure('Position', [2 42 958 954/4]);
+					hFigureNew = figure('Position', [2 42 900 900/16*4.5]);
+					for iProp = 1:length(propertiesToCopy)
+						set(hFigureNew, propertiesToCopy{iProp}, get(h.Figure, propertiesToCopy{iProp}));
+					end
+					hPETHNew = copyobj(hPETH, hFigureNew);
+					hPETHNew.OuterPosition = [0, 0, 0.3, 1];
+					xlabel(hPETHNew, 'Time to movement (s)');
+					ylabel(hPETHNew, 'Spikes/s')
+					title(hPETHNew, 'Lever press')
+
+					hRaster2New = copyobj(hRaster2, hFigureNew);
+					hRaster2New.OuterPosition = [0.25, 0, 0.75, 1];
+					xlabel(hRaster2New, 'Time to stim onset (s)');
+					xlim(hRaster2New, [-0.5, 2]);
+					% ylim(hRaster2New, [0, 40]);
+					title(hRaster2New, 'ChR2 stimulation')
+
+					% Waveform on stim raster 
+					hWaveformNew = copyobj(hWaveform, hFigureNew);
+
+					% BottomLeft
+					hWaveformNew.Position(1) = hPETHNew.Position(1) + 1/16*hPETHNew.Position(3);
+					hWaveformNew.Position(3) = 0.35*hPETHNew.Position(3);
+					hWaveformNew.Position(4) = 0.75*hPETHNew.Position(4);
+					hWaveformNew.Position(2) = hPETHNew.Position(2) - 0.1;
+
+					% Topleft
+					hWaveformNew.Position(1) = hPETHNew.Position(1) + 1/16*hPETHNew.Position(3);
+					hWaveformNew.Position(3) = 0.35*hPETHNew.Position(3);
+					hWaveformNew.Position(4) = 0.75*hPETHNew.Position(4);
+					hWaveformNew.Position(2) = hPETHNew.Position(2) + hPETHNew.InnerPosition(4) - hWaveformNew.Position(3)-0.3;
+
+					hWaveformNew.Visible = 'off';
+
+					if copyLegend
+						legend(hPETHNew, 'Location', 'west');
+						% legend(hRaster2New, 'Location', 'southwest');
 					end
 
 					% hTitle = suptitle(h.Figure.Name);
@@ -4004,9 +4054,9 @@ classdef TetrodeRecording < handle
 						else
 							hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'WaveformYLim', waveformYLim, 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow);
 						end
-						% TR(iTr).GUISavePlot([], [], hFigure, 'Reformat', reformat, 'CopyLegend', copyLegend, 'CopyLabel', copyLabel)
-						% input('Type anything to continue...\n');
-						% close(hFigure)
+						TR(iTr).GUISavePlot([], [], hFigure, 'Reformat', reformat, 'CopyLegend', copyLegend, 'CopyLabel', copyLabel)
+						input('Type anything to continue...\n');
+						close all
 						break
 					end
 				end
@@ -4241,6 +4291,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'MinNumTrains', 15, @isnumeric);
 			addParameter(p, 'MinSpikeRate', 15, @isnumeric);
 			addParameter(p, 'Sorting', 'latency', @ischar); % abs, gradient, latency, none
+			addParameter(p, 'SortBy', [], @isnumeric);
 			addParameter(p, 'LatencyThreshold', 0.675, @isnumeric);
 			addParameter(p, 'Normalization', 'zscore', @ischar); % zscore, minmax, raw
 			addParameter(p, 'NormalizationBaselineWindow', [-PETH(1).TrialLength, PETH(1).ExtendedWindow], @(x) isnumeric(x) && length(x) == 2); % Extend window after event
@@ -4256,6 +4307,7 @@ classdef TetrodeRecording < handle
 			minNumTrains 					= p.Results.MinNumTrains;
 			minSpikeRate 					= p.Results.MinSpikeRate;
 			sorting 						= p.Results.Sorting;
+			sortBy 							= p.Results.SortBy;
 			latencyThreshold				= p.Results.LatencyThreshold;
 			normalization 					= p.Results.Normalization;
 			normalizationBaselineWindow 	= p.Results.NormalizationBaselineWindow;
@@ -4294,8 +4346,13 @@ classdef TetrodeRecording < handle
 			pethPress = TetrodeRecording.NormalizePETH(pethPress, 'Method', normalization, 'BaselineSamples', baselineSamples);
 
 			% Sort
-			[~, I] = TetrodeRecording.SortPETH(pethPress(:, inWindow), 'Method', sorting, 'LatencyThreshold', latencyThreshold);
-			pethPress = pethPress(I, :);
+			if isempty(sortBy)
+				[~, I] = TetrodeRecording.SortPETH(pethPress(:, inWindow), 'Method', sorting, 'LatencyThreshold', latencyThreshold);
+			else
+				sortBy = sortBy(selectedPress);
+				[~, I] = sort(sortBy);
+			end
+			% pethPress = pethPress(I, :);
 
 			iBPL = find(selectedPress);
 			iBPL = iBPL(I);
@@ -4303,7 +4360,7 @@ classdef TetrodeRecording < handle
 			varargout = {iBPL};
 
 			% Plot Press PETH
-			image(hAxesPress, pethPress(:, inWindow), 'CDataMapping','scaled');
+			image(hAxesPress, pethPress(I, inWindow), 'CDataMapping','scaled');
 
 			colorbar('Peer', hAxesPress, 'Location', 'EastOutside');
 			if ~strcmpi('raw', normalization)
@@ -4371,6 +4428,7 @@ classdef TetrodeRecording < handle
 				baselineSamplesStim{iTrainType} = find(timestampsStim{iTrainType} >= normalizationBaselineWindowStim(1) & timestampsStim{iTrainType} <= normalizationBaselineWindowStim(2));
 				psth{iTrainType} = TetrodeRecording.NormalizePSTH(psth{iTrainType}, 'Method', normalizationStim, 'BaselineSamples', baselineSamplesStim{iTrainType});
 				% Plot
+				% hold(hAxesStim(iTrainType), 'on')
 				image(hAxesStim(iTrainType), psth{iTrainType}(I, inWindowStim), 'CDataMapping','scaled');
 
 				colorbar('Peer', hAxesStim(iTrainType), 'Location', 'EastOutside');
@@ -4380,21 +4438,145 @@ classdef TetrodeRecording < handle
 				colormap(hAxesStim(iTrainType), 'jet')
 
 				xlabel(hAxesStim(iTrainType), 'Time (TrainOn = 0)')
-				set(hAxesStim(iTrainType), 'XTick', find(ismember(round(timestampsStim{iTrainType}(inWindowStim)*100)/100, round([pulseOn{iTrainType}, pulseOff{iTrainType}]*100)/100)))
-				set(hAxesStim(iTrainType), 'XTickLabel', num2cell(timestampsStim{iTrainType}(hAxesStim(iTrainType).XTick)))
+				timestampsInWindow = timestampsStim{iTrainType}(inWindowStim);
+				set(hAxesStim(iTrainType).XAxis, 'TickValues', find(ismember(round(timestampsInWindow*100)/100, round(pulseOn{iTrainType}*100)/100)))
+				set(hAxesStim(iTrainType).XAxis, 'TickLabels', num2cell(timestampsInWindow(hAxesStim(iTrainType).XTick)))
+				set(hAxesStim(iTrainType).XAxis, 'MinorTickValues', find(ismember(round(timestampsInWindow*100)/100, round(pulseOff{iTrainType}*100)/100)))
 				title(hAxesStim(iTrainType), ['StimType - ', num2str(stimTrainTypes(iTrainType))])
+
+				% plot([find(timestampsInWindow == 0), find(timestampsInWindow == 0)], [0.5, size(psth{iTrainType}(I, inWindowStim), 1) + 0.5], 'm', 'LineWidth', 5, 'LineStyle', ':');
+				set(hAxesStim(iTrainType), 'YLim', [0.5, size(psth{iTrainType}(I, inWindowStim), 1) + 0.5])
+				% hold(hAxesStim(iTrainType), 'off')
             end
 
             % Common formatting
 			set([hAxesPress, hAxesStim], 'XTickMode', 'manual')
 			set([hAxesPress, hAxesStim], 'XGrid', 'on')
+			set(hAxesStim, 'XMinorGrid', 'on')
 			set([hAxesPress, hAxesStim], 'GridAlpha', 1)
 			set(hAxesPress, 'GridColor', 'w')
-			set(hAxesStim, 'GridColor', 'g')
-			set([hAxesPress, hAxesStim], 'GridLineStyle', '--')
+			set(hAxesStim, 'GridColor', 'w')
+			set(hAxesStim, 'MinorGridColor', 'w')
+			set([hAxesPress, hAxesStim], 'GridLineStyle', '-')
+			set(hAxesStim, 'MinorGridLineStyle', '--')
+			set([hAxesPress, hAxesStim], 'GridAlpha', 1)
+			set([hAxesPress, hAxesStim], 'MinorGridAlpha', 0.5)
 			set([hAxesPress, hAxesStim], 'YTick', unique([1:25:sum(selectedPress), sum(selectedPress)]))
 			set([hAxesPress, hAxesStim], 'YTickMode', 'manual')
 			set([hAxesPress, hAxesStim], 'YDir', 'reverse')
+		end
+
+		function varargout = StackedPSTH(PETH, varargin)
+			p = inputParser;
+			addParameter(p, 'MinNumTrials', 50, @isnumeric);
+			addParameter(p, 'MinNumTrains', 15, @isnumeric);
+			addParameter(p, 'MinSpikeRate', 15, @isnumeric);
+			addParameter(p, 'NumSigmas', 1.5, @isnumeric);
+			addParameter(p, 'NormalizationStim', 'zscore', @ischar); % zscore, minmax, raw
+			addParameter(p, 'NormalizationBaselineWindowStim', [-1, 0], @(x) isnumeric(x) && length(x) == 2); % Window relative to `On
+			addParameter(p, 'WindowStim', [-1, 1], @isnumeric);
+			addParameter(p, 'StimTrainTypes', [1910, 1606, 1604], @isnumeric);
+			parse(p, varargin{:});
+			minNumTrials 					= p.Results.MinNumTrials;
+			minNumTrains 					= p.Results.MinNumTrains;
+			minSpikeRate 					= p.Results.MinSpikeRate;
+			numSigmas 						= p.Results.NumSigmas;
+			normalizationStim				= p.Results.NormalizationStim;
+			normalizationBaselineWindowStim = p.Results.NormalizationBaselineWindowStim;
+			windowStim						= p.Results.WindowStim;
+			stimTrainTypes 					= p.Results.StimTrainTypes;
+
+			numSubplots = length(stimTrainTypes);
+
+			fMargin = 0.05;
+			spacing = 0.005;
+			w = 1 - 2*fMargin - (numSubplots - 1)*spacing;
+			w1 = w/numSubplots;
+			h = 1 - 2*fMargin;
+
+			hFigure = figure('DefaultAxesFontSize', 14);
+			for iTrainType = 1:length(stimTrainTypes)
+				hAxesStim(iTrainType) = subplot('Position', [fMargin + (w1 + spacing)*(iTrainType - 1), fMargin, w1, h]);
+				title(hAxesStim(iTrainType), num2str(stimTrainTypes(iTrainType)));
+			end
+			% First process PETH for press
+			timestampsPress = PETH(1).Time;
+			selectedPress 	= [PETH.NumTrialsPress] >= minNumTrials & cellfun(@mean, {PETH.Press}) > minSpikeRate;
+			pethPress = transpose(reshape([PETH(selectedPress).Press], length(timestampsPress), []));
+
+			% Plot PSTH for each train type
+			for iTrainType = 1:length(stimTrainTypes)
+				timestampsStim{iTrainType} = [];
+				numTrains{iTrainType} = [];
+				trainLength{iTrainType} = round(stimTrainTypes(iTrainType)/100)/10;
+				numPulses{iTrainType} = stimTrainTypes(iTrainType) - trainLength{iTrainType}*1000;
+				pulseOn{iTrainType} = [];
+				pulseOff{iTrainType} = [];
+				psth{iTrainType} = [];
+				isSignificant{iTrainType} = logical([]);
+				isUp{iTrainType} = logical([]);
+				numSamples{iTrainType} = (trainLength{iTrainType} + 2)*100;
+				for iPETH = find(selectedPress)
+					i = find([PETH(iPETH).Stim.TrainType] == stimTrainTypes(iTrainType));
+					
+					if ~isempty(i)
+						Stim = PETH(iPETH).Stim(i);
+					end
+
+					hasEnoughTrains	= Stim.NumTrains >= minNumTrains;
+
+					% Stim exists for this unit
+					if hasEnoughTrains && ~isempty(i)
+						% These things are filled once
+						if isempty(timestampsStim{iTrainType})
+							timestampsStim{iTrainType} = Stim.Timestamps;
+						end
+						if isempty(pulseOn{iTrainType})
+							pulseOn{iTrainType} = Stim.PulseOn;
+						end
+						if isempty(pulseOff{iTrainType})
+							pulseOff{iTrainType} = Stim.PulseOff;
+						end
+
+						% These are accumulated data
+						if isempty(psth{iTrainType})
+							psth{iTrainType} = Stim.SpikeRate;
+						else
+							psth{iTrainType} = [psth{iTrainType}; Stim.SpikeRate];
+						end
+						numTrains{iTrainType} = [numTrains{iTrainType}, Stim.NumTrains];
+
+						inWindowBaseline = Stim.Timestamps < 0 & Stim.Timestamps >= -1;
+						inWindowPulse = arrayfun(@(x,y) Stim.Timestamps > x & Stim.Timestamps <= y, Stim.PulseOn, Stim.PulseOff, 'UniformOutput', false);
+						inWindowPulse = logical(sum(cell2mat(inWindowPulse')));
+
+						spikeRateBaseline = Stim.SpikeRate(inWindowBaseline);
+						spikeRatePulse = Stim.SpikeRate(inWindowPulse);
+						meanBaseline = mean(spikeRateBaseline);
+						meanPulse = mean(spikeRatePulse);
+						stdBaseline = std(spikeRateBaseline);
+						isSignificant{iTrainType} = [isSignificant{iTrainType}, abs(meanPulse - meanBaseline) > numSigmas * stdBaseline];
+						isUp{iTrainType} = [isUp{iTrainType}, meanPulse - meanBaseline > 0];
+					else
+						psth{iTrainType} = [psth{iTrainType}; nan(1, numSamples{iTrainType})];
+						if hasEnoughTrains
+							numTrains{iTrainType} = [numTrains{iTrainType}, 0];
+						else
+							numTrains{iTrainType} = [numTrains{iTrainType}, Stim.NumTrains];
+						end
+					end
+				end
+
+				% Normalize
+				inWindowStim = timestampsStim{iTrainType} <= (windowStim(2) + trainLength{iTrainType}) & timestampsStim{iTrainType} >= windowStim(1);
+				baselineSamplesStim{iTrainType} = find(timestampsStim{iTrainType} >= normalizationBaselineWindowStim(1) & timestampsStim{iTrainType} <= normalizationBaselineWindowStim(2));
+				psth{iTrainType} = TetrodeRecording.NormalizePSTH(psth{iTrainType}, 'Method', normalizationStim, 'BaselineSamples', baselineSamplesStim{iTrainType});
+				% Plot
+                hold(hAxesStim(iTrainType), 'on')
+				plot(hAxesStim(iTrainType), timestampsStim{iTrainType}(inWindowStim), psth{iTrainType}(isSignificant{iTrainType} & isUp{iTrainType}, inWindowStim), 'r');
+				plot(hAxesStim(iTrainType), timestampsStim{iTrainType}(inWindowStim), psth{iTrainType}(isSignificant{iTrainType} & ~isUp{iTrainType}, inWindowStim), 'g');
+                hold(hAxesStim(iTrainType), 'off')
+			end
 		end
 
 		function varargout = SortPETH(peth, varargin)
@@ -4420,7 +4602,13 @@ classdef TetrodeRecording < handle
 						% thisSigma = nanmedian(abs(thisPeth))/0.6745;
 						thisSigma = std(thisPeth);
 						thisZScoredPeth = (thisPeth - mean(thisPeth))/thisSigma;
-						whenDidFiringRateChange(iCell) = find(abs(thisZScoredPeth) >= latencyThreshold*max(abs(thisZScoredPeth)), 1);
+                        crossingPoint = find(abs(thisZScoredPeth) >= latencyThreshold*max(abs(thisZScoredPeth)), 1);
+                        if ~isempty(crossingPoint)
+                            whenDidFiringRateChange(iCell) = find(abs(thisZScoredPeth) >= latencyThreshold, 1);
+                            % whenDidFiringRateChange(iCell) = find(abs(thisZScoredPeth) >= latencyThreshold*max(abs(thisZScoredPeth)), 1);
+                        else
+                            whenDidFiringRateChange(iCell) = length(thisZScoredPeth);
+                        end
 						whenDidFiringRateChange(iCell) = whenDidFiringRateChange(iCell)*sign(thisZScoredPeth(whenDidFiringRateChange(iCell)));
 					end
 					[whenDidFiringRateChange, I] = sort(whenDidFiringRateChange);
