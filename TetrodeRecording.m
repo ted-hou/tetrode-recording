@@ -1142,7 +1142,7 @@ classdef TetrodeRecording < handle
 			numWaveforms = length(obj.Spikes(channel).Timestamps);
 			waveformLength = sum(inWindow);
 			coeff = zeros(numWaveforms, waveformLength);
-			for iWaveform = 1:numWaveforms
+			parfor iWaveform = 1:numWaveforms
 				[c, ~] = wavedec(obj.Spikes(channel).Waveforms(iWaveform, inWindow), level, 'haar');	% Haar wavelet decomposition
 				coeff(iWaveform, :) = c(1:waveformLength);
 			end
@@ -3799,6 +3799,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'ClusterMethod', 'kmeans', @ischar);
 			addParameter(p, 'Dimension', 10, @isnumeric);
 			addParameter(p, 'Prefix', 'tr_', @ischar);
+			addParameter(p, 'SavePath', '', @ischar);
 			parse(p, previewObj, varargin{:});
 			previewObj 		= p.Results.Obj;
 			chunkSize 		= p.Results.ChunkSize;
@@ -3810,6 +3811,7 @@ classdef TetrodeRecording < handle
 			clusterMethod 	= p.Results.ClusterMethod;
 			dimension 		= p.Results.Dimension;
 			prefix 			= p.Results.Prefix;
+			savePath 		= p.Results.SavePath;
 
 			selectedChannels = {previewObj.SelectedChannels};
 			allPaths = {previewObj.Path};
@@ -3827,7 +3829,7 @@ classdef TetrodeRecording < handle
 				if ~isempty(channels)
 					try
 						TetrodeRecording.TTS(['Processing folder ', num2str(iDir), '/', num2str(length(selectedChannels)), ':\n']);
-						TetrodeRecording.ProcessFolder(allPaths{iDir}, chunkSize, channels, channelsOnRig, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix, rig);
+						TetrodeRecording.ProcessFolder(allPaths{iDir}, savePath, chunkSize, channels, channelsOnRig, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix, rig);
 					catch ME
 						warning(['Error when processing folder (', allPaths{iDir}, ') - this one will be skipped.'])
 						warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
@@ -3837,7 +3839,7 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.RandomWords();
 		end
 
-		function ProcessFolder(thisPath, chunkSize, channels, channelsOnRig, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix, rig)
+		function ProcessFolder(thisPath, savePath, chunkSize, channels, channelsOnRig, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix, rig)
 			tr = TetrodeRecording();
 			tr.Path = thisPath;
 			files = dir([tr.Path, '*.rhd']);
@@ -3861,7 +3863,7 @@ classdef TetrodeRecording < handle
 
 			tr.ReadFiles(chunkSize, 'Rig', rig, 'Channels', channels, 'ChannelsOnRig', channelsOnRig, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow);
 			tr.SpikeSort([], 'FeatureMethod', featureMethod, 'ClusterMethod', clusterMethod, 'Dimension', dimension);
-			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false, 'MaxChannels', 5);
+			TetrodeRecording.BatchSave(tr, 'Prefix', prefix, 'DiscardData', false, 'MaxChannels', 5, 'SavePath', savePath);
 		end
 
 		function varargout = BatchLoad(expNames)
@@ -3918,23 +3920,33 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Prefix', '', @ischar);
 			addParameter(p, 'DiscardData', false, @islogical);
 			addParameter(p, 'MaxChannels', [], @isnumeric);
+			addParameter(p, 'SavePath', '', @ischar);
 			parse(p, varargin{:});
 			prefix = p.Results.Prefix;
 			discardData = p.Results.DiscardData;
 			maxChannels = p.Results.MaxChannels;
+			savePath = p.Results.SavePath;
 
 			for iTr = 1:length(TR)
 				tr = TR(iTr);
 				if isempty(tr.Path)
 					continue
 				end
+
+				if isempty(savePath)
+					thisSavePath = tr.Path;
+					if ~isfolder([thisSavePath, '..\SpikeSort'])
+						mkdir([thisSavePath, '..\SpikeSort'])
+					end
+					thisSavePath = [thisSavePath, '..\SpikeSort'];
+				else
+					thisSavePath = savePath;
+				end
+
 				expName = tr.GetExpName();
 				if discardData
 					tr.Spikes = [];
 					tr.DigitalEvents = [];
-				end
-				if ~isfolder([tr.Path, '..\SpikeSort'])
-					mkdir([tr.Path, '..\SpikeSort'])
 				end
 				partition = false;
 				if ~isempty(maxChannels)
@@ -3958,7 +3970,7 @@ classdef TetrodeRecording < handle
 							for iChannel = allChannels((iPart - 1)*maxChannels + 1:min(length(allChannels), iPart*maxChannels))
 								tr.Spikes(iChannel) = spikes(iChannel);
 							end
-							file = [tr.Path, '..\SpikeSort\', prefix, expName, '(', num2str(iPart), ')', '.mat'];
+							file = [thisSavePath, prefix, expName, '(', num2str(iPart), ')', '.mat'];
 							save(file, 'tr');
 						end
 					catch ME
@@ -3967,7 +3979,7 @@ classdef TetrodeRecording < handle
 					end
 					tr.Spikes = spikes;
 				else
-					file = [tr.Path, '..\SpikeSort\', prefix, expName, '.mat'];
+					file = [thisSavePath, prefix, expName, '.mat'];
 					save(file, 'tr');
 				end
 			end
@@ -4233,7 +4245,6 @@ classdef TetrodeRecording < handle
 				title(hAxesLick, 'Lick')
 			end
 		end
-
 
 		function varargout = HeatMapStim(PETH, varargin)
 			p = inputParser;
