@@ -3971,7 +3971,7 @@ classdef TetrodeRecording < handle
 								tr.Spikes(iChannel) = spikes(iChannel);
 							end
 							file = [thisSavePath, prefix, expName, '(', num2str(iPart), ')', '.mat'];
-							save(file, 'tr');
+							save(file, 'tr', '-v7.3');
 						end
 					catch ME
 						tr.Spikes = spikes;
@@ -3980,7 +3980,7 @@ classdef TetrodeRecording < handle
 					tr.Spikes = spikes;
 				else
 					file = [thisSavePath, prefix, expName, '.mat'];
-					save(file, 'tr');
+					save(file, 'tr', '-v7.3');
 				end
 			end
 		end
