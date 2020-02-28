@@ -1142,7 +1142,7 @@ classdef TetrodeRecording < handle
 			numWaveforms = length(obj.Spikes(channel).Timestamps);
 			waveformLength = sum(inWindow);
 			coeff = zeros(numWaveforms, waveformLength);
-			parfor iWaveform = 1:numWaveforms
+			for iWaveform = 1:numWaveforms
 				[c, ~] = wavedec(obj.Spikes(channel).Waveforms(iWaveform, inWindow), level, 'haar');	% Haar wavelet decomposition
 				coeff(iWaveform, :) = c(1:waveformLength);
 			end
@@ -3935,10 +3935,10 @@ classdef TetrodeRecording < handle
 
 				if isempty(savePath)
 					thisSavePath = tr.Path;
-					if ~isfolder([thisSavePath, '..\SpikeSort'])
-						mkdir([thisSavePath, '..\SpikeSort'])
+					if ~isfolder([thisSavePath, '..\SpikeSort\'])
+						mkdir([thisSavePath, '..\SpikeSort\'])
 					end
-					thisSavePath = [thisSavePath, '..\SpikeSort'];
+					thisSavePath = [thisSavePath, '..\SpikeSort\'];
 				else
 					thisSavePath = savePath;
 				end
