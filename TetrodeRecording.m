@@ -1127,10 +1127,10 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'Dimension', 10, @isnumeric);
 			parse(p, channel, varargin{:});
-			channel = p.Results.Channel;
-			level = p.Results.Level;
-			waveformWindow = p.Results.WaveformWindow;
-			dimension = p.Results.Dimension;
+			channel 		= p.Results.Channel;
+			level 			= p.Results.Level;
+			waveformWindow 	= p.Results.WaveformWindow;
+			dimension 		= p.Results.Dimension;
 
 			if isempty(waveformWindow)
 				inWindow = true(size(obj.Spikes(channel).WaveformTimestamps));
@@ -1808,6 +1808,110 @@ classdef TetrodeRecording < handle
 
 				hAxes.UserData.PlotParams = p.Results;
 			end
+		end
+
+		function [trainOn, trainOff] = GetStimTrainTimestamps(obj)
+
+			cueOn = sort(obj.DigitalEvents.CueOn);
+			pulseOn = sort(obj.DigitalEvents.StimOn);
+			pulseOff = sort(obj.DigitalEvents.StimOff);
+
+			% Get the start and end timestamps of a stim train.
+			[cueOnStimTrials, trainOn] = TetrodeRecording.FindFirstInTrial(cueOn, pulseOn);
+			[~, trainOff] = TetrodeRecording.FindLastInTrial(cueOn, pulseOff);
+		end
+
+		function StimData = BacthProcessStimData(obj, ptr, channels, varargin)
+			
+		end
+
+		% TODO: Clean up this messy poop code
+		function StimData = ReadStimData(obj, ptr, channels, varargin)
+			p = inputParser;
+			addParameter(p, 'Window', [-20, 20], @isnumeric); % how many milliseconds before and after stim on to read.
+			addParameter(p, 'MaxTrains', [], @isnumeric);
+			parse(p, varargin{:});
+			readWindow = p.Results.Window * 0.001;
+			maxTrains = p.Results.MaxTrains;
+
+			[trainOn, trainOff] = obj.GetStimTrainTimestamps();
+			stimOn = obj.DigitalEvents.StimOn;
+			stimOff = obj.DigitalEvents.StimOff;
+			if (~isempty(maxTrains))
+				trainOn = trainOn(1:maxTrains);
+				trainOff = trainOff(1:maxTrains);
+				stimOn = stimOn(stimOn <= trainOff(end));
+				stimOff = stimOff(stimOff <= trainOff(end));
+			end
+				
+			rig = TetrodeRecording.GetRig(obj.Path);
+			if (rig == 1)
+				channelMap = ptr.ChannelMap.Rig1;
+			else
+				channelMap = ptr.ChannelMap.Rig2;
+			end
+
+			% Convert to file channel
+			% Terminology:
+			%   - openNSx: channels, 1 : n, however many channels were recorded, empty channels are removed with no empty spacing. 2 rigs and 10 disabled channels: read channel 1:(64-10);
+			%   - channelMap = ptr.ChannelMap(ptr.SelectedChannels): index: channel index in SpikeSort result. value: channel index for openNSx
+			channelMap = channelMap(ptr.SelectedChannels);
+			channels = channelMap(channels);
+
+			sampleRate = obj.FrequencyParameters.AmplifierSampleRate;
+
+			% First do a trial read to get channel mapping info
+			filename = [obj.Path, obj.Files{end}];
+			% NSx = openNSx(filename, 'read', 'duration', '1', 'sec');
+			% ismember([NSx.ElectrodesInfo.ElectrodeID], rawChannels)
+
+			% Max num of samples in a train for preallocating
+			maxTrainLength = max(trainOff - trainOn) + diff(readWindow);
+			maxTrainLength = ceil(sampleRate * maxTrainLength);
+
+			StimData.Data = zeros(length(trainOn), length(channels), maxTrainLength);
+			StimData.Timestamps = zeros(length(trainOn), maxTrainLength);
+
+			% First read the first ten seconds to get sysInitDelay
+			NSx = openNSx(filename, 'read', 'channels', channels, 'duration', [0, 10], 'sec');
+			if iscell(NSx.Data)
+				sysInitDelay = length(NSx.Data{1})/sampleRate;
+				disp(['Truncated data. Substracting sysInitDelay ', num2str(sysInitDelay)]);
+			else
+				sysInitDelay = 0;
+				disp(['ALL OKAY ', num2str(sysInitDelay)]);
+			end
+
+			for iTrain = 1:length(trainOn)
+				startTime = tic();
+				
+				TetrodeRecording.TTS(['Reading train ', num2str(iTrain), '/', num2str(length(trainOn)), '...']);
+				realReadWindow = sysInitDelay + readWindow + [trainOn(iTrain), trainOff(iTrain)];
+				NSx = openNSx(filename, 'read', 'channels', channels, 'duration', realReadWindow, 'sec');
+				numSamples = floor(NSx.MetaTags.DataPoints);
+				firstSampleIndex = floor(NSx.MetaTags.Timestamp);
+
+				if (iTrain == 1)
+					electrodesInfo = NSx.ElectrodesInfo;
+				end
+
+				StimData.Data(iTrain, :, 1:numSamples) = NSx.Data;
+                
+				StimData.Timestamps(iTrain, 1:numSamples) = (firstSampleIndex : firstSampleIndex + numSamples - 1) / sampleRate;
+
+				dur = toc(startTime);
+				TetrodeRecording.TTS([num2str(dur*1000), ' ms.\n']);
+			end
+
+			StimData.StimOn = stimOn;
+			StimData.StimOff = stimOff;
+			StimData.TrainOn = trainOn;
+			StimData.TrainOff = trainOff;
+			StimData.Window = readWindow;
+			StimData.ElectrodesInfo = electrodesInfo;
+			StimData.Filename = filename;
+			StimData.StartTime = obj.StartTime;
+			StimData.SampleRate = sampleRate;
 		end
 
 		function RasterStim(obj, channels, varargin)
@@ -3816,14 +3920,11 @@ classdef TetrodeRecording < handle
 			selectedChannels = {previewObj.SelectedChannels};
 			allPaths = {previewObj.Path};
 			for iDir = 1:length(selectedChannels)
-				if contains(allPaths{iDir}, {'desmond12', 'daisy4', 'desmond14', 'desmond16', 'desmond18'})
-					rig = 1;
+				rig = TetrodeRecording.GetRig(allPaths{iDir});
+				if rig == 1
 					channelsOnRig = previewObj(iDir).ChannelMap.Rig1;
-				elseif contains(allPaths{iDir}, {'desmond13', 'daisy5', 'desmond15', 'desmond17'})
-					rig = 2;
+				elseif rig == 2
 					channelsOnRig = previewObj(iDir).ChannelMap.Rig2;
-				else
-					error('This version was designed for desmond12/13 daisy4/5 only');
 				end
 				channels = selectedChannels{iDir};
 				if ~isempty(channels)
@@ -4545,6 +4646,99 @@ classdef TetrodeRecording < handle
 			end
 		end
 
+		function StimData = BatchProcessStimData(TR, PTR, varargin)
+			p = inputParser;
+			addParameter(p, 'Window', [-20, 20], @isnumeric); % how many milliseconds before and after stim on to read.
+			parse(p, channels, varargin{:});
+			readWindow = p.Results.Window * 0.001;
+
+			for iTr = 1:length(TR)
+				startTime = tic();
+				TetrodeRecording.TTS(['Processing file ', num2str(iTr), '/', num2str(length(TR)), '...']);
+				StimData = TR(iTr).ReadStimData(PTR, [TR(iTr).Spikes.Channel], 'Window', readWindow);
+				StimData = SerializeStimData(StimData);
+
+				filename = strsplit(TR(iTr).Files{1}, 'nev');
+				filename = [TR(iTr).Path, '\..\SpikeSort\sd_', filename{1}, '.mat'];
+
+				save(filename, 'StimData', '-v7.3');
+
+				duration = toc(startTime);
+				TetrodeRecording.TTS([num2str(duration), ' s.\n']);
+			end
+		end
+
+		% Collision test
+		function StimData = SerializeStimData(StimData)
+			numTrains = length(StimData.TrainOn);
+			numPulses = length(StimData.StimOn);
+			% maxPulseLength = ceil((max(StimData.StimOff - StimData.StimOn) + diff(StimData.Window)) * StimData.SampleRate) + 1;
+			maxPulseLength = ceil(diff(StimData.Window) * StimData.SampleRate) + 1;
+			numChannels = size(StimData.Data, 2);
+
+			iPulse = 0;
+			StimData.DataByPulse = zeros(numPulses, numChannels, maxPulseLength);
+			StimData.TimestampByPulse = zeros(numPulses, maxPulseLength);
+
+			for iTrain = 1:numTrains
+				disp(['iTrain ', num2str(iTrain)]);
+				stimOn = StimData.StimOn;
+				isPulseInTrain = (stimOn >= StimData.TrainOn(iTrain) - 0.01) & (stimOn <= StimData.TrainOff(iTrain) + 0.01);
+				stimOn = stimOn(isPulseInTrain);
+
+				for iPulseInTrain = 1:length(stimOn)
+					iPulse = iPulse + 1;
+					isSampleInPulse = (StimData.Timestamps(iTrain, :) >= stimOn(iPulseInTrain) + StimData.Window(1)) & (StimData.Timestamps(iTrain, :) <= stimOn(iPulseInTrain) + StimData.Window(2));
+					thisPulseData = StimData.Data(iTrain, :, isSampleInPulse);
+					StimData.DataByPulse(iPulse, :, 1:length(thisPulseData)) = thisPulseData;
+					StimData.TimestampByPulse(iPulse, 1:length(thisPulseData)) = StimData.Timestamps(iTrain, isSampleInPulse);
+				end
+			end
+		end
+
+		function PlotCollisionTest(StimData, channel, varargin)
+			p = inputParser;
+			addParameter(p, 'StartFromTrace', 1, @isnumeric);
+			addParameter(p, 'TracesPerPage', 25, @isnumeric);
+			parse(p, varargin{:});
+			startFromTrace	= p.Results.StartFromTrace;
+			tracesPerPage 	= p.Results.TracesPerPage;
+
+			% Normalize each pulse to this range.
+			yLim = [-500, 500];
+			ySpacing = 1;
+
+			fig = figure();
+			ax = axes(fig);
+			grid(ax, 'on');
+			hold(ax, 'on');
+			xlim(ax, [-10, 10])
+			
+			xlabel(ax, 'Time from StimOn (ms)')
+			ylabel(ax, 'Normalized voltage')
+
+			numPlotted = 0;
+
+			% Normalize voltage data and align time by stimOnset;
+			for iPulse = startFromTrace:length(StimData.StimOn)
+				isNonZero = find(StimData.TimestampByPulse(iPulse, :));
+
+				y = (StimData.DataByPulse(iPulse, channel, isNonZero) - yLim(1)) / (yLim(2) - yLim(1)) + iPulse * ySpacing;
+				t = StimData.TimestampByPulse(iPulse, isNonZero) - StimData.StimOn(iPulse);
+
+				plot(ax, t * 1000, squeeze(y), 'k');
+
+				numPlotted = numPlotted + 1;
+				if (numPlotted >= tracesPerPage)
+					w = waitforbuttonpress();
+					cla(ax);
+					numPlotted = 0;
+				end
+			end
+
+			hold(ax, 'off');
+		end
+
 		% Find first event after reference
 		function varargout = FindFirstInTrial(reference, event, eventExclude, firstOrLast)
 			if nargin < 4
@@ -4616,6 +4810,16 @@ classdef TetrodeRecording < handle
 				end
 				drawnow
 			end	
+		end
+
+		function rig = GetRig(filepath)
+			if contains(filepath, {'desmond12', 'daisy4', 'desmond14', 'desmond16', 'desmond18'})
+				rig = 1;
+			elseif contains(filepath, {'desmond13', 'daisy5', 'desmond15', 'desmond17'})
+				rig = 2;
+			else
+				error('This version was designed for desmond12/13 daisy4/5 only');
+			end
 		end
 
 		function OnKeyPress(~, evnt, hTimer)
