@@ -4646,10 +4646,10 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function StimData = BatchProcessStimData(TR, PTR, varargin)
+		function BatchProcessStimData(TR, PTR, varargin)
 			p = inputParser;
 			addParameter(p, 'Window', [-20, 20], @isnumeric); % how many milliseconds before and after stim on to read.
-			parse(p, channels, varargin{:});
+			parse(p, varargin{:});
 			readWindow = p.Results.Window * 0.001;
 
 			for iTr = 1:length(TR)
