@@ -4653,18 +4653,22 @@ classdef TetrodeRecording < handle
 			readWindow = p.Results.Window * 0.001;
 
 			for iTr = 1:length(TR)
-				startTime = tic();
-				TetrodeRecording.TTS(['Processing file ', num2str(iTr), '/', num2str(length(TR)), '...']);
-				StimData = TR(iTr).ReadStimData(PTR, [TR(iTr).Spikes.Channel], 'Window', readWindow);
-				StimData = SerializeStimData(StimData);
+                try
+                    startTime = tic();
+                    TetrodeRecording.TTS(['Processing file ', num2str(iTr), '/', num2str(length(TR)), '...']);
+                    StimData = TR(iTr).ReadStimData(PTR, [TR(iTr).Spikes.Channel], 'Window', readWindow);
+                    StimData = SerializeStimData(StimData);
 
-				filename = strsplit(TR(iTr).Files{1}, 'nev');
-				filename = [TR(iTr).Path, '\..\SpikeSort\sd_', filename{1}, '.mat'];
+                    filename = strsplit(TR(iTr).Files{1}, 'nev');
+                    filename = [TR(iTr).Path, '\..\SpikeSort\sd_', filename{1}, '.mat'];
 
-				save(filename, 'StimData', '-v7.3');
+                    save(filename, 'StimData', '-v7.3');
 
-				duration = toc(startTime);
-				TetrodeRecording.TTS([num2str(duration), ' s.\n']);
+                    duration = toc(startTime);
+                    TetrodeRecording.TTS([num2str(duration), ' s.\n']);
+                catch
+                    warning(['Failed when attempting to process ', filename]);
+                end
 			end
 		end
 
