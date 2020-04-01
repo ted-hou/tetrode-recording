@@ -4685,7 +4685,6 @@ classdef TetrodeRecording < handle
 			StimData.TimestampByPulse = zeros(numPulses, maxPulseLength);
 
 			for iTrain = 1:numTrains
-				disp(['iTrain ', num2str(iTrain)]);
 				stimOn = StimData.StimOn;
 				isPulseInTrain = (stimOn >= StimData.TrainOn(iTrain) - 0.01) & (stimOn <= StimData.TrainOff(iTrain) + 0.01);
 				stimOn = stimOn(isPulseInTrain);
