@@ -362,7 +362,7 @@ for i=1:length(varargin)
             fname = inputArgument;
             if exist(fname, 'file') ~= 2
                 disp('The file does not exist.');
-                if nargout; 
+                if nargout
                     varargout{1} = -1; 
                 end
                 return;

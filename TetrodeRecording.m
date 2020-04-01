@@ -4657,7 +4657,7 @@ classdef TetrodeRecording < handle
                     startTime = tic();
                     TetrodeRecording.TTS(['Processing file ', num2str(iTr), '/', num2str(length(TR)), '...']);
                     StimData = TR(iTr).ReadStimData(PTR(iTr), [TR(iTr).Spikes.Channel], 'Window', readWindow);
-                    StimData = SerializeStimData(StimData);
+                    StimData = TetrodeRecording.SerializeStimData(StimData);
 
                     filename = strsplit(TR(iTr).Files{1}, 'nev');
                     filename = [TR(iTr).Path, '\..\SpikeSort\sd_', filename{1}, '.mat'];
