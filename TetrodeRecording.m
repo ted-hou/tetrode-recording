@@ -4646,16 +4646,16 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function StimData = BatchProcessStimData(TR, PTR, varargin)
+		function BatchProcessStimData(TR, PTR, varargin)
 			p = inputParser;
 			addParameter(p, 'Window', [-20, 20], @isnumeric); % how many milliseconds before and after stim on to read.
-			parse(p, channels, varargin{:});
+			parse(p, varargin{:});
 			readWindow = p.Results.Window * 0.001;
 
 			for iTr = 1:length(TR)
 				startTime = tic();
 				TetrodeRecording.TTS(['Processing file ', num2str(iTr), '/', num2str(length(TR)), '...']);
-				StimData = TR(iTr).ReadStimData(PTR, [TR(iTr).Spikes.Channel], 'Window', readWindow);
+				StimData = TR(iTr).ReadStimData(PTR(iTr), [TR(iTr).Spikes.Channel], 'Window', readWindow);
 				StimData = SerializeStimData(StimData);
 
 				filename = strsplit(TR(iTr).Files{1}, 'nev');
