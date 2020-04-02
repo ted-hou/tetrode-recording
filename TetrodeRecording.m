@@ -244,7 +244,7 @@ classdef TetrodeRecording < handle
 			% Process amplifier data
 			sampleRate = obj.NSx.MetaTags.SamplingFreq;
 			obj.FrequencyParameters.AmplifierSampleRate = sampleRate;
-			numSamples = sum(obj.NSx.MetaTags.DataPoints);
+			numSamples = obj.NSx.MetaTags.DataPoints(end);
 
 			obj.Amplifier.NumSamples = numSamples;
 			obj.Amplifier.Timestamps = (0:(numSamples - 1))/sampleRate;
@@ -252,7 +252,7 @@ classdef TetrodeRecording < handle
 				obj.Amplifier.Data = [obj.NSx.Data{end}];
 				obj.FrequencyParameters.SysInitDelay.NumSamples = length(obj.NSx.Data{1});
 				obj.FrequencyParameters.SysInitDelay.Duration = length(obj.NSx.Data{1})/sampleRate;
-				obj.FrequencyParameters.SysInitDelay.DataTrimmed = false;
+				obj.FrequencyParameters.SysInitDelay.DataTrimmed = true;
 				warning(['For some readon data was truncated into ', num2str(length(obj.NSx.Data)), ' chunk (', mat2str(cellfun(@(x) length(x)/sampleRate, obj.NSx.Data)),'). Timestamps: ', mat2str(obj.NSx.MetaTags.Timestamp),'. If its only ywo parts and the first chunk is a few seconds long or less, then its discarded data recorded by rig 1 before rig 2 starts recording. If it''s more than a few seconds long or there are more than one data chunk, then you''re screwed because data acquisition was paused and then manually resumed - possibly due to disk being full.']);
 			else
 				obj.FrequencyParameters.SysInitDelay.NumSamples = NaN;
