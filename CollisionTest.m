@@ -376,7 +376,7 @@ classdef CollisionTest < handle
                 % Make sure TR/PTR files exist
                 if isempty(tr) || isempty(ptr)
                     if ~suppressWarnings
-                        warning('Some of the following files could not be found: \n\t"tr_%s.mat"; \n\t"ptr_%s.mat".', expName)
+                        warning('Some of the following files could not be found: \n\t"tr_%s.mat"; \n\t"ptr_%s.mat".', expName, expName)
                     end
                     allValid = false;
                     continue
