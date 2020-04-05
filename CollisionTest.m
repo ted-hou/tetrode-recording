@@ -92,7 +92,86 @@ classdef CollisionTest < handle
             end
         end
 
+        function plot(obj, channel, varargin)
+        %plot - Plot electrode data aligned on stimulation onset events.
+        % Syntax: plot(obj, channel, varargin)
 
+            p = inputParser();
+            p.addRequired('Channel', @(x) isnumeric(x));
+            p.addParameter('Start', 1, @isnumeric);
+            p.addParameter('TracesPerPage', 25, @isnumeric);
+            p.addParameter('YLim', [-500, 500], @(x) isnumeric(x) && length(x) == 2 && diff(x) > 0);
+            p.addParameter('XLim', obj.Window, @(x) isnumeric(x) && length(x) == 2 && diff(x) > 0);
+            p.addParameter('YSpacing', 1, @(x) isnumeric(x) && length(x) == 1);
+            p.parse(channel, varargin{:})
+            channel = p.Results.Channel;
+            startFromTrace = p.Results.Start;
+            tracesPerPage = p.Results.TracesPerPage;
+            yRange = p.Results.YLim;
+            xRange = p.Results.XLim;
+            ySpacing = p.Results.YSpacing;
+            
+            % Create figure
+            fig = figure(); 
+            ax = axes(fig);
+            grid(ax, 'on');
+            hold(ax, 'on');
+            xlim(ax, xRange);
+            % ylim(ax, yRange);
+
+            xlabel(ax, 'Time from stim on (ms)')
+            ylabel(ax, 'Normalized voltage (a.u.)')
+
+            iPulseInPage = 0;
+            iPulse = startFromTrace - 1;
+
+            plotWindow = 0.001 * obj.Window;
+
+            % Normalize voltage data and align to stimOnsetTime;
+            while iPulse <= length(obj.PulseOn)
+                iPulse = iPulse + 1;
+                iPulseInPage = iPulseInPage + 1;
+
+                isInPulse = obj.Timestamps > obj.PulseOn(iPulse) + plotWindow(1) & obj.Timestamps <= obj.PulseOn(iPulse) + plotWindow(2);
+                pulseData = obj.Data(isInPulse, channel);
+                pulseTimestamps = obj.Timestamps(isInPulse);
+
+                % Normalize voltage to yRange.
+                y = (pulseData - yRange(1)) ./ diff(yRange) + iPulse * ySpacing;
+                
+                % Align time to stimOn
+                t = 1000 * (pulseTimestamps - obj.PulseOn(iPulse));
+
+                % Plot trace
+                plot(ax, t, y, 'k');
+
+                % Plot stim window
+                stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 0;
+                stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1];
+                stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 1000 * (obj.PulseOff(iPulse) - obj.PulseOn(iPulse));
+                stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1];
+
+                % Page done
+                if (iPulseInPage >= tracesPerPage)
+                    stimPatchVertices = vertcat(stimOnVertices, stimOffVertices(end:-1:1, :));
+                    patch('XData', stimPatchVertices(:, 1), 'YData', stimPatchVertices(:, 2), 'FaceColor', '#4DBEEE', 'FaceAlpha', 0.33, 'EdgeAlpha', 0);
+                    ylim([(iPulse - iPulseInPage + 1) * ySpacing, iPulse * ySpacing + 1])
+                    title(ax, sprintf('Pulses %d - %d', iPulse - iPulseInPage + 1, iPulse))
+                    [~, ~, button] = ginput(1);
+                    
+                    % Right click -> prev page
+                    if (button == 3)
+                        iPulse = iPulse - size(stimPatchVertices, 1) / 2;
+                        iPulse = max(0, iPulse);
+                    end
+                    cla(ax);
+                    stimPatchVertices = [];
+                    iPulseInPage = 0;
+                end
+            end
+
+            hold(ax, 'off');
+        end
     end
 
     % Private methods
