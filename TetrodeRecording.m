@@ -3978,15 +3978,19 @@ classdef TetrodeRecording < handle
 			else
 				files = {};
 				for iFile = 1:length(expNames)
-					thisFile = dir(['C:\SERVER\**\SpikeSort\tr*', expNames{iFile}, '*.mat']);
-					thisFile = thisFile(~[thisFile.isdir]);
+					if (isfile(expNames{iFile}))
+						files{length(files) + 1} = expNames{iFile};
+					else
+						thisFile = dir(['C:\SERVER\**\SpikeSort\tr*', expNames{iFile}, '*.mat']);
+						thisFile = thisFile(~[thisFile.isdir]);
 
-					if length(thisFile) > 0
-						iExp = [iExp, iFile];
-						[~, iLongest] = max(cellfun(@length, {thisFile.name}));
-						iLongest = find(cellfun(@(x) length(x) == length(thisFile(iLongest).name), {thisFile.name}));
-						for i = transpose(iLongest(:))
-							files{length(files) + 1} = [thisFile(i).folder, '\', thisFile(i).name];
+						if length(thisFile) > 0
+							iExp = [iExp, iFile];
+							[~, iLongest] = max(cellfun(@length, {thisFile.name}));
+							iLongest = find(cellfun(@(x) length(x) == length(thisFile(iLongest).name), {thisFile.name}));
+							for i = transpose(iLongest(:))
+								files{length(files) + 1} = [thisFile(i).folder, '\', thisFile(i).name];
+							end
 						end
 					end
 				end
