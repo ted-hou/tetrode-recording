@@ -174,7 +174,9 @@ classdef CollisionTest < handle
         %
             p = inputParser();
             p.addParameter('ExtendedWindow', [-20, 20], @(x) isnumeric(x) && length(x) == 2 && diff(x) > 0);
+            p.addParameter('OnError', 'WarningLong', @ischar); % What to do when there is an error. Can be 'WarningShort', 'WarningLong', 'Error'
             p.parse(varargin{:});
+            onError = p.Results.OnError;
 
             folders = uipickfiles('Prompt', 'Select multiple folders each containing an ns5 file.');
 
@@ -193,8 +195,14 @@ classdef CollisionTest < handle
                         mkdir(saveFolder);
                     end
                     ct.save(sprintf('%s//ct_%s.mat', saveFolder, ct.ExpName));
-                catch
+                catch ME
+                    if (strcmpi(onError, 'Error'))
+                        error('Error when processing folder "%s".', folder);
+                    end
                     warning('Error when processing folder "%s". This one will be skipped.', folder);
+                    if (strcmpi(onError, 'WarningLong'))
+                        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+                    end
                 end
             end
         end
