@@ -181,17 +181,21 @@ classdef CollisionTest < handle
             folders = CollisionTest.validateFolders(folders, 'SuppressWarnings', false);
 
             for iFolder = 1:length(folders)
-                folder = folders{iFolder};
-                fprintf('Processing folder %d of %d - %s:\n', iFolder, length(folders), folder);
-
-                ct = CollisionTest('Folder', folder, 'ExtendedWindow', p.Results.ExtendedWindow);
-
-                % Make sure save path exists
-                saveFolder = sprintf('%s//..//CollisionTest', folder);
-                if ~isfolder(saveFolder)
-                    mkdir(saveFolder);
+                try
+                    folder = folders{iFolder};
+                    fprintf('Processing folder %d of %d - %s:\n', iFolder, length(folders), folder);
+    
+                    ct = CollisionTest('Folder', folder, 'ExtendedWindow', p.Results.ExtendedWindow);
+    
+                    % Make sure save path exists
+                    saveFolder = sprintf('%s//..//CollisionTest', folder);
+                    if ~isfolder(saveFolder)
+                        mkdir(saveFolder);
+                    end
+                    ct.save(sprintf('%s//ct_%s.mat', saveFolder, ct.ExpName));
+                catch
+                    warning('Error when processing folder "%s". This one will be skipped.', folder);
                 end
-                ct.save(sprintf('%s//ct_%s.mat', saveFolder, ct.ExpName));
             end
         end
 
