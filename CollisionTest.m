@@ -243,7 +243,7 @@ classdef CollisionTest < handle
         end
     end
 
-    % Private methodd
+    % Private methods
     methods (Access = {})
         function read(obj, channels, maxTrains, extendedWindow)
         %read - Read data from tr/ptr/ns5 files.
@@ -291,8 +291,23 @@ classdef CollisionTest < handle
             timestampsByTrain = NaN(length(trainOn), maxTrainLength);
 
             % Read data from each train and put them in an array.
-            sysInitDelay = obj.TR.FrequencyParameters.SysInitDelay.Duration; % Get sysInitDelay to shift openNSx window to the correct value.
-            if isnan(sysInitDelay)
+
+            % Get sysInitDelay to shift openNSx window to the correct value.
+            
+            % [Deprecated] read SysInitDelay from TetrodeRecording object - we can't trust sysInitDelay from TetrodeRecording for some reason. re-read the first 20 seconds of the .NSx file to get it.
+            % sysInitDelay = obj.TR.FrequencyParameters.SysInitDelay.Duration; 
+            % if isnan(sysInitDelay)
+            %     sysInitDelay = 0;
+            % end
+
+            NSx = openNSx(obj.Filename.NSx, 'read', 'channels', 1, 'duration', [0, 20], 'sec');
+            if iscell(NSx.Data)
+                if length(NSx.Data) == 2
+                    sysInitDelay = size(NSx.Data{1}, 2) / sampleRate;
+                else
+                    error("NSx.Data is a cell array of length %d. This is not supported. It should be 2.", length(NSx.Data))
+                end
+            else
                 sysInitDelay = 0;
             end
             
@@ -300,7 +315,11 @@ classdef CollisionTest < handle
             fprintf('Reading %d trains, %d channels...', length(trainOn), length(channels));
 
             for iTrain = 1:length(trainOn)
-                readWindow = [trainOn(iTrain) + extendedWindow(1), trainOff(iTrain) + extendedWindow(2)] + sysInitDelay;
+                trainWindow = [trainOn(iTrain), trainOff(iTrain)] + extendedWindow;
+
+                % Read window for NSx file. Must shift to the right by sysInitDelay to exclude discarded data when the other rig started.
+                readWindow = trainWindow + sysInitDelay;
+
 
                 NSx = openNSx(obj.Filename.NSx, 'read', 'channels', nsxChannels, 'duration', readWindow, 'sec');
                 numSamples = size(NSx.Data, 2);
@@ -308,7 +327,7 @@ classdef CollisionTest < handle
                 dataByTrain(iTrain, 1:numSamples, :) = reshape(transpose(NSx.Data), 1, numSamples, []);
                 % timestampsByTrain(iTrain, 1:numSamples) = (firstSampleIndex : firstSampleIndex + numSamples - 1) / sampleRate;
                 % timestampsByTrain(iTrain, 1:numSamples) = readWindow(1):1/sampleRate:readWindow(2);
-                timestampsByTrain(iTrain, 1:numSamples) = readWindow(1):1/sampleRate:readWindow(1) + (numSamples - 1) * 1/sampleRate;
+                timestampsByTrain(iTrain, 1:numSamples) = trainWindow(1) : (1 / sampleRate) : (trainWindow(1) + (numSamples - 1) * 1/sampleRate);
             end
 
             data = reshape(permute(dataByTrain, [2, 1, 3]), size(dataByTrain, 1) * size(dataByTrain, 2), []);
@@ -321,16 +340,6 @@ classdef CollisionTest < handle
             if (~CollisionTest.validateTimestamps(timestamps))
                 error('Timestamps are not monotonic increasing. Digital events data probably needs to be trimmed.')
             end
-
-            % Train to individual pulses. Extract data by window: stimOn + extendedWindow
-            % Pre-allocate.
-            % maxPulseLength = ceil(diff(extendedWindow) * sampleRate) + 1;
-            % data = zeros(length(pulseOn), maxPulseLength, length(channels));
-            
-            % for iPulse = 1:length(pulseOn)
-            %     inWindow = (allTimestamps > pulseOn(iPulse) + extendedWindow(1)) & (allTimestamps <= pulseOn(iPulse) + extendedWindow(2));
-            %     data(iPulse, 1:nnz(inWindow), :) = reshape(allData(inWindow, :), 1, nnz(inWindow), []);
-            % end
 
             fprintf('Done (%.2f) s.\n', toc(tTic));
         end
@@ -352,7 +361,7 @@ classdef CollisionTest < handle
         end
     end
 
-    % Static private methods
+    % Private static methods
     methods (Access = {}, Static)
 
         function isMonoIncrease = validateTimestamps(array)
