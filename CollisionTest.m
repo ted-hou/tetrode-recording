@@ -86,10 +86,9 @@ classdef CollisionTest < handle
             grid(ax, 'on');
             hold(ax, 'on');
             xlim(ax, xRange);
-            % ylim(ax, yRange);
 
             xlabel(ax, 'Time from stim on (ms)')
-            ylabel(ax, 'Normalized voltage (a.u.)')
+            ylabel(ax, 'Trial number + Normalized voltage (a.u.)')
 
             iPulseInPage = 0;
             iPulse = startFromTrace - 1;
@@ -124,8 +123,8 @@ classdef CollisionTest < handle
                 if (iPulseInPage >= tracesPerPage)
                     stimPatchVertices = vertcat(stimOnVertices, stimOffVertices(end:-1:1, :));
                     patch('XData', stimPatchVertices(:, 1), 'YData', stimPatchVertices(:, 2), 'FaceColor', '#4DBEEE', 'FaceAlpha', 0.33, 'EdgeAlpha', 0);
-                    ylim([(iPulse - iPulseInPage + 1) * ySp, iPulse * ySpacing + 1])
-                    title(ax, sprintf('Pulses %d - %d', iPulse - iPulseInPage + 1, iPulse))
+                    ylim([(iPulse - iPulseInPage + 1) * ySpacing, iPulse * ySpacing + 1])
+                    title(ax, sprintf('%s Chn%d (Pulses %d - %d)', obj.ExpName, channel, iPulse - iPulseInPage + 1, iPulse), 'Interpreter', 'none')
                     [~, ~, button] = ginput(1);
                     
                     % Right click -> prev page
@@ -146,19 +145,43 @@ classdef CollisionTest < handle
         %save - Save the object to a .mat file.
         %
         % Syntax: save(obj, varargin)
+        % - 'Filename': Designate specific save path.
         % 
             p = inputParser();
             p.addOptional('Filename', '', @ischar);
+            p.addOptional('SeparateFiles', false, @islogical);
             p.parse(varargin{:});
             filename = p.Results.Filename;
+            separateFiles = p.Results.SeparateFiles;
 
-            if (isempty(filename))
-                uisave('obj', sprintf('ct_%s.mat', obj.ExpName));
+            % Only one object, or user chose to save all objects to one file.
+            if (length(obj) == 1 || ~separateFiles)
+                if (isempty(filename))
+                    if (length(obj) == 1)
+                        defaultName = sprintf('ct_%s.mat', obj.ExpName);
+                    else
+                        defaultName = 'ct.mat';
+                    end
+                    uisave('obj', defaultName);
+                else
+                    tTic = tic; fprintf('Writing to file "%s"...', filename)
+                    save(filename, 'obj', '-v7.3');
+                    fprintf('Done (%.1f s).\n', toc(tTic))
+                end
+            % More than one object, user chose to save them to separate files.
             else
-                fprintf('Saving to file "%s"...', filename)
-                save(filename, 'obj', '-v7.3');
-                fprintf('Done.\n')
+                selPath = uigetdir();
+                allObjs = obj;
+                for iObj = 1:length(obj)
+                    obj = allObjs(iObj);
+                    filename = sprintf('%s\\ct_%s', selPath, obj.ExpName);
+                    tTic = tic; fprintf('Writing to file "%s"...', filename)
+                    save(filename, 'obj', '-v7.3');
+                    fprintf('Done (%.1f s).\n', toc(tTic))
+                end
+                obj = allObjs;
             end
+
         end
     end
 
@@ -207,10 +230,16 @@ classdef CollisionTest < handle
             end
         end
 
-        function load()
+        function ct = load()
         %Load - Load multiple ct files.
         %
             files = uipickfiles('Prompt', 'Select (multiple) .mat files containing an CollisionTest object named "obj"', 'FilterSpec', '*.mat');
+
+            for iFile = 1:length(files)
+                S(iFile) = load(files{iFile}, 'obj');
+            end
+
+            ct = [S.obj];
         end
     end
 
