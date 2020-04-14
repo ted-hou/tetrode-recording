@@ -15,7 +15,7 @@ classdef CollisionTest < handle
         SysInitDelay = 0
     end
 
-    properties (Transient, Access = {})
+    properties (Transient)
         TR
         PTR
     end
