@@ -10,12 +10,13 @@ classdef CollisionTest < handle
         Window = [0, 0]
         Filename
         ExpName = ''
+        Spikes
+        IsSorted = false
     end
 
     properties (Transient)
         TR
         PTR
-        TRSorted
     end
 
     % Public methods
@@ -53,7 +54,7 @@ classdef CollisionTest < handle
             end
 
             % Validate folder
-            [~, obj.Filename, obj.ExpName, allValid] = CollisionTest.validateFolders(folder, 'SuppressWarnings', true, 'TRSource', p.Results.TRSource);
+            [~, obj.Filename, obj.ExpName, allValid, obj.IsSorted] = CollisionTest.validateFolders(folder, 'SuppressWarnings', true, 'TRSource', p.Results.TRSource);
             if ~allValid
                 error('Invalid folder %s', folder);
             end
@@ -197,11 +198,30 @@ classdef CollisionTest < handle
             obj.PTR = TetrodeRecording.BatchLoad({obj.Filename.PTR});
             obj.TR = CollisionTest.fixMisaligned(TetrodeRecording.BatchLoad(obj.Filename.TR));
         end
+
+        function readSpikes(obj)
+            for iChn = [obj.TR.Spikes.Channel]
+                obj.Spikes(iChn).Channel = iChn;
+                obj.Spikes(iChn).RawChannel = obj.mapChannels(iChn);
+                obj.Spikes(iChn).Timestamps = obj.TR.Spikes(iChn).Timestamps;
+                obj.Spikes(iChn).WaveformWindow = obj.TR.Spikes(iChn).WaveformWindow;
+                obj.Spikes(iChn).WaveformTimestamps = obj.TR.Spikes(iChn).WaveformTimestamps;
+                for iUnit = unique(obj.TR.Spikes(iChn).Cluster.Classes)
+                    theseIndices = obj.TR.Spikes(iChn).Cluster.Classes == iUnit;
+                    theseWaveforms = obj.TR.Spikes(iChn).Waveforms(theseIndices, :);
+                    obj.Spikes(iChn).Units(iUnit).Timestamps = obj.TR.Spikes(iChn).Timestamps(theseIndices);
+                    obj.Spikes(iChn).Units(iUnit).Waveform.Mean = mean(theseWaveforms, 1);
+                    obj.Spikes(iChn).Units(iUnit).Waveform.STD = std(theseWaveforms, 0, 1);
+                    obj.Spikes(iChn).Units(iUnit).Waveform.Percentile95 = prctile(theseWaveforms, 95, 1);
+                    obj.Spikes(iChn).Units(iUnit).Waveform.Percentile05 = prctile(theseWaveforms, 5, 1);
+                end
+            end
+        end
     end
 
     % Public static methods
     methods (Static)
-        function batch(varargin)
+        function varargout = batch(varargin)
         %Batch - Batch generate and save CollisionTest objects from tr/ptr/ns5 files.
         %
         % Optional Parameters: 
@@ -232,7 +252,11 @@ classdef CollisionTest < handle
                     if ~isfolder(saveFolder)
                         mkdir(saveFolder);
                     end
-                    ct.save(sprintf('%s//ct_%s.mat', saveFolder, ct.ExpName));
+                    if ct.IsSorted
+                        ct.save(sprintf('%s//ct_sorted_%s.mat', saveFolder, ct.ExpName));
+                    else
+                        ct.save(sprintf('%s//ct_%s.mat', saveFolder, ct.ExpName));
+                    end
                 catch ME
                     if (strcmpi(onError, 'Error'))
                         error('Error when processing folder "%s".', folder);
@@ -243,6 +267,8 @@ classdef CollisionTest < handle
                     end
                 end
             end
+
+            varargout = {ct}; % Only the last ct is exported.
             TetrodeRecording.RandomWords();
         end
 
@@ -290,6 +316,7 @@ classdef CollisionTest < handle
         %read - Read data from tr/ptr/ns5 files.
         % Syntax: read(obj, varargin)
             obj.readTR();
+            obj.readSpikes();
 
             [obj.PulseOn, obj.PulseOff, obj.TrainOn, obj.TrainOff] = obj.readDigitalEvents();
             [obj.Data, obj.Timestamps, obj.SampleRate] = readAnalogTrains(obj, channels, maxTrains, extendedWindow, obj.TrainOn, obj.TrainOff);
@@ -462,17 +489,16 @@ classdef CollisionTest < handle
                 switch lower(trSource)
                     case 'sortedonly'
                         tr = dir(sprintf('%s\\tr_sorted_%s*.mat', spikeSortFolder, expName));
-                        trFilePattern = sprintf('tr_sorted_%s*.mat', expName);
+                        isSorted = true;
                     case 'rawonly'
                         tr = dir(sprintf('%s\\tr_%s*.mat', spikeSortFolder, expName));
-                        trFilePattern = sprintf('tr_%s*.mat', expName);
+                        isSorted = false;
                     case 'sortedorraw'
                         tr = dir(sprintf('%s\\tr_sorted_%s*.mat', spikeSortFolder, expName));
+                        isSorted = true;
                         if isempty(tr)
                             tr = dir(sprintf('%s\\tr_%s*.mat', spikeSortFolder, expName));
-                            trFilePattern = sprintf('tr_%s*.mat', expName);
-                        else
-                            trFilePattern = sprintf('tr_sorted_%s*.mat', expName);
+                            isSorted = false;
                         end
                 end
                 ptr = dir(sprintf('%s\\ptr_%s.mat', spikeSortFolder, expName));
@@ -480,6 +506,11 @@ classdef CollisionTest < handle
                 % Make sure TR/PTR files exist
                 if isempty(tr) || isempty(ptr)
                     if ~suppressWarnings
+                        if isSorted
+                            trFilePattern = sprintf('tr_sorted_%s*.mat', expName);
+                        else
+                            trFilePattern = sprintf('tr_%s*.mat', expName);
+                        end
                         warning('Some of the following files could not be found: \n\t%s; \n\t"ptr_%s.mat".', trFilePattern, expName)
                     end
                     allValid = false;
@@ -504,7 +535,7 @@ classdef CollisionTest < handle
                 end
             end
 
-            varargout = {validFolders, Filename, expName, allValid};
+            varargout = {validFolders, Filename, expName, allValid, isSorted};
         end
     end
 end
