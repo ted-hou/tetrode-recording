@@ -187,9 +187,6 @@ classdef CollisionTest < handle
             [obj.PulseOn, obj.PulseOff, obj.TrainOn, obj.TrainOff] = obj.readDigitalEvents();
             [obj.Data, obj.Timestamps, obj.SampleRate, obj.SysInitDelay] = readAnalogTrains(obj, channels, maxTrains, extendedWindow, obj.TrainOn, obj.TrainOff);
 
-
-
-            % obj.TR = CollisionTest.fixMisaligned(obj.TR, obj.SysInitDelay);
             obj.readSpikes();
             obj.removeEmptySpikes();
         end
@@ -504,13 +501,14 @@ classdef CollisionTest < handle
             p.addParameter('YLim', [-500, 500], @(x) isnumeric(x) && length(x) == 2 && diff(x) > 0);
             p.addParameter('XLim', obj.Window, @(x) isnumeric(x) && length(x) == 2 && diff(x) > 0);
             p.addParameter('YSpacing', 1, @(x) isnumeric(x) && length(x) == 1);
+            p.addParameter('Units', [], @isnumeric);
             p.parse(channel, varargin{:})
             xRange = p.Results.XLim;
             
             % Create figure
             fig = figure('Units', 'normalized', 'OuterPosition', [0.25, 0, 0.25, 1]);
             ax = axes(fig);
-            % ax.YDir = 'reverse';
+            ax.YDir = 'reverse';
             grid(ax, 'on');
             hold(ax, 'on');
             xlim(ax, xRange);
@@ -549,6 +547,8 @@ classdef CollisionTest < handle
                 line(ax2, t, [Waveform.Mean - Waveform.STD; Waveform.Mean + Waveform.STD], 'LineStyle', '--', 'Color', thisColor);
                 line(ax2, t, [Waveform.Percentile05; Waveform.Percentile95], 'LineStyle', ':', 'Color', thisColor);
             end
+
+            figure(fig);
         end
     end
 
@@ -614,7 +614,7 @@ classdef CollisionTest < handle
             plotWindow = 0.001 * obj.Window;
 
             % Normalize voltage data and align to stimOnsetTime;
-            for iPulse = startTrace:startTrace + tracesPerPage
+            for iPulse = startTrace:startTrace + tracesPerPage - 1
 
                 iPulseInPage = iPulse - startTrace + 1;
 
@@ -623,7 +623,7 @@ classdef CollisionTest < handle
                 pulseTimestamps = obj.Timestamps(isInPlotWindow);
 
                 % Normalize voltage to yRange.
-                y = (pulseData - yRange(1)) ./ diff(yRange) + iPulse * ySpacing - 0.5;
+                y = -(pulseData - yRange(1)) ./ diff(yRange) + iPulse * ySpacing + 0.5;
                 
                 % Align time to stimOn
                 t = 1000 * (pulseTimestamps - obj.PulseOn(iPulse));
@@ -633,20 +633,23 @@ classdef CollisionTest < handle
 
                 % Plot stim window
                 stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 0;
-                stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1];
+                stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1] - 0.5;
                 stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 1000 * (obj.PulseOff(iPulse) - obj.PulseOn(iPulse));
-                stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1];
+                stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1] - 0.5;
 
                 colors = 'rgbcmyk';
 
                 % Plot sorted spike timestamps
-                numUnits = max(1, length(obj.Spikes(channel).Units));
-                for iUnit = 1:numUnits
+                units = p.Results.Units;
+                if isempty(units)
+                    units = 1:max(1, length(obj.Spikes(channel).Units) - 1);
+                end
+                for iUnit = units
                     unitTimestamps = obj.Spikes(channel).Units(iUnit).Timestamps;
                     isInPlotWindow = unitTimestamps > obj.PulseOn(iPulse) + plotWindow(1) & unitTimestamps <= obj.PulseOn(iPulse) + plotWindow(2);
                     t = 1000 * (unitTimestamps(isInPlotWindow) - obj.PulseOn(iPulse));
                     y = repmat(iPulse * ySpacing, [nnz(isInPlotWindow), 1]);
-                    plot(t, y, sprintf('%so', colors(iUnit)));
+                    plot(ax, t, y, sprintf('%so', colors(iUnit)));
                 end
 
                 if iPulse >= length(obj.PulseOn)
@@ -656,9 +659,9 @@ classdef CollisionTest < handle
 
             % Page done
             stimPatchVertices = vertcat(stimOnVertices, stimOffVertices(end:-1:1, :));
-            patch('XData', stimPatchVertices(:, 1), 'YData', stimPatchVertices(:, 2), 'FaceColor', [77, 190, 238] / 255, 'FaceAlpha', 0.33, 'EdgeAlpha', 0);
-            ylim([(iPulse - iPulseInPage + 1) * ySpacing - 1, iPulse * ySpacing])
-            yticks(ax, ax.YLim(1) + 1:5:ax.YLim(2)) 
+            patch(ax, 'XData', stimPatchVertices(:, 1), 'YData', stimPatchVertices(:, 2), 'FaceColor', [77, 190, 238] / 255, 'FaceAlpha', 0.33, 'EdgeAlpha', 0);
+            ylim(ax, [(iPulse - iPulseInPage + 1) * ySpacing - .5, iPulse * ySpacing + .5])
+            yticks(ax, startTrace:5:startTrace + tracesPerPage - 1) 
             title(ax, sprintf('%s Chn%d (Pulses %d - %d)', obj.ExpName, trChannel, iPulse - iPulseInPage + 1, iPulse), 'Interpreter', 'none')
         end
     end
