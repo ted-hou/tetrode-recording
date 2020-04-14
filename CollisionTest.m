@@ -175,32 +175,10 @@ classdef CollisionTest < handle
             ct = [S.obj];
             ct.removeEmptySpikes();
         end
-
-        function tr = fixMisaligned(tr, sysInitDelay)
-            if tr.FrequencyParameters.SysInitDelay.DataTrimmed
-                disp('Does not need trimming. Already did.')
-                return
-            end
-
-            if sysInitDelay > 0
-                for iChn = 1:length(tr.Spikes)
-                    if ~isempty(tr.Spikes(iChn).Channel)
-                        tr.Spikes(iChn).Timestamps = tr.Spikes(iChn).Timestamps - sysInitDelay;
-                    end
-                end
-                tr.FrequencyParameters.SysInitDelay.Duration = sysInitDelay;
-                tr.FrequencyParameters.SysInitDelay.DataTrimmed = true;
-                disp(['Removed data in the first ', num2str(sysInitDelay), ' seconds'])
-            else
-                disp('Does not need fixing.');
-                return
-            end
-        end
     end
 
     % Private methods
-    % methods (Access = {})
-    methods
+    methods (Access = {})
         function read(obj, channels, maxTrains, extendedWindow)
         %read - Read data from tr/ptr/ns5 files.
         % Syntax: read(obj, varargin)
@@ -228,6 +206,20 @@ classdef CollisionTest < handle
             [~, trainOff] = TetrodeRecording.FindLastInTrial(cueOn, pulseOff);
             
             varargout = {pulseOn, pulseOff, trainOn, trainOff};
+        end
+
+        function sysInitDelay = getSysInitDelay(obj)
+            NSx = openNSx(obj.Filename.NSx, 'read', 'channels', 1, 'duration', [0, 20], 'sec');
+            sampleRate = NSx.MetaTags.SamplingFreq;
+            if iscell(NSx.Data)
+                if length(NSx.Data) == 2
+                    sysInitDelay = size(NSx.Data{1}, 2) / sampleRate;
+                else
+                    error("NSx.Data is a cell array of length %d. This is not supported. It should be 2.", length(NSx.Data))
+                end
+            else
+                sysInitDelay = 0;
+            end
         end
 
         function [data, timestamps, sampleRate, sysInitDelay] = readAnalogTrains(obj, channels, maxTrains, extendedWindow, trainOn, trainOff)
@@ -261,16 +253,7 @@ classdef CollisionTest < handle
             %     sysInitDelay = 0;
             % end
 
-            NSx = openNSx(obj.Filename.NSx, 'read', 'channels', 1, 'duration', [0, 20], 'sec');
-            if iscell(NSx.Data)
-                if length(NSx.Data) == 2
-                    sysInitDelay = size(NSx.Data{1}, 2) / sampleRate;
-                else
-                    error("NSx.Data is a cell array of length %d. This is not supported. It should be 2.", length(NSx.Data))
-                end
-            else
-                sysInitDelay = 0;
-            end
+            sysInitDelay = obj.getSysInitDelay();
             
             tTic = tic();
             fprintf('Reading %d trains, %d channels...', length(trainOn), length(channels));
@@ -525,7 +508,7 @@ classdef CollisionTest < handle
             xRange = p.Results.XLim;
             
             % Create figure
-            fig = figure(); 
+            fig = figure('Units', 'normalized', 'OuterPosition', [0.25, 0, 0.25, 1]);
             ax = axes(fig);
             % ax.YDir = 'reverse';
             grid(ax, 'on');
@@ -543,7 +526,7 @@ classdef CollisionTest < handle
             fig.WindowScrollWheelFcn    = {@obj.onWindowKeyPress, p};
 
             % Plot unit mean waveforms
-            fig2 = figure();
+            fig2 = figure('Units', 'normalized', 'OuterPosition', [0.5, 0.67, 0.25, 0.33]);
             ax2 = axes(fig2);
             xlabel(ax2, 'Time (ms)')
             ylabel(ax2, 'Voltage (mV)')
@@ -678,9 +661,47 @@ classdef CollisionTest < handle
             yticks(ax, ax.YLim(1) + 1:5:ax.YLim(2)) 
             title(ax, sprintf('%s Chn%d (Pulses %d - %d)', obj.ExpName, trChannel, iPulse - iPulseInPage + 1, iPulse), 'Interpreter', 'none')
         end
+    end
 
-        function plotUnitWaveform(obj, ax, channel)
-            
+    %% Correction
+    % Deprecated. Not necessary.
+    methods (Static, Access = {})
+        function tr = fixMisaligned(tr, sysInitDelay)
+            if tr.FrequencyParameters.SysInitDelay.DataTrimmed
+                disp('Does not need trimming. Already did.')
+                return
+            end
+
+            if sysInitDelay > 0
+                for iChn = 1:length(tr.Spikes)
+                    if ~isempty(tr.Spikes(iChn).Channel)
+                        tr.Spikes(iChn).Timestamps = tr.Spikes(iChn).Timestamps - sysInitDelay;
+                    end
+                end
+                tr.FrequencyParameters.SysInitDelay.Duration = sysInitDelay;
+                tr.FrequencyParameters.SysInitDelay.DataTrimmed = true;
+                disp(['Removed data in the first ', num2str(sysInitDelay), ' seconds'])
+            else
+                disp('Does not need fixing.');
+                return
+            end
+        end
+    end
+
+    methods
+        % Use to undo deprecated tr = fixMisaligned(tr) call
+        function undoFixMisaligned(obj)
+            for iObj = 1:length(obj)
+                sysInitDelay = obj(iObj).getSysInitDelay();
+
+                if sysInitDelay > 0
+                    for iChn = 1:length(obj(iObj).Spikes)
+                        for iUnit = 1:length(obj(iObj).Spikes(iChn).Units)
+                            obj(iObj).Spikes(iChn).Units(iUnit).Timestamps = obj(iObj).Spikes(iChn).Units(iUnit).Timestamps + sysInitDelay;
+                        end
+                    end
+                end
+            end
         end
     end
 end
