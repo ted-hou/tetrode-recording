@@ -211,7 +211,7 @@ classdef CollisionTest < handle
 
 
 
-            obj.TR = CollisionTest.fixMisaligned(obj.TR, obj.SysInitDelay);
+            % obj.TR = CollisionTest.fixMisaligned(obj.TR, obj.SysInitDelay);
             obj.readSpikes();
             obj.removeEmptySpikes();
         end
@@ -673,7 +673,7 @@ classdef CollisionTest < handle
 
             % Page done
             stimPatchVertices = vertcat(stimOnVertices, stimOffVertices(end:-1:1, :));
-            patch('XData', stimPatchVertices(:, 1), 'YData', stimPatchVertices(:, 2), 'FaceColor', '#4DBEEE', 'FaceAlpha', 0.33, 'EdgeAlpha', 0);
+            patch('XData', stimPatchVertices(:, 1), 'YData', stimPatchVertices(:, 2), 'FaceColor', [77, 190, 238] / 255, 'FaceAlpha', 0.33, 'EdgeAlpha', 0);
             ylim([(iPulse - iPulseInPage + 1) * ySpacing - 1, iPulse * ySpacing])
             yticks(ax, ax.YLim(1) + 1:5:ax.YLim(2)) 
             title(ax, sprintf('%s Chn%d (Pulses %d - %d)', obj.ExpName, trChannel, iPulse - iPulseInPage + 1, iPulse), 'Interpreter', 'none')
