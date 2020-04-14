@@ -176,21 +176,21 @@ classdef CollisionTest < handle
             ct.removeEmptySpikes();
         end
 
-        function tr = fixMisaligned(tr)
+        function tr = fixMisaligned(tr, sysInitDelay)
             if tr.FrequencyParameters.SysInitDelay.DataTrimmed
                 disp('Does not need trimming. Already did.')
                 return
             end
 
-            if obj.SysInitDelay > 0
+            if sysInitDelay > 0
                 for iChn = 1:length(tr.Spikes)
                     if ~isempty(tr.Spikes(iChn).Channel)
-                        tr.Spikes(iChn).Timestamps = tr.Spikes(iChn).Timestamps - obj.SysInitDelay;
+                        tr.Spikes(iChn).Timestamps = tr.Spikes(iChn).Timestamps - sysInitDelay;
                     end
                 end
-                tr.FrequencyParameters.SysInitDelay.Duration = obj.SysInitDelay;
+                tr.FrequencyParameters.SysInitDelay.Duration = sysInitDelay;
                 tr.FrequencyParameters.SysInitDelay.DataTrimmed = true;
-                disp(['Removed data in the first ', num2str(obj.SysInitDelay), ' seconds'])
+                disp(['Removed data in the first ', num2str(sysInitDelay), ' seconds'])
             else
                 disp('Does not need fixing.');
                 return
@@ -211,7 +211,7 @@ classdef CollisionTest < handle
 
 
 
-            obj.TR = CollisionTest.fixMisaligned(obj.TR);
+            obj.TR = CollisionTest.fixMisaligned(obj.TR, obj.SysInitDelay);
             obj.readSpikes();
             obj.removeEmptySpikes();
         end
