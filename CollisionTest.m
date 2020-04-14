@@ -12,9 +12,10 @@ classdef CollisionTest < handle
         ExpName = ''
     end
 
-    properties (Transient, Access = {})
+    properties (Transient)
         TR
         PTR
+        TRSorted
     end
 
     % Public methods
@@ -36,6 +37,7 @@ classdef CollisionTest < handle
             p = inputParser();
             p.addParameter('Folder', '', @ischar);
             p.addParameter('Read', true, @islogical);
+            p.addParameter('TRSource', 'SortedOnly', @ischar); % 'SortedOnly', 'SortedOrRaw', 'RawOnly'
             p.addParameter('Channels', [], @isnumeric); % Which channels to look at. This is channel ID as shown in TetrodeRecording.PlotChannel([])
             p.addParameter('MaxTrains', [], @isnumeric); % Limit how many stim trains will be read.
             p.addParameter('ExtendedWindow', [0, 0], @(x) isnumeric(x) && length(x) == 2); % (ms) Extended window for reading data.
@@ -51,7 +53,7 @@ classdef CollisionTest < handle
             end
 
             % Validate folder
-            [~, obj.Filename, obj.ExpName, allValid] = CollisionTest.validateFolders(folder, 'SuppressWarnings', true);
+            [~, obj.Filename, obj.ExpName, allValid] = CollisionTest.validateFolders(folder, 'SuppressWarnings', true, 'TRSource', p.Results.TRSource);
             if ~allValid
                 error('Invalid folder %s', folder);
             end
@@ -183,6 +185,18 @@ classdef CollisionTest < handle
             end
 
         end
+
+        function readTR(obj, varargin)
+        %read - Load TR/PTR files.
+        % Syntax: obj.readTR('Sorted', false)
+            p = inputParser();
+            p.addParameter('Raw', true, @islogical);
+            p.parse(varargin{:});
+            readRaw = p.Results.Raw;
+
+            obj.PTR = TetrodeRecording.BatchLoad({obj.Filename.PTR});
+            obj.TR = CollisionTest.fixMisaligned(TetrodeRecording.BatchLoad(obj.Filename.TR));
+        end
     end
 
     % Public static methods
@@ -198,19 +212,20 @@ classdef CollisionTest < handle
             p = inputParser();
             p.addParameter('ExtendedWindow', [-20, 20], @(x) isnumeric(x) && length(x) == 2 && diff(x) > 0);
             p.addParameter('OnError', 'WarningLong', @ischar); % What to do when there is an error. Can be 'WarningShort', 'WarningLong', 'Error'
+            p.addParameter('TRSource', 'SortedOnly', @ischar); % 'SortedOnly', 'SortedOrRaw', 'RawOnly'
             p.parse(varargin{:});
             onError = p.Results.OnError;
 
             folders = uipickfiles('Prompt', 'Select multiple folders each containing an ns5 file.');
 
-            folders = CollisionTest.validateFolders(folders, 'SuppressWarnings', false);
+            folders = CollisionTest.validateFolders(folders, 'SuppressWarnings', false, 'TRSource', p.Results.TRSource);
 
             for iFolder = 1:length(folders)
                 try
                     folder = folders{iFolder};
                     fprintf('Processing folder %d of %d - %s:\n', iFolder, length(folders), folder);
     
-                    ct = CollisionTest('Folder', folder, 'ExtendedWindow', p.Results.ExtendedWindow);
+                    ct = CollisionTest('Folder', folder, 'ExtendedWindow', p.Results.ExtendedWindow, 'TRSource', p.Results.TRSource);
     
                     % Make sure save path exists
                     saveFolder = sprintf('%s//..//CollisionTest', folder);
@@ -228,6 +243,7 @@ classdef CollisionTest < handle
                     end
                 end
             end
+            TetrodeRecording.RandomWords();
         end
 
         function ct = load()
@@ -241,6 +257,31 @@ classdef CollisionTest < handle
 
             ct = [S.obj];
         end
+
+        function tr = fixMisaligned(tr)
+            if tr.FrequencyParameters.SysInitDelay.DataTrimmed
+                disp('Does not need trimming. Already did.')
+                return
+            end
+
+            tThreshold = tr.FrequencyParameters.SysInitDelay.Duration;
+            iThreshold = tr.FrequencyParameters.SysInitDelay.NumSamples;
+
+            if ~isnan(iThreshold)
+                for iChn = 1:length(tr.Spikes)
+                    if ~isempty(tr.Spikes(iChn).Channel)
+                        tr.Spikes(iChn).SampleIndex = tr.Spikes(iChn).SampleIndex - iThreshold;
+                        tr.Spikes(iChn).Timestamps = tr.Spikes(iChn).Timestamps - tThreshold;
+                        tr.DeleteWaveforms(iChn, 0, 'IndexType', 'Threshold');
+                    end
+                end
+                tr.FrequencyParameters.SysInitDelay.DataTrimmed = true;
+                disp(['Removed data in the first ', num2str(tThreshold), ' seconds'])
+            else
+                disp('Does not need fixing.');
+                return
+            end
+        end
     end
 
     % Private methods
@@ -248,8 +289,7 @@ classdef CollisionTest < handle
         function read(obj, channels, maxTrains, extendedWindow)
         %read - Read data from tr/ptr/ns5 files.
         % Syntax: read(obj, varargin)
-            obj.PTR = TetrodeRecording.BatchLoad({obj.Filename.PTR});
-            obj.TR = TetrodeRecording.BatchLoad(obj.Filename.TR);
+            obj.readTR();
 
             [obj.PulseOn, obj.PulseOff, obj.TrainOn, obj.TrainOff] = obj.readDigitalEvents();
             [obj.Data, obj.Timestamps, obj.SampleRate] = readAnalogTrains(obj, channels, maxTrains, extendedWindow, obj.TrainOn, obj.TrainOff);
@@ -373,9 +413,12 @@ classdef CollisionTest < handle
             p = inputParser();
             p.addRequired('Folders', @(x) iscell(x) || ischar(x));
             p.addParameter('SuppressWarnings', false, @islogical);
+            p.addParameter('Sorted', false, @islogical);
+            p.addParameter('TRSource', 'SortedOnly', @ischar); % 'SortedOnly', 'SortedOrRaw', 'RawOnly'
             p.parse(folders, varargin{:});
             folders = p.Results.Folders;
             suppressWarnings = p.Results.SuppressWarnings;
+            trSource = p.Results.TRSource;
 
             allValid = true;
             validFolders = {};
@@ -416,13 +459,28 @@ classdef CollisionTest < handle
 
                 % Find corresponding TR/PTR files in SpikeSort folder.
                 spikeSortFolder = sprintf('%s\\..\\SpikeSort', nsx.folder);
-                tr = dir(sprintf('%s\\tr_%s*.mat', spikeSortFolder, expName));
+                switch lower(trSource)
+                    case 'sortedonly'
+                        tr = dir(sprintf('%s\\tr_sorted_%s*.mat', spikeSortFolder, expName));
+                        trFilePattern = sprintf('tr_sorted_%s*.mat', expName);
+                    case 'rawonly'
+                        tr = dir(sprintf('%s\\tr_%s*.mat', spikeSortFolder, expName));
+                        trFilePattern = sprintf('tr_%s*.mat', expName);
+                    case 'sortedorraw'
+                        tr = dir(sprintf('%s\\tr_sorted_%s*.mat', spikeSortFolder, expName));
+                        if isempty(tr)
+                            tr = dir(sprintf('%s\\tr_%s*.mat', spikeSortFolder, expName));
+                            trFilePattern = sprintf('tr_%s*.mat', expName);
+                        else
+                            trFilePattern = sprintf('tr_sorted_%s*.mat', expName);
+                        end
+                end
                 ptr = dir(sprintf('%s\\ptr_%s.mat', spikeSortFolder, expName));
 
                 % Make sure TR/PTR files exist
                 if isempty(tr) || isempty(ptr)
                     if ~suppressWarnings
-                        warning('Some of the following files could not be found: \n\t"tr_%s.mat"; \n\t"ptr_%s.mat".', expName, expName)
+                        warning('Some of the following files could not be found: \n\t%s; \n\t"ptr_%s.mat".', trFilePattern, expName)
                     end
                     allValid = false;
                     continue
