@@ -489,13 +489,8 @@ classdef CollisionTest < handle
         %   Press Down arrow key/Mouse wheel down to go to next page.
         %   Press Up arrow key/Mouse wheel up to go to previous page.
         %   Shift/Alt + Up/Down arrow keys to speed up.
-
-            if isempty(channel)
-                channel = obj.Spikes(1).Channel;
-            end
-
             p = inputParser();
-            p.addRequired('Channel', @(x) isnumeric(x));
+            p.addRequired('Channel', @(x) isnumeric(x) || ischar(x));
             p.addParameter('Start', 1, @isnumeric);
             p.addParameter('TracesPerPage', 25, @isnumeric);
             p.addParameter('YLim', [-500, 500], @(x) isnumeric(x) && length(x) == 2 && diff(x) > 0);
@@ -503,9 +498,31 @@ classdef CollisionTest < handle
             p.addParameter('YSpacing', 1, @(x) isnumeric(x) && length(x) == 1);
             p.addParameter('Units', [], @isnumeric);
             p.addParameter('OverlayUnitTraces', false, @islogical);
+            p.addParameter('SortPulsesByUnit', NaN, @(x) isnumeric(x) && length(x) == 1);
+            p.addParameter('SortPulsesByUnitTimeCutoff', 5e-4, @isnumeric);
             p.parse(channel, varargin{:})
             xRange = p.Results.XLim;
-            
+
+            if ischar(channel) && strcmpi(channel, 'all')
+                for iChn = [obj.Spikes.Channel]
+                    obj.plot(iChn, 'Start', p.Results.Start, 'TracesPerPage', p.Results.TracesPerPage, 'YLim', p.Results.YLim, 'XLim', p.Results.XLim, 'YSpacing', p.Results.YSpacing, 'Units', p.Results.Units, 'OverlayUnitTraces', p.Results.OverlayUnitTraces, 'SortPulsesByUnit', p.Results.SortPulsesByUnit, 'SortPulsesByUnitTimeCutoff', p.Results.SortPulsesByUnitTimeCutoff);
+                end
+                return
+            end
+
+            if isempty(channel)
+                channel = obj.Spikes(1).Channel;
+            end
+
+            % Sort pulses by last spikeTime before pulse on
+            sortPulsesByUnit = p.Results.SortPulsesByUnit;
+            sortPulsesByUnitTimeCutoff = p.Results.SortPulsesByUnitTimeCutoff;
+            if ~isnan(sortPulsesByUnit)
+                [~, pulseOrder] = obj.sortPulses(channel, sortPulsesByUnit, sortPulsesByUnitTimeCutoff);
+            else
+                pulseOrder = 1:length(obj.PulseOn);
+            end
+
             % Create figure
             fig = figure('Units', 'normalized', 'OuterPosition', [0, 0, 0.5, 1]);
             ax = axes(fig);
@@ -518,11 +535,11 @@ classdef CollisionTest < handle
             ylabel(ax, 'Trial number + Normalized voltage (a.u.)')
 
             % Plot the first page
-            obj.updatePlot(ax, p, p.Results.Start);
+            obj.updatePlot(ax, p, p.Results.Start, pulseOrder);
 
             % Keypress listeners for updating the plot.
-            fig.WindowKeyPressFcn       = {@obj.onWindowKeyPress, p};
-            fig.WindowScrollWheelFcn    = {@obj.onWindowKeyPress, p};
+            fig.WindowKeyPressFcn       = {@obj.onWindowKeyPress, p, pulseOrder};
+            fig.WindowScrollWheelFcn    = {@obj.onWindowKeyPress, p, pulseOrder};
 
             % Plot unit mean waveforms
             fig2 = figure('Units', 'normalized', 'OuterPosition', [0.5, 0.67, 0.25, 0.33]);
@@ -554,7 +571,7 @@ classdef CollisionTest < handle
     end
 
     methods (Access = {})
-        function onWindowKeyPress(obj, fig, event, p)
+        function onWindowKeyPress(obj, fig, event, p, pulseOrder)
             if isa(event, 'matlab.ui.eventdata.ScrollWheelData')
                 if (event.VerticalScrollCount < 0)
                     direction = 'up';
@@ -596,11 +613,13 @@ classdef CollisionTest < handle
                 return
             end
 
-            obj.updatePlot(ax, p, startTrace);
+            obj.updatePlot(ax, p, startTrace, pulseOrder);
         end
 
-        function updatePlot(obj, ax, p, startTrace)
+        function updatePlot(obj, ax, p, startTrace, pulseOrder)
             trChannel = p.Results.Channel;
+            pulseOn = obj.PulseOn(pulseOrder);
+            pulseOff = obj.PulseOff(pulseOrder);
             channel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Data');
 
             tracesPerPage = p.Results.TracesPerPage;
@@ -619,7 +638,7 @@ classdef CollisionTest < handle
 
                 iPulseInPage = iPulse - startTrace + 1;
 
-                isInPlotWindow = obj.Timestamps > obj.PulseOn(iPulse) + plotWindow(1) & obj.Timestamps <= obj.PulseOn(iPulse) + plotWindow(2);
+                isInPlotWindow = obj.Timestamps > pulseOn(iPulse) + plotWindow(1) & obj.Timestamps <= pulseOn(iPulse) + plotWindow(2);
                 pulseData = obj.Data(isInPlotWindow, channel);
                 pulseTimestamps = obj.Timestamps(isInPlotWindow);
 
@@ -627,7 +646,7 @@ classdef CollisionTest < handle
                 y = -(pulseData - yRange(1)) ./ diff(yRange) + iPulse * ySpacing + 0.5;
                 
                 % Align time to stimOn
-                t = 1000 * (pulseTimestamps - obj.PulseOn(iPulse));
+                t = 1000 * (pulseTimestamps - pulseOn(iPulse));
 
                 % Plot trace
                 plot(ax, t, y, 'k');
@@ -635,7 +654,7 @@ classdef CollisionTest < handle
                 % Plot stim window
                 stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 0;
                 stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1] - 0.5;
-                stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 1000 * (obj.PulseOff(iPulse) - obj.PulseOn(iPulse));
+                stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 1000 * (pulseOff(iPulse) - pulseOn(iPulse));
                 stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1] - 0.5;
 
                 colors = 'rgbcmyk';
@@ -647,8 +666,8 @@ classdef CollisionTest < handle
                 end
                 for iUnit = units
                     unitTimestamps = obj.Spikes(channel).Units(iUnit).Timestamps;
-                    isInPlotWindow = unitTimestamps > obj.PulseOn(iPulse) + plotWindow(1) & unitTimestamps <= obj.PulseOn(iPulse) + plotWindow(2);
-                    t = 1000 * (unitTimestamps(isInPlotWindow) - obj.PulseOn(iPulse));
+                    isInPlotWindow = unitTimestamps > pulseOn(iPulse) + plotWindow(1) & unitTimestamps <= pulseOn(iPulse) + plotWindow(2);
+                    t = 1000 * (unitTimestamps(isInPlotWindow) - pulseOn(iPulse));
                     y = repmat(iPulse * ySpacing, [nnz(isInPlotWindow), 1]);
                     plot(ax, t, y, sprintf('%so', colors(iUnit)), 'MarkerSize', 20);
 
@@ -658,12 +677,12 @@ classdef CollisionTest < handle
                         end
 
                         trTimestamps = obj.TR.Spikes(trChannel).Timestamps;
-                        isInPlotWindow = trTimestamps > obj.PulseOn(iPulse) + plotWindow(1) & trTimestamps <= obj.PulseOn(iPulse) + plotWindow(2);
+                        isInPlotWindow = trTimestamps > pulseOn(iPulse) + plotWindow(1) & trTimestamps <= pulseOn(iPulse) + plotWindow(2);
 
                         iSelWaveforms = find(isInPlotWindow);
 
                         for iWave = iSelWaveforms
-                            t = 1000 * (trTimestamps(iWave) - obj.PulseOn(iPulse)) + obj.TR.Spikes(trChannel).WaveformTimestamps;
+                            t = 1000 * (trTimestamps(iWave) - pulseOn(iPulse)) + obj.TR.Spikes(trChannel).WaveformTimestamps;
                             y = obj.TR.Spikes(trChannel).Waveforms(iWave, :);
                             y = -(y - yRange(1)) ./ diff(yRange) + iPulse * ySpacing + 0.5;
                             iCluster = obj.TR.Spikes(trChannel).Cluster.Classes(iWave);
@@ -689,6 +708,43 @@ classdef CollisionTest < handle
             ylim(ax, [(iPulse - iPulseInPage + 1) * ySpacing - .5, iPulse * ySpacing + .5])
             yticks(ax, startTrace:5:startTrace + tracesPerPage - 1) 
             title(ax, sprintf('%s Chn%d (Pulses %d - %d)', obj.ExpName, trChannel, iPulse - iPulseInPage + 1, iPulse), 'Interpreter', 'none')
+        end
+    end
+
+    methods
+        function varargout = sortPulses(obj, channel, unit, timeCutoff)
+        %sortPulses - Sort pulses by last spontaneous spike time before stim on.
+        % Syntax: output = sortPulses(obj)
+            p = inputParser();
+            p.addRequired('Channel', @(x) isnumeric(x) && length(x) == 1);
+            p.addOptional('Unit', 1, @(x) isnumeric(x) && length(x) == 1);
+            p.addOptional('TimeCutoff', 5e-4, @(x) isnumeric(x) && length(x) == 1);
+            p.parse(channel, unit, timeCutoff);
+            channel = p.Results.Channel;
+            unit = p.Results.Unit;
+            timeCutoff = p.Results.TimeCutoff;
+
+            % Map channel labels to data
+            trChannel = channel;
+            channel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Data');
+
+            % Read unit spike timestamps relative to pulse on
+            allSpikeTimes = obj.Spikes(channel).Units(unit).Timestamps;
+
+            lastPreStimSpikeTimes = zeros(length(obj.PulseOn), 1);
+
+            for iPulse = 1:length(obj.PulseOn)
+                iLastSpike = find(allSpikeTimes <= obj.PulseOn(iPulse) + timeCutoff, 1, 'last');
+                if isempty(iLastSpike)
+                    lastPreStimSpikeTimes(iPulse) = 0;
+                else
+                    lastPreStimSpikeTimes(iPulse) = allSpikeTimes(iLastSpike) - obj.PulseOn(iPulse);
+                end
+            end
+
+            [sortedPulseOn, sortedPulseOrder] = sort(lastPreStimSpikeTimes, 'descend');
+
+            varargout = {sortedPulseOn, sortedPulseOrder}; 
         end
     end
 
