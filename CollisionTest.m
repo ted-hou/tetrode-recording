@@ -655,7 +655,7 @@ classdef CollisionTest < handle
                     isInPlotWindow = unitTimestamps > obj.PulseOn(iPulse) + plotWindow(1) & unitTimestamps <= obj.PulseOn(iPulse) + plotWindow(2);
                     t = 1000 * (unitTimestamps(isInPlotWindow) - obj.PulseOn(iPulse));
                     y = repmat(iPulse * ySpacing, [nnz(isInPlotWindow), 1]);
-                    plot(ax, t, y, sprintf('%so', colors(iUnit)));
+                    plot(ax, t, y, sprintf('%so', colors(iUnit)), 'MarkerSize', 30);
 
                     if p.Results.OverlayUnitTraces
                         if isempty(obj.TR)
