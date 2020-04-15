@@ -512,9 +512,9 @@ classdef CollisionTest < handle
             xRange = p.Results.XLim;
             
             % Create figure
-            fig = figure('Units', 'normalized', 'OuterPosition', [0.25, 0, 0.25, 1]);
+            fig = figure('Units', 'normalized', 'OuterPosition', [0, 0, 0.5, 1]);
             ax = axes(fig);
-            % ax.YDir = 'reverse';
+            ax.YDir = 'reverse';
             grid(ax, 'on');
             hold(ax, 'on');
             xlim(ax, xRange);
@@ -629,7 +629,7 @@ classdef CollisionTest < handle
                 pulseTimestamps = obj.Timestamps(isInPlotWindow);
 
                 % Normalize voltage to yRange.
-                y = (pulseData - yRange(1)) ./ diff(yRange) + iPulse * ySpacing - 0.5;
+                y = -(pulseData - yRange(1)) ./ diff(yRange) + iPulse * ySpacing + 0.5;
                 
                 % Align time to stimOn
                 t = 1000 * (pulseTimestamps - obj.PulseOn(iPulse));
@@ -639,9 +639,9 @@ classdef CollisionTest < handle
 
                 % Plot stim window
                 stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 0;
-                stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1] + 0.5;
+                stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1] - 0.5;
                 stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 1000 * (obj.PulseOff(iPulse) - obj.PulseOn(iPulse));
-                stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1] + 0.5;
+                stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1] - 0.5;
 
                 colors = 'rgbcmyk';
 
@@ -655,7 +655,7 @@ classdef CollisionTest < handle
                     isInPlotWindow = unitTimestamps > obj.PulseOn(iPulse) + plotWindow(1) & unitTimestamps <= obj.PulseOn(iPulse) + plotWindow(2);
                     t = 1000 * (unitTimestamps(isInPlotWindow) - obj.PulseOn(iPulse));
                     y = repmat(iPulse * ySpacing, [nnz(isInPlotWindow), 1]);
-                    plot(ax, t, y, sprintf('%so', colors(iUnit)), 'MarkerSize', 30);
+                    plot(ax, t, y, sprintf('%so', colors(iUnit)), 'MarkerSize', 20);
 
                     if p.Results.OverlayUnitTraces
                         if isempty(obj.TR)
@@ -670,7 +670,7 @@ classdef CollisionTest < handle
                         for iWave = iSelWaveforms
                             t = 1000 * (trTimestamps(iWave) - obj.PulseOn(iPulse)) + obj.TR.Spikes(trChannel).WaveformTimestamps;
                             y = obj.TR.Spikes(trChannel).Waveforms(iWave, :);
-                            y = (y - yRange(1)) ./ diff(yRange) + iPulse * ySpacing - 0.5;
+                            y = -(y - yRange(1)) ./ diff(yRange) + iPulse * ySpacing + 0.5;
                             iCluster = obj.TR.Spikes(trChannel).Cluster.Classes(iWave);
                             if ismember(iCluster, units)
                                 thisColor = colors(iCluster);
@@ -691,7 +691,7 @@ classdef CollisionTest < handle
             % Page done
             stimPatchVertices = vertcat(stimOnVertices, stimOffVertices(end:-1:1, :));
             patch(ax, 'XData', stimPatchVertices(:, 1), 'YData', stimPatchVertices(:, 2), 'FaceColor', [77, 190, 238] / 255, 'FaceAlpha', 0.33, 'EdgeAlpha', 0);
-            ylim(ax, [(iPulse - iPulseInPage + 1) * ySpacing + .5, iPulse * ySpacing - .5])
+            ylim(ax, [(iPulse - iPulseInPage + 1) * ySpacing - .5, iPulse * ySpacing + .5])
             yticks(ax, startTrace:5:startTrace + tracesPerPage - 1) 
             title(ax, sprintf('%s Chn%d (Pulses %d - %d)', obj.ExpName, trChannel, iPulse - iPulseInPage + 1, iPulse), 'Interpreter', 'none')
         end
