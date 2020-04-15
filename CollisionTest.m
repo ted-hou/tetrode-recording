@@ -284,9 +284,6 @@ classdef CollisionTest < handle
             fprintf('Done (%.2f) s.\n', toc(tTic));
         end
 
-    end
-
-    methods
         function readTR(obj, varargin)
         %read - Load TR/PTR files.
         % Syntax: obj.readTR('Sorted', false)
@@ -298,9 +295,7 @@ classdef CollisionTest < handle
             obj.PTR = TetrodeRecording.BatchLoad({obj.Filename.PTR});
             obj.TR = TetrodeRecording.BatchLoad(obj.Filename.TR);
         end
-    end
 
-    methods (Access = {})
         function readSpikes(obj)
         %read - Load and process sorted spikeTimes/waveforms from TR.Spikes.
         % Syntax: obj.readSpikes()
@@ -754,22 +749,10 @@ classdef CollisionTest < handle
         end
     end
 
-    %% Autotest
+    %% Misc
     methods
-        function data = groupDataByPulse(obj)
-            pulseWindow = 0.001 * obj.Window;
-
-            % Pre-allocate
-            data = zeros(diff(pulseWindow * obj.SampleRate), length(obj.PulseOn), size(obj.Data, 2));
-            
-            for iPulse = 1:length(obj.PulseOn)
-                isInWindow = obj.Timestamps > obj.PulseOn(iPulse) + pulseWindow(1) & obj.Timestamps <= obj.PulseOn(iPulse) + pulseWindow(2);
-                data(1:nnz(isInWindow), iPulse, :) = obj.Data(isInWindow, :);
-            end
-        end
-
-        function test(obj)
-            
+        function unloadTR(obj)
+            obj.TR = [];
         end
     end
 end
