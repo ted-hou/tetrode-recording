@@ -256,4 +256,6 @@ collisionTestUnits = {...
 
     ctUnitDesc = struct('Animal', collisionTestUnits(:, 1), 'Date', collisionTestUnits(:, 2), 'Channel', collisionTestUnits(:, 3), 'Unit', collisionTestUnits(:, 4), 'HasCollision', collisionTestUnits(:, 5), 'HasTrueResponse', collisionTestUnits(:, 6), 'HasAnyResponse', collisionTestUnits(:, 7), 'Notes', collisionTestUnits(:, 8));
 
-    
+ctud = CollisionTestUnitDesc(collisionTestUnits);
+ctud = ctud([ctud.HasAnyResponse]);
+% ctud.read();

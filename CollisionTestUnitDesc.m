@@ -12,7 +12,7 @@ classdef CollisionTestUnitDesc < handle
         Notes = ''
     end
 
-    properties (Transient)
+    properties
         CollisionTest
     end
 

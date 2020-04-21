@@ -736,32 +736,37 @@ classdef CollisionTest < handle
             plotWindow = 0.001 * obj.Window(2);
             numSamples = ceil(plotWindow * obj.SampleRate);
 
-            % Sorted/selected versions of things
+            % Sorted/duration-selected versions of things
             spikeToPulseLatency = spikeToPulseLatency(pulseOrder);
             pulseOn = obj.PulseOn(pulseOrder);
-
-
-            isLowLatPulse = spikeToPulseLatency <= p.Results.CollisionCutoff;
-            isHighLatPulse = ~isLowLatPulse;
-
-            iLowLatPulses = find(isLowLatPulse);
-            iHightLatPulses = find(isHighLatPulse);
-
-            lowLatTraces = NaN(nnz(isLowLatPulse), numSamples);
-            highLatTraces = NaN(nnz(isHighLatPulse), numSamples);
-
-            for i = 1:nnz(isLowLatPulse)
-                iSampleStart = find(obj.Timestamps >= pulseOn(iLowLatPulses(i)), 1);
-                iSampleEnd = iSampleStart + numSamples - 1;
-
-                lowLatTraces(i, :) = obj.Data(iSampleStart:iSampleEnd, channel);
+            
+            % Group pulses by latency
+            latencyEdges = unique([min(spikeToPulseLatency), sort(p.Results.CollisionCutoff), max(spikeToPulseLatency)]);
+            [numTracesPerBin, ~, bin] = histcounts(spikeToPulseLatency, latencyEdges);
+            
+            % Pre-allocate bins
+            uniqueBins = reshape(unique(bin), 1, []);
+            for iBin = uniqueBins % This skips empty bins
+                Bin(iBin).Traces = NaN(numTracesPerBin(iBin), numSamples); % Preallocate
+                Bin(iBin).NumTraces = 0;
             end
 
-            for i = 1:nnz(isHighLatPulse)
-                iSampleStart = find(obj.Timestamps >= pulseOn(iHightLatPulses(i)), 1);
-                iSampleEnd = iSampleStart + numSamples - 1;
+            % Group pulses by bin
+            for iTrace = 1:length(pulseOn)
+                iBin = bin(iTrace);
 
-                highLatTraces(i, :) = obj.Data(iSampleStart:iSampleEnd, channel);
+                iSampleStart = find(obj.Timestamps >= pulseOn(iTrace), 1, 'first');
+                selSamples = iSampleStart : iSampleStart + numSamples - 1;
+
+                Bin(iBin).Traces(Bin(iBin).NumTraces + 1, :) = obj.Data(selSamples, channel);
+                Bin(iBin).NumTraces = Bin(iBin).NumTraces + 1;
+            end
+
+            % For each bin, calculate mean trace, std, prctile(5, 95)
+            for iBin = uniqueBins
+                Bin(iBin).Mean = nanmean(Bin(iBin).Traces, 1);
+                Bin(iBin).Std = nanstd(Bin(iBin).Traces, 0, 1);
+                Bin(iBin).Percentiles = prctile(Bin(iBin).Traces, [5, 95], 1);
             end
 
             % Common timestamps for all traces
@@ -775,37 +780,20 @@ classdef CollisionTest < handle
             xlabel(ax, 'Time from stim on (ms)')
             ylabel(ax, 'Mean voltage (mV)')
             title(ax, sprintf('%s Chn %i, Unit %i', obj.ExpName, trChannel, p.Results.SortPulsesByUnit), 'Interpreter', 'none')
+            colors = 'rgbcmyk';
 
-            lowLatMean = nanmean(lowLatTraces, 1);
-            highLatMean = nanmean(highLatTraces, 1);
-
-            h1 = plot(ax, t, lowLatMean, 'b', 'LineWidth', 2, 'DisplayName', sprintf('Stim latency <= %.2f ms (n = %i)', p.Results.CollisionCutoff * 1000, nnz(isLowLatPulse)));
-            h2 = plot(ax, t, highLatMean, 'r', 'LineWidth', 2, 'DisplayName', sprintf('Stim latency > %.2f ms (n = %i)', p.Results.CollisionCutoff * 1000, nnz(isHighLatPulse)));
-
-            lowLatStd = std(lowLatTraces, 0, 1);
-            highLatStd = std(highLatTraces, 0, 1);
-
-            percentiles = [1, 99];
-            lowLatPercentiles = prctile(lowLatTraces, percentiles, 1);
-            highLatPercentiles = prctile(highLatTraces, percentiles, 1);
-
-            % patch(ax, [t, flip(t)], [lowLatPercentiles(1, :), flip(lowLatPercentiles(2, :))], 'b',...
-            %     'FaceAlpha', 0.15, 'EdgeColor', 'none');
-            patch(ax, [t, flip(t)], [lowLatMean - lowLatStd, flip(lowLatMean + lowLatStd)], 'b',...
-                'FaceAlpha', 0.1, 'EdgeColor', 'none');
-            line(ax, t, [lowLatMean - lowLatStd; lowLatMean + lowLatStd], 'LineStyle', ':', 'Color', 'b');
-            % line(ax, t, lowLatPercentiles, 'LineStyle', ':', 'Color', 'b');
-
-            % patch(ax, [t, flip(t)], [highLatPercentiles(1, :), flip(highLatPercentiles(2, :))], 'r',...
-            %     'FaceAlpha', 0.15, 'EdgeColor', 'none');
-            patch(ax, [t, flip(t)], [highLatMean - highLatStd, flip(highLatMean + highLatStd)], 'r',...
-                'FaceAlpha', 0.1, 'EdgeColor', 'none');
-            line(ax, t, [highLatMean - highLatStd; highLatMean + highLatStd], 'LineStyle', ':', 'Color', 'r');
-            % line(ax, t, highLatPercentiles, 'LineStyle', ':', 'Color', 'r');
+            for i = 1:length(uniqueBins)
+                iBin = uniqueBins(i);
+                h(i) = plot(ax, t, Bin(iBin).Mean, colors(i), 'LineWidth', 2, 'DisplayName', sprintf('StimLatency \\in [%.1f, %.1f) ms (n = %d)', 1000 * latencyEdges(iBin), 1000 * latencyEdges(iBin + 1), numTracesPerBin(iBin)));
+                patch(ax, [t, flip(t)], [Bin(iBin).Mean - Bin(iBin).Std, flip(Bin(iBin).Mean + Bin(iBin).Std)], colors(i),...
+                    'FaceAlpha', .1, 'EdgeColor', colors(i), 'LineStyle', 'none');
+                % patch(ax, [t, flip(t)], [Bin(iBin).Percentiles(1, :), flip(Bin(iBin).Percentiles(2, :))], colors(i),...
+                %     'FaceAlpha', .1, 'EdgeColor', colors(i), 'LineStyle', ':');
+            end
 
             hold(ax, 'off')
 
-            legend([h1, h2])
+            legend(h)
         end
     end
 
@@ -865,6 +853,7 @@ classdef CollisionTest < handle
             selectedPulseIndices = (pulseDuration >= minDuration - tolerance) & (pulseDuration <= maxDuration + tolerance);
             selectedPulseIndices = find(selectedPulseIndices);
             selectedPulseDurations = pulseDuration(selectedPulseIndices);
+            selectedPulseIndices = pulseOrder(selectedPulseIndices);
 
             varargout = {selectedPulseIndices, selectedPulseDurations};
         end
