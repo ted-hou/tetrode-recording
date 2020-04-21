@@ -15,7 +15,7 @@ classdef CollisionTest < handle
         SysInitDelay = 0
     end
 
-    properties (Transient)
+    properties (Transient, Access = {})
         TR
         PTR
     end
@@ -163,10 +163,12 @@ classdef CollisionTest < handle
             TetrodeRecording.RandomWords();
         end
 
-        function ct = load()
+        function ct = load(files)
         %Load - Load multiple ct files.
         %
-            files = uipickfiles('Prompt', 'Select (multiple) .mat files containing an CollisionTest object named "obj"', 'FilterSpec', '*.mat');
+            if nargin < 1
+                files = uipickfiles('Prompt', 'Select (multiple) .mat files containing an CollisionTest object named "obj"', 'FilterSpec', '*.mat');
+            end
 
             for iFile = 1:length(files)
                 S(iFile) = load(files{iFile}, 'obj');
@@ -500,12 +502,18 @@ classdef CollisionTest < handle
             p.addParameter('OverlayUnitTraces', false, @islogical);
             p.addParameter('SortPulsesByUnit', NaN, @(x) isnumeric(x) && length(x) == 1);
             p.addParameter('SortPulsesByUnitTimeCutoff', 5e-4, @isnumeric);
+            p.addParameter('CollisionCutoff', 1e-3, @isnumeric);
+            p.addParameter('LimitPulseDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(end) >= x(1))
+            p.addParameter('LimitPulseDurationTolerance', 1e-4, @(x) isnumeric(x) && length(x) == 1)
             p.parse(channel, varargin{:})
             xRange = p.Results.XLim;
 
             if ischar(channel) && strcmpi(channel, 'all')
                 for iChn = [obj.Spikes.Channel]
-                    obj.plot(iChn, 'Start', p.Results.Start, 'TracesPerPage', p.Results.TracesPerPage, 'YLim', p.Results.YLim, 'XLim', p.Results.XLim, 'YSpacing', p.Results.YSpacing, 'Units', p.Results.Units, 'OverlayUnitTraces', p.Results.OverlayUnitTraces, 'SortPulsesByUnit', p.Results.SortPulsesByUnit, 'SortPulsesByUnitTimeCutoff', p.Results.SortPulsesByUnitTimeCutoff);
+                    obj.plot(iChn, 'Start', p.Results.Start, 'TracesPerPage', p.Results.TracesPerPage, 'YLim', p.Results.YLim, 'XLim', p.Results.XLim,...
+                        'YSpacing', p.Results.YSpacing, 'Units', p.Results.Units, 'OverlayUnitTraces', p.Results.OverlayUnitTraces,...
+                        'SortPulsesByUnit', p.Results.SortPulsesByUnit, 'SortPulsesByUnitTimeCutoff', p.Results.SortPulsesByUnitTimeCutoff,...
+                        'CollisionCutoff', p.Results.CollisionCutoff, 'LimitPulseDuration', p.Results.LimitPulseDuration, 'LimitPulseDurationTolerance', p.Results.LimitPulseDurationTolerance);
                 end
                 return
             end
@@ -514,13 +522,22 @@ classdef CollisionTest < handle
                 channel = obj.Spikes(1).Channel;
             end
 
+            trChannel = channel;
+
             % Sort pulses by last spikeTime before pulse on
             sortPulsesByUnit = p.Results.SortPulsesByUnit;
             sortPulsesByUnitTimeCutoff = p.Results.SortPulsesByUnitTimeCutoff;
             if ~isnan(sortPulsesByUnit)
-                [~, pulseOrder] = obj.sortPulses(channel, sortPulsesByUnit, sortPulsesByUnitTimeCutoff);
+                [~, pulseOrder, spikeToPulseLatency] = obj.sortPulses(trChannel, sortPulsesByUnit, sortPulsesByUnitTimeCutoff);
             else
                 pulseOrder = 1:length(obj.PulseOn);
+            end
+
+            % Selected Pulses by duration
+            [pulseOrder, ~] = obj.selectPulsesByDuration(p.Results.LimitPulseDuration(1), p.Results.LimitPulseDuration(end), 'Tolerance', p.Results.LimitPulseDurationTolerance, 'PulseOrder', pulseOrder);
+
+            if ~isnan(sortPulsesByUnit)
+                obj.plotMeanByCollision(p, spikeToPulseLatency, pulseOrder);
             end
 
             % Create figure
@@ -546,6 +563,7 @@ classdef CollisionTest < handle
             ax2 = axes(fig2);
             xlabel(ax2, 'Time (ms)')
             ylabel(ax2, 'Voltage (mV)')
+            title(ax2, sprintf('%s Chn %i', obj.ExpName, trChannel), 'Interpreter', 'none')
             hold(ax2, 'on')
 
             channel = obj.mapChannels(channel, 'From', 'TR', 'To', 'Data');
@@ -570,6 +588,7 @@ classdef CollisionTest < handle
         end
     end
 
+    % Plotting, private
     methods (Access = {})
         function onWindowKeyPress(obj, fig, event, p, pulseOrder)
             if isa(event, 'matlab.ui.eventdata.ScrollWheelData')
@@ -606,7 +625,7 @@ classdef CollisionTest < handle
             ax = fig.findobj('Type', 'axes');
 
             if strcmp(direction, 'down')
-                startTrace = min(ax.UserData.StartTrace + turbo * p.Results.TracesPerPage, length(obj.PulseOn));
+                startTrace = min(ax.UserData.StartTrace + turbo * p.Results.TracesPerPage, length(pulseOrder));
             elseif strcmpi(direction, 'up')
                 startTrace = max(ax.UserData.StartTrace - turbo * p.Results.TracesPerPage, 1);
             else
@@ -697,7 +716,7 @@ classdef CollisionTest < handle
                     end
                 end
 
-                if iPulse >= length(obj.PulseOn)
+                if iPulse >= length(pulseOrder)
                     break
                 end
             end
@@ -709,8 +728,88 @@ classdef CollisionTest < handle
             yticks(ax, startTrace:5:startTrace + tracesPerPage - 1) 
             title(ax, sprintf('%s Chn%d (Pulses %d - %d)', obj.ExpName, trChannel, iPulse - iPulseInPage + 1, iPulse), 'Interpreter', 'none')
         end
+
+        function plotMeanByCollision(obj, p, spikeToPulseLatency, pulseOrder)
+            trChannel = p.Results.Channel;
+            channel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Data');
+
+            plotWindow = 0.001 * obj.Window(2);
+            numSamples = ceil(plotWindow * obj.SampleRate);
+
+            % Sorted/selected versions of things
+            spikeToPulseLatency = spikeToPulseLatency(pulseOrder);
+            pulseOn = obj.PulseOn(pulseOrder);
+
+
+            isLowLatPulse = spikeToPulseLatency <= p.Results.CollisionCutoff;
+            isHighLatPulse = ~isLowLatPulse;
+
+            iLowLatPulses = find(isLowLatPulse);
+            iHightLatPulses = find(isHighLatPulse);
+
+            lowLatTraces = NaN(nnz(isLowLatPulse), numSamples);
+            highLatTraces = NaN(nnz(isHighLatPulse), numSamples);
+
+            for i = 1:nnz(isLowLatPulse)
+                iSampleStart = find(obj.Timestamps >= pulseOn(iLowLatPulses(i)), 1);
+                iSampleEnd = iSampleStart + numSamples - 1;
+
+                lowLatTraces(i, :) = obj.Data(iSampleStart:iSampleEnd, channel);
+            end
+
+            for i = 1:nnz(isHighLatPulse)
+                iSampleStart = find(obj.Timestamps >= pulseOn(iHightLatPulses(i)), 1);
+                iSampleEnd = iSampleStart + numSamples - 1;
+
+                highLatTraces(i, :) = obj.Data(iSampleStart:iSampleEnd, channel);
+            end
+
+            % Common timestamps for all traces
+            t = 0:numSamples - 1;
+            t = 1000 * t / obj.SampleRate;
+
+            % Plot mean traces of potential collision trials vs. regular trials.
+            fig = figure('Units', 'normalized', 'OuterPosition', [0.5, 0.33, 0.5, 0.33]);
+            ax = axes(fig);
+            hold(ax, 'on')
+            xlabel(ax, 'Time from stim on (ms)')
+            ylabel(ax, 'Mean voltage (mV)')
+            title(ax, sprintf('%s Chn %i, Unit %i', obj.ExpName, trChannel, p.Results.SortPulsesByUnit), 'Interpreter', 'none')
+
+            lowLatMean = nanmean(lowLatTraces, 1);
+            highLatMean = nanmean(highLatTraces, 1);
+
+            h1 = plot(ax, t, lowLatMean, 'b', 'LineWidth', 2, 'DisplayName', sprintf('Stim latency <= %.2f ms (n = %i)', p.Results.CollisionCutoff * 1000, nnz(isLowLatPulse)));
+            h2 = plot(ax, t, highLatMean, 'r', 'LineWidth', 2, 'DisplayName', sprintf('Stim latency > %.2f ms (n = %i)', p.Results.CollisionCutoff * 1000, nnz(isHighLatPulse)));
+
+            lowLatStd = std(lowLatTraces, 0, 1);
+            highLatStd = std(highLatTraces, 0, 1);
+
+            percentiles = [1, 99];
+            lowLatPercentiles = prctile(lowLatTraces, percentiles, 1);
+            highLatPercentiles = prctile(highLatTraces, percentiles, 1);
+
+            % patch(ax, [t, flip(t)], [lowLatPercentiles(1, :), flip(lowLatPercentiles(2, :))], 'b',...
+            %     'FaceAlpha', 0.15, 'EdgeColor', 'none');
+            patch(ax, [t, flip(t)], [lowLatMean - lowLatStd, flip(lowLatMean + lowLatStd)], 'b',...
+                'FaceAlpha', 0.1, 'EdgeColor', 'none');
+            line(ax, t, [lowLatMean - lowLatStd; lowLatMean + lowLatStd], 'LineStyle', ':', 'Color', 'b');
+            % line(ax, t, lowLatPercentiles, 'LineStyle', ':', 'Color', 'b');
+
+            % patch(ax, [t, flip(t)], [highLatPercentiles(1, :), flip(highLatPercentiles(2, :))], 'r',...
+            %     'FaceAlpha', 0.15, 'EdgeColor', 'none');
+            patch(ax, [t, flip(t)], [highLatMean - highLatStd, flip(highLatMean + highLatStd)], 'r',...
+                'FaceAlpha', 0.1, 'EdgeColor', 'none');
+            line(ax, t, [highLatMean - highLatStd; highLatMean + highLatStd], 'LineStyle', ':', 'Color', 'r');
+            % line(ax, t, highLatPercentiles, 'LineStyle', ':', 'Color', 'r');
+
+            hold(ax, 'off')
+
+            legend([h1, h2])
+        end
     end
 
+    % Sorting/selecting pulses
     methods
         function varargout = sortPulses(obj, channel, unit, timeCutoff)
         %sortPulses - Sort pulses by last spontaneous spike time before stim on.
@@ -731,20 +830,43 @@ classdef CollisionTest < handle
             % Read unit spike timestamps relative to pulse on
             allSpikeTimes = obj.Spikes(channel).Units(unit).Timestamps;
 
-            lastPreStimSpikeTimes = zeros(length(obj.PulseOn), 1);
+            spikeToPulseLatency = zeros(length(obj.PulseOn), 1);
 
             for iPulse = 1:length(obj.PulseOn)
                 iLastSpike = find(allSpikeTimes <= obj.PulseOn(iPulse) + timeCutoff, 1, 'last');
                 if isempty(iLastSpike)
-                    lastPreStimSpikeTimes(iPulse) = 0;
+                    spikeToPulseLatency(iPulse) = Inf;
                 else
-                    lastPreStimSpikeTimes(iPulse) = allSpikeTimes(iLastSpike) - obj.PulseOn(iPulse);
+                    spikeToPulseLatency(iPulse) = obj.PulseOn(iPulse) - allSpikeTimes(iLastSpike);
                 end
             end
 
-            [sortedPulseOn, sortedPulseOrder] = sort(lastPreStimSpikeTimes, 'descend');
+            [sortedSpikeToPulseLatency, sortedPulseOrder] = sort(spikeToPulseLatency, 'ascend');
 
-            varargout = {sortedPulseOn, sortedPulseOrder}; 
+            varargout = {sortedSpikeToPulseLatency, sortedPulseOrder, spikeToPulseLatency}; 
+        end
+
+        function varargout = selectPulsesByDuration(obj, minDuration, maxDuration, varargin)
+            %selectPulses - Select a subset of stim pulses by stim duration in seconds.
+            % Syntax: [selectedPulseIndices, selectedPulseDurations] = selectPulsesByDuration(obj, minDuration = 0, maxDuration = Inf, 'Tolerance', 1e-4, 'PulseOrder', pulseOrder)
+            p = inputParser();
+            p.addRequired('MinDuration', @(x) isnumeric(x) && length(x) == 1);
+            p.addRequired('MaxDuration', @(x) isnumeric(x) && length(x) == 1);
+            p.addParameter('Tolerance', 1e-4, @(x) isnumeric(x) && length(x) == 1);
+            p.addParameter('PulseOrder', 1:length(obj.PulseOn), @(x) isnumeric(x) && length(x) == length(obj.PulseOn)); % Use to add a custom sort order, in which case return indices and durations are also sorted the same way.
+            p.parse(minDuration, maxDuration, varargin{:});
+            minDuration = p.Results.MinDuration;
+            maxDuration = p.Results.MaxDuration;
+            tolerance = p.Results.Tolerance;
+            pulseOrder = p.Results.PulseOrder;
+
+            pulseDuration = obj.PulseOff(pulseOrder) - obj.PulseOn(pulseOrder);
+            
+            selectedPulseIndices = (pulseDuration >= minDuration - tolerance) & (pulseDuration <= maxDuration + tolerance);
+            selectedPulseIndices = find(selectedPulseIndices);
+            selectedPulseDurations = pulseDuration(selectedPulseIndices);
+
+            varargout = {selectedPulseIndices, selectedPulseDurations};
         end
     end
 
