@@ -84,6 +84,7 @@ classdef CollisionTestUnitDesc < handle
             for i = 1:length(obj)
                 try
                     obj(i).CollisionTest.plot(obj(i).Channel, 'Units', obj(i).Unit, 'SortPulsesByUnit', obj(i).Unit, 'CollisionCutoff', latencyCuttoff, 'LimitPulseDuration', [1e-3, 1e-3]);
+                    suptitle(sprintf('%s Chn%d Unit%d (%d/%d)', obj(i).ExpName, obj(i).Channel, obj(i).Unit, i, length(obj)))                
                 catch ME
                     warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
                 end
