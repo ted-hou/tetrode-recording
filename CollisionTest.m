@@ -522,13 +522,11 @@ classdef CollisionTest < handle
                 channel = obj.Spikes(1).Channel;
             end
 
-            trChannel = channel;
-
             % Sort pulses by last spikeTime before pulse on
             sortPulsesByUnit = p.Results.SortPulsesByUnit;
             sortPulsesByUnitTimeCutoff = p.Results.SortPulsesByUnitTimeCutoff;
             if ~isnan(sortPulsesByUnit)
-                [~, pulseOrder, spikeToPulseLatency] = obj.sortPulses(trChannel, sortPulsesByUnit, sortPulsesByUnitTimeCutoff);
+                [~, pulseOrder, spikeToPulseLatency] = obj.sortPulses(channel, sortPulsesByUnit, sortPulsesByUnitTimeCutoff);
             else
                 pulseOrder = 1:length(obj.PulseOn);
             end
@@ -536,13 +534,16 @@ classdef CollisionTest < handle
             % Selected Pulses by duration
             [pulseOrder, ~] = obj.selectPulsesByDuration(p.Results.LimitPulseDuration(1), p.Results.LimitPulseDuration(end), 'Tolerance', p.Results.LimitPulseDurationTolerance, 'PulseOrder', pulseOrder);
 
-            if ~isnan(sortPulsesByUnit)
-                obj.plotMeanByCollision(p, spikeToPulseLatency, pulseOrder);
-            end
+            % Figure layout
+            xSpacing = 0.05;
+            ySpacing = 0.075;
 
             % Create figure
-            fig = figure('Units', 'normalized', 'OuterPosition', [0, 0, 0.5, 1]);
-            ax = axes(fig);
+            fig = figure('Units', 'normalized', 'OuterPosition', [0, 0.05, 1, 0.95]);
+            ax = axes(fig, 'Units', 'normalized', 'Position', [xSpacing, ySpacing, 0.5 - 2 * xSpacing, 1 - 2 * ySpacing], 'Tag', 'Raster');
+            ax2 = axes(fig, 'Units', 'normalized', 'Position', [0.5 + xSpacing, 0.67 + ySpacing, 0.25 - 2 * xSpacing, 0.33 - 2 * ySpacing]);
+            ax3 = axes(fig, 'Units', 'normalized', 'Position', [0.5 + xSpacing, 0.33 + ySpacing, 0.5 -  2 * xSpacing, 0.33 - 2 * ySpacing]);
+
             ax.YDir = 'reverse';
             grid(ax, 'on');
             hold(ax, 'on');
@@ -550,6 +551,7 @@ classdef CollisionTest < handle
 
             xlabel(ax, 'Time from stim on (ms)')
             ylabel(ax, 'Trial number + Normalized voltage (a.u.)')
+
 
             % Plot the first page
             obj.updatePlot(ax, p, p.Results.Start, pulseOrder);
@@ -559,32 +561,12 @@ classdef CollisionTest < handle
             fig.WindowScrollWheelFcn    = {@obj.onWindowKeyPress, p, pulseOrder};
 
             % Plot unit mean waveforms
-            fig2 = figure('Units', 'normalized', 'OuterPosition', [0.5, 0.67, 0.25, 0.33]);
-            ax2 = axes(fig2);
-            xlabel(ax2, 'Time (ms)')
-            ylabel(ax2, 'Voltage (mV)')
-            title(ax2, sprintf('%s Chn %i', obj.ExpName, trChannel), 'Interpreter', 'none')
-            hold(ax2, 'on')
+            obj.plotWaveforms(ax2, channel);
 
-            channel = obj.mapChannels(channel, 'From', 'TR', 'To', 'Data');
-
-            t = obj.Spikes(channel).WaveformTimestamps;
-
-            colors = 'rgbcmyk';
-
-            for iUnit = 1:length(obj.Spikes(channel).Units)
-                thisColor = colors(iUnit);
-                Waveform = obj.Spikes(channel).Units(iUnit).Waveform;
-                line(ax2, t, Waveform.Mean, 'LineStyle', '-', 'Color', thisColor);
-                patch(ax2, [t, flip(t)], [Waveform.Percentile05, flip(Waveform.Percentile95)], thisColor,...
-                    'FaceAlpha', 0.15, 'EdgeColor', 'none');
-                patch(ax2, [t, flip(t)], [Waveform.Mean - Waveform.STD, flip(Waveform.Mean + Waveform.STD)], thisColor,...
-                    'FaceAlpha', 0.4, 'EdgeColor', 'none');
-                line(ax2, t, [Waveform.Mean - Waveform.STD; Waveform.Mean + Waveform.STD], 'LineStyle', '--', 'Color', thisColor);
-                line(ax2, t, [Waveform.Percentile05; Waveform.Percentile95], 'LineStyle', ':', 'Color', thisColor);
+            % Plot mean traces by collision windows
+            if ~isnan(sortPulsesByUnit)
+                obj.plotMeanByCollision(ax3, p, spikeToPulseLatency, pulseOrder);
             end
-
-            figure(fig);
         end
     end
 
@@ -622,7 +604,7 @@ classdef CollisionTest < handle
                 return
             end
 
-            ax = fig.findobj('Type', 'axes');
+            ax = fig.findobj('Type', 'axes', 'Tag', 'Raster');
 
             if strcmp(direction, 'down')
                 startTrace = min(ax.UserData.StartTrace + turbo * p.Results.TracesPerPage, length(pulseOrder));
@@ -729,7 +711,7 @@ classdef CollisionTest < handle
             title(ax, sprintf('%s Chn%d (Pulses %d - %d)', obj.ExpName, trChannel, iPulse - iPulseInPage + 1, iPulse), 'Interpreter', 'none')
         end
 
-        function plotMeanByCollision(obj, p, spikeToPulseLatency, pulseOrder)
+        function plotMeanByCollision(obj, ax, p, spikeToPulseLatency, pulseOrder)
             trChannel = p.Results.Channel;
             channel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Data');
 
@@ -774,8 +756,6 @@ classdef CollisionTest < handle
             t = 1000 * t / obj.SampleRate;
 
             % Plot mean traces of potential collision trials vs. regular trials.
-            fig = figure('Units', 'normalized', 'OuterPosition', [0.5, 0.33, 0.5, 0.33]);
-            ax = axes(fig);
             hold(ax, 'on')
             xlabel(ax, 'Time from stim on (ms)')
             ylabel(ax, 'Mean voltage (mV)')
@@ -794,6 +774,34 @@ classdef CollisionTest < handle
             hold(ax, 'off')
 
             legend(h)
+        end
+
+        function plotWaveforms(obj, ax, channel)
+            trChannel = channel;
+            channel = obj.mapChannels(channel, 'From', 'TR', 'To', 'Data');
+
+            xlabel(ax, 'Time (ms)')
+            ylabel(ax, 'Voltage (mV)')
+            title(ax, sprintf('%s Chn %i', obj.ExpName, trChannel), 'Interpreter', 'none')
+            hold(ax, 'on')
+
+            t = obj.Spikes(channel).WaveformTimestamps;
+
+            colors = 'rgbcmyk';
+
+            for iUnit = 1:length(obj.Spikes(channel).Units)
+                thisColor = colors(iUnit);
+                Waveform = obj.Spikes(channel).Units(iUnit).Waveform;
+                line(ax, t, Waveform.Mean, 'LineStyle', '-', 'Color', thisColor);
+                patch(ax, [t, flip(t)], [Waveform.Percentile05, flip(Waveform.Percentile95)], thisColor,...
+                    'FaceAlpha', 0.15, 'EdgeColor', 'none');
+                patch(ax, [t, flip(t)], [Waveform.Mean - Waveform.STD, flip(Waveform.Mean + Waveform.STD)], thisColor,...
+                    'FaceAlpha', 0.4, 'EdgeColor', 'none');
+                line(ax, t, [Waveform.Mean - Waveform.STD; Waveform.Mean + Waveform.STD], 'LineStyle', '--', 'Color', thisColor);
+                line(ax, t, [Waveform.Percentile05; Waveform.Percentile95], 'LineStyle', ':', 'Color', thisColor);
+            end
+
+            hold(ax, 'off')
         end
     end
 
