@@ -792,7 +792,8 @@ classdef CollisionTest < handle
             for iUnit = 1:length(obj.Spikes(channel).Units)
                 thisColor = colors(iUnit);
                 Waveform = obj.Spikes(channel).Units(iUnit).Waveform;
-                line(ax, t, Waveform.Mean, 'LineStyle', '-', 'Color', thisColor);
+                spikeRate = obj.getSpikeRate(trChannel, iUnit);
+                h(iUnit) = line(ax, t, Waveform.Mean, 'LineStyle', '-', 'Color', thisColor, 'DisplayName', sprintf('%.0f sp/s', spikeRate));
                 patch(ax, [t, flip(t)], [Waveform.Percentile05, flip(Waveform.Percentile95)], thisColor,...
                     'FaceAlpha', 0.15, 'EdgeColor', 'none');
                 patch(ax, [t, flip(t)], [Waveform.Mean - Waveform.STD, flip(Waveform.Mean + Waveform.STD)], thisColor,...
@@ -800,6 +801,8 @@ classdef CollisionTest < handle
                 line(ax, t, [Waveform.Mean - Waveform.STD; Waveform.Mean + Waveform.STD], 'LineStyle', '--', 'Color', thisColor);
                 line(ax, t, [Waveform.Percentile05; Waveform.Percentile95], 'LineStyle', ':', 'Color', thisColor);
             end
+
+            legend(h, 'Location', 'southwest')
 
             hold(ax, 'off')
         end
@@ -928,6 +931,12 @@ classdef CollisionTest < handle
     methods
         function unloadTR(obj)
             obj.TR = [];
+        end
+
+        function spikeRate = getSpikeRate(obj, channel, unit)
+            channel = obj.mapChannels(channel, 'From', 'TR', 'To', 'Data');
+            t = obj.Spikes(channel).Units(unit).Timestamps;
+            spikeRate = length(t) / (t(end) - t(1));
         end
     end
 end

@@ -10,6 +10,7 @@ classdef CollisionTestUnitDesc < handle
         HasTrueResponse = false
         HasAnyResponse = false
         Notes = ''
+        SpikeRate = NaN
     end
 
     properties
@@ -68,6 +69,8 @@ classdef CollisionTestUnitDesc < handle
                 obj(i).CollisionTest = ct(iUniqueFiles(i));
             end
 
+            obj.getSpikeRate();
+
             TetrodeRecording.RandomWords();
         end
 
@@ -88,6 +91,12 @@ classdef CollisionTestUnitDesc < handle
                 catch ME
                     warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
                 end
+            end
+        end
+
+        function getSpikeRate(obj)
+            for i = 1:length(obj)
+                obj(i).SpikeRate = obj(i).CollisionTest.getSpikeRate(obj(i).Channel, obj(i).Unit);
             end
         end
     end
