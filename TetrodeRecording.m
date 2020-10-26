@@ -2179,7 +2179,7 @@ classdef TetrodeRecording < handle
 			% Get spike timestamps
 			spikes 	= obj.Spikes(channel).Timestamps;
 			if ~isempty(clusters)
-				spikes 	= spikes(ismember(obj.Spikes(channel).Cluster.Classes, clusters));
+				spikes = spikes(ismember(obj.Spikes(channel).Cluster.Classes, clusters));
 			end
 
 			numTrials = length(event);
@@ -2195,9 +2195,9 @@ classdef TetrodeRecording < handle
 				spikeRate(iTrial, :) = thisSpikeRate;
 			end
 
-			spikeRate = mean(spikeRate, 1);
+			meanSpikeRate = mean(spikeRate, 1);
 
-			varargout = {spikeRate, centers, numTrials};
+			varargout = {meanSpikeRate, centers, numTrials, spikeRate, spikes, event, reference};
 		end
 
 		function varargout = PSTHistCounts(obj, channel, varargin)
@@ -4171,14 +4171,14 @@ classdef TetrodeRecording < handle
 
 						thisRefCluster = max(TR(iTr).Spikes(thisChannel).Cluster.Classes); % Use the last cluster is 'noise'/reference cluster
 						if press
-							[PETH(iPETH).Press, PETH(iPETH).Time, PETH(iPETH).NumTrialsPress] = TR(iTr).PETHistCounts(...
+							[PETH(iPETH).Press, PETH(iPETH).Time, PETH(iPETH).NumTrialsPress, PETH(iPETH).PressSingleTrial] = TR(iTr).PETHistCounts(...
 								thisChannel, 'Cluster', thisCluster,...
 								'Event', 'PressOn', 'Exclude', 'LickOn',...
 								'TrialLength', trialLength, 'ExtendedWindow', extendedWindow, 'SpikeRateWindow', spikeRateWindow,...
 								'MoveOnsetCorrection', pressOnsetCorrection{iTr});
 						end
 						if lick
-							[PETH(iPETH).Lick, ~, PETH(iPETH).NumTrialsLick] = TR(iTr).PETHistCounts(...
+							[PETH(iPETH).Lick, ~, PETH(iPETH).NumTrialsLick, PETH(iPETH).LickSingleTrial] = TR(iTr).PETHistCounts(...
 								thisChannel, 'Cluster', thisCluster,...
 								'Event', 'LickOn', 'Exclude', 'PressOn',...
 								'TrialLength', trialLength, 'ExtendedWindow', extendedWindow, 'SpikeRateWindow', spikeRateWindow);
