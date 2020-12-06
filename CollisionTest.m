@@ -15,7 +15,7 @@ classdef CollisionTest < handle
         SysInitDelay = 0
     end
 
-    properties (Transient)
+    properties (Transient, Access = {})
         TR
         PTR
     end
@@ -163,10 +163,12 @@ classdef CollisionTest < handle
             TetrodeRecording.RandomWords();
         end
 
-        function ct = load()
+        function ct = load(files)
         %Load - Load multiple ct files.
         %
-            files = uipickfiles('Prompt', 'Select (multiple) .mat files containing an CollisionTest object named "obj"', 'FilterSpec', '*.mat');
+            if nargin < 1
+                files = uipickfiles('Prompt', 'Select (multiple) .mat files containing an CollisionTest object named "obj"', 'FilterSpec', '*.mat');
+            end
 
             for iFile = 1:length(files)
                 S(iFile) = load(files{iFile}, 'obj');
@@ -175,32 +177,10 @@ classdef CollisionTest < handle
             ct = [S.obj];
             ct.removeEmptySpikes();
         end
-
-        function tr = fixMisaligned(tr, sysInitDelay)
-            if tr.FrequencyParameters.SysInitDelay.DataTrimmed
-                disp('Does not need trimming. Already did.')
-                return
-            end
-
-            if sysInitDelay > 0
-                for iChn = 1:length(tr.Spikes)
-                    if ~isempty(tr.Spikes(iChn).Channel)
-                        tr.Spikes(iChn).Timestamps = tr.Spikes(iChn).Timestamps - sysInitDelay;
-                    end
-                end
-                tr.FrequencyParameters.SysInitDelay.Duration = sysInitDelay;
-                tr.FrequencyParameters.SysInitDelay.DataTrimmed = true;
-                disp(['Removed data in the first ', num2str(sysInitDelay), ' seconds'])
-            else
-                disp('Does not need fixing.');
-                return
-            end
-        end
     end
 
     % Private methods
-    % methods (Access = {})
-    methods
+    methods (Access = {})
         function read(obj, channels, maxTrains, extendedWindow)
         %read - Read data from tr/ptr/ns5 files.
         % Syntax: read(obj, varargin)
@@ -209,9 +189,6 @@ classdef CollisionTest < handle
             [obj.PulseOn, obj.PulseOff, obj.TrainOn, obj.TrainOff] = obj.readDigitalEvents();
             [obj.Data, obj.Timestamps, obj.SampleRate, obj.SysInitDelay] = readAnalogTrains(obj, channels, maxTrains, extendedWindow, obj.TrainOn, obj.TrainOff);
 
-
-
-            % obj.TR = CollisionTest.fixMisaligned(obj.TR, obj.SysInitDelay);
             obj.readSpikes();
             obj.removeEmptySpikes();
         end
@@ -228,6 +205,20 @@ classdef CollisionTest < handle
             [~, trainOff] = TetrodeRecording.FindLastInTrial(cueOn, pulseOff);
             
             varargout = {pulseOn, pulseOff, trainOn, trainOff};
+        end
+
+        function sysInitDelay = getSysInitDelay(obj)
+            NSx = openNSx(obj.Filename.NSx, 'read', 'channels', 1, 'duration', [0, 20], 'sec');
+            sampleRate = obj.SampleRate;
+            if iscell(NSx.Data)
+                if length(NSx.Data) == 2
+                    sysInitDelay = size(NSx.Data{1}, 2) / sampleRate;
+                else
+                    error("NSx.Data is a cell array of length %d. This is not supported. It should be 2.", length(NSx.Data))
+                end
+            else
+                sysInitDelay = 0;
+            end
         end
 
         function [data, timestamps, sampleRate, sysInitDelay] = readAnalogTrains(obj, channels, maxTrains, extendedWindow, trainOn, trainOff)
@@ -261,16 +252,7 @@ classdef CollisionTest < handle
             %     sysInitDelay = 0;
             % end
 
-            NSx = openNSx(obj.Filename.NSx, 'read', 'channels', 1, 'duration', [0, 20], 'sec');
-            if iscell(NSx.Data)
-                if length(NSx.Data) == 2
-                    sysInitDelay = size(NSx.Data{1}, 2) / sampleRate;
-                else
-                    error("NSx.Data is a cell array of length %d. This is not supported. It should be 2.", length(NSx.Data))
-                end
-            else
-                sysInitDelay = 0;
-            end
+            sysInitDelay = obj.getSysInitDelay();
             
             tTic = tic();
             fprintf('Reading %d trains, %d channels...', length(trainOn), length(channels));
@@ -509,25 +491,60 @@ classdef CollisionTest < handle
         %   Press Down arrow key/Mouse wheel down to go to next page.
         %   Press Up arrow key/Mouse wheel up to go to previous page.
         %   Shift/Alt + Up/Down arrow keys to speed up.
-
-            if isempty(channel)
-                channel = obj.Spikes(1).Channel;
-            end
-
             p = inputParser();
-            p.addRequired('Channel', @(x) isnumeric(x));
+            p.addRequired('Channel', @(x) isnumeric(x) || ischar(x));
             p.addParameter('Start', 1, @isnumeric);
             p.addParameter('TracesPerPage', 25, @isnumeric);
             p.addParameter('YLim', [-500, 500], @(x) isnumeric(x) && length(x) == 2 && diff(x) > 0);
             p.addParameter('XLim', obj.Window, @(x) isnumeric(x) && length(x) == 2 && diff(x) > 0);
             p.addParameter('YSpacing', 1, @(x) isnumeric(x) && length(x) == 1);
+            p.addParameter('Units', [], @isnumeric);
+            p.addParameter('OverlayUnitTraces', false, @islogical);
+            p.addParameter('SortPulsesByUnit', NaN, @(x) isnumeric(x) && length(x) == 1);
+            p.addParameter('SortPulsesByUnitTimeCutoff', 5e-4, @isnumeric);
+            p.addParameter('CollisionCutoff', 1e-3, @isnumeric);
+            p.addParameter('LimitPulseDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(end) >= x(1))
+            p.addParameter('LimitPulseDurationTolerance', 1e-4, @(x) isnumeric(x) && length(x) == 1)
             p.parse(channel, varargin{:})
             xRange = p.Results.XLim;
-            
+
+            if ischar(channel) && strcmpi(channel, 'all')
+                for iChn = [obj.Spikes.Channel]
+                    obj.plot(iChn, 'Start', p.Results.Start, 'TracesPerPage', p.Results.TracesPerPage, 'YLim', p.Results.YLim, 'XLim', p.Results.XLim,...
+                        'YSpacing', p.Results.YSpacing, 'Units', p.Results.Units, 'OverlayUnitTraces', p.Results.OverlayUnitTraces,...
+                        'SortPulsesByUnit', p.Results.SortPulsesByUnit, 'SortPulsesByUnitTimeCutoff', p.Results.SortPulsesByUnitTimeCutoff,...
+                        'CollisionCutoff', p.Results.CollisionCutoff, 'LimitPulseDuration', p.Results.LimitPulseDuration, 'LimitPulseDurationTolerance', p.Results.LimitPulseDurationTolerance);
+                end
+                return
+            end
+
+            if isempty(channel)
+                channel = obj.Spikes(1).Channel;
+            end
+
+            % Sort pulses by last spikeTime before pulse on
+            sortPulsesByUnit = p.Results.SortPulsesByUnit;
+            sortPulsesByUnitTimeCutoff = p.Results.SortPulsesByUnitTimeCutoff;
+            if ~isnan(sortPulsesByUnit)
+                [~, pulseOrder, spikeToPulseLatency] = obj.sortPulses(channel, sortPulsesByUnit, sortPulsesByUnitTimeCutoff);
+            else
+                pulseOrder = 1:length(obj.PulseOn);
+            end
+
+            % Selected Pulses by duration
+            [pulseOrder, ~] = obj.selectPulsesByDuration(p.Results.LimitPulseDuration(1), p.Results.LimitPulseDuration(end), 'Tolerance', p.Results.LimitPulseDurationTolerance, 'PulseOrder', pulseOrder);
+
+            % Figure layout
+            xSpacing = 0.05;
+            ySpacing = 0.075;
+
             % Create figure
-            fig = figure(); 
-            ax = axes(fig);
-            % ax.YDir = 'reverse';
+            fig = figure('Units', 'normalized', 'OuterPosition', [0, 0.05, 1, 0.95]);
+            ax = axes(fig, 'Units', 'normalized', 'Position', [xSpacing, ySpacing, 0.5 - 2 * xSpacing, 1 - 2 * ySpacing], 'Tag', 'Raster');
+            ax2 = axes(fig, 'Units', 'normalized', 'Position', [0.5 + xSpacing, 0.67 + ySpacing, 0.25 - 2 * xSpacing, 0.33 - 2 * ySpacing]);
+            ax3 = axes(fig, 'Units', 'normalized', 'Position', [0.5 + xSpacing, 0.33 + ySpacing, 0.5 -  2 * xSpacing, 0.33 - 2 * ySpacing]);
+
+            ax.YDir = 'reverse';
             grid(ax, 'on');
             hold(ax, 'on');
             xlim(ax, xRange);
@@ -535,42 +552,27 @@ classdef CollisionTest < handle
             xlabel(ax, 'Time from stim on (ms)')
             ylabel(ax, 'Trial number + Normalized voltage (a.u.)')
 
+
             % Plot the first page
-            obj.updatePlot(ax, p, p.Results.Start);
+            obj.updatePlot(ax, p, p.Results.Start, pulseOrder);
 
             % Keypress listeners for updating the plot.
-            fig.WindowKeyPressFcn       = {@obj.onWindowKeyPress, p};
-            fig.WindowScrollWheelFcn    = {@obj.onWindowKeyPress, p};
+            fig.WindowKeyPressFcn       = {@obj.onWindowKeyPress, p, pulseOrder};
+            fig.WindowScrollWheelFcn    = {@obj.onWindowKeyPress, p, pulseOrder};
 
             % Plot unit mean waveforms
-            fig2 = figure();
-            ax2 = axes(fig2);
-            xlabel(ax2, 'Time (ms)')
-            ylabel(ax2, 'Voltage (mV)')
-            hold(ax2, 'on')
+            obj.plotWaveforms(ax2, channel);
 
-            channel = obj.mapChannels(channel, 'From', 'TR', 'To', 'Data');
-
-            t = obj.Spikes(channel).WaveformTimestamps;
-
-            colors = 'rgbcmyk';
-
-            for iUnit = 1:length(obj.Spikes(channel).Units)
-                thisColor = colors(iUnit);
-                Waveform = obj.Spikes(channel).Units(iUnit).Waveform;
-                line(ax2, t, Waveform.Mean, 'LineStyle', '-', 'Color', thisColor);
-                patch(ax2, [t, flip(t)], [Waveform.Percentile05, flip(Waveform.Percentile95)], thisColor,...
-                    'FaceAlpha', 0.15, 'EdgeColor', 'none');
-                patch(ax2, [t, flip(t)], [Waveform.Mean - Waveform.STD, flip(Waveform.Mean + Waveform.STD)], thisColor,...
-                    'FaceAlpha', 0.4, 'EdgeColor', 'none');
-                line(ax2, t, [Waveform.Mean - Waveform.STD; Waveform.Mean + Waveform.STD], 'LineStyle', '--', 'Color', thisColor);
-                line(ax2, t, [Waveform.Percentile05; Waveform.Percentile95], 'LineStyle', ':', 'Color', thisColor);
+            % Plot mean traces by collision windows
+            if ~isnan(sortPulsesByUnit)
+                obj.plotMeanByCollision(ax3, p, spikeToPulseLatency, pulseOrder);
             end
         end
     end
 
+    % Plotting, private
     methods (Access = {})
-        function onWindowKeyPress(obj, fig, event, p)
+        function onWindowKeyPress(obj, fig, event, p, pulseOrder)
             if isa(event, 'matlab.ui.eventdata.ScrollWheelData')
                 if (event.VerticalScrollCount < 0)
                     direction = 'up';
@@ -602,21 +604,23 @@ classdef CollisionTest < handle
                 return
             end
 
-            ax = fig.findobj('Type', 'axes');
+            ax = fig.findobj('Type', 'axes', 'Tag', 'Raster');
 
             if strcmp(direction, 'down')
-                startTrace = min(ax.UserData.StartTrace + turbo * p.Results.TracesPerPage, length(obj.PulseOn));
+                startTrace = min(ax.UserData.StartTrace + turbo * p.Results.TracesPerPage, length(pulseOrder));
             elseif strcmpi(direction, 'up')
                 startTrace = max(ax.UserData.StartTrace - turbo * p.Results.TracesPerPage, 1);
             else
                 return
             end
 
-            obj.updatePlot(ax, p, startTrace);
+            obj.updatePlot(ax, p, startTrace, pulseOrder);
         end
 
-        function updatePlot(obj, ax, p, startTrace)
+        function updatePlot(obj, ax, p, startTrace, pulseOrder)
             trChannel = p.Results.Channel;
+            pulseOn = obj.PulseOn(pulseOrder);
+            pulseOff = obj.PulseOff(pulseOrder);
             channel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Data');
 
             tracesPerPage = p.Results.TracesPerPage;
@@ -631,56 +635,308 @@ classdef CollisionTest < handle
             plotWindow = 0.001 * obj.Window;
 
             % Normalize voltage data and align to stimOnsetTime;
-            for iPulse = startTrace:startTrace + tracesPerPage
+            for iPulse = startTrace:startTrace + tracesPerPage - 1
 
                 iPulseInPage = iPulse - startTrace + 1;
 
-                isInPlotWindow = obj.Timestamps > obj.PulseOn(iPulse) + plotWindow(1) & obj.Timestamps <= obj.PulseOn(iPulse) + plotWindow(2);
+                isInPlotWindow = obj.Timestamps > pulseOn(iPulse) + plotWindow(1) & obj.Timestamps <= pulseOn(iPulse) + plotWindow(2);
                 pulseData = obj.Data(isInPlotWindow, channel);
                 pulseTimestamps = obj.Timestamps(isInPlotWindow);
 
                 % Normalize voltage to yRange.
-                y = (pulseData - yRange(1)) ./ diff(yRange) + iPulse * ySpacing - 0.5;
+                y = -(pulseData - yRange(1)) ./ diff(yRange) + iPulse * ySpacing + 0.5;
                 
                 % Align time to stimOn
-                t = 1000 * (pulseTimestamps - obj.PulseOn(iPulse));
+                t = 1000 * (pulseTimestamps - pulseOn(iPulse));
 
                 % Plot trace
                 plot(ax, t, y, 'k');
 
                 % Plot stim window
                 stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 0;
-                stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1];
-                stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 1000 * (obj.PulseOff(iPulse) - obj.PulseOn(iPulse));
-                stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1];
+                stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1] - 0.5;
+                stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 1000 * (pulseOff(iPulse) - pulseOn(iPulse));
+                stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1] - 0.5;
 
                 colors = 'rgbcmyk';
 
                 % Plot sorted spike timestamps
-                numUnits = max(1, length(obj.Spikes(channel).Units));
-                for iUnit = 1:numUnits
+                units = p.Results.Units;
+                if isempty(units)
+                    units = 1:max(1, length(obj.Spikes(channel).Units) - 1);
+                end
+                for iUnit = units
                     unitTimestamps = obj.Spikes(channel).Units(iUnit).Timestamps;
-                    isInPlotWindow = unitTimestamps > obj.PulseOn(iPulse) + plotWindow(1) & unitTimestamps <= obj.PulseOn(iPulse) + plotWindow(2);
-                    t = 1000 * (unitTimestamps(isInPlotWindow) - obj.PulseOn(iPulse));
+                    isInPlotWindow = unitTimestamps > pulseOn(iPulse) + plotWindow(1) & unitTimestamps <= pulseOn(iPulse) + plotWindow(2);
+                    t = 1000 * (unitTimestamps(isInPlotWindow) - pulseOn(iPulse));
                     y = repmat(iPulse * ySpacing, [nnz(isInPlotWindow), 1]);
-                    plot(t, y, sprintf('%so', colors(iUnit)));
+                    plot(ax, t, y, sprintf('%so', colors(iUnit)), 'MarkerSize', 20);
+
+                    if p.Results.OverlayUnitTraces
+                        if isempty(obj.TR)
+                            obj.readTR();
+                        end
+
+                        trTimestamps = obj.TR.Spikes(trChannel).Timestamps;
+                        isInPlotWindow = trTimestamps > pulseOn(iPulse) + plotWindow(1) & trTimestamps <= pulseOn(iPulse) + plotWindow(2);
+
+                        iSelWaveforms = find(isInPlotWindow);
+
+                        for iWave = iSelWaveforms
+                            t = 1000 * (trTimestamps(iWave) - pulseOn(iPulse)) + obj.TR.Spikes(trChannel).WaveformTimestamps;
+                            y = obj.TR.Spikes(trChannel).Waveforms(iWave, :);
+                            y = -(y - yRange(1)) ./ diff(yRange) + iPulse * ySpacing + 0.5;
+                            iCluster = obj.TR.Spikes(trChannel).Cluster.Classes(iWave);
+                            if ismember(iCluster, units)
+                                thisColor = colors(iCluster);
+                                plot(ax, t, y, 'Color', thisColor, 'LineWidth', 1.5);
+                            end
+                        end
+
+                        obj.TR.Spikes(trChannel);
+
+                    end
                 end
 
-                if iPulse >= length(obj.PulseOn)
+                if iPulse >= length(pulseOrder)
                     break
                 end
             end
 
             % Page done
             stimPatchVertices = vertcat(stimOnVertices, stimOffVertices(end:-1:1, :));
-            patch('XData', stimPatchVertices(:, 1), 'YData', stimPatchVertices(:, 2), 'FaceColor', [77, 190, 238] / 255, 'FaceAlpha', 0.33, 'EdgeAlpha', 0);
-            ylim([(iPulse - iPulseInPage + 1) * ySpacing - 1, iPulse * ySpacing])
-            yticks(ax, ax.YLim(1) + 1:5:ax.YLim(2)) 
+            patch(ax, 'XData', stimPatchVertices(:, 1), 'YData', stimPatchVertices(:, 2), 'FaceColor', [77, 190, 238] / 255, 'FaceAlpha', 0.33, 'EdgeAlpha', 0);
+            ylim(ax, [(iPulse - iPulseInPage + 1) * ySpacing - .5, iPulse * ySpacing + .5])
+            yticks(ax, startTrace:5:startTrace + tracesPerPage - 1) 
             title(ax, sprintf('%s Chn%d (Pulses %d - %d)', obj.ExpName, trChannel, iPulse - iPulseInPage + 1, iPulse), 'Interpreter', 'none')
         end
 
-        function plotUnitWaveform(obj, ax, channel)
+        function plotMeanByCollision(obj, ax, p, spikeToPulseLatency, pulseOrder)
+            trChannel = p.Results.Channel;
+            channel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Data');
+
+            plotWindow = 0.001 * obj.Window(2);
+            numSamples = ceil(plotWindow * obj.SampleRate);
+
+            % Sorted/duration-selected versions of things
+            spikeToPulseLatency = spikeToPulseLatency(pulseOrder);
+            pulseOn = obj.PulseOn(pulseOrder);
             
+            % Group pulses by latency
+            latencyEdges = unique([min(spikeToPulseLatency), sort(p.Results.CollisionCutoff), max(spikeToPulseLatency)]);
+            [numTracesPerBin, ~, bin] = histcounts(spikeToPulseLatency, latencyEdges);
+            
+            % Pre-allocate bins
+            uniqueBins = reshape(unique(bin), 1, []);
+            for iBin = uniqueBins % This skips empty bins
+                Bin(iBin).Traces = NaN(numTracesPerBin(iBin), numSamples); % Preallocate
+                Bin(iBin).NumTraces = 0;
+            end
+
+            % Group pulses by bin
+            for iTrace = 1:length(pulseOn)
+                iBin = bin(iTrace);
+
+                iSampleStart = find(obj.Timestamps >= pulseOn(iTrace), 1, 'first');
+                selSamples = iSampleStart : iSampleStart + numSamples - 1;
+
+                Bin(iBin).Traces(Bin(iBin).NumTraces + 1, :) = obj.Data(selSamples, channel);
+                Bin(iBin).NumTraces = Bin(iBin).NumTraces + 1;
+            end
+
+            % For each bin, calculate mean trace, std, prctile(5, 95)
+            for iBin = uniqueBins
+                Bin(iBin).Mean = nanmean(Bin(iBin).Traces, 1);
+                Bin(iBin).Std = nanstd(Bin(iBin).Traces, 0, 1);
+                Bin(iBin).Percentiles = prctile(Bin(iBin).Traces, [5, 95], 1);
+            end
+
+            % Common timestamps for all traces
+            t = 0:numSamples - 1;
+            t = 1000 * t / obj.SampleRate;
+
+            % Plot mean traces of potential collision trials vs. regular trials.
+            hold(ax, 'on')
+            xlabel(ax, 'Time from stim on (ms)')
+            ylabel(ax, 'Mean voltage (mV)')
+            title(ax, sprintf('%s Chn %i, Unit %i', obj.ExpName, trChannel, p.Results.SortPulsesByUnit), 'Interpreter', 'none')
+            colors = 'rgbcmyk';
+
+            for i = 1:length(uniqueBins)
+                iBin = uniqueBins(i);
+                h(i) = plot(ax, t, Bin(iBin).Mean, colors(i), 'LineWidth', 2, 'DisplayName', sprintf('StimLatency \\in [%.1f, %.1f) ms (n = %d)', 1000 * latencyEdges(iBin), 1000 * latencyEdges(iBin + 1), numTracesPerBin(iBin)));
+                patch(ax, [t, flip(t)], [Bin(iBin).Mean - Bin(iBin).Std, flip(Bin(iBin).Mean + Bin(iBin).Std)], colors(i),...
+                    'FaceAlpha', .1, 'EdgeColor', colors(i), 'LineStyle', 'none');
+                % patch(ax, [t, flip(t)], [Bin(iBin).Percentiles(1, :), flip(Bin(iBin).Percentiles(2, :))], colors(i),...
+                %     'FaceAlpha', .1, 'EdgeColor', colors(i), 'LineStyle', ':');
+            end
+
+            hold(ax, 'off')
+
+            legend(h)
+        end
+
+        function plotWaveforms(obj, ax, channel)
+            trChannel = channel;
+            channel = obj.mapChannels(channel, 'From', 'TR', 'To', 'Data');
+
+            xlabel(ax, 'Time (ms)')
+            ylabel(ax, 'Voltage (mV)')
+            title(ax, sprintf('%s Chn %i', obj.ExpName, trChannel), 'Interpreter', 'none')
+            hold(ax, 'on')
+
+            t = obj.Spikes(channel).WaveformTimestamps;
+
+            colors = 'rgbcmyk';
+
+            for iUnit = 1:length(obj.Spikes(channel).Units)
+                thisColor = colors(iUnit);
+                Waveform = obj.Spikes(channel).Units(iUnit).Waveform;
+                spikeRate = obj.getSpikeRate(trChannel, iUnit);
+                h(iUnit) = line(ax, t, Waveform.Mean, 'LineStyle', '-', 'Color', thisColor, 'DisplayName', sprintf('%.0f sp/s', spikeRate));
+                patch(ax, [t, flip(t)], [Waveform.Percentile05, flip(Waveform.Percentile95)], thisColor,...
+                    'FaceAlpha', 0.15, 'EdgeColor', 'none');
+                patch(ax, [t, flip(t)], [Waveform.Mean - Waveform.STD, flip(Waveform.Mean + Waveform.STD)], thisColor,...
+                    'FaceAlpha', 0.4, 'EdgeColor', 'none');
+                line(ax, t, [Waveform.Mean - Waveform.STD; Waveform.Mean + Waveform.STD], 'LineStyle', '--', 'Color', thisColor);
+                line(ax, t, [Waveform.Percentile05; Waveform.Percentile95], 'LineStyle', ':', 'Color', thisColor);
+            end
+
+            legend(h, 'Location', 'southwest')
+
+            hold(ax, 'off')
+        end
+    end
+
+    % Sorting/selecting pulses
+    methods
+        function varargout = sortPulses(obj, channel, unit, timeCutoff)
+        %sortPulses - Sort pulses by last spontaneous spike time before stim on.
+        % Syntax: output = sortPulses(obj)
+            p = inputParser();
+            p.addRequired('Channel', @(x) isnumeric(x) && length(x) == 1);
+            p.addOptional('Unit', 1, @(x) isnumeric(x) && length(x) == 1);
+            p.addOptional('TimeCutoff', 5e-4, @(x) isnumeric(x) && length(x) == 1);
+            p.parse(channel, unit, timeCutoff);
+            channel = p.Results.Channel;
+            unit = p.Results.Unit;
+            timeCutoff = p.Results.TimeCutoff;
+
+            % Map channel labels to data
+            trChannel = channel;
+            channel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Data');
+
+            % Read unit spike timestamps relative to pulse on
+            allSpikeTimes = obj.Spikes(channel).Units(unit).Timestamps;
+
+            spikeToPulseLatency = zeros(length(obj.PulseOn), 1);
+
+            for iPulse = 1:length(obj.PulseOn)
+                iLastSpike = find(allSpikeTimes <= obj.PulseOn(iPulse) + timeCutoff, 1, 'last');
+                if isempty(iLastSpike)
+                    spikeToPulseLatency(iPulse) = Inf;
+                else
+                    spikeToPulseLatency(iPulse) = obj.PulseOn(iPulse) - allSpikeTimes(iLastSpike);
+                end
+            end
+
+            [sortedSpikeToPulseLatency, sortedPulseOrder] = sort(spikeToPulseLatency, 'ascend');
+
+            varargout = {sortedSpikeToPulseLatency, sortedPulseOrder, spikeToPulseLatency}; 
+        end
+
+        function varargout = selectPulsesByDuration(obj, minDuration, maxDuration, varargin)
+            %selectPulses - Select a subset of stim pulses by stim duration in seconds.
+            % Syntax: [selectedPulseIndices, selectedPulseDurations] = selectPulsesByDuration(obj, minDuration = 0, maxDuration = Inf, 'Tolerance', 1e-4, 'PulseOrder', pulseOrder)
+            p = inputParser();
+            p.addRequired('MinDuration', @(x) isnumeric(x) && length(x) == 1);
+            p.addRequired('MaxDuration', @(x) isnumeric(x) && length(x) == 1);
+            p.addParameter('Tolerance', 1e-4, @(x) isnumeric(x) && length(x) == 1);
+            p.addParameter('PulseOrder', 1:length(obj.PulseOn), @(x) isnumeric(x) && length(x) == length(obj.PulseOn)); % Use to add a custom sort order, in which case return indices and durations are also sorted the same way.
+            p.parse(minDuration, maxDuration, varargin{:});
+            minDuration = p.Results.MinDuration;
+            maxDuration = p.Results.MaxDuration;
+            tolerance = p.Results.Tolerance;
+            pulseOrder = p.Results.PulseOrder;
+
+            pulseDuration = obj.PulseOff(pulseOrder) - obj.PulseOn(pulseOrder);
+            
+            selectedPulseIndices = (pulseDuration >= minDuration - tolerance) & (pulseDuration <= maxDuration + tolerance);
+            selectedPulseIndices = find(selectedPulseIndices);
+            selectedPulseDurations = pulseDuration(selectedPulseIndices);
+            selectedPulseIndices = pulseOrder(selectedPulseIndices);
+
+            varargout = {selectedPulseIndices, selectedPulseDurations};
+        end
+    end
+
+    %% Correction
+    % Deprecated. Not necessary.
+    methods (Static, Access = {})
+        function tr = fixMisaligned(tr, sysInitDelay)
+            if tr.FrequencyParameters.SysInitDelay.DataTrimmed
+                disp('Does not need trimming. Already did.')
+                return
+            end
+
+            if sysInitDelay > 0
+                for iChn = 1:length(tr.Spikes)
+                    if ~isempty(tr.Spikes(iChn).Channel)
+                        tr.Spikes(iChn).Timestamps = tr.Spikes(iChn).Timestamps - sysInitDelay;
+                    end
+                end
+                tr.FrequencyParameters.SysInitDelay.Duration = sysInitDelay;
+                tr.FrequencyParameters.SysInitDelay.DataTrimmed = true;
+                disp(['Removed data in the first ', num2str(sysInitDelay), ' seconds'])
+            else
+                disp('Does not need fixing.');
+                return
+            end
+        end
+    end
+
+    methods
+        % Use to undo deprecated tr = fixMisaligned(tr) call
+        function undoFixMisaligned(obj, direction, varargin)
+            p = inputParser();
+            p.addOptional('Direction', 'Add', @ischar);
+            p.parse(direction, varargin{:});
+            direction = p.Results.Direction;
+
+            switch lower(direction)
+                case 'add'
+                    direction = 1;
+                case 'substract'
+                    direction = -1;
+            end
+                    
+
+            for iObj = 1:length(obj)
+                sysInitDelay = obj(iObj).getSysInitDelay();
+
+                if sysInitDelay > 0
+                    for iChn = 1:length(obj(iObj).Spikes)
+                        for iUnit = 1:length(obj(iObj).Spikes(iChn).Units)
+                            obj(iObj).Spikes(iChn).Units(iUnit).Timestamps = obj(iObj).Spikes(iChn).Units(iUnit).Timestamps + direction * sysInitDelay;
+                        end
+                    end
+                end
+            end
+
+            fprintf(1, 'Spike timestamps shifted by %f seconds.', direction * sysInitDelay)
+        end
+    end
+
+    %% Misc
+    methods
+        function unloadTR(obj)
+            obj.TR = [];
+        end
+
+        function spikeRate = getSpikeRate(obj, channel, unit)
+            channel = obj.mapChannels(channel, 'From', 'TR', 'To', 'Data');
+            t = obj.Spikes(channel).Units(unit).Timestamps;
+            spikeRate = length(t) / (t(end) - t(1));
         end
     end
 end
