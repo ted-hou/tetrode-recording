@@ -4511,6 +4511,140 @@ classdef TetrodeRecording < handle
 			set([hAxesPress, hAxesStim], 'YTick', unique([1:25:sum(selectedPress), sum(selectedPress)]))
 			set([hAxesPress, hAxesStim], 'YTickMode', 'manual')
 			set([hAxesPress, hAxesStim], 'YDir', 'reverse')
+        end
+
+        % Ignoring stim pattern, only plot the first stim.
+		function varargout = HeatMapStimSimple(PETH, varargin)
+			p = inputParser;
+			addParameter(p, 'MinNumTrials', 50, @isnumeric);
+			addParameter(p, 'MinSpikeRate', 15, @isnumeric);
+			addParameter(p, 'Sorting', 'latency', @ischar); % abs, gradient, latency, none
+			addParameter(p, 'LatencyThreshold', 0.675, @isnumeric);
+			addParameter(p, 'Normalization', 'zscore', @ischar); % zscore, minmax, raw
+			addParameter(p, 'NormalizationBaselineWindow', [-PETH(1).TrialLength, PETH(1).ExtendedWindow], @(x) isnumeric(x) && length(x) == 2); % Extend window after event
+			addParameter(p, 'NormalizationStim', 'zscore', @ischar); % zscore, minmax, raw
+			addParameter(p, 'NormalizationBaselineWindowStim', [-1, 0], @(x) isnumeric(x) && length(x) == 2); % Window relative to `On
+			addParameter(p, 'Window', [-PETH(1).TrialLength, PETH(1).ExtendedWindow], @(x) isnumeric(x) && length(x) == 2); % Basically XLim for Press PETH
+			addParameter(p, 'WindowStim', [-1, 0.1], @isnumeric);
+			addParameter(p, 'CLimStim', [-6, 6], @(x) isnumeric(x) || ischar(x));
+			addParameter(p, 'CLimPress', [-6, 6], @(x) isnumeric(x) || ischar(x));
+			parse(p, varargin{:});
+			minNumTrials 					= p.Results.MinNumTrials;
+			minSpikeRate 					= p.Results.MinSpikeRate;
+			sorting 						= p.Results.Sorting;
+			latencyThreshold				= p.Results.LatencyThreshold;
+			normalization 					= p.Results.Normalization;
+			normalizationBaselineWindow 	= p.Results.NormalizationBaselineWindow;
+			normalizationStim				= p.Results.NormalizationStim;
+			normalizationBaselineWindowStim = p.Results.NormalizationBaselineWindowStim;
+			windowPress						= p.Results.Window;
+			windowStim 						= p.Results.WindowStim;
+			cLimStim 						= p.Results.CLimStim;
+			cLimPress 						= p.Results.CLimPress;
+
+			numSubplots = 2;
+
+			fMargin = 0.05;
+			spacing = 0.005;
+			w = 1 - 2*fMargin - (numSubplots - 1)*spacing;
+			w1 = w/numSubplots;
+			h = 1 - 2*fMargin;
+
+			hFigure = figure('DefaultAxesFontSize', 14);
+			hAxesPress = subplot('Position', [fMargin, fMargin, w1, h]);
+			hAxesStim = subplot('Position', [fMargin + w1 + spacing, fMargin, w1, h]);
+
+			% First process PETH for press
+			timestampsPress = PETH(1).Time;
+			selectedPress 	= [PETH.NumTrialsPress] >= minNumTrials & cellfun(@mean, {PETH.Press}) > minSpikeRate;
+			pethPress = transpose(reshape([PETH(selectedPress).Press], length(timestampsPress), []));
+			inWindow = timestampsPress <= windowPress(2) & timestampsPress > windowPress(1);
+			timestampsPress = timestampsPress(inWindow);
+
+			% Normalize
+			baselineSamples = timestampsPress >= normalizationBaselineWindow(1) & timestampsPress <= normalizationBaselineWindow(2);
+			pethPress = TetrodeRecording.NormalizePETH(pethPress, 'Method', normalization, 'BaselineSamples', baselineSamples);
+
+			% Sort
+			[~, I] = TetrodeRecording.SortPETH(pethPress(:, inWindow), 'Method', sorting, 'LatencyThreshold', latencyThreshold);
+			pethPress = pethPress(I, :);
+
+			iBPL = find(selectedPress);
+			iBPL = iBPL(I);
+
+			varargout = {iBPL};
+
+			% Plot Press PETH
+			image(hAxesPress, pethPress(:, inWindow), 'CDataMapping','scaled');
+
+			colorbar('Peer', hAxesPress, 'Location', 'EastOutside');
+			if ~strcmpi('raw', normalization)
+				caxis(hAxesPress, cLimPress);
+			end
+			colormap(hAxesPress, 'jet')
+			set(hAxesPress, 'XTick', find(ismember(timestampsPress, -100:2:100)))
+			set(hAxesPress, 'XTickLabel', num2cell(timestampsPress(hAxesPress.XTick)))
+			title(hAxesPress, 'Lever Press')
+			ylabel(hAxesPress, 'Unit')
+			xlabel(hAxesPress, 'Time (Press = 0)')
+
+			% Plot PSTH for stim
+            % Calculate weighted average for all stim types.
+            Stim = PETH(1).Stim(1);
+            spikeRateWindowStim = (Stim.Timestamps(end) - Stim.Timestamps(1)) / (length(Stim.Timestamps) - 1);
+            numSamplesPSTH = round(diff(windowStim) / spikeRateWindowStim) + 1;
+            psth = zeros(sum(selectedPress), numSamplesPSTH);
+            psthNormalized = zeros(size(psth));
+            numTrains = zeros(sum(selectedPress), 1);
+            timestampsStim = zeros(size(psth));
+			for iPETH = find(selectedPress)
+                % Consolidate all stim types in to one PSTH.
+                for iStimType = 1:length(PETH(iPETH).Stim)
+                    Stim = PETH(iPETH).Stim(iStimType);
+                    inStimWindow = Stim.Timestamps >= windowStim(1) & Stim.Timestamps <= windowStim(2);
+                    psth(iPETH, :) = psth(iPETH, :) + Stim.NumTrains * Stim.SpikeRate(inStimWindow);
+                    
+                    % Normalize
+                    baselineSamplesStim = Stim.Timestamps >= normalizationBaselineWindowStim(1) & Stim.Timestamps <= normalizationBaselineWindowStim(2);
+                    normalizedSpikeRate = TetrodeRecording.NormalizePSTH(Stim.SpikeRate(inStimWindow), 'Method', normalizationStim, 'BaselineSamples', baselineSamplesStim);
+                    psthNormalized(iPETH, :) = psthNormalized(iPETH, :) + Stim.NumTrains * normalizedSpikeRate;
+                    
+                    % Timestamps
+                    timestampsStim(iPETH, :) = timestampsStim(iPETH, :) + Stim.NumTrains * Stim.Timestamps(inStimWindow);
+                end
+                numTrains(iPETH) = sum([PETH(iPETH).Stim.NumTrains]);
+                psth(iPETH, :) = psth(iPETH, :) ./ numTrains(iPETH);
+                psthNormalized(iPETH, :) = psthNormalized(iPETH, :) ./ numTrains(iPETH);
+                timestampsStim(iPETH, :) = timestampsStim(iPETH, :) ./ numTrains(iPETH);
+			end
+
+			% Plot this train, choo choo
+			% Plot
+			image(hAxesStim, psthNormalized(I, :), 'CDataMapping','scaled');
+
+			colorbar('Peer', hAxesStim, 'Location', 'EastOutside');
+			if ~strcmpi('raw', normalizationStim)
+				caxis(hAxesStim, cLimStim);
+			end
+			colormap(hAxesStim, 'jet')
+
+			xlabel(hAxesStim, 'Time (TrainOn = 0)')
+            timestampsStim = mean(timestampsStim, 1);
+            xtickPos = sort([find(timestampsStim == 0), round(linspace(1, numSamplesPSTH, 10))]);
+            xtickLabels = num2cell(timestampsStim(xtickPos));
+            set(hAxesStim, 'XTick', xtickPos)
+            set(hAxesStim, 'XTickLabel', xtickLabels)
+            
+            % Common formatting
+			set([hAxesPress, hAxesStim], 'XTickMode', 'manual')
+			set([hAxesPress, hAxesStim], 'XGrid', 'on')
+			set([hAxesPress, hAxesStim], 'GridAlpha', 1)
+			set(hAxesPress, 'GridColor', 'w')
+			set(hAxesStim, 'GridColor', 'g')
+			set([hAxesPress, hAxesStim], 'GridLineStyle', '--')
+			set([hAxesPress, hAxesStim], 'YTick', unique([1:25:sum(selectedPress), sum(selectedPress)]))
+			set([hAxesPress, hAxesStim], 'YTickMode', 'manual')
+			set([hAxesPress, hAxesStim], 'YDir', 'reverse')
 		end
 
 		function varargout = SortPETH(peth, varargin)
@@ -4551,7 +4685,7 @@ classdef TetrodeRecording < handle
 		function peth = NormalizePETH(peth, varargin)
 			p = inputParser;
 			addParameter(p, 'Method', 'zscore', @ischar); % zscore, minmax
-			addParameter(p, 'BaselineSamples', [], @isnumeric); % zscore, minmax
+			addParameter(p, 'BaselineSamples', [], @(x) isnumeric(x) || islogical(x)); % zscore, minmax
 			parse(p, varargin{:});
 			method = p.Results.Method;
 			samples = p.Results.BaselineSamples;
@@ -4578,7 +4712,7 @@ classdef TetrodeRecording < handle
 		function psth = NormalizePSTH(psth, varargin)
 			p = inputParser;
 			addParameter(p, 'Method', 'zscore', @ischar); % zscore, minmax
-			addParameter(p, 'BaselineSamples', [], @isnumeric);
+			addParameter(p, 'BaselineSamples', [], @(x) isnumeric(x) || islogical(x));
 			parse(p, varargin{:});
 			method = p.Results.Method;
 			samples = p.Results.BaselineSamples;

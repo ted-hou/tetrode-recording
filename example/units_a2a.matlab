@@ -49,7 +49,6 @@ batchPlotList = {...
 	'desmond20', 20201118, 8, 1;... % Big unit, very late on, slow inhibition maybe?
 
 	% Depth 4.44
-	'desmond20', 20201120, 2, 1;... % Medium unit, on, excitation
 	'desmond20', 20201201, 2, 1;... % Big unit, on, excitation
 	'desmond20', 20201201, 4, 1;... % Big unit, on, excitation
 	'desmond20', 20201201, 5, 1;... % Big unit, on, excitation
@@ -91,3 +90,37 @@ needsManualSorting = {...
 	'desmond20', 20201201, 4;..
 
 };
+
+% Generate PETH data struct
+expNames = cell(length(batchPlotList), 1);
+for iExp = 1:length(batchPlotList)
+	expNames{iExp} = [batchPlotList{iExp, 1}, '_', num2str(batchPlotList{iExp, 2})];
+end
+
+expNamesUnique = unique(expNames);
+
+for iTr = 1:length(expNamesUnique)
+	tr = TetrodeRecording.BatchLoad(expNamesUnique(iTr));
+	try
+		if iTr == 1;
+			PETH = TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'ExtendedWindow', 1, 'SpikeRateWindow', 100, 'ExtendedWindowStim', [-1, 1], 'SpikeRateWindowStim', 10, 'Press', true, 'Lick', false, 'Stim', true);
+		else
+			PETH = [PETH, TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'ExtendedWindow', 1, 'SpikeRateWindow', 100, 'ExtendedWindowStim', [-1, 1], 'SpikeRateWindowStim', 10, 'Press', true, 'Lick', false, 'Stim', true)];
+		end
+	catch ME
+		warning(['Error when processing iTr = ', num2str(iTr), ' - this one will be skipped.'])
+		warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
+	end
+end
+
+
+% Single plots
+for iTr = 1:length(expNamesUnique)
+	tr = TetrodeRecording.BatchLoad(expNamesUnique(iTr));
+	try
+		TetrodeRecording.BatchPlot(tr, batchPlotList, 'PlotStim', true);
+	catch ME
+		warning(['Error when processing iTr = ', num2str(iTr), ' - this one will be skipped.'])
+		warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
+	end
+end
