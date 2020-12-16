@@ -1800,7 +1800,7 @@ classdef TetrodeRecording < handle
 				title(hAxes, 'Spike raster')
 				xlabel(hAxes, ['Time relative to ', referenceDisplayNameRelative, ' (s)'])
 				ylabel(hAxes, 'Trial')
-				legend(hAxes, 'Location', 'Best');
+				legend(hAxes, 'Location', 'NorthWest', 'FontSize', 12);
 				if ~isempty(xRange)
 					xlim(hAxes, xRange);
 				end
@@ -1991,7 +1991,7 @@ classdef TetrodeRecording < handle
 				title(hAxes, 'Spike raster')
 				xlabel(hAxes, ['Time relative to Stim On (s)'])
 				ylabel(hAxes, 'Trial')
-				legend(hAxes, 'Location', 'Best');
+				legend(hAxes, 'Location', 'NorthWest', 'FontSize', 12);
 				if ~isempty(xRange)
 					xlim(hAxes, xRange);
 				end
@@ -2383,6 +2383,63 @@ classdef TetrodeRecording < handle
 			end
 		end
 
+		%% PlotUnit: Plot a single unit
+		function varargout = PlotUnitSimple(obj, channel, unit, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addRequired(p, 'Unit', @isnumeric);
+			addParameter(p, 'Reference', 'CueOn', @ischar);
+			addParameter(p, 'Event', 'PressOn', @ischar);
+			addParameter(p, 'Exclude', 'LickOn', @ischar);
+			addParameter(p, 'Bins', 3, @isnumeric);
+			addParameter(p, 'BinMethod', 'percentile', @ischar);
+			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
+			addParameter(p, 'RasterXLim', [-5, 0], @isnumeric);
+			addParameter(p, 'RasterXLimStim', [-0.5, 0.5], @isnumeric);
+			addParameter(p, 'PlotType', 'Raster', @ischar); % 'Raster', 'PETH'
+			addParameter(p, 'AlignTo', 'Event', @ischar);
+			addParameter(p, 'Position', [0, 0, 0.5, 1], @isnumeric);
+
+			parse(p, channel, unit, varargin{:});
+			iChannel 			= p.Results.Channel;
+			iUnit 				= p.Results.Unit;
+			reference 			= p.Results.Reference;
+			event 				= p.Results.Event;
+			exclude 			= p.Results.Exclude;
+			bins 				= p.Results.Bins;
+			binMethod 			= p.Results.BinMethod;
+			spikeRateWindow 	= p.Results.SpikeRateWindow;
+			rasterXLim 			= p.Results.RasterXLim;
+			rasterXLimStim 		= p.Results.RasterXLimStim;
+
+			hFigure = figure('Units', 'Normalized', 'Position', p.Results.Position, 'GraphicsSmoothing', 'on');
+			hAx1 = subplot(2,1,1);
+			hAx2 = subplot(2,1,2);
+
+			switch lower(p.Results.PlotType)
+				case 'raster'
+					obj.Raster(iChannel, reference, event, exclude,...
+						'Clusters', iUnit, 'XLim', rasterXLim, 'Ax', hAx1, 'ExtendedWindow', [-2, 2],...
+						'AlignTo', p.Results.AlignTo);
+				case 'peth'
+					obj.PETH(iChannel, reference, event, exclude,...
+						'Clusters', iUnit, 'XLim', rasterXLim, 'Ax', hAx1, 'ExtendedWindow', [-2, 2],...
+						'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow);
+			end
+
+			obj.RasterStim(iChannel, 'Clusters', iUnit, 'Ax', hAx2, 'XLim', rasterXLimStim);
+
+			expName = obj.GetExpName();				
+			displayName = [expName, ' (Channel ', num2str(iChannel), ')'];
+			hTitle = suptitle(displayName);
+
+			title(hAx1, 'Lever Press')
+			title(hAx2, 'A2A-ChR2 stim')
+
+			varargout = {hFigure, hAx1, hAx2, hTitle};
+		end
+		
+
 		% PlotChannel(iChannel, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', hFigure)
 		function varargout = PlotChannel(obj, channel, varargin)
 			p = inputParser;
@@ -2397,7 +2454,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'ExtendedWindow', [0, 0], @isnumeric);
 			addParameter(p, 'MinTrialLength', 0, @isnumeric);
-			addParameter(p, 'Bins', 2, @isnumeric);
+			addParameter(p, 'Bins', 3, @isnumeric);
 			addParameter(p, 'BinMethod', 'percentile', @ischar);
 			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
 			addParameter(p, 'RasterXLim', [], @isnumeric);
@@ -3286,15 +3343,77 @@ classdef TetrodeRecording < handle
 
 					% hTitle = suptitle(h.Figure.Name);
 					hFigurePrint = hFigureNew;
+
+				case lower('RasterAndStimAndWaveform')
+					hFigureNew = figure('Position', [2 42 958 954]);
+					for iProp = 1:length(propertiesToCopy)
+						set(hFigureNew, propertiesToCopy{iProp}, get(h.Figure, propertiesToCopy{iProp}));
+					end
+					hRasterNew = copyobj(hRaster, hFigureNew);
+					hRasterNew.OuterPosition = [0, hRaster2.Position(4)/(hRaster.Position(4) + hRaster2.Position(4)), 1, hRaster.Position(4)/(hRaster.Position(4) + hRaster2.Position(4))];
+					xlabel(hRasterNew, '');
+					title(hRasterNew, 'Lever Press')
+
+					hRaster2New = copyobj(hRaster2, hFigureNew);
+					hRaster2New.OuterPosition = [0, 0, 1, hRaster2.Position(4)/(hRaster.Position(4) + hRaster2.Position(4))];
+					xlabel(hRaster2New, 'Time to first stimOn (s)');
+					title(hRaster2New, 'Stim')
+
+					hWaveformNew = copyobj(hWaveform, hFigureNew);
+					hWaveformNew.Position(1) = hRasterNew.Position(1) + 1/16*hRasterNew.Position(3);
+					hWaveformNew.Position(3) = 0.25*hRasterNew.Position(3);
+					hWaveformNew.Position(4) = 0.4*hRasterNew.Position(4);
+					hWaveformNew.Position(2) = hRasterNew.Position(2) + hRasterNew.Position(4) - hWaveformNew.Position(3);
+					hWaveformNew.Visible = 'off';
+
+					if copyLegend
+						legend(hRasterNew, 'Location', 'north');
+						legend(hRaster2New, 'Location', 'north');
+					end
+
+					% hTitle = suptitle(h.Figure.Name);
+					hFigurePrint = hFigureNew;
+
+				case lower('PETHAndStim')
+					hFigureNew = figure('Position', [2 42 958 954]);
+					for iProp = 1:length(propertiesToCopy)
+						set(hFigureNew, propertiesToCopy{iProp}, get(h.Figure, propertiesToCopy{iProp}));
+					end
+					hRasterNew = copyobj(hRaster2, hFigureNew);
+					hRasterNew.OuterPosition = [0, 0.5, 1, 0.5];
+
+					hPETHNew = copyobj(hPETH, hFigureNew);
+					hPETHNew.OuterPosition = [0, 0, 1, 0.5];
+					ylabel(hPETHNew, 'Spikes/s')
+
+					hWaveformNew = copyobj(hWaveform, hFigureNew);
+					hWaveformNew.Position(1) = hRasterNew.Position(1) + 1/16*hRasterNew.Position(3);
+					hWaveformNew.Position(3) = 0.25*hRasterNew.Position(3);
+					hWaveformNew.Position(4) = 0.4*hRasterNew.Position(4);
+					hWaveformNew.Position(2) = hRasterNew.Position(2) + hRasterNew.Position(4) - hWaveformNew.Position(3);
+					hWaveformNew.Visible = 'off';
+
+					set(hPETHNew, 'XLim', get(hRasterNew, 'XLim'));
+
+					if copyLegend
+						legend(hRasterNew, 'Location', 'north');
+						legend(hPETHNew, 'Location', 'best');
+					end
+
+					hTitle = suptitle(h.Figure.Name);
+					hFigurePrint = hFigureNew;
 			end
 
 			if isempty(filename)
 				print(hFigurePrint, '-clipboard', '-dbitmap')
 			else
-				print(hFigurePrint, filename, '-djpeg')
-			end
-			set(hButtons, 'Visible', 'on');
-			set(hTexts, 'Visible', 'on');					
+				print(hFigurePrint, filename, '-dpng')
+            end
+            try
+    			set(hButtons, 'Visible', 'on');
+        		set(hTexts, 'Visible', 'on');		
+            end
+			close(hFigurePrint)			
 		end
 
 		function GUIDeleteChannel(obj, hButton, evnt, iChannel, nextChn, p, h)
@@ -4090,6 +4209,46 @@ classdef TetrodeRecording < handle
 			end
 		end
 
+		%% BatchPlotSimple: function description
+		function BatchPlotSimple(TR, list, varargin)
+			p = inputParser;
+			addParameter(p, 'RasterXLim', [-5, 0], @isnumeric);
+			addParameter(p, 'RasterXLimStim', [-0.5, 0.5], @isnumeric);
+			parse(p, varargin{:});
+
+			for iPlot = 1:size(list, 1)
+				thisAnimal = list{iPlot, 1};
+				thisDate = list{iPlot, 2};
+				thisChannel = list{iPlot, 3};
+				thisCluster = list{iPlot, 4};
+
+				for iTr = 1:length(TR)
+					if ~isempty(strfind(TR(iTr).Path, thisAnimal)) && ~isempty(strfind(TR(iTr).Path, num2str(thisDate)))
+						[hFigure, ~, ~, hTitle] = TR(iTr).PlotUnitSimple(thisChannel, thisCluster,...
+							'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn',...
+							'RasterXLim', p.Results.RasterXLim, 'RasterXLimStim', p.Results.RasterXLimStim,...
+							'PlotType', 'Raster', 'Position', [0, 0, 0.5, 1]);
+						[hFigure2] = TR(iTr).PlotUnitSimple(thisChannel, thisCluster,...
+							'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn',...
+							'RasterXLim', p.Results.RasterXLim, 'RasterXLimStim', p.Results.RasterXLimStim,...
+							'PlotType', 'PETH', 'Position', [0.5, 0, 0.5, 1]);
+
+
+						print(hFigure, [hTitle.String, ' Raster'], '-dpng')
+						print(hFigure2, [hTitle.String, ' PETH'], '-dpng')
+
+						% input('Type anything to continue...\n');
+						try
+							close(hFigure)
+							close(hFigure2)
+						end
+						break
+					end
+				end
+			end
+		end
+		
+
 		function BatchPlot(TR, list, varargin)
 			p = inputParser;
 			addParameter(p, 'Reformat', 'RasterAndPETHAndWaveform', @ischar);
@@ -4121,9 +4280,11 @@ classdef TetrodeRecording < handle
 						else
 							hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'WaveformYLim', waveformYLim, 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow);
 						end
-						% TR(iTr).GUISavePlot([], [], hFigure, 'Reformat', reformat, 'CopyLegend', copyLegend, 'CopyLabel', copyLabel)
-						% input('Type anything to continue...\n');
-						% close(hFigure)
+						TR(iTr).GUISavePlot([], [], hFigure, 'Reformat', reformat, 'CopyLegend', copyLegend, 'CopyLabel', copyLabel) %, 'Filename', char(sprintf("%s Chn%d Unit%d", TR(iTr).GetExpName(), thisChannel, thisCluster))
+						input('Type anything to continue...\n');
+                        try
+                            close(hFigure.Figure)
+                        end
 						break
 					end
 				end
@@ -4551,8 +4712,8 @@ classdef TetrodeRecording < handle
 			h = 1 - 2*fMargin;
 
 			hFigure = figure('DefaultAxesFontSize', 14);
-			hAxesPress = subplot('Position', [fMargin, fMargin, w1, h]);
-			hAxesStim = subplot('Position', [fMargin + w1 + spacing, fMargin, w1, h]);
+			hAxesPress = subplot(1, 2, 1);
+			hAxesStim = subplot(1, 2, 2);
 
 			% First process PETH for press
 			timestampsPress = PETH(1).Time;
@@ -4630,7 +4791,8 @@ classdef TetrodeRecording < handle
 
 			xlabel(hAxesStim, 'Time (TrainOn = 0)')
             timestampsStim = mean(timestampsStim, 1);
-            xtickPos = sort([find(timestampsStim == 0), round(linspace(1, numSamplesPSTH, 10))]);
+            [~, I] = min(abs(timestampsStim - windowStim(2)));
+            xtickPos = [find(timestampsStim == 0), I];
             xtickLabels = num2cell(timestampsStim(xtickPos));
             set(hAxesStim, 'XTick', xtickPos)
             set(hAxesStim, 'XTickLabel', xtickLabels)
@@ -4670,8 +4832,13 @@ classdef TetrodeRecording < handle
 						% thisSigma = nanmedian(abs(thisPeth))/0.6745;
 						thisSigma = std(thisPeth);
 						thisZScoredPeth = (thisPeth - mean(thisPeth))/thisSigma;
-						whenDidFiringRateChange(iCell) = find(abs(thisZScoredPeth) >= latencyThreshold*max(abs(thisZScoredPeth)), 1);
-						whenDidFiringRateChange(iCell) = whenDidFiringRateChange(iCell)*sign(thisZScoredPeth(whenDidFiringRateChange(iCell)));
+                        changeTime = find(abs(thisZScoredPeth) >= latencyThreshold*max(abs(thisZScoredPeth)), 1);
+                        if (isempty(changeTime))
+                            whenDidFiringRateChange(iCell) = size(peth, 2);
+                        else
+                            whenDidFiringRateChange(iCell) = changeTime;
+                            whenDidFiringRateChange(iCell) = whenDidFiringRateChange(iCell)*sign(thisZScoredPeth(whenDidFiringRateChange(iCell)));
+                        end
 					end
 					[whenDidFiringRateChange, I] = sort(whenDidFiringRateChange);
 					I = flip(I);

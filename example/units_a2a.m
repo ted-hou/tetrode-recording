@@ -2,8 +2,8 @@
 
 batchPlotList = {...
 	% Depth 3.8
-	'desmond20', 20201022, 2, 1;... % Big unit, flat
-	'desmond20', 20201022, 2, 2;... % Big unit, flat
+	'desmond20', 20201022, 2, 1;... % Big unit, flat, slow inhibition maybe?
+	'desmond20', 20201022, 2, 2;... % Big unit, flat, no
 	'desmond20', 20201022, 6, 1;... % Big unit, very late off, fast excitation
 	'desmond20', 20201023, 1, 1;... % Small unit, off into late on, fast excitation
 	'desmond20', 20201023, 2, 1;... % Small unit, flat, fast excitation
@@ -46,7 +46,7 @@ batchPlotList = {...
 	'desmond20', 20201118, 4, 2;... % Big unit, late off, excitation, source duplicate maybe?
 	'desmond20', 20201118, 5, 1;... % Big unit, on, slow inhibition maybe?, duplicate maybe?
 	'desmond20', 20201118, 5, 2;... % Big unit, late off, excitation, duplicate maybe?
-	'desmond20', 20201118, 8, 1;... % Big unit, very late on, slow inhibition maybe?
+	'desmond20', 20201118, 8, 1;... % Big unit, very late on, slow inhibition
 
 	% Depth 4.44
 	'desmond20', 20201201, 2, 1;... % Big unit, on, excitation
@@ -113,14 +113,69 @@ for iTr = 1:length(expNamesUnique)
 	end
 end
 
+% Plot heatmap
+I = TetrodeRecording.HeatMapStimSimple(PETH, 'Window', [-6, 0], 'NormalizationBaselineWindow', [-6, 0], 'WindowStim', [-0.25, 0.75], 'NormalizationBaselineWindowStim', [-1, 0], 'CLimStim', [-3,3], 'Sorting', 'latency');
 
 % Single plots
 for iTr = 1:length(expNamesUnique)
 	tr = TetrodeRecording.BatchLoad(expNamesUnique(iTr));
 	try
-		TetrodeRecording.BatchPlot(tr, batchPlotList, 'PlotStim', true);
+		TetrodeRecording.BatchPlot(tr, batchPlotList, 'PlotStim', true, 'Reformat', 'Raw');
 	catch ME
 		warning(['Error when processing iTr = ', num2str(iTr), ' - this one will be skipped.'])
 		warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
 	end
 end
+
+
+
+
+
+for iTr = 1:length(expNamesUnique)
+	tr = TetrodeRecording.BatchLoad(expNamesUnique(iTr));
+	try
+		TetrodeRecording.BatchPlotSimple(tr, batchPlotList)
+	catch ME
+		warning(['Error when processing iTr = ', num2str(iTr), ' - this one will be skipped.'])
+		warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
+	end
+end
+
+
+% Sorted stim PETH
+for i = 1:length(PETH)
+	sel = PETH(i).Stim.Timestamps <= 0.2;
+	peth(i, 1:sum(sel)) = PETH(i).Stim.SpikeRate(sel);
+	t = PETH(i).Stim.Timestamps(sel);
+end
+clear i sel
+
+[pethSorted, Istim, whenDidFiringRateChange] =  TetrodeRecording.SortPETH(peth, 'Method', 'latency', 'LatencyThreshold', 0.675);
+pethSortedNorm = TetrodeRecording.NormalizePETH(pethSorted, 'Method', 'zscore', 'BaselineSamples', t < 0);
+
+
+figure()
+axes()
+hold on
+for i = 1:size(pethSortedNorm, 1)
+	sel = t >= -0.2;
+	isDec = any(pethSortedNorm(i, t>=0 & t < 0.03) < -2);
+	if ~isDec
+		plot(t(sel), pethSortedNorm(i, sel), 'color', [.2, .8, .2, 0.5])
+	else
+		plot(t(sel), pethSortedNorm(i, sel), 'color', [.8, .2, .2, 0.5])
+	end
+end
+plot([0, 0.02], [55, 55], 'b', 'LineWidth', 3)
+hold off
+title("A2A-ChR2 stim response of 60 SNr units")
+xlabel("Time (s)")
+ylabel("Spike rate (z-score)")
+
+
+
+image(pethSortedNorm, 'CDataMapping', 'scaled')
+caxis([-6,6])
+colormap('jet')
+
+
