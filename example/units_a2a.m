@@ -70,7 +70,85 @@ batchPlotList = {...
 	'desmond20', 20201202, 9, 2;... % Medium unit, on, excitation
 	'desmond20', 20201202, 10, 1;... % Medium unit, on, excitation
 	'desmond20', 20201202, 11, 2;... % Small unit, on into off, excitation
+};
 
+batchPlotList = {...
+	% Daisy 7
+	'daisy7', 20201204, 5, 1;... % Small unit, on, no effect
+	'daisy7', 20201204, 7, 1;... % Small unit, on, no effect
+	'daisy7', 20201204, 8, 1;... % Very small unit, on, no effect
+	'daisy7', 20201204, 9, 1;... % Big unit, on, excitation maybe
+	'daisy7', 20201204, 11, 1;... % Small unit, on, no effect
+
+
+	'daisy7', 20201221, 2, 1;... % Big unit, on, no effect
+	'daisy7', 20201221, 2, 2;... % Small unit, on, no effect
+	'daisy7', 20201221, 3, 1;... % Small unit, on, no effect
+	'daisy7', 20201221, 4, 1;... % Small unit, on, no effect
+	'daisy7', 20201221, 5, 1;... % Small unit, on, no effect
+
+	'daisy7', 20210104, 1, 1;... % Small unit, on, excitation
+	'daisy7', 20210104, 4, 1;... % Big unit, on, no effect
+	'daisy7', 20210104, 5, 1;... % Small unit, on, excitation
+	'daisy7', 20210104, 6, 1;... % Big unit, on, no effect
+
+% DA at this depth
+	'daisy7', 20210106, 2, 1;... % Medium unit, on, inhibition? Due to missing spikes from sorting?
+	'daisy7', 20210106, 3, 1;... % Big unit, flat, no effect
+	'daisy7', 20210106, 4, 1;... % Big unit, up, very slow excitation maybe?
+	'daisy7', 20210106, 6, 1;... % Big unit, up, no effect
+	'daisy7', 20210106, 7, 1;... % Small unit, up, no effect
+	'daisy7', 20210106, 11, 1;... % Small unit, up, excitation maybe
+	'daisy7', 20210106, 14, 1;... % Small unit, up, excitation maybe
+
+
+	'daisy7', 20210115, 1, 1;... % Big unit, on, excitation
+	'daisy7', 20210115, 2, 1;... % Big unit, on, excitation
+	'daisy7', 20210115, 3, 1;... % Very big unit, on, excitation
+	'daisy7', 20210115, 4, 1;... % Very big unit, on, excitation
+	'daisy7', 20210115, 5, 1;... % Big unit, on, excitation
+	'daisy7', 20210115, 6, 1;... % Big unit, off, excitation maybe?
+	'daisy7', 20210115, 6, 2;... % Big unit, on, excitation
+	'daisy7', 20210115, 8, 1;... % Big unit, on, no effect
+	'daisy7', 20210115, 9, 1;... % Big unit, on, excitation
+	'daisy7', 20210115, 10, 1;... % Small unit, on, excitation
+	'daisy7', 20210115, 11, 1;... % Smal unit, on, no effect
+	'daisy7', 20210115, 11, 2;... % Big unit, on, no effect
+	'daisy7', 20210115, 13, 1;... % Big unit, on, excitation, suspect duplicate
+
+	'daisy7', 20210121, 2, 1;... % Small unit, on, excitation
+	'daisy7', 20210121, 2, 2;... % Small unit, on, excitation
+	'daisy7', 20210121, 3, 1;... % Big unit, on, excitation
+	'daisy7', 20210121, 4, 1;... % Big unit, on, excitation maybe?
+	'daisy7', 20210121, 6, 1;... % Big unit, on, inhibition
+	'daisy7', 20210121, 7, 1;... % Big unit, off, excitation
+	'daisy7', 20210121, 8, 1;... % Big unit, flat, no effect
+
+	'daisy7', 20210202, 1, 1;... % Small unit, up, no effect
+	'daisy7', 20210202, 3, 1;... % Big unit, up, inhibition
+	'daisy7', 20210202, 4, 1;... % Big unit, up, excitation
+	'daisy7', 20210202, 5, 1;... % Big unit, flat, inhibition
+	'daisy7', 20210202, 6, 1;... % Big unit, up, no effect
+	'daisy7', 20210202, 7, 1;... % Small unit, up, inhibition maybe
+	'daisy7', 20210202, 9, 1;... % Big unit, up, excitation
+	'daisy7', 20210202, 10, 1;... % Big unit, up, excitation
+	'daisy7', 20210202, 11, 1;... % Small unit, up, inhibition
+	'daisy7', 20210202, 12, 1;... % Big unit, up, no effect
+
+
+	'daisy7', 20210203, 2, 1;... % Big unit, up, no effect
+	'daisy7', 20210203, 3, 1;... % Big unit, up, no effect
+	'daisy7', 20210203, 7, 1;... % Big unit, down, inhibition
+	'daisy7', 20210203, 7, 2;... % Small unit, flat, no effect
+	'daisy7', 20210203, 7, 3;... % Big unit, up, excitation
+	'daisy7', 20210203, 9, 1;... % Big unit, up, no effect
+	'daisy7', 20210203, 9, 2;... % Big unit, up, excitation
+	'daisy7', 20210203, 10, 1;... % Big unit, up, no effect
+	'daisy7', 20210203, 12, 1;... % Big unit, flat, slow inhibition
+	'daisy7', 20210203, 13, 1;... % Big unit, up, excitation
+	'daisy7', 20210203, 15, 1;... % Big unit, up, no effect
+	'daisy7', 20210203, 16, 1;... % Small unit, up, inhibition
+	'daisy7', 20210203, 17, 1;... % Big unit, up, no effect
 	};
 
 % 
@@ -88,6 +166,10 @@ needsManualSorting = {...
 	'desmond20', 20201116, 10;...
 	'desmond20', 20201118, 7;...
 	'desmond20', 20201201, 4;..
+
+	'daisy7', 20201204, 12;... 
+	'daisy7', 20201221, 1;... 
+
 
 };
 
