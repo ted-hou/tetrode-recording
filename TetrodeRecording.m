@@ -4754,7 +4754,7 @@ classdef TetrodeRecording < handle
             Stim = PETH(1).Stim(1);
             spikeRateWindowStim = (Stim.Timestamps(end) - Stim.Timestamps(1)) / (length(Stim.Timestamps) - 1);
             numSamplesPSTH = round(diff(windowStim) / spikeRateWindowStim) + 1;
-            psth = zeros(sum(selectedPress), numSamplesPSTH);
+            psth = zeros(length(selectedPress), numSamplesPSTH);
             psthNormalized = zeros(size(psth));
             numTrains = zeros(sum(selectedPress), 1);
             timestampsStim = zeros(size(psth));

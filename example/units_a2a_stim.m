@@ -51,10 +51,8 @@ pethPressNorm = TetrodeRecording.NormalizePETH(pethPress, 'Method', 'zscore', 'B
 
 % Find isDec/isInc
 for i = 1:length(PETHStim)
-	PETHStim(i).IsDecStim = any(pethStimNorm(i, t>=0 & t <= 0.02) < -2);
-	PETHStim(i).IsIncStim = any(pethStimNorm(i, t>=0 & t <= 0.02) > 2);
-	% PETHStim(i).IsDecStim = any(pethStimNorm(i, t>=0 & t < 0.02) < -2);
-	% PETHStim(i).IsIncStim = any(pethStimNorm(i, t>=0 & t < 0.02) > 2);
+	PETHStim(i).IsDecStim = any(pethStimNorm(i, t>=0 & t <= 0.02) < -4);
+	PETHStim(i).IsIncStim = any(pethStimNorm(i, t>=0 & t <= 0.02) > 4);
 	PETHStim(i).IsDecPress = any(pethPressNorm(i, tPress>=-2 & tPress <= 0) < -4);
 	PETHStim(i).IsIncPress = any(pethPressNorm(i, tPress>=-2 & tPress <= 0) > 4);
 end
@@ -73,3 +71,5 @@ contTable(2, 3) = sum([PETHStim.IsIncPress] & ~([PETHStim.IsDecStim] | [PETHStim
 contTable(3, 1) = sum(~([PETHStim.IsDecPress] | [PETHStim.IsIncPress]) & [PETHStim.IsDecStim]);
 contTable(3, 2) = sum(~([PETHStim.IsDecPress] | [PETHStim.IsIncPress]) & [PETHStim.IsIncStim]);
 contTable(3, 3) = sum(~([PETHStim.IsDecPress] | [PETHStim.IsIncPress]) & ~([PETHStim.IsDecStim] | [PETHStim.IsIncStim]));
+contTable(4, 1:3) = sum(contTable, 1);
+contTable(1:3, 4) = sum(contTable(1:3, 1:3), 2);
