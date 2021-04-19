@@ -551,6 +551,27 @@ batchPlotListStim = {...
 	'desmond13', 20190515, 3, 1;... % down
 	};
 
+
+batchPlotListStim = {...
+	'desmond21', 20210406, 2, 1;... % Up, stim flat
+	'desmond21', 20210406, 4, 1;... % Down, stim flat
+	'desmond21', 20210406, 5, 1;... % Down maybe, stim flat
+	'desmond21', 20210406, 6, 1;... % Up, stim flat
+	'desmond21', 20210406, 7, 1;... % DA
+	'desmond21', 20210406, 9, 1;... % Up, stim flat
+
+	'desmond21', 20210407, 1, 1;... % Up, stim flat
+	'desmond21', 20210407, 2, 1;... % Down, stim flat
+	'desmond21', 20210407, 6, 1;... % Up, stim flat
+	'desmond21', 20210407, 7, 1;... % Up, stim flat
+	'desmond21', 20210407, 8, 1;... % Up, stim flat
+	'desmond21', 20210407, 9, 1;... % DA
+
+	'desmond21', 20210408, 2, 1;... % Down, stim flat
+	'desmond21', 20210408, 7, 1;... % Up, stim flat
+	};
+
+
 expNames = cell(length(batchPlotListStim), 1);
 for iExp = 1:length(batchPlotListStim)
 	expNames{iExp} = [batchPlotListStim{iExp, 1}, '_', num2str(batchPlotListStim{iExp, 2})];
