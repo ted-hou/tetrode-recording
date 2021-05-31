@@ -81,28 +81,148 @@ contTable(3, 3) = sum(~([PETHStim.IsDecPress] | [PETHStim.IsIncPress]) & ~([PETH
 % Desmond 21
 
 batchPlotListStim = {...
-	'desmond21', 20210406, 2, 1;... % Up, stim flat
-	'desmond21', 20210406, 4, 1;... % Down, stim flat
-	'desmond21', 20210406, 5, 1;... % Down maybe, stim flat
-	'desmond21', 20210406, 6, 1;... % Up, stim flat
-	% 'desmond21', 20210406, 7, 1;... % DA
-	'desmond21', 20210406, 9, 1;... % Up, stim flat
-	'desmond21', 20210407, 1, 1;... % Up, stim flat
-	'desmond21', 20210407, 2, 1;... % Down, stim flat
-	'desmond21', 20210407, 6, 1;... % Up, stim flat
-	'desmond21', 20210407, 7, 1;... % Up, stim flat
-	'desmond21', 20210407, 8, 1;... % Up, stim flat
-	'desmond21', 20210407, 9, 1;... % DA
+	% 'desmond21', 20210406, 2, 1;... % Up, stim flat
+	% 'desmond21', 20210406, 4, 1;... % Down, stim flat
+	% 'desmond21', 20210406, 5, 1;... % Down maybe, stim flat
+	% 'desmond21', 20210406, 6, 1;... % Up, stim flat
+	% % 'desmond21', 20210406, 7, 1;... % DA
+	% 'desmond21', 20210406, 9, 1;... % Up, stim flat
+	% 'desmond21', 20210407, 1, 1;... % Up, stim flat
+	% 'desmond21', 20210407, 2, 1;... % Down, stim flat
+	% 'desmond21', 20210407, 6, 1;... % Up, stim flat
+	% 'desmond21', 20210407, 7, 1;... % Up, stim flat
+	% 'desmond21', 20210407, 8, 1;... % Up, stim flat
+	% 'desmond21', 20210407, 9, 1;... % DA
 
-	'desmond21', 20210408, 2, 1;... % Down, stim flat
-	'desmond21', 20210408, 7, 1;... % Up, stim flat
-	'desmond21', 20210409, 1, 1;... % Up, stim flat
-	'desmond21', 20210409, 2, 1;... % Down, stim off maybe?
-	'desmond21', 20210409, 5, 1;... % Up, stim flat
-	'desmond21', 20210411, 1, 1;... % Up, stim flat
-	'desmond21', 20210411, 3, 1;... % Up, stim flat
-	'desmond21', 20210411, 5, 1;... % Up, stim flat
+	% 'desmond21', 20210408, 2, 1;... % Down, stim flat
+	% 'desmond21', 20210408, 7, 1;... % Up, stim flat
+	% 'desmond21', 20210409, 1, 1;... % Up, stim flat
+	% 'desmond21', 20210409, 2, 1;... % Down, stim off maybe?
+	% 'desmond21', 20210409, 5, 1;... % Up, stim flat
+	% 'desmond21', 20210411, 1, 1;... % Up, stim flat
+	% 'desmond21', 20210411, 3, 1;... % Up, stim flat
+	% 'desmond21', 20210411, 5, 1;... % Up, stim flat
+
+	% 'desmond21', 20210415, 1, 1;... % Up, stim flat
+	% 'desmond21', 20210415, 2, 1;... % Up, stim flat
+	% 'desmond21', 20210415, 4, 1;... % DA, Down, stim flat
+	% 'desmond21', 20210415, 5, 1;... % DA, Up, stim flat
+
+	% 'desmond21', 20210416, 5, 1;... % Down, stim flat
+	% 'desmond21', 20210416, 5, 2;... % Up, stim flat
+	% 'desmond21', 20210416, 7, 1;... % Down, stim flat
+	% 'desmond21', 20210416, 10, 1;... % DA, Up, stim flat
+	% 'desmond21', 20210416, 12, 1;... % Down, stim flat
+
+	% Long stim
+	'desmond21', 20210419, 3, 1;... % Up, stim flat
+	'desmond21', 20210419, 4, 1;... % Up, stim flat
+	'desmond21', 20210419, 4, 2;... % Up, stim on or slow off maybe?
+	'desmond21', 20210419, 10, 1;... % Up, stim off
+	'desmond21', 20210419, 11, 1;... % Up, stim flat
+
+	'desmond21', 20210422, 2, 1;... % Up, stim on
+	'desmond21', 20210422, 3, 1;... % Up, stim flat
+	'desmond21', 20210422, 10, 1;... % Up, stim flat
+	'desmond21', 20210422, 12, 1;... % Up, stim delayed off
+
+	'desmond21', 20210427, 2, 1;... % Up, stim flat
+	'desmond21', 20210427, 3, 1;... % Up, stim on
+	'desmond21', 20210427, 5, 1;... % Down, stim on
+	
+	'desmond21', 20210429, 1, 1;... % Down, stim flat
+	'desmond21', 20210429, 1, 2;... % Down, stim flat
+	'desmond21', 20210429, 2, 1;... % Up, stim on
+	'desmond21', 20210429, 2, 2;... % Up, stim on
+	'desmond21', 20210429, 3, 1;... % Up, stim off
+	'desmond21', 20210429, 3, 2;... % Up, stim on then delayed on
+	'desmond21', 20210429, 4, 1;... % Up, stim flat then delayed off then delayed on
+	'desmond21', 20210429, 5, 1;... % Up, stim on then delayed off
+	'desmond21', 20210429, 9, 1;... % Up, stim off then delayed on
+	'desmond21', 20210429, 11, 1;... % Up, stim on then delayed off then delayed on
+
+	'desmond21', 20210430, 4, 1;... % Up, stim on
+	'desmond21', 20210430, 11, 1;... % Up, stim delayed on
+	'desmond21', 20210430, 12, 1;... % Up, stim off then delayed on
+	'desmond21', 20210430, 12, 2;... % Up, stim on then delayed on
+	'desmond21', 20210430, 14, 1;... % Up, stim on then delayed on
+	'desmond21', 20210503, 2, 1;... % Up, stim on
+	'desmond21', 20210503, 8, 1;... % Up, stim flat
+	'desmond21', 20210503, 9, 1;... % Up, stim off
+	'desmond21', 20210503, 14, 1;... % Up, stim on htne delayed on
+
+	'desmond21', 20210506, 2, 1;... % Up, stim delayed on
+	'desmond21', 20210506, 3, 1;... % Flat, stim off
+	'desmond21', 20210506, 3, 2;... % Up, stim on
+	'desmond21', 20210506, 4, 1;... % On, stim delayed off
+	'desmond21', 20210506, 6, 1;... % Off, stim flat
+	'desmond21', 20210506, 8, 1;... % Off, stim on
+	'desmond21', 20210506, 10, 1;... % Flat, stim flat
+	'desmond21', 20210506, 12, 1;... % On, stim on then delayed on
+
+	'desmond21', 20210507, 3, 1;... % Flat, stim off
+	'desmond21', 20210507, 3, 2;... % On, stim on
+	'desmond21', 20210507, 7, 1;... % On, stim delayed off
+	'desmond21', 20210507, 8, 1;... % Flat, stim flat
+	'desmond21', 20210507, 10, 1;... % Off, stim delayed off
+	'desmond21', 20210507, 12, 1;... % On, stim delayed off
+	'desmond21', 20210507, 13, 1;... % On, stim flat
+	'desmond21', 20210507, 14, 1;... % On, stim delayed off
+	'desmond21', 20210507, 15, 1;... % On, stim delayed on
+
+	'desmond21', 20210510, 3, 1;... % On, stim on
+	'desmond21', 20210510, 5, 1;... % Flat, stim delayed off
+	'desmond21', 20210510, 7, 1;... % On, stim off?
+	'desmond21', 20210510, 8, 1;... % Off, stim on
+	'desmond21', 20210510, 9, 1;... % On, stim off then delayed on
+	'desmond21', 20210510, 10, 1;... % Off, stim delayed off
+	'desmond21', 20210510, 11, 1;... % On, stim flat
+	'desmond21', 20210510, 12, 1;... % On, stim delayed off
+	'desmond21', 20210510, 12, 2;... % Off, stim flat
+	'desmond21', 20210510, 13, 1;... % On, stim delayed off
+	'desmond21', 20210510, 13, 2;... % Off, stim delayed off
+
+	'desmond21', 20210511, 5, 1;... % On, stim delayed off
+	'desmond21', 20210511, 6, 1;... % On, stim off
+	'desmond21', 20210511, 8, 1;... % On, stim off
+	'desmond21', 20210511, 9, 1;... % Flat, stim flat
+	'desmond21', 20210511, 12, 1;... % Up, stim delayed off, duplicate with 0506
+
+	'desmond21', 20210512, 2, 1;... % Up, stim off
+	'desmond21', 20210512, 6, 1;... % Flat, stim delayed off
+	'desmond21', 20210512, 9, 1;... % Flat, stim delayed off
+	'desmond21', 20210512, 10, 1;... % Up, stim off
+	'desmond21', 20210512, 10, 2;... % Up, stim off
+	'desmond21', 20210512, 12, 1;... % Up, stim delayed off, duplicate with 0506
+	
+	'desmond21', 20210513, 1, 1;... % On, stim off then delayed on
+	'desmond21', 20210513, 3, 1;... % On, stim off then delayed on
+	'desmond21', 20210513, 4, 1;... % Flat, stim off then delayed on
+	'desmond21', 20210513, 6, 1;... % Up, stim flat?
+	'desmond21', 20210513, 7, 1;... % Up, stim off
+	'desmond21', 20210513, 9, 1;... % Down, stim delayed off
+
+	'desmond21', 20210514, 1, 1;... % On, stim off
+	'desmond21', 20210514, 1, 2;... % On, stim off
+	'desmond21', 20210514, 2, 1;... % On, stim on
+	'desmond21', 20210514, 3, 1;... % Flat, stim delayed off
+	'desmond21', 20210514, 5, 1;... % On, stim delayed off
+	'desmond21', 20210514, 6, 1;... % On, stim off then delayed on
+	'desmond21', 20210514, 6, 2;... % On, stim off then delayed on
+	'desmond21', 20210514, 9, 1;... % On, stim delayed off
+	'desmond21', 20210514, 10, 1;... % On, stim delayed off
+
+	'desmond21', 20210517, 1, 1;... % Off, stim on
+	'desmond21', 20210517, 3, 1;... % On, stim delayed off
+	'desmond21', 20210517, 3, 2;... % On, stim off
+	'desmond21', 20210517, 4, 1;... % On, stim off
+
 	};
+
+% Weird cells, not batchable
+
+	'desmond21', 20210503, 5, 1;... % Up, stim on. Completely off when animal satiated
+
 
 
 expNames = cell(length(batchPlotListStim), 1);
