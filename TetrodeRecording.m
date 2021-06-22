@@ -1800,7 +1800,7 @@ classdef TetrodeRecording < handle
 				title(hAxes, 'Spike raster')
 				xlabel(hAxes, ['Time relative to ', referenceDisplayNameRelative, ' (s)'])
 				ylabel(hAxes, 'Trial')
-				legend(hAxes, 'Location', 'NorthWest', 'FontSize', 12);
+				legend(hAxes, 'Location', 'NorthWest');%, 'FontSize', 12);
 				if ~isempty(xRange)
 					xlim(hAxes, xRange);
 				end
@@ -1991,7 +1991,7 @@ classdef TetrodeRecording < handle
 				title(hAxes, 'Spike raster')
 				xlabel(hAxes, ['Time relative to Stim On (s)'])
 				ylabel(hAxes, 'Trial')
-				legend(hAxes, 'Location', 'NorthWest', 'FontSize', 12);
+				legend(hAxes, 'Location', 'NorthWest');
 				if ~isempty(xRange)
 					xlim(hAxes, xRange);
 				end
@@ -3978,13 +3978,7 @@ classdef TetrodeRecording < handle
 				previewObj(iDir).System = sysName;
 				previewObj(iDir).Path = [dirs{iDir}, '\'];
 				previewObj(iDir).Files = files;
-				if contains(previewObj(iDir).Path, {'desmond12', 'daisy4', 'desmond14', 'desmond16', 'desmond18', 'daisy7', 'desmond21'})
-					rig = 1;
-				elseif contains(previewObj(iDir).Path, {'desmond13', 'daisy5', 'desmond15', 'desmond17', 'desmond19', 'desmond20'})
-					rig = 2;
-				else
-					error('This version was designed for desmond12/13 daisy4/5 only');
-				end
+                rig = TetrodeRecording.GetRig(previewObj(iDir).Path);
 				try
 					previewObj(iDir).Preview('Rig', rig, 'HideResults', true);
 				catch ME
@@ -5121,9 +5115,9 @@ classdef TetrodeRecording < handle
 		end
 
 		function rig = GetRig(filepath)
-			if contains(filepath, {'desmond12', 'daisy4', 'desmond14', 'desmond16', 'desmond18', 'daisy7', 'desmond21'})
+			if contains(filepath, {'desmond12', 'daisy4', 'desmond14', 'desmond16', 'desmond18', 'daisy7', 'desmond21', 'desmond22'})
 				rig = 1;
-			elseif contains(filepath, {'desmond13', 'daisy5', 'desmond15', 'desmond17', 'desmond19', 'desmond20'})
+			elseif contains(filepath, {'desmond13', 'daisy5', 'desmond15', 'desmond17', 'desmond19', 'desmond20', 'daisy8'})
 				rig = 2;
 			else
 				error('This version was designed for desmond12/13 daisy4/5 only');
