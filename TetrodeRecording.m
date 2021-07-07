@@ -1963,8 +1963,15 @@ classdef TetrodeRecording < handle
 				edges = [trainOn, trainOff(end)];
 				[~, ~, trialsPulseOn] = histcounts(pulseOn, edges);
 				[~, ~, trialsPulseOff] = histcounts(pulseOff, edges);
-				pulseOnRelative = pulseOn - trainOn(trialsPulseOn);
-				pulseOffRelative = pulseOff - trainOn(trialsPulseOff);
+                                
+                
+                trainOn1 = zeros(size(pulseOn));
+                trainOn2 = zeros(size(pulseOff));
+                trainOn1(trialsPulseOn > 0) = trainOn(trialsPulseOn(trialsPulseOn > 0));
+                trainOn2(trialsPulseOff > 0) = trainOn(trialsPulseOff(trialsPulseOff > 0));
+                
+				pulseOnRelative = pulseOn - trainOn1;
+				pulseOffRelative = pulseOff - trainOn2;
 
 				hold on
 				plot(hAxes, spikesRelative, trials, '.',...
