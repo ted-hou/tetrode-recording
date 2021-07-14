@@ -151,7 +151,7 @@ classdef TetrodeRecording < handle
 						digitalChannels = {};
 					else
 						if rig == 1
-							digitalChannels = {'Cue', 0; 'Reward', 1; 'Lick', 1; 'Press', 3; 'Stim', 4};
+							digitalChannels = {'Cue', 0; 'Reward', 1; 'Lick', 2; 'Press', 3; 'Stim', 4};
 						elseif rig == 2
 							digitalChannels = {'Cue', 15; 'Reward', 14; 'Lick', 13; 'Press', 12; 'Stim', 11};
 						end
