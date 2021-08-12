@@ -1,2 +1,2 @@
-TetrodeRecording.HeatMap(PETHPress, 'Normalization', 'zscore', 'Sorting', 'latency', 'MinNumTrials', 50, 'MinSpikeRate', 15, 'Window', [-4, .5], 'NormalizationBaselineWindow', [-4, -2]);
+TetrodeRecording.HeatMap(PETH, 'Normalization', 'zscore', 'Sorting', 'latency', 'MinNumTrials', 75, 'MinSpikeRate', 15, 'Window', [-4, 0], 'NormalizationBaselineWindow', [-4, -1], 'LatencyThreshold', 0.75);
 xlabel('Time (s) (Lever press = 0)')

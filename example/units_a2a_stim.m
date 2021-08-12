@@ -53,8 +53,8 @@ pethPressNorm = TetrodeRecording.NormalizePETH(pethPress, 'Method', 'zscore', 'B
 
 % Find isDec/isInc
 for i = 1:length(PETHStim)
-	PETHStim(i).IsDecStim = any(pethStimNorm(i, t>=0 & t <= 0.02) < -2);
-	PETHStim(i).IsIncStim = any(pethStimNorm(i, t>=0 & t <= 0.02) > 2);
+	PETHStim(i).IsDecStim = any(pethStimNorm(i, t>=0 & t <= 0.025) < -2);
+	PETHStim(i).IsIncStim = any(pethStimNorm(i, t>=0 & t <= 0.025) > 2);
 	PETHStim(i).IsDecPress = any(pethPressNorm(i, tPress>=-2 & tPress <= 0) < -3);
 	PETHStim(i).IsIncPress = any(pethPressNorm(i, tPress>=-2 & tPress <= 0) > 3);
 
@@ -67,15 +67,19 @@ for i = 1:length(PETHStim)
 	PETHStim(i).MaxPressEffect = normPress(iMaxPressEffect);
 end
 
+sigma_threshold = 2;
+maxPressEffect = [PETHStim.MaxPressEffect];
+maxStimEffect = [PETHStim.MaxStimEffect];
+sel = abs(maxPressEffect) > sigma_threshold & abs(maxStimEffect) > sigma_threshold;
 f = figure;
 ax = axes(f);
 hold on
-plot(ax, [PETHStim.MaxPressEffect], [PETHStim.MaxStimEffect], 'o')
+plot(ax, maxPressEffect(sel), maxStimEffect(sel), 'o')
 plot(ax, ax.XLim, [0, 0], 'k:')
 plot(ax, [0, 0], ax.YLim, 'k:')
 hold off
 xlabel('Press effect (\sigma) ([-2s, 0])')
-ylabel('Stim effect (\sigma) ([0, 20ms]')
+ylabel('Stim effect (\sigma) ([0, 25ms]')
 
 % sum([PETHStim.IsDecPress])
 % sum([PETHStim.IsIncPress])

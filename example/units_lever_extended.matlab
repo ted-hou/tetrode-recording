@@ -1,33 +1,138 @@
-expNames = {...
-	'daisy8_20210616';... % 3.80
-	'daisy8_20210617';... % 3.80
-	'daisy8_20210623';... % 3.96
-	'daisy8_20210625';... % 4.04 6.64mW
-	'daisy8_20210630';... % 4.12 3mW
-	'daisy8_20210702';... % 4.20 3mW
-	'daisy8_20210706';... % 4.28 3mW
-	'daisy8_20210707';... % 4.36 7mW
-	'daisy8_20210708';... % 4.44 7mW
-	'daisy8_20210709';... % 4.44 10mW
-	'daisy8_20210713';... % 4.52 10mW
+batchPlotList = {...
+	'desmond10', 20180909, 1, 1;... % up
+	'desmond10', 20180909, 2, 1;... % up
+	'desmond10', 20180909, 4, 1;... % up
+	'desmond10', 20180909, 5, 1;... % up
+	'desmond10', 20180909, 6, 1;... % up
+	'desmond10', 20180909, 9, 1;... % up
+	'desmond10', 20180909, 10, 1;... % up
+	'desmond10', 20180909, 14, 1;... % up
+	'desmond10', 20180910, 2, 1;... % up
+	'desmond10', 20180910, 5, 1;... % up
+	'desmond10', 20180910, 6, 1;... % DA up
+	'desmond10', 20180910, 9, 1;... % DA up
+	'desmond10', 20180910, 10, 1;... % up
+	'desmond10', 20180910, 14, 1;... % DA
+	'desmond10', 20180911, 1, 1;... % up
+	'desmond10', 20180911, 5, 1;... % up
+	'desmond10', 20180911, 7, 1;... % up
+	'desmond10', 20180911, 9, 1;... % up
+	'desmond10', 20180911, 10, 1;... % up
+	'desmond10', 20180911, 13, 1;... % up
+	'desmond10', 20180912, 5, 1;... % up
+	'desmond10', 20180912, 6, 1;... % up
+	'desmond10', 20180912, 10, 1;... % up
+	'desmond10', 20180913, 4, 1;... % up
+	'desmond10', 20180913, 5, 1;... % DA
+	'desmond10', 20180913, 9, 1;... % burst
+	'desmond10', 20180913, 32, 1;... % off error trials
+	'desmond10', 20180915, 1, 1;... % DA
+	'desmond10', 20180915, 1, 2;... % DA
+	'desmond10', 20180915, 5, 1;... % up
+	'desmond10', 20180915, 5, 2;... % up
+	'desmond10', 20180915, 9, 1;... % up
+	'desmond10', 20180915, 10, 1;... % up
+	'desmond10', 20180916, 2, 1;... % up
+	'desmond10', 20180916, 5, 1;... % up
+	'desmond10', 20180916, 9, 1;... % up
+	'desmond10', 20180916, 13, 1;... % up
+	'desmond10', 20180917, 2, 1;... % DA up
+	'desmond10', 20180917, 5, 1;... % up
+	'desmond10', 20180917, 9, 1;... % up
+	'desmond10', 20180917, 13, 1;... % DA
+	'desmond10', 20180918, 1, 1;... % up
+	'desmond10', 20180918, 2, 1;... % DA up
+	'desmond10', 20180918, 5, 1;... % up
+	'desmond10', 20180918, 9, 1;... % up
+	'desmond10', 20180918, 10, 1;... % up
+	'desmond10', 20180919, 1, 1;... % press not lick
+	'desmond10', 20180919, 2, 1;... % DA up
+	'desmond10', 20180919, 5, 1;... % DA up
+	'desmond10', 20180919, 8, 1;... % flat
+	'desmond10', 20180919, 9, 1;... % up
+	'desmond10', 20180919, 10, 1;... % DA
+	'desmond10', 20180919, 13, 1;... % DA
+	'desmond10', 20180920, 4, 1;... % DA reward
+	'desmond10', 20180920, 5, 1;... % up
+	'desmond10', 20180920, 13, 1;... % DA
+	'desmond10', 20180920, 16, 1;... % DA
+	'desmond10', 20180920, 19, 1;... % flat
+	'desmond10', 20180920, 29, 1;... % flat
+	'desmond10', 20180921, 2, 1;... % up
+	'desmond10', 20180921, 5, 1;... % up
+	'desmond10', 20180921, 30, 1;... % flat
+	'desmond10', 20180922, 4, 1;... % DA
+	'desmond10', 20180922, 5, 1;... % up
+	'desmond10', 20180922, 18, 1;... % lick cell
+	'desmond10', 20180922, 30, 1;... % flat
+	'desmond10', 20180923, 2, 1;... % flat
+	'desmond10', 20180923, 6, 1;... % flat
+	'desmond10', 20180923, 8, 1;... % flat
+	'desmond10', 20180923, 10, 1;... % up
+	'desmond10', 20180923, 30, 1;... % flat
+	'desmond10', 20180924, 19, 1;... % ?
+	'desmond10', 20180924, 25, 1;... % DA
+	'desmond10', 20180924, 29, 1;... % ?
+	'desmond10', 20180924, 30, 1;... % flat
+	'desmond10', 20180925, 7, 1;... % up
+	'desmond10', 20180925, 8, 1;... % flat
+	'desmond10', 20180925, 10, 1;... % DA
+	'desmond10', 20180925, 10, 2;... % flat
+	'desmond10', 20180925, 19, 2;... % ??
+	'desmond10', 20180925, 20, 2;... % DA
+	'desmond10', 20180925, 29, 2;... % ??
+	'desmond10', 20181017, 4, 1;... % DA
+	'desmond10', 20181018, 1, 1;... % down
+	'desmond10', 20181018, 7, 1;... % DA
+	'desmond10', 20181018, 8, 1;... % down
+	'desmond10', 20181018, 8, 2;... % DA
+	'desmond10', 20181019, 1, 1;... % flat
+	'desmond10', 20181019, 1, 2;... % DA
+	'desmond10', 20181019, 7, 1;... % DA
+	'desmond10', 20181019, 9, 1;... % up
+	'desmond10', 20181020, 1, 1;... % up
+	'desmond10', 20181020, 7, 1;... % up
+	'desmond10', 20181022, 1, 1;... % up
+	'desmond10', 20181022, 1, 2;... % DA
+	'desmond10', 20181022, 7, 2;... % up
 
 
-	'desmond22_20210617';... % 3.96 9.6mW
-	'desmond22_20210621';... % 3.96 9.6mW
-	'desmond22_20210624';... % 4.04 9.6mW
-	'desmond22_20210628';... % 4.04 3mW
-	'desmond22_20210630';... % 4.12 3mW
-	'desmond22_20210701';... % 4.20 3mW
-	'desmond22_20210702';... % 4.28 3mW
-	'desmond22_20210706';... % 4.36 3mW
-	'desmond22_20210707';... % 4.44 6mW
-	'desmond22_20210708';... % 4.52 6mW
-	'desmond22_20210709';... % 5.00 10mW
-};
 
-% Batchplot based on date/channel, and paste to clipboard
-% Ref/noise cluster is last cluster
-batchPlotListStim = {...
+
+	'desmond11', 20180909, 5, 1;... % down/up
+	'desmond11', 20180910, 5, 1;... % up
+	'desmond11', 20180910, 27, 1;... % up
+	'desmond11', 20180910, 28, 1;... % up
+	'desmond11', 20180911, 10, 1;... % up
+	'desmond11', 20180911, 27, 1;... % DA
+	'desmond11', 20180912, 4, 1;... % up
+	'desmond11', 20180912, 5, 1;... % up
+	'desmond11', 20180912, 28, 1;... % DA ?
+	'desmond11', 20180913, 28, 1;... % servo?
+	'desmond11', 20180914, 27, 1;... % DA
+	'desmond11', 20180914, 29, 1;... % up
+	'desmond11', 20180915, 31, 1;... % up
+	'desmond11', 20180915, 31, 2;... % up
+	'desmond11', 20180916, 4, 2;... % down
+	'desmond11', 20180916, 20, 1;... % DA
+	'desmond11', 20180916, 20, 2;... % up
+	'desmond11', 20180916, 31, 1;... % up
+	'desmond11', 20180917, 8, 1;... % down
+	'desmond11', 20180917, 28, 1;... % down
+	'desmond11', 20180918, 8, 1;... % down
+	'desmond11', 20180919, 23, 1;... % up
+	'desmond11', 20180919, 28, 1;... % up
+	'desmond11', 20180919, 30, 1;... % up
+	'desmond11', 20180920, 18, 1;... % up
+	'desmond11', 20180921, 2, 1;... % lick not press
+	'desmond11', 20180922, 2, 1;... % lick not press
+	'desmond11', 20180922, 28, 1;... % DA
+	'desmond11', 20180924, 2, 1;... % up
+	'desmond11', 20180924, 17, 1;... % up
+	'desmond11', 20180924, 28, 1;... % DA
+	'desmond11', 20180925, 2, 1;... % up
+	'desmond11', 20181022, 28, 1;... % down
+	'desmond11', 20181023, 28, 1;... % down
 	'desmond22', 20210617, 1, 1;... % off
 	'desmond22', 20210617, 3, 1;... % on maybe
 	'desmond22', 20210617, 3, 2;... % slow on
@@ -203,53 +308,28 @@ batchPlotListStim = {...
 	% 'daisy8', 20210709, 12, 1;... % DA fast off
 	'daisy8', 20210709, 16, 1;... % flat
 	'daisy8', 20210709, 17, 1;... % slow on
-
-
 	};
 
-expNames = cell(size(batchPlotListStim, 1), 1);
-for iExp = 1:size(batchPlotListStim, 1)
-	expNames{iExp} = [batchPlotListStim{iExp, 1}, '_', num2str(batchPlotListStim{iExp, 2})];
+
+expNames = cell(size(batchPlotList, 1), 1);
+for iExp = 1:size(batchPlotList, 1)
+	expNames{iExp} = [batchPlotList{iExp, 1}, '_', num2str(batchPlotList{iExp, 2})];
 end
 
 expNamesUnique = unique(expNames);
 
-
-% Single plots stim
 for iTr = 1:length(expNamesUnique)
 	tr = TetrodeRecording.BatchLoad(expNamesUnique(iTr));
-	tr.ReadDigitalEvents();
-	try
-		TetrodeRecording.BatchPlot(tr, batchPlotListStim, 'PlotStim', true, 'Reformat', 'Raw');
-		TetrodeRecording.BatchPlotSimple(tr, batchPlotListStim);
-	catch ME
-		warning(['Error when processing iTr = ', num2str(iTr), ' - this one will be skipped.'])
-		warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
-	end
-end
-
-% Single plots, lick vs press
-for iTr = 1:length(expNamesUnique)
-	tr = TetrodeRecording.BatchLoad(expNamesUnique(iTr));
-	tr.ReadDigitalEvents();
-	try
-		TetrodeRecording.BatchPlot(tr, batchPlotListStim, 'RasterXLim', [-5, 2], 'ExtendedWindow', [-1, 2], 'PlotStim', false, 'PlotLick', true, 'Reformat', 'DualRasterAndWaveform');
-	catch ME
-		warning(['Error when processing iTr = ', num2str(iTr), ' - this one will be skipped.'])
-		warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
-	end
-end
-
-
-% Make PETH struct
-for iTr = 1:length(expNamesUnique)
-	tr = TetrodeRecording.BatchLoad(expNamesUnique(iTr));
-	tr.ReadDigitalEvents();
+    if contains(expNamesUnique(iTr), 'desmond22')
+        tr.ReadDigitalEvents();
+    end
 	try
 		if iTr == 1;
-			PETH = TetrodeRecording.BatchPETHistCounts(tr, batchPlotListStim, 'TrialLength', 6, 'ExtendedWindow', 1, 'SpikeRateWindow', 100, 'ExtendedWindowStim', [-1, 1], 'SpikeRateWindowStim', 10, 'Press', true, 'Lick', true, 'Stim', true);
+			PETH_LeverVsPress_4toInf = TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'AllowedTrialLength', [4, Inf], 'ExtendedWindow', 3, 'SpikeRateWindow', 10, 'Press', true, 'Lick', true, 'Stim', false);
+			PETH_LeverVsPress_0to4 = TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'AllowedTrialLength', [0, 4], 'ExtendedWindow', 3, 'SpikeRateWindow', 10, 'Press', true, 'Lick', true, 'Stim', false);
 		else
-			PETH = [PETH, TetrodeRecording.BatchPETHistCounts(tr, batchPlotListStim, 'TrialLength', 6, 'ExtendedWindow', 1, 'SpikeRateWindow', 100, 'ExtendedWindowStim', [-1, 1], 'SpikeRateWindowStim', 10, 'Press', true, 'Lick', true, 'Stim', true)];
+			PETH_LeverVsPress_4toInf = [PETH_LeverVsPress_4toInf, TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'AllowedTrialLength', [4, Inf], 'ExtendedWindow', 3, 'SpikeRateWindow', 10, 'Press', true, 'Lick', true, 'Stim', false)];
+			PETH_LeverVsPress_0to4 = [PETH_LeverVsPress_0to4, TetrodeRecording.BatchPETHistCounts(tr, batchPlotList, 'TrialLength', 6, 'AllowedTrialLength', [0, 4], 'ExtendedWindow', 3, 'SpikeRateWindow', 10, 'Press', true, 'Lick', true, 'Stim', false)];
 		end
 	catch ME
 		warning(['Error when processing iTr = ', num2str(iTr), ' - this one will be skipped.'])
@@ -257,71 +337,15 @@ for iTr = 1:length(expNamesUnique)
 	end
 end
 
-PETHStim = PETHStim_D1Triple;
-
-clear pethStim
-% Sorted stim PETHStim
-for i = 1:length(PETHStim)
-	Stim = PETHStim(i).Stim;
-	sel = Stim(1).Timestamps <= 0.2;
-	t = Stim(1).Timestamps(sel);
-	thisPeth = zeros(1, sum(sel));
-	for j = 1:length(Stim)
-		thisPeth = thisPeth + Stim(j).SpikeRate(sel) * Stim(j).NumTrains;
-	end
-	pethStim(i, 1:length(t)) = thisPeth ./ sum([Stim.NumTrains]);
-end
-clear i sel Stim
-%%
-[pethSorted, Istim, whenDidFiringRateChange] =  TetrodeRecording.SortPETH(pethStim, 'Method', 'latency', 'LatencyThreshold', 0.675);
-pethSortedNorm = TetrodeRecording.NormalizePETH(pethSorted, 'Method', 'zscore', 'BaselineSamples', t < 0);
-
-% Heatmap
-TetrodeRecording.HeatMap(PETH, 'Normalization', 'zscore', 'Sorting', 'latency', 'MinNumTrials', 75, 'MinSpikeRate', 15, 'Window', [-4, 1], 'NormalizationBaselineWindow', [-4, -2], 'Lick', true, 'UseSameSorting', true);
+sel0 = [PETH_LeverVsPress_0to4.NumTrialsLick] > 37.5 & [PETH_LeverVsPress_0to4.NumTrialsPress] > 37.5;
+sel4 = [PETH_LeverVsPress_4toInf.NumTrialsLick] > 37.5 & [PETH_LeverVsPress_4toInf.NumTrialsPress] > 37.5;
+sel = sel0 & sel4;
+PETH_LeverVsPress_0to4 = PETH_LeverVsPress_0to4(sel);
+PETH_LeverVsPress_4toInf = PETH_LeverVsPress_4toInf(sel);
 
 
-figure()
-axes()
-hold on
-for i = 1:size(pethSortedNorm, 1)
-	sel = t >= -0.2;
-	isDec = any(pethSortedNorm(i, t>0 & t <= 0.025) < -2.5);
-    isInc = any(pethSortedNorm(i, t>0 & t <= 0.025) > 2.5);
-	if isDec
-		h = plot(t(sel)*1000, pethSortedNorm(i, sel), 'color', [.2, .8, .2, 0.67]);
-    elseif isInc
-		h = plot(t(sel)*1000, pethSortedNorm(i, sel), 'color', [.8, .2, .2, 0.67]);
-    else
-		h = plot(t(sel)*1000, pethSortedNorm(i, sel), 'color', [.2, .2, .2, 0.67]);
-    end
-    h.DisplayName = num2str(i);
-end
-plot([0, 100], [0, 0], 'b', 'LineWidth', 3)
-hold off
-title(char(sprintf("Drd1-ChR2 stim response of %d SNr units", size(pethStim, 1))))
-xlabel("Time (ms)")
-ylabel("Spike rate (z-score)")
-xlim([-100, 100])
+[~, ~, IFull] = TetrodeRecording.HeatMap(PETH_LeverVsPress_4toInf, 'Normalization', 'zscore', 'Sorting', 'raw', 'MinNumTrials', -Inf, 'MinSpikeRate', 15, 'Window', [-4, 3], 'NormalizationBaselineWindow', [-4, -1], 'Lick', true, 'UseSameSorting', true);
+suptitle('Lick vs Press, correct trials (>4s)')
+TetrodeRecording.HeatMap(PETH_LeverVsPress_0to4(IFull), 'Normalization', 'zscore', 'Sorting', 'raw', 'MinNumTrials', -Inf, 'MinSpikeRate', -Inf, 'Window', [-4, 3], 'NormalizationBaselineWindow', [-4, -1], 'Lick', true, 'UseSameSorting', true);
+suptitle('Lick vs Press, incorrect trials (<4s)')
 
-figure()
-axes()
-hold on
-for i = 1:size(pethSortedNorm, 1)
-	sel = t >= -0.2;
-	isDec = any(pethSortedNorm(i, t>0 & t <= 0.025) < -2.5);
-    isInc = any(pethSortedNorm(i, t>0 & t <= 0.025) > 2.5);
-	if isDec
-		h = plot(t(sel)*1000, pethSorted(i, sel), 'color', [.2, .8, .2, 0.67]);
-    elseif isInc
-		h = plot(t(sel)*1000, pethSorted(i, sel), 'color', [.8, .2, .2, 0.67]);
-    else
-		h = plot(t(sel)*1000, pethSorted(i, sel), 'color', [.2, .2, .2, 0.67]);
-    end
-    h.DisplayName = num2str(i);
-end
-plot([0, 25], [0, 0], 'b', 'LineWidth', 3)
-hold off
-title(char(sprintf("Drd1-ChR2 stim response of %d SNr units", size(pethStim, 1))))
-xlabel("Time (ms)")
-ylabel("Spike rate (z-score)")
-xlim([-100, 25])
