@@ -4060,7 +4060,8 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'NumSigmas', 4, @isnumeric);
 			addParameter(p, 'NumSigmasReturn', [], @isnumeric);
 			addParameter(p, 'NumSigmasReject', [], @isnumeric);
-			addParameter(p, 'WaveformWindow', [-0.5, 0.5], @isnumeric);
+			addParameter(p, 'WaveformWindow', [-5, 5], @isnumeric);
+			addParameter(p, 'WaveformFeatureWindow', [-0.5, 0.5], @isnumeric);
 			addParameter(p, 'FeatureMethod', 'WaveletTransform', @ischar);
 			addParameter(p, 'ClusterMethod', 'kmeans', @ischar);
 			addParameter(p, 'Dimension', 10, @isnumeric);
@@ -4073,6 +4074,7 @@ classdef TetrodeRecording < handle
 			numSigmasReturn = p.Results.NumSigmasReturn;
 			numSigmasReject = p.Results.NumSigmasReject;
 			waveformWindow 	= p.Results.WaveformWindow;
+			waveformFeatureWindow 	= p.Results.WaveformFeatureWindow;
 			featureMethod 	= p.Results.FeatureMethod;
 			clusterMethod 	= p.Results.ClusterMethod;
 			dimension 		= p.Results.Dimension;
@@ -4084,15 +4086,23 @@ classdef TetrodeRecording < handle
 			for iDir = 1:length(selectedChannels)
 				rig = TetrodeRecording.GetRig(allPaths{iDir});
 				if rig == 1
-					channelsOnRig = previewObj(iDir).ChannelMap.Rig1;
+                    if isfield(previewObj(iDir).ChannelMap, 'Rig1')
+                        channelsOnRig = previewObj(iDir).ChannelMap.Rig1;
+                    else
+                        channelsOnRig = NaN;
+                    end
 				elseif rig == 2
-					channelsOnRig = previewObj(iDir).ChannelMap.Rig2;
+                    if isfield(previewObj(iDir).ChannelMap, 'Rig2')
+                        channelsOnRig = previewObj(iDir).ChannelMap.Rig2;
+                    else
+                        channelsOnRig = NaN;
+                    end
 				end
 				channels = selectedChannels{iDir};
 				if ~isempty(channels)
 					try
 						TetrodeRecording.TTS(['Processing folder ', num2str(iDir), '/', num2str(length(selectedChannels)), ':\n']);
-						TetrodeRecording.ProcessFolder(allPaths{iDir}, savePath, chunkSize, channels, channelsOnRig, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix, rig);
+						TetrodeRecording.ProcessFolder(allPaths{iDir}, savePath, chunkSize, channels, channelsOnRig, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, waveformFeatureWindow, featureMethod, clusterMethod, dimension, prefix, rig);
 					catch ME
 						warning(['Error when processing folder (', allPaths{iDir}, ') - this one will be skipped.'])
 						warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
@@ -4102,7 +4112,7 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.RandomWords();
 		end
 
-		function ProcessFolder(thisPath, savePath, chunkSize, channels, channelsOnRig, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, featureMethod, clusterMethod, dimension, prefix, rig)
+		function ProcessFolder(thisPath, savePath, chunkSize, channels, channelsOnRig, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, waveformFeatureWindow, featureMethod, clusterMethod, dimension, prefix, rig)
 			tr = TetrodeRecording();
 			tr.Path = thisPath;
 			files = dir([tr.Path, '*.rhd']);
