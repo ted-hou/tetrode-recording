@@ -61,3 +61,48 @@ for iTr = 1:length(expNamesUnique)
 	end
 end
 
+%% Second run, wider waveform window
+% ptr = TetrodeRecording.BatchPreview();
+% TetrodeRecording.BatchSave(ptr, 'Prefix', 'ptr_DA_', 'DiscardData', true);
+% TetrodeRecording.BatchProcess(ptr, 'Prefix', 'tr_DA_', 'NumSigmas', 3, 'NumSigmasReturn', 1.5, 'NumSigmasReject', 40, 'WaveformWindow', [-2, 2], 'WaveformFeatureWindow', [-0.35, 0.35], 'FeatureMethod', 'WaveletTransform', 'ClusterMethod', 'kmeans', 'Dimension', 10);
+% TetrodeRecording.BatchSave(tr, 'Prefix', 'tr_DA_', 'DiscardData', false);
+
+% Copy digital events from old data.
+% tr_org = TetrodeRecording.BatchLoad();
+% for iTr = 1:length(tr)
+% 	tr(iTr).DigitalEvents = tr_org(iTr).DigitalEvents;
+% end
+
+% TetrodeRecording.BatchSave(tr(iTrLastSaved+1:iTr), 'Prefix', 'tr_DA_sorted_', 'DiscardData', false); iTrLastSaved = iTr;
+
+
+batchPlotList = {...
+	'desmond10', 20180913, 4, 1;...
+	'desmond10', 20180913, 7, 1;...
+	'desmond10', 20180917, 1, 1;...
+	'desmond10', 20180917, 4, 1;...
+	'desmond10', 20180918, 1, 1;...
+	'desmond10', 20180918, 3, 1;...
+	'desmond10', 20180918, 4, 1;...
+	'desmond10', 20180920, 2, 1;...
+	'desmond10', 20180920, 6, 1;...
+	'desmond10', 20180920, 6, 2;...
+	'desmond10', 20180920, 7, 1;...
+};
+
+expNames = cell(size(batchPlotList, 1), 1);
+for iExp = 1:size(batchPlotList, 1)
+	expNames{iExp} = [batchPlotList{iExp, 1}, '_', num2str(batchPlotList{iExp, 2})];
+end
+
+expNamesUnique = unique(expNames);
+
+for iTr = 1:length(expNamesUnique)
+	tr = TetrodeRecording.BatchLoad(expNamesUnique(iTr));
+	try
+		TetrodeRecording.BatchPlot(tr(iTr), batchPlotList, 'RasterXLim', [-5, 2], 'ExtendedWindow', [0, 2], 'WaveformWindow', [-1, 1], 'PlotStim', false, 'PlotLick', false, 'Reformat', 'RasterAndPETHAndWaveform');
+	catch ME
+		warning(['Error when processing iTr = ', num2str(iTr), ' - this one will be skipped.'])
+		warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
+	end
+end

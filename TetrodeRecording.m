@@ -3456,7 +3456,8 @@ classdef TetrodeRecording < handle
 			if isempty(filename)
 				print(hFigurePrint, '-clipboard', '-dbitmap')
 			else
-				print(hFigurePrint, filename, '-dpng')
+				% print(hFigurePrint, filename, '-dpng')
+				savefig(hFigurePrint, filename)
             end
             try
     			set(hButtons, 'Visible', 'on');
@@ -4306,6 +4307,7 @@ classdef TetrodeRecording < handle
 		function BatchPlot(TR, list, varargin)
 			p = inputParser;
 			addParameter(p, 'Reformat', 'RasterAndPETHAndWaveform', @ischar);
+			addParameter(p, 'WaveformWindow', [-0.5, 0.5], @isnumeric);
 			addParameter(p, 'WaveformYLim', [-300, 300], @(x) isnumeric(x) || ischar(x));
 			addParameter(p, 'RasterXLim', [-5, 0], @isnumeric);
 			addParameter(p, 'ExtendedWindow', [-1, 0], @isnumeric);
@@ -4315,6 +4317,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'PlotLick', false, @islogical);
 			parse(p, varargin{:});
 			reformat 		= p.Results.Reformat;
+			waveformWindow 	= p.Results.WaveformWindow;
 			waveformYLim 	= p.Results.WaveformYLim;
 			rasterXLim 		= p.Results.RasterXLim;
 			extendedWindow 	= p.Results.ExtendedWindow;
@@ -4332,11 +4335,11 @@ classdef TetrodeRecording < handle
 					if ~isempty(strfind(TR(iTr).Path, thisAnimal)) && ~isempty(strfind(TR(iTr).Path, num2str(thisDate)))
 						thisRefCluster = max(TR(iTr).Spikes(thisChannel).Cluster.Classes); % Use the last cluster is 'noise'/reference cluster
 						if plotStim
-							hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow, 'WaveformYLim', waveformYLim, 'PlotStim', true);
+							hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow, 'WaveformWindow', waveformWindow, 'WaveformYLim', waveformYLim, 'PlotStim', true);
 						elseif plotLick
-							hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', 'LickOn', 'Exclude2', 'PressOn', 'WaveformYLim', waveformYLim, 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow);
+							hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', 'LickOn', 'Exclude2', 'PressOn', 'WaveformWindow', waveformWindow, 'WaveformYLim', waveformYLim, 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow);
 						else
-							hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'WaveformYLim', waveformYLim, 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow, 'PlotStim', false);
+							hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'WaveformWindow', waveformWindow, 'WaveformYLim', waveformYLim, 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow, 'PlotStim', false);
 						end
 						TR(iTr).GUISavePlot([], [], hFigure, 'Reformat', reformat, 'CopyLegend', copyLegend, 'CopyLabel', copyLabel, 'Filename', char(sprintf("%s Chn%d Unit%d", TR(iTr).GetExpName(), thisChannel, thisCluster)));
                         try
