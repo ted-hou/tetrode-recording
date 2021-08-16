@@ -3456,7 +3456,7 @@ classdef TetrodeRecording < handle
 			if isempty(filename)
 				print(hFigurePrint, '-clipboard', '-dbitmap')
 			else
-				% print(hFigurePrint, filename, '-dpng')
+				print(hFigurePrint, filename, '-dpng')
 				savefig(hFigurePrint, filename)
             end
             try
