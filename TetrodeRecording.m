@@ -1072,8 +1072,46 @@ classdef TetrodeRecording < handle
 			obj.RemoveNaNs(channels);
 			obj.FeatureExtract(channels, 'WaveformWindow', waveformWindow, 'Method', featureMethod, 'Dimension', dimension);
 			obj.Cluster(channels, 'Method', clusterMethod, 'NumClusters', numClusters);
-		end
+        end
 
+        function SpikeCullLowISI(obj, channels, varargin)
+			p = inputParser;
+			addRequired(p, 'Channels', @isnumeric); % Default to all
+			addParameter(p, 'Clusters', [], @isnumeric); % Default to all, clustered will be combined in ISI analysis
+			addParameter(p, 'MinISI', 1e-3, @isnumeric); % Min allowed ISI (ms). After culling, spikes will have ISI >= minISI.
+			parse(p, channels, varargin{:});
+			channels = p.Results.Channels;
+			clusters = p.Results.Clusters;
+			minISI = p.Results.MinISI;
+
+            if isempty(channels)
+                channels = [obj.Spikes.Channel];
+            end
+
+            for iChn = channels(:)'               
+                if isempty(clusters)
+                    thisClusters = 1:max(obj.Spikes(iChn).Cluster.Classes);
+                else
+                    thisClusters = clusters;
+                end
+
+                inSelClusters = ismember(obj.Spikes(iChn).Cluster.Classes, thisClusters);
+                isi = [Inf, 1e3 * diff(obj.Spikes(iChn).Timestamps(inSelClusters))];
+                
+                % Delete related waveforms, timestamps, features, cluster
+                % classes
+                indicesInSelClusters = find(inSelClusters);
+                toCull = indicesInSelClusters(isi < minISI);
+                obj.Spikes(iChn).SampleIndex(toCull) = [];
+                obj.Spikes(iChn).Timestamps(toCull) = [];
+                obj.Spikes(iChn).Waveforms(toCull, :) = [];
+                obj.Spikes(iChn).Feature.Coeff(toCull, :) = [];
+                obj.Spikes(iChn).Cluster.Classes(toCull) = [];       
+                
+                fprintf(1, 'Culled %i waveforms with ISI < %.4f ms from chn %i cluster %i\n', length(toCull), minISI, iChn, thisClusters);
+            end
+        end
+        
 		function RemoveNaNs(obj, channels)
 			for iChannel = channels
 				if isempty(obj.Spikes(iChannel).Waveforms)
@@ -2371,7 +2409,7 @@ classdef TetrodeRecording < handle
 					continue
 				end
 
-				hAxes(iChannel)	= subplot(5, 7, iChannel);
+				hAxes(iChannel)	= subplot(8, 8, iChannel);
 				hAxes(iChannel).UserData.Channel = iChannel;
 				hAxes(iChannel).ButtonDownFcn = @obj.OnAxesClicked;
 				xlabel(hAxes(iChannel), 'Time (ms)');
