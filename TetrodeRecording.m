@@ -5249,9 +5249,9 @@ classdef TetrodeRecording < handle
 		end
 
 		function rig = GetRig(filepath)
-			if contains(filepath, {'desmond10', 'desmond11', 'desmond12', 'daisy4', 'desmond14', 'desmond16', 'desmond18', 'daisy7', 'desmond21', 'desmond22'})
+			if contains(filepath, {'desmond10', 'desmond11', 'desmond12', 'daisy4', 'desmond14', 'desmond16', 'desmond18', 'daisy7', 'desmond21', 'desmond22', 'daisy9'})
 				rig = 1;
-			elseif contains(filepath, {'desmond13', 'daisy5', 'desmond15', 'desmond17', 'desmond19', 'desmond20', 'daisy8'})
+			elseif contains(filepath, {'desmond13', 'daisy5', 'desmond15', 'desmond17', 'desmond19', 'desmond20', 'daisy8', 'daisy10'})
 				rig = 2;
 			else
 				error('This version was designed for desmond12/13 daisy4/5 only');
