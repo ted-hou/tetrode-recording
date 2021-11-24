@@ -1039,6 +1039,19 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 		end
 
+		function ReadChannelMapFromPreview(obj)
+			% Check if ptr file exists
+			ptrFile = sprintf('%s..\\SpikeSort\\ptr_%s.mat', obj.Path, obj.GetExpName());
+			ptr = dir(ptrFile);
+			assert(~isempty(ptr))
+
+			S = load(ptrFile);
+			ptr = S.tr;
+
+			obj.ChannelMap = ptr.ChannelMap;
+			obj.SelectedChannels = ptr.SelectedChannels;
+		end
+
 		% This compresses data by ~ 20 times
 		function ClearCache(obj)
 			obj.Amplifier = [];
@@ -1898,10 +1911,6 @@ classdef TetrodeRecording < handle
 			[~, trainOff] = TetrodeRecording.FindLastInTrial(cueOn, pulseOff);
 		end
 
-		function StimData = BacthProcessStimData(obj, ptr, channels, varargin)
-			
-		end
-
 		% TODO: Clean up this messy poop code
 		function StimData = ReadStimData(obj, ptr, channels, varargin)
 			p = inputParser;
@@ -2525,7 +2534,6 @@ classdef TetrodeRecording < handle
 
 			varargout = {hFigure, hAx1, hAx2, hTitle};
 		end
-		
 
 		% PlotChannel(iChannel, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', hFigure)
 		function varargout = PlotChannel(obj, channel, varargin)
@@ -2830,8 +2838,11 @@ classdef TetrodeRecording < handle
 			hPrev = hButtonNextChn;
 
 			hAxesTextCurChn = axes('Position', hPrev.Position, 'Visible', 'off');
+			if ~isempty(obj.SelectedChannels)
+				iChannelDisp = obj.SelectedChannels(iChannel);
+			end
 			hTextCurChn = text(hAxesTextCurChn, 0.5, 0.5,...
-				['Chn ', num2str(find(allChannels == iChannel)), '/', num2str(length(allChannels))],...
+				sprintf('Chn%d (%d/%d)', iChannelDisp, find(allChannels==iChannel), length(allChannels)),...
 				'Tag', 'HideWhenSaving', 'HorizontalAlignment', 'center', 'FontSize', 10, 'FontWeight', 'bold');
 			hAxesTextCurChn.Position(1) = hAxesTextCurChn.Position(1) - hAxesTextCurChn.Position(3) - buttonXSpacing;
 			hPrev = hAxesTextCurChn;
@@ -3019,7 +3030,7 @@ classdef TetrodeRecording < handle
 				selectedCluster = [];
 				referenceCluster = [];
 			end
-			
+
 			obj.PlotWaveforms(iChannel, 'Clusters', clusters, 'WaveformWindow', waveformWindow,...
 				'YLim', waveformYLim, 'FrameRate', frameRate, 'PlotMean', plotMean,...
 				'ReferenceCluster', referenceCluster, 'SelectedCluster', selectedCluster,...
@@ -4228,6 +4239,11 @@ classdef TetrodeRecording < handle
 
 			tr = [S(partOne).tr];
 
+			% Read channel labels from prview (ptr) files
+			for iTr = 1:length(tr)
+				tr(iTr).ReadChannelMapFromPreview()
+			end
+
 			varargout = {tr, iExp};
 		end
 
@@ -4340,7 +4356,6 @@ classdef TetrodeRecording < handle
 				end
 			end
 		end
-		
 
 		function BatchPlot(TR, list, varargin)
 			p = inputParser;
