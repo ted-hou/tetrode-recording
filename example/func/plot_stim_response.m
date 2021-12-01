@@ -1,10 +1,18 @@
 % plot_stim_response(PETHStim, 'D1-ChR2', 2, 0.025, 0.1, [-0.1, 0.2])
-function plot_stim_response(PETHStim, titletext, sigma_threshold, latency_threshold, stim_length, xrange)% Sorted stim PETHStim
-		
+function plot_stim_response(PETHStim, titletext, sigma_threshold, latency_threshold, stim_length, xrange, stimType)% Sorted stim PETHStim
+	
 	% Sorted stim PETHStim
 	for i = 1:length(PETHStim)
 		Stim = PETHStim(i).Stim;
-		[~, iStimType] = max([Stim.NumTrains]);
+		if nargin < 7
+			[~, iStimType] = max([Stim.NumTrains]);
+		else
+			iStimType = find([Stim.TrainType] == stimType);
+			if isempty(iStimType)
+				error('Cannot find stim type %d', stimType)
+			end
+			stim_length = Stim(iStimType).PulseOff(1) - Stim(iStimType).PulseOn(1);
+		end
 		sel = Stim(iStimType).Timestamps <= xrange(2);
 		t = Stim(iStimType).Timestamps(sel);
 		pethStim(i, 1:length(t)) = Stim(iStimType).SpikeRate(sel);

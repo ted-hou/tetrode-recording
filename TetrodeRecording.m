@@ -2508,6 +2508,12 @@ classdef TetrodeRecording < handle
 			rasterXLim 			= p.Results.RasterXLim;
 			rasterXLimStim 		= p.Results.RasterXLimStim;
 
+			if ~isempty(obj.SelectedChannels)
+				iChannelDisp = obj.SelectedChannels(iChannel);
+			else
+				iChannelDisp = iChannel;
+			end
+
 			hFigure = figure('Units', 'Normalized', 'Position', p.Results.Position, 'GraphicsSmoothing', 'on');
 			hAx1 = subplot(2,1,1);
 			hAx2 = subplot(2,1,2);
@@ -2526,7 +2532,7 @@ classdef TetrodeRecording < handle
 			obj.RasterStim(iChannel, 'Clusters', iUnit, 'Ax', hAx2, 'XLim', rasterXLimStim);
 
 			expName = obj.GetExpName();				
-			displayName = [expName, ' (Channel ', num2str(iChannel), ' Unit ', num2str(iUnit), ')'];
+			displayName = [expName, ' (Channel ', num2str(iChannelDisp), ' Unit ', num2str(iUnit), ')'];
 			hTitle = suptitle(displayName);
 
 			title(hAx1, 'Lever Press')
@@ -2604,8 +2610,11 @@ classdef TetrodeRecording < handle
 			wLeft	= (1 - 2*fMargin)*xRatio - 2*xMargin;
 			wRight	= (1 - 2*fMargin)*(1 - xRatio) - 2*xMargin;
 
-			expName = obj.GetExpName();				
-			displayName = [expName, ' (Channel ', num2str(iChannel), ')'];
+			expName = obj.GetExpName();
+			if ~isempty(obj.SelectedChannels)
+				iChannelDisp = obj.SelectedChannels(iChannel);
+			end
+			displayName = sprintf('%s (Channel %d)', expName, iChannelDisp);
 
 			if ~isempty(h.Figure)
 				clf(h.Figure)
@@ -2838,11 +2847,8 @@ classdef TetrodeRecording < handle
 			hPrev = hButtonNextChn;
 
 			hAxesTextCurChn = axes('Position', hPrev.Position, 'Visible', 'off');
-			if ~isempty(obj.SelectedChannels)
-				iChannelDisp = obj.SelectedChannels(iChannel);
-			end
 			hTextCurChn = text(hAxesTextCurChn, 0.5, 0.5,...
-				sprintf('Chn%d (%d/%d)', iChannelDisp, find(allChannels==iChannel), length(allChannels)),...
+				sprintf('C%dF%d (%d/%d)', iChannelDisp, iChannel, find(allChannels==iChannel), length(allChannels)),...
 				'Tag', 'HideWhenSaving', 'HorizontalAlignment', 'center', 'FontSize', 10, 'FontWeight', 'bold');
 			hAxesTextCurChn.Position(1) = hAxesTextCurChn.Position(1) - hAxesTextCurChn.Position(3) - buttonXSpacing;
 			hPrev = hAxesTextCurChn;
@@ -4046,6 +4052,26 @@ classdef TetrodeRecording < handle
 
 			varargout = {sampleIndex, timestamps};
 		end
+
+		function varargout = GetUnitInfoFromBatchList(obj, list, iUnit)
+            if size(list, 2) == 4
+                thisChannel = list{iUnit, 3};
+                thisCluster = list{iUnit, 4};
+            else
+                thisChannel = find(obj.SelectedChannels == list{iUnit, 3});
+                if isempty(thisChannel)
+                	error('%s: cannot find amplifier channel %d in file.', obj.GetExpName(), list{iUnit, 3})
+                end
+                if thisChannel ~= list{iUnit, 4}
+                	error('%s: Selected amplifier channel %d maps to file channel %d, but listed file channel is %d.', obj.GetExpName(), list{iUnit, 3}, thisChannel, list{iUnit, 4})
+                end
+                thisCluster = list{iUnit, 5};
+            end
+
+            thisRefCluster = max(obj.Spikes(thisChannel).Cluster.Classes); % Use the last cluster is 'noise'/reference cluster
+
+            varargout = {thisChannel, thisCluster, thisRefCluster};
+		end
 	end
 
 	methods (Static)
@@ -4320,31 +4346,32 @@ classdef TetrodeRecording < handle
 		%% BatchPlotSimple: function description
 		function BatchPlotSimple(TR, list, varargin)
 			p = inputParser;
+			addParameter(p, 'Event', 'PressOn', @ischar)
+			addParameter(p, 'Exclude', 'LickOn', @ischar)
 			addParameter(p, 'RasterXLim', [-5, 0], @isnumeric);
 			addParameter(p, 'RasterXLimStim', [-0.5, 0.5], @isnumeric);
 			parse(p, varargin{:});
 
-			for iPlot = 1:size(list, 1)
-				thisAnimal = list{iPlot, 1};
-				thisDate = list{iPlot, 2};
-				thisChannel = list{iPlot, 3};
-				thisCluster = list{iPlot, 4};
+			for iUnit = 1:size(list, 1)
+				thisAnimal = list{iUnit, 1};
+				thisDate = list{iUnit, 2};
+				thisExpName = [thisAnimal, '_', num2str(thisDate)];
 				for iTr = 1:length(TR)
-					fprintf(1, 'Plotting: iTr = %d, %s_%d in %s\n', iTr, thisAnimal, thisDate, TR(iTr).Path)
-					if ~isempty(strfind(TR(iTr).Path, thisAnimal)) && ~isempty(strfind(TR(iTr).Path, num2str(thisDate)))
-						disp(iTr)
+					% fprintf(1, 'Plotting: iTr = %d, %s_%d in %s\n', iTr, thisAnimal, thisDate, TR(iTr).Path)
+					if strcmpi(TR(iTr).GetExpName(), thisExpName)
+						[thisChannel, thisCluster, thisRefCluster] = TR(iTr).GetUnitInfoFromBatchList(list, iUnit);
 						[hFigure, ~, ~, hTitle] = TR(iTr).PlotUnitSimple(thisChannel, thisCluster,...
-							'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn',...
+							'Reference', 'CueOn', 'Event', p.Results.Event, 'Exclude', p.Results.Exclude,...
 							'RasterXLim', p.Results.RasterXLim, 'RasterXLimStim', p.Results.RasterXLimStim,...
 							'PlotType', 'Raster', 'Position', [0, 0, 0.5, 1]);
 						[hFigure2] = TR(iTr).PlotUnitSimple(thisChannel, thisCluster,...
-							'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn',...
+							'Reference', 'CueOn', 'Event', p.Results.Event, 'Exclude', p.Results.Exclude,...
 							'RasterXLim', p.Results.RasterXLim, 'RasterXLimStim', p.Results.RasterXLimStim,...
 							'PlotType', 'PETH', 'Position', [0.5, 0, 0.5, 1]);
 
-						disp(['Saving file:', hTitle.String, ' Raster Simple'])
-						print(hFigure, [hTitle.String, ' Raster Simple'], '-dpng')
-						print(hFigure2, [hTitle.String, ' PETH Simple'], '-dpng')
+						disp(['Saving file:', hTitle.String, ' Raster Simple ', p.Results.Event])
+						print(hFigure, [hTitle.String, ' ', p.Results.Event, ' Raster Simple'], '-dpng')
+						print(hFigure2, [hTitle.String, ' ', p.Results.Event, ' PETH Simple'], '-dpng')
 
 						% input('Type anything to continue...\n');
 						try
@@ -4378,15 +4405,14 @@ classdef TetrodeRecording < handle
 			copyLabel 		= p.Results.CopyLabel;
 			plotStim 		= p.Results.PlotStim;
 			plotLick 		= p.Results.PlotLick;
-			for iPlot = 1:size(list, 1)
-				thisAnimal = list{iPlot, 1};
-				thisDate = list{iPlot, 2};
-				thisChannel = list{iPlot, 3};
-				thisCluster = list{iPlot, 4};
+			for iUnit = 1:size(list, 1)
+				thisAnimal = list{iUnit, 1};
+				thisDate = list{iUnit, 2};
+				thisExpName = [thisAnimal, '_', num2str(thisDate)];
 
 				for iTr = 1:length(TR)
-					if ~isempty(strfind(TR(iTr).Path, thisAnimal)) && ~isempty(strfind(TR(iTr).Path, num2str(thisDate)))
-						thisRefCluster = max(TR(iTr).Spikes(thisChannel).Cluster.Classes); % Use the last cluster is 'noise'/reference cluster
+					if strcmpi(TR(iTr).GetExpName(), thisExpName)
+						[thisChannel, thisCluster, thisRefCluster] = TR(iTr).GetUnitInfoFromBatchList(list, iUnit);
 						if plotStim
 							hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow, 'WaveformWindow', waveformWindow, 'WaveformYLim', waveformYLim, 'PlotStim', true);
 						elseif plotLick
@@ -4394,10 +4420,30 @@ classdef TetrodeRecording < handle
 						else
 							hFigure = TR(iTr).PlotChannel(thisChannel, 'PrintMode', true, 'Clusters', thisCluster, 'ReferenceCluster', thisRefCluster, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'WaveformWindow', waveformWindow, 'WaveformYLim', waveformYLim, 'RasterXLim', rasterXLim, 'ExtendedWindow', extendedWindow, 'PlotStim', false);
 						end
-						TR(iTr).GUISavePlot([], [], hFigure, 'Reformat', reformat, 'CopyLegend', copyLegend, 'CopyLabel', copyLabel, 'Filename', char(sprintf("%s Chn%d Unit%d", TR(iTr).GetExpName(), thisChannel, thisCluster)));
+						TR(iTr).GUISavePlot([], [], hFigure, 'Reformat', reformat, 'CopyLegend', copyLegend, 'CopyLabel', copyLabel, 'Filename', char(sprintf("%s Chn%d Unit%d", TR(iTr).GetExpName(), TR(iTr).SelectedChannels(thisChannel), thisCluster)));
                         try
                             close(hFigure.Figure)
                         end
+						break
+					end
+				end
+			end
+		end
+
+		function BatchCullLowISI(TR, list, minISI)
+			if nargin < 3
+				minISI = 1e-3;
+			end
+
+			for iUnit = 1:size(list, 1)
+				thisAnimal = list{iUnit, 1};
+				thisDate = list{iUnit, 2};
+				thisExpName = [thisAnimal, '_', num2str(thisDate)];
+
+				for iTr = 1:length(TR)
+					if strcmpi(TR(iTr).GetExpName(), thisExpName)
+						[thisChannel, thisCluster, thisRefCluster] = TR(iTr).GetUnitInfoFromBatchList(list, iUnit);
+						TR(iTr).SpikeCullLowISI(thisChannel, 'Clusters', thisCluster, 'MinISI', minISI);
 						break
 					end
 				end
@@ -4430,32 +4476,36 @@ classdef TetrodeRecording < handle
 
 			PETH = [];
 
-			for iPlot = 1:size(list, 1)
-				thisAnimal 	= list{iPlot, 1};
-				thisDate 	= list{iPlot, 2};
-				thisChannel = list{iPlot, 3};
-				thisCluster = list{iPlot, 4};
+			for iUnit = 1:size(list, 1)
+				thisAnimal 	= list{iUnit, 1};
+				thisDate 	= list{iUnit, 2};
 				thisExpName = [thisAnimal, '_', num2str(thisDate)];
 
 				for iTr = 1:length(TR)
-					if strcmpi(TR(iTr).GetExpName, thisExpName)
+					if strcmpi(TR(iTr).GetExpName(), thisExpName)
 						if isempty(PETH)
 							iPETH = 1;
 						else
 							iPETH = length(PETH) + 1;
-						end
+                        end
 
-						thisRefCluster = max(TR(iTr).Spikes(thisChannel).Cluster.Classes); % Use the last cluster is 'noise'/reference cluster
+						[thisChannel, thisCluster, thisRefCluster] = TR(iTr).GetUnitInfoFromBatchList(list, iUnit);
 						if press
-							[PETH(iPETH).Press, PETH(iPETH).Time, PETH(iPETH).NumTrialsPress, PETH(iPETH).PressSingleTrial] = TR(iTr).PETHistCounts(...
-								thisChannel, 'Cluster', thisCluster,...
-								'Event', 'PressOn', 'Exclude', 'LickOn',...
-								'TrialLength', trialLength, 'AllowedTrialLength', allowedTrialLength, 'ExtendedWindow', extendedWindow, 'SpikeRateWindow', spikeRateWindow,...
-								'MoveOnsetCorrection', pressOnsetCorrection{iTr});
+                            try
+                                [PETH(iPETH).Press, PETH(iPETH).Time, PETH(iPETH).NumTrialsPress, PETH(iPETH).PressSingleTrial] = TR(iTr).PETHistCounts(...
+                                    thisChannel, 'Cluster', thisCluster,...
+                                    'Event', 'PressOn', 'Exclude', 'LickOn',...
+                                    'TrialLength', trialLength, 'AllowedTrialLength', allowedTrialLength, 'ExtendedWindow', extendedWindow, 'SpikeRateWindow', spikeRateWindow,...
+                                    'MoveOnsetCorrection', pressOnsetCorrection{iTr});
+                            catch
+                                PETH(iPETH).Press = [];
+                                PETH(iPETH).NumTrialsPress = 0;
+                                PETH(iPETH).PressSingleTrial = [];
+                            end
 						end
 						if lick
                             try
-                                [PETH(iPETH).Lick, ~, PETH(iPETH).NumTrialsLick, PETH(iPETH).LickSingleTrial] = TR(iTr).PETHistCounts(...
+                                [PETH(iPETH).Lick, PETH(iPETH).Time, PETH(iPETH).NumTrialsLick, PETH(iPETH).LickSingleTrial] = TR(iTr).PETHistCounts(...
                                     thisChannel, 'Cluster', thisCluster,...
                                     'Event', 'LickOn', 'Exclude', 'PressOn',...
                                     'TrialLength', trialLength, 'AllowedTrialLength', allowedTrialLength, 'ExtendedWindow', extendedWindow, 'SpikeRateWindow', spikeRateWindow);
@@ -4475,7 +4525,7 @@ classdef TetrodeRecording < handle
 						PETH(iPETH).SpikeRateWindow = spikeRateWindow;
 						PETH(iPETH).ExtendedWindow = extendedWindow;
 						PETH(iPETH).ExpName = [thisAnimal, '_', num2str(thisDate)];
-						PETH(iPETH).Channel = thisChannel;
+						PETH(iPETH).Channel = TR(iTr).SelectedChannels(thisChannel);
 						PETH(iPETH).Cluster = thisCluster;
 						PETH(iPETH).PressOnsetCorrection = pressOnsetCorrection{iTr};
 						PETH(iPETH).AllowedTrialLength = allowedTrialLength;

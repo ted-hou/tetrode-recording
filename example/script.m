@@ -2,7 +2,7 @@
 ptr = TetrodeRecording.BatchPreview();
 
 
-set(findobj(gcf, 'Type', 'Axes', '-not', 'Tag', 'suptitle'), 'YLim', [-200, 200]);
+set(findobj(gcf, 'Type', 'Axes', '-not', 'Tag', 'suptitle'), 'YLim', [-500, 500]);
 
 % Save/load batch preview files
 TetrodeRecording.BatchSave(ptr, 'Prefix', 'ptr_', 'DiscardData', true);

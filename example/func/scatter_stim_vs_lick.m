@@ -1,4 +1,4 @@
-function scatter_stim_vs_press(PETH, titletext, sigma_threshold, stimType, moveEffectWindow, stimEffectWindow, colorByProbePos)% Sorted stim PETH
+function scatter_stim_vs_lick(PETH, titletext, sigma_threshold, stimType, moveEffectWindow, stimEffectWindow, colorByProbePos)% Sorted stim PETH
 	if nargin < 7
 		colorByProbePos = true;
 	end
@@ -52,9 +52,9 @@ function scatter_stim_vs_press(PETH, titletext, sigma_threshold, stimType, moveE
 	% Normalize rates
 	pethStimNorm = TetrodeRecording.NormalizePETH(pethStim, 'Method', 'zscore', 'BaselineSamples', t < 0);
 
-	tPress = PETH(1).Time;
-	pethPress = transpose(reshape([PETH.Press], [length(tPress), length(PETH)]));
-	pethPressNorm = TetrodeRecording.NormalizePETH(pethPress, 'Method', 'zscore', 'BaselineSamples', tPress < -2 & tPress > -4);
+	tLick = PETH(1).Time;
+	pethLick = transpose(reshape([PETH.Lick], [length(tLick), length(PETH)]));
+	pethLickNorm = TetrodeRecording.NormalizePETH(pethLick, 'Method', 'zscore', 'BaselineSamples', tLick < -2 & tLick > -4);
 
 	% Find Max effect
 	for i = 1:length(PETH)
@@ -62,14 +62,14 @@ function scatter_stim_vs_press(PETH, titletext, sigma_threshold, stimType, moveE
 		[~, iMaxStimEffect] = max(abs(normStim));
 		PETH(i).MaxStimEffect = normStim(iMaxStimEffect);
 
-		normPress = pethPressNorm(i, tPress >= moveEffectWindow(1) & tPress <= moveEffectWindow(2));
-		[~, iMaxPressEffect] = max(abs(normPress));
-		PETH(i).MaxPressEffect = normPress(iMaxPressEffect);
+		normLick = pethLickNorm(i, tLick >= moveEffectWindow(1) & tLick <= moveEffectWindow(2));
+		[~, iMaxLickEffect] = max(abs(normLick));
+		PETH(i).MaxLickEffect = normLick(iMaxLickEffect);
 	end
 
-	maxPressEffect = [PETH.MaxPressEffect];
+	maxLickEffect = [PETH.MaxLickEffect];
 	maxStimEffect = [PETH.MaxStimEffect];
-	sel = abs(maxPressEffect) > sigma_threshold & abs(maxStimEffect) > sigma_threshold;
+	sel = abs(maxLickEffect) > sigma_threshold & abs(maxStimEffect) > sigma_threshold;
 	f = figure;
 	ax = axes(f);
 	hold on
@@ -78,11 +78,11 @@ function scatter_stim_vs_press(PETH, titletext, sigma_threshold, stimType, moveE
 		for iShank = 1:4
 			% Plot units by shank
 			sel = [PETH.ProbeCol] == iShank;
-			hItems(iShank) = scatter(ax, maxPressEffect(sel), maxStimEffect(sel), 30, probeColors(sel, :), 'filled', 'DisplayName', sprintf('shank %d - %d units', iShank, sum(sel)));
+			hItems(iShank) = scatter(ax, maxLickEffect(sel), maxStimEffect(sel), 30, probeColors(sel, :), 'filled', 'DisplayName', sprintf('shank %d - %d units', iShank, sum(sel)));
 		end
 	else
-		hLine1 = plot(ax, maxPressEffect(~sel), maxStimEffect(~sel), 'o', 'MarkerEdgeColor', '#808080', 'DisplayName', sprintf('%d unresponsive units', sum(~sel)));
-		hLine2 = plot(ax, maxPressEffect(sel), maxStimEffect(sel), 'o', 'MarkerEdgeColor', 'black', 'MarkerFaceColor', 'black', 'DisplayName', sprintf('%d responsive units', sum(sel)));
+		hLine1 = plot(ax, maxLickEffect(~sel), maxStimEffect(~sel), 'o', 'MarkerEdgeColor', '#808080', 'DisplayName', sprintf('%d unresponsive units', sum(~sel)));
+		hLine2 = plot(ax, maxLickEffect(sel), maxStimEffect(sel), 'o', 'MarkerEdgeColor', 'black', 'MarkerFaceColor', 'black', 'DisplayName', sprintf('%d responsive units', sum(sel)));
 		hItems = [hLine1, hLine2];
 	end
 	plot(ax, ax.XLim, [0, 0], 'k:')
