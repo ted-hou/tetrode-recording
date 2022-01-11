@@ -2539,6 +2539,80 @@ classdef TetrodeRecording < handle
 			title(hAx2, 'Opto stim')
 
 			varargout = {hFigure, hAx1, hAx2, hTitle};
+        end
+
+		function varargout = PlotUnitSimple_TwoEvents(obj, channel, unit, varargin)
+			p = inputParser;
+			addRequired(p, 'Channel', @isnumeric);
+			addRequired(p, 'Unit', @isnumeric);
+			addParameter(p, 'Reference', 'CueOn', @ischar);
+			addParameter(p, 'Event', 'PressOn', @ischar);
+			addParameter(p, 'Exclude', 'LickOn', @ischar);
+			addParameter(p, 'Event2', 'LickOn', @ischar);
+			addParameter(p, 'Exclude2', 'PressOn', @ischar);
+			addParameter(p, 'Bins', 3, @isnumeric);
+			addParameter(p, 'BinMethod', 'percentile', @ischar);
+			addParameter(p, 'SpikeRateWindow', 100, @isnumeric);
+			addParameter(p, 'RasterXLim', [-5, 2], @isnumeric);
+			addParameter(p, 'PlotType', 'Raster', @ischar); % 'Raster', 'PETH'
+			addParameter(p, 'AlignTo', 'Event', @ischar);
+			addParameter(p, 'Position', [0, 0, 0.5, 1], @isnumeric);
+            addParameter(p, 'LeaveSpaceForAnnotation', false, @islogical);
+
+			parse(p, channel, unit, varargin{:});
+			iChannel 			= p.Results.Channel;
+			iUnit 				= p.Results.Unit;
+			reference 			= p.Results.Reference;
+			event 				= p.Results.Event;
+			exclude 			= p.Results.Exclude;
+			event2 				= p.Results.Event2;
+			exclude2 			= p.Results.Exclude2;
+			bins 				= p.Results.Bins;
+			binMethod 			= p.Results.BinMethod;
+			spikeRateWindow 	= p.Results.SpikeRateWindow;
+			rasterXLim 			= p.Results.RasterXLim;
+			leaveSpaceForAnnotation = p.Results.LeaveSpaceForAnnotation;
+
+			if ~isempty(obj.SelectedChannels)
+				iChannelDisp = obj.SelectedChannels(iChannel);
+			else
+				iChannelDisp = iChannel;
+			end
+
+			hFigure = figure('Units', 'Normalized', 'Position', p.Results.Position, 'GraphicsSmoothing', 'on');
+            if leaveSpaceForAnnotation
+                hAx1 = subplot(3,1,1);
+                hAx2 = subplot(3,1,2);
+            else
+                hAx1 = subplot(2,1,1);
+                hAx2 = subplot(2,1,2);
+            end
+
+			switch lower(p.Results.PlotType)
+				case 'raster'
+					obj.Raster(iChannel, reference, event, exclude,...
+						'Clusters', iUnit, 'XLim', rasterXLim, 'Ax', hAx1, 'ExtendedWindow', [-2, 2],...
+						'AlignTo', p.Results.AlignTo);
+					obj.Raster(iChannel, reference, event2, exclude2,...
+						'Clusters', iUnit, 'XLim', rasterXLim, 'Ax', hAx2, 'ExtendedWindow', [-2, 2],...
+						'AlignTo', p.Results.AlignTo);
+				case 'peth'
+					obj.PETH(iChannel, reference, event, exclude,...
+						'Clusters', iUnit, 'XLim', rasterXLim, 'Ax', hAx1, 'ExtendedWindow', [-2, 2],...
+						'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow);
+					obj.PETH(iChannel, reference, event2, exclude2,...
+						'Clusters', iUnit, 'XLim', rasterXLim, 'Ax', hAx2, 'ExtendedWindow', [-2, 2],...
+						'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow);
+			end
+
+			expName = obj.GetExpName();				
+			displayName = [expName, ' (Channel ', num2str(iChannelDisp), ' Unit ', num2str(iUnit), ')'];
+			hTitle = suptitle(displayName);
+
+			title(hAx1, event)
+			title(hAx2, event2)
+
+			varargout = {hFigure, hAx1, hAx2, hTitle};
 		end
 
 		% PlotChannel(iChannel, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', hFigure)
