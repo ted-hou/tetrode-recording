@@ -67,16 +67,22 @@ classdef TetrodeRecording < handle
 
 		function startTime = GetStartTime(obj)
 			if isempty(obj.StartTime)
-				if isempty(obj.NEV)
-					NEV = openNEV([obj.Path, obj.Files{1}], 'nosave', 'nomat');
-					startTime = NEV.MetaTags.DateTimeRaw;
-				else
-					startTime = obj.NEV.MetaTags.DateTimeRaw;
-				end
-				startTime(7) = startTime(7) + startTime(8)/1000;
-				startTime = startTime([1,2,4,5,6,7]);
-				startTime = datetime(startTime, 'TimeZone', 'UTC');
-				obj.StartTime = startTime;
+                if strcmpi(obj.System, 'intan')
+                    startTime = [];
+                elseif strcmpi(obj.System, 'blackrock')
+                    if isempty(obj.NEV)
+                        NEV = openNEV([obj.Path, obj.Files{1}], 'nosave', 'nomat');
+                        startTime = NEV.MetaTags.DateTimeRaw;
+                    else
+                        startTime = obj.NEV.MetaTags.DateTimeRaw;
+                    end
+                    startTime(7) = startTime(7) + startTime(8)/1000;
+                    startTime = startTime([1,2,4,5,6,7]);
+                    startTime = datetime(startTime, 'TimeZone', 'UTC');
+                    obj.StartTime = startTime;
+                else
+                    error('Unrecognized system %s', obj.System);
+                end
 			else
 				startTime = obj.StartTime;
 			end
@@ -137,7 +143,7 @@ classdef TetrodeRecording < handle
 					for iChunk = 1:numChunks
 						TetrodeRecording.TTS(['Processing chunk ', num2str(iChunk), '/', num2str(numChunks), ':\n']);
 						obj.ReadIntan(obj.Files((iChunk - 1)*chunkSize + 1:min(iChunk*chunkSize, length(obj.Files))))
-						obj.GenerateChannelMap('HeadstageType', 'Intan');
+% 						obj.GenerateChannelMap('HeadstageType', 'Intan');
 						if substractMean
 							obj.SubstractMean();
 						end
@@ -145,11 +151,15 @@ classdef TetrodeRecording < handle
 							obj.RemoveTransient();
 						end
 						if isempty(channels)
-							channels = obj.MapChannel_RawToTetrode([obj.Amplifier.Channels.NativeOrder] + 1);
-						end
-						obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', iChunk > 1);
+% 							channels = obj.MapChannel_RawToTetrode([obj.Amplifier.Channels.NativeOrder] + 1);
+                            channels = [obj.Amplifier.Channels.NativeOrder] + 1;
+                        end
+                        if strcmpi(digitalChannels, 'auto')
+                            digitalChannels = {'Cue', 1; 'Reward', 2; 'Lick', 3; 'Press', 4};
+                        end
 						obj.GetDigitalData('ChannelLabels', digitalChannels, 'Append', iChunk > 1);
 						obj.GetAnalogData('ChannelLabels', analogChannels, 'Append', iChunk > 1);
+						obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', iChunk > 1);
 						obj.ClearCache();
 					end
 					obj.GetDigitalEvents(true);
@@ -696,8 +706,8 @@ classdef TetrodeRecording < handle
 				iSample.BoardADC = iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2);
 			end
 			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
-		end
-
+        end
+        
 		% Used to preview a small portion of loaded data. Will remove used data from workspace.
 		function TrimData(obj, numSamples)
 			if ~isempty(obj.BoardDigIn)
@@ -2404,21 +2414,23 @@ classdef TetrodeRecording < handle
 
 			if isempty(channels)
 				channels = [obj.Spikes.Channel];
-			end
+            end
+            nChannels = max(channels);
 
 			expName = obj.GetExpName();
 
 			hFigure	= figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'Name', expName, 'DefaultAxesFontSize', fontSize,...
 				'GraphicsSmoothing', 'off');
-			hFigure.UserData.SelectedChannels = false(32, 1);
-			hAxes = gobjects(1, 35);
+			hFigure.UserData.SelectedChannels = false(nChannels, 1);
+			hAxes = gobjects(1, nChannels);
 
 			for iChannel = channels
 				if isempty(obj.Spikes(iChannel).Waveforms)
 					continue
 				end
 
-				hAxes(iChannel)	= subplot(8, 8, iChannel);
+
+				hAxes(iChannel)	= subplot(8, 16, iChannel);
 				hAxes(iChannel).UserData.Channel = iChannel;
 				hAxes(iChannel).ButtonDownFcn = @obj.OnAxesClicked;
 				xlabel(hAxes(iChannel), 'Time (ms)');
@@ -4178,12 +4190,12 @@ classdef TetrodeRecording < handle
 				previewObj(iDir).Path = [dirs{iDir}, '\'];
 				previewObj(iDir).Files = files;
                 rig = TetrodeRecording.GetRig(previewObj(iDir).Path);
-				try
+% 				try
 					previewObj(iDir).Preview('Rig', rig, 'HideResults', true);
-				catch ME
-					warning(['Error when processing folder (', dirs{iDir}, ') - this one will be skipped.'])
-					warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
-				end				
+% 				catch ME
+% 					warning(['Error when processing folder (', dirs{iDir}, ') - this one will be skipped.'])
+% 					warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
+% 				end				
 			end
 
 			if nargin < 1
@@ -4199,7 +4211,7 @@ classdef TetrodeRecording < handle
 						warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
 					end
 				end
-			end
+            end
 			% TetrodeRecording.RandomWords();
 		end
 
@@ -5388,7 +5400,7 @@ classdef TetrodeRecording < handle
 		end
 
 		function rig = GetRig(filepath)
-			if contains(filepath, {'desmond10', 'desmond11', 'desmond12', 'daisy4', 'desmond14', 'desmond16', 'desmond18', 'daisy7', 'desmond21', 'desmond22', 'daisy9'})
+			if contains(filepath, {'desmond10', 'desmond11', 'desmond12', 'daisy4', 'desmond14', 'desmond16', 'desmond18', 'daisy7', 'desmond21', 'desmond22', 'daisy9', 'daisy11', 'daisy12', 'daisy13'})
 				rig = 1;
 			elseif contains(filepath, {'desmond13', 'daisy5', 'desmond15', 'desmond17', 'desmond19', 'desmond20', 'daisy8', 'daisy10'})
 				rig = 2;
