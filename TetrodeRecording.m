@@ -5333,7 +5333,11 @@ classdef TetrodeRecording < handle
 			end
 			if nargin < 3
 				eventExclude = [];
-			end
+            end
+            reference = reshape(reference, 1, []);
+            event = reshape(event, 1, []);
+            eventExclude = reshape(eventExclude, 1, []);
+            
 			edges = [reference(1:end - 1), max(event(end), reference(end))];
 			[~, ~, bins] = histcounts(event, edges);
 			event = event(bins ~= 0);
