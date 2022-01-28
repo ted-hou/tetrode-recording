@@ -4339,7 +4339,10 @@ classdef TetrodeRecording < handle
 			for iFile = 1:length(files)
 				part = S(iFile).tr.Part;
 				if nnz(part > 1) > 1
-					partOne = cellfun(@(tr) strcmpi(tr.Path, S(iFile).tr.Path) && ~isempty(tr.Part) && tr.Part(1) == 1, {S.tr});
+                    tr = [S.tr];
+                    minPart = min(vertcat(tr.Part)); 
+                    minPart = minPart(1);
+					partOne = cellfun(@(tr) strcmpi(tr.Path, S(iFile).tr.Path) && ~isempty(tr.Part) && tr.Part(1) == minPart, {S.tr});
 					channels = [S(iFile).tr.Spikes.Channel];
 					S(partOne).tr.Spikes(channels) = S(iFile).tr.Spikes(channels);
 					S(partOne).tr.Part(2) = S(partOne).tr.Part(2) - 1;
@@ -4357,8 +4360,34 @@ classdef TetrodeRecording < handle
 			end
 
 			varargout = {tr, iExp};
-		end
+        end
 
+        function tr = BatchLoadSimple()
+        % Read multiple TR objects, assuming they're non-overlapping files from the same experiment.
+            files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
+            for iFile = 1:length(files)
+                disp(['Loading file: ', files{iFile}, '...'])
+                S(iFile) = load(files{iFile}, 'tr');
+            end
+            tr = TetrodeRecording.BatchMergeSimple([S.tr]);
+        end
+        
+        function tr = BatchMergeSimple(TR)
+        % Merge multiple TR objects, assuming they're non-overlapping files from the same experiment.
+            if length(TR) == 1
+                tr = TR;
+                return
+            end
+        
+            tr = TR(1);
+            for iTr = 2:length(TR)
+                channels = [TR(iTr).Spikes.Channel];
+                tr.Spikes(channels) = TR(iTr).Spikes(channels);
+                tr.Files = vertcat(tr.Files, TR(iTr).Files);
+                tr.Part = vertcat(tr.Part, TR(iTr).Part);
+            end
+        end
+        
 		function BatchSave(TR, varargin)
 			p = inputParser;
 			addParameter(p, 'Prefix', '', @ischar);
@@ -4413,8 +4442,14 @@ classdef TetrodeRecording < handle
 							end
 							for iChannel = allChannels((iPart - 1)*maxChannels + 1:min(length(allChannels), iPart*maxChannels))
 								tr.Spikes(iChannel) = spikes(iChannel);
-							end
-							file = [thisSavePath, prefix, expName, '(', num2str(iPart), ')', '.mat'];
+                            end
+                            iFilePart = iPart;
+                            file = sprintf('%s\\%s%s(%02d).mat', thisSavePath, prefix, expName, iFilePart);
+                            while isfile(file)
+                                iFilePart = iFilePart + 1;
+                                file = sprintf('%s\\%s%s(%02d).mat', thisSavePath, prefix, expName, iFilePart);
+                            end
+                            
 							save(file, 'tr', '-v7.3');
 						end
 					catch ME
@@ -4422,8 +4457,13 @@ classdef TetrodeRecording < handle
 						rethrow(ME)
 					end
 					tr.Spikes = spikes;
-				else
-					file = [thisSavePath, prefix, expName, '.mat'];
+                else
+                    file = sprintf('%s\\%s_%s.mat', thisSavePath, prefix, expName);
+                    iFilePart = 0;
+                    while isfile(file)
+                        iFilePart = iFilePart + 1;
+                        file = sprintf('%s\\%s%s(%02d).mat', thisSavePath, prefix, expName, iFilePart);
+                    end
 					save(file, 'tr', '-v7.3');
 				end
 			end
