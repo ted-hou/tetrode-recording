@@ -2708,6 +2708,7 @@ classdef TetrodeRecording < handle
 				h.Figure = figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'GraphicsSmoothing', 'on');
 				h.Figure.UserData.PlotMean = true;
 				h.Figure.UserData.ReferenceCluster = referenceCluster;
+                h.Figure.UserData.PlotRefreshEnabled = true;
 			end
 			h.Figure.UserData.SelectedSampleIndex = []; % Selectively plot waveforms by sampleIndex. Reset everytime.
 			h.Figure.Name = displayName;
@@ -2879,6 +2880,16 @@ classdef TetrodeRecording < handle
 			%----------------------------------------------------
 			%		Buttons: vertical (plot options)
 			%----------------------------------------------------
+			hButtonPlotRefresh = uicontrol(...
+				'Style', 'togglebutton',...
+				'String', 'Refresh',...
+				'Callback', {@obj.GUITogglePlotRefresh, iChannel, p, h},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Value', h.Figure.UserData.PlotRefreshEnabled,...
+				'Position', [buttonXSpacing, h.Waveform.Position(2) + h.Waveform.Position(4) - buttonHeight, buttonWidth, buttonHeight]);
+			hPrev = hButtonPlotRefresh;
+            
 			hButtonPlotMean = uicontrol(...
 				'Style', 'togglebutton',...
 				'String', 'Mean',...
@@ -2886,8 +2897,9 @@ classdef TetrodeRecording < handle
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Value', h.Figure.UserData.PlotMean,...
-				'Position', [buttonXSpacing, h.Waveform.Position(2) + h.Waveform.Position(4) - buttonHeight, buttonWidth, buttonHeight]);
+				'Position', hPrev.Position);
 			hPrev = hButtonPlotMean;
+			hPrev.Position(2) = hPrev.Position(2) - hPrev.Position(4) - buttonYSpacing;
 
 			hButtonYLim = uicontrol(...
 				'Style', 'pushbutton',...
@@ -2961,19 +2973,21 @@ classdef TetrodeRecording < handle
 			obj.GUIBusy(h.Figure, true);
 			obj.ReplotChannel(iChannel, p, h);
 
-			if (~isempty(event2) || plotStim)
-				numTrials = max(h.Raster.Children(1).YData);
-				numTrials2 = max(h.Raster2.Children(1).YData);
-				hRasterUp = (1 - 2*fMargin - 5*yMargin)*numTrials/(numTrials + numTrials2);
-				hRasterDown = (1 - 2*fMargin - 5*yMargin)*numTrials2/(numTrials + numTrials2);
-				h.Raster.Position(2) = fMargin + 3*yMargin + hRasterDown;
-				h.Raster2.Position(2) = fMargin + yMargin;
-				h.Raster.Position(4) = hRasterUp;
-				h.Raster2.Position(4) = hRasterDown;
-			else
-				h.Raster.Position(2) = fMargin + yMargin;
-				h.Raster.Position(4) = (1 - 2*fMargin - 2*yMargin); 
-			end
+            if h.Figure.UserData.PlotRefreshEnabled
+                if (~isempty(event2) || plotStim)
+                    numTrials = max(h.Raster.Children(1).YData);
+                    numTrials2 = max(h.Raster2.Children(1).YData);
+                    hRasterUp = (1 - 2*fMargin - 5*yMargin)*numTrials/(numTrials + numTrials2);
+                    hRasterDown = (1 - 2*fMargin - 5*yMargin)*numTrials2/(numTrials + numTrials2);
+                    h.Raster.Position(2) = fMargin + 3*yMargin + hRasterDown;
+                    h.Raster2.Position(2) = fMargin + yMargin;
+                    h.Raster.Position(4) = hRasterUp;
+                    h.Raster2.Position(4) = hRasterDown;
+                else
+                    h.Raster.Position(2) = fMargin + yMargin;
+                    h.Raster.Position(4) = (1 - 2*fMargin - 2*yMargin); 
+                end
+            end
 
 			obj.GUIBusy(h.Figure, false);
 			set(h.Figure, 'Visible', 'on');
@@ -3058,6 +3072,10 @@ classdef TetrodeRecording < handle
 			frameRate 		= p.Results.FrameRate;
 			plotStim 		= p.Results.PlotStim;
 
+            if ~h.Figure.UserData.PlotRefreshEnabled
+                return
+            end
+            
 			clusters = h.Figure.UserData.SelectedClusters;
 			plotMean = h.Figure.UserData.PlotMean;
 			referenceCluster = h.Figure.UserData.ReferenceCluster;
@@ -3353,8 +3371,19 @@ classdef TetrodeRecording < handle
 			obj.ReplotChannel(iChannel, p, h);
 
 			obj.GUIBusy(h.Figure, false);
-		end
+        end
 
+        function GUITogglePlotRefresh(obj, hButton, evnt, iChannel, p, h)
+            if h.Figure.UserData.PlotRefreshEnabled
+                h.Figure.UserData.PlotRefreshEnabled = false;
+            else
+                obj.GUIBusy(h.Figure, true);
+                h.Figure.UserData.PlotRefreshEnabled = true;
+				obj.ReplotChannel(iChannel, p, h);
+                obj.GUIBusy(h.Figure, false);
+            end
+        end
+        
 		function GUIPlotMean(obj, hButton, evnt, iChannel, p, h)
 			obj.GUIBusy(h.Figure, true);
 			if logical(hButton.Value) ~= h.Figure.UserData.PlotMean
