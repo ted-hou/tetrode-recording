@@ -4551,7 +4551,7 @@ classdef TetrodeRecording < handle
 					end
 					tr.Spikes = spikes;
                 else
-                    file = sprintf('%s\\%s_%s.mat', thisSavePath, prefix, expName);
+                    file = sprintf('%s\\%s%s.mat', thisSavePath, prefix, expName);
                     iFilePart = 0;
                     while isfile(file)
                         iFilePart = iFilePart + 1;
