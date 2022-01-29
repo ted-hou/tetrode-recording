@@ -1101,7 +1101,7 @@ classdef TetrodeRecording < handle
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric); % Default to all
 			addParameter(p, 'Clusters', [], @isnumeric); % Default to all, clustered will be combined in ISI analysis
-			addParameter(p, 'MinISI', 1e-3, @isnumeric); % Min allowed ISI (ms). After culling, spikes will have ISI >= minISI.
+			addParameter(p, 'MinISI', 0.5, @isnumeric); % Min allowed ISI (ms). After culling, spikes will have ISI >= minISI.
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
 			clusters = p.Results.Clusters;
@@ -1133,6 +1133,26 @@ classdef TetrodeRecording < handle
                 
                 fprintf(1, 'Culled %i waveforms with ISI < %.4f ms from chn %i cluster %i\n', length(toCull), minISI, iChn, thisClusters);
             end
+        end
+        
+        function PlotISI(obj, channel, clusters)
+            iChn = channel;
+            hFigure = figure();
+            for i = 1:length(clusters)
+                iUnit = clusters(i);
+                inSelClusters = obj.Spikes(iChn).Cluster.Classes == iUnit;
+                isi = [Inf, 1e3 * diff(obj.Spikes(iChn).Timestamps(inSelClusters))];
+                hAx = subplot(1, length(clusters) + 1, i);
+                histogram(hAx, isi, 0:0.5:50)
+                title(hAx, sprintf('ISI, Cluster %d', iUnit))
+                xlabel('ms')
+            end
+            hAx = subplot(1, length(clusters) + 1, length(clusters) + 1);
+            inSelClusters = ismember(obj.Spikes(iChn).Cluster.Classes, clusters);
+            isi = [Inf, 1e3 * diff(obj.Spikes(iChn).Timestamps(inSelClusters))];
+            histogram(hAx, isi, 0:0.5:50)
+            title(hAx, 'ISI, Combined')
+            xlabel('ms')
         end
         
 		function RemoveNaNs(obj, channels)
@@ -2877,6 +2897,16 @@ classdef TetrodeRecording < handle
 			hPrev = hButtonSpikesToCluster;
 			hPrev.Position(1) = hPrev.Position(1) + hPrev.Position(3) + buttonXSpacing;
 
+			hButtonCullISI = uicontrol(...
+				'Style', 'pushbutton',...
+				'String', 'Cull ISI ...',...
+				'Callback', {@obj.GUISpikeCullLowISI, iChannel, p, h},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Position', hPrev.Position);
+			hPrev = hButtonCullISI;
+			hPrev.Position(1) = hPrev.Position(1) + hPrev.Position(3) + buttonXSpacing;
+
 			%----------------------------------------------------
 			%		Buttons: vertical (plot options)
 			%----------------------------------------------------
@@ -2889,6 +2919,17 @@ classdef TetrodeRecording < handle
 				'Value', h.Figure.UserData.PlotRefreshEnabled,...
 				'Position', [buttonXSpacing, h.Waveform.Position(2) + h.Waveform.Position(4) - buttonHeight, buttonWidth, buttonHeight]);
 			hPrev = hButtonPlotRefresh;
+            
+			hButtonPlotISI = uicontrol(...
+				'Style', 'pushbutton',...
+				'String', 'ISI',...
+				'Callback', {@obj.GUIPlotISI, iChannel, h},...
+				'BusyAction', 'cancel',...
+				'Units', 'Normalized',...
+				'Position', hPrev.Position);
+			hPrev = hButtonPlotISI;
+			hPrev.Position(2) = hPrev.Position(2) - hPrev.Position(4) - buttonYSpacing;
+
             
 			hButtonPlotMean = uicontrol(...
 				'Style', 'togglebutton',...
@@ -3348,8 +3389,28 @@ classdef TetrodeRecording < handle
 				obj.ReplotChannel(iChannel, p, h);
 			end
 			obj.GUIBusy(h.Figure, false);
-		end
+        end
 
+        function GUISpikeCullLowISI(obj, hButton, evnt, iChannel, p, h)
+			obj.GUIBusy(h.Figure, true);
+			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
+
+			[clusters, ok] = listdlg(...
+				'PromptString', 'Cull low ISI for (combined) clusters:',...
+				'SelectionMode', 'multiple',...
+				'OKString', 'Cull ISI',...
+				'ListString', liststr,...
+				'InitialValue', [],...
+				'ListSize', [250, 150]);
+
+			if (ok && ~isempty(clusters))
+				clusters = cellfun(@str2num, liststr(clusters));
+                obj.SpikeCullLowISI(iChannel, 'Clusters', clusters, 'MinISI', 0.5);
+            end
+			obj.ReplotChannel(iChannel, p, h);
+			obj.GUIBusy(h.Figure, false);
+        end
+        
 		function GUISelRef(obj, hButton, evnt, iChannel, p, h)
 			obj.GUIBusy(h.Figure, true);
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(iChannel).Cluster.Classes)), 'UniformOutput', false);
@@ -3382,6 +3443,10 @@ classdef TetrodeRecording < handle
 				obj.ReplotChannel(iChannel, p, h);
                 obj.GUIBusy(h.Figure, false);
             end
+        end
+        
+        function GUIPlotISI(obj, hButton, evnt, iChannel, h)
+            obj.PlotISI(iChannel, h.Figure.UserData.SelectedClusters);
         end
         
 		function GUIPlotMean(obj, hButton, evnt, iChannel, p, h)
@@ -4586,7 +4651,7 @@ classdef TetrodeRecording < handle
 
 		function BatchCullLowISI(TR, list, minISI)
 			if nargin < 3
-				minISI = 1e-3;
+				minISI = 0.5;
 			end
 
 			for iUnit = 1:size(list, 1)
