@@ -4383,7 +4383,6 @@ classdef TetrodeRecording < handle
             for iTr = 2:length(TR)
                 channels = [TR(iTr).Spikes.Channel];
                 tr.Spikes(channels) = TR(iTr).Spikes(channels);
-                tr.Files = vertcat(tr.Files, TR(iTr).Files);
                 tr.Part = vertcat(tr.Part, TR(iTr).Part);
             end
         end
