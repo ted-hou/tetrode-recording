@@ -41,5 +41,13 @@ end
 
 %%
 load('C:\SERVER\PETH_WT_4shank_acute.mat')
-scatter_press_vs_lick(PETH, 'Daisy12/13 Press vs Lick', 2, [-2, 0], true)
-scatter_press_vs_lick(PETH, 'Daisy12/13 Press vs Lick', 2, [-0, 0.5], true)
+scatter_press_vs_lick(PETH, 'Daisy12/13 Press vs Lick (Pre-move)', 2, [-2, 0], true)
+scatter_press_vs_lick(PETH, 'Daisy12/13 Press vs Lick (Post-move)', 2, [0, 0.5], true)
+
+%% Daisy12 only
+scatter_press_vs_lick(PETH(contains({PETH.ExpName}, 'daisy12')), 'Daisy12 Press vs Lick (Pre-move)', 2, [-2, 0], true)
+scatter_press_vs_lick(PETH(contains({PETH.ExpName}, 'daisy12')), 'Daisy12 Press vs Lick (Post-move)', 2, [0, 0.5], true)
+
+%% Daisy13 only
+scatter_press_vs_lick(PETH(contains({PETH.ExpName}, 'daisy13')), 'Daisy13 Press vs Lick (Pre-move)', 2, [-2, 0], true)
+scatter_press_vs_lick(PETH(contains({PETH.ExpName}, 'daisy13')), 'Daisy13 Press vs Lick (Post-move)', 2, [0, 0.5], true)
