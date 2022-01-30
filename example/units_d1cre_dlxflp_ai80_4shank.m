@@ -116,8 +116,6 @@ batchPlotListStim = {...
 	'daisy10', 20211108, 13, 4, 1;... % Down, None
 };
 
-617-496-0699
-
 
 expNames = cell(size(batchPlotListStim, 1), 1);
 for iExp = 1:size(batchPlotListStim, 1)

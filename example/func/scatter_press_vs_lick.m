@@ -67,4 +67,4 @@ function scatter_press_vs_lick(PETH, titletext, sigma_threshold, moveEffectWindo
 	xlabel(sprintf('Peak PRESS effect (\\sigma) ([%gs, %gs])', moveEffectWindow(1), moveEffectWindow(2)), 'FontSize', 14)
 	ylabel(sprintf('Peak LICK effect (\\sigma) ([%gs, %gs])', moveEffectWindow(1), moveEffectWindow(2)), 'FontSize', 14)
 	title(sprintf('%s', titletext), 'FontSize', 14)
-	legend(hItems, 'FontSize', 14)
+	legend(hItems, 'Location', 'northwest', 'FontSize', 14)
