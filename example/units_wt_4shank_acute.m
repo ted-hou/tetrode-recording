@@ -24,7 +24,14 @@ for iTr = 1:length(files)
 		end
 		batchPlotList = vertcat(batchPlotList, thisBatchPlotList);
 
-		thisPETH = TetrodeRecording.BatchPETHistCounts(tr, thisBatchPlotList, 'TrialLength', 6, 'ExtendedWindow', 1, 'SpikeRateWindow', 100, 'Press', true, 'Lick', true, 'Stim', false);
+        % Cull low ISI
+        TetrodeRecording.BatchCullLowISI(tr, thisBatchPlotList, 0.5)
+		
+        % Plot lick vs press raster
+        TetrodeRecording.BatchPlot(tr, thisBatchPlotList, 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'PlotStim', false, 'PlotLick', true, 'Reformat', 'DualRasterAndWaveform');
+        
+        % Calculate PETH
+        thisPETH = TetrodeRecording.BatchPETHistCounts(tr, thisBatchPlotList, 'TrialLength', 6, 'ExtendedWindow', 1, 'SpikeRateWindow', 100, 'Press', true, 'Lick', true, 'Stim', false);
 		if iTr == 1
 			PETH = thisPETH;
 		else
@@ -38,6 +45,8 @@ for iTr = 1:length(files)
 % 	end
 end
 
+%%
+save('C:\SERVER\PETH_WT_4shank_acute.mat');
 
 %%
 load('C:\SERVER\PETH_WT_4shank_acute.mat')
