@@ -192,6 +192,8 @@ end
 
 load('C:\SERVER\PETH_TripleCross_4shank.mat')
 
+[~, ~, I] = TetrodeRecording.HeatMap(PETH, 'Normalization', 'zscore', 'Sorting', 'latency', 'MinNumTrials', 40, 'MinSpikeRate', 15, 'Window', [-4, 0], 'NormalizationBaselineWindow', [-4, -2], 'LatencyThreshold', 0.75);
+PETH = PETH(sort(I));
 % Separate Lick-only vs Press-only vs PressAndLick
 PETH_PressAndLick = [PETH([PETH.NumTrialsPress] > 0 & [PETH.NumTrialsLick] > 0)];
 PETH_PressOnly = [PETH([PETH.NumTrialsPress] > 0 & [PETH.NumTrialsLick] == 0)];
@@ -201,8 +203,8 @@ PETH_Lick = [PETH([PETH.NumTrialsLick] > 0)];
 
 % ScatterPlot, move vs stim
 plot_stim_response(PETH, 'Daisy9/10 dSPN', 2, 0.025, [], [-0.1, 0.2], 1025)
-scatter_stim_vs_press(PETH_Press, 'Daisy9/10 Press', 2, 1025, [-1, 0], [0, 0.02], true)
-scatter_stim_vs_lick(PETH_Lick, 'Daisy9/10 Lick', 2, 1025, [-1, 0], [0, 0.02], true)
+scatter_stim_vs_press(PETH_Press, 'dSPN-stim vs. Press', 2, 1025, [-1, 0], [0, 0.02], true)
+scatter_stim_vs_lick(PETH_Lick, 'dSPN-stim vs. Lick', 2, 1025, [-1, 0], [0, 0.02], true)
 scatter_press_vs_lick(PETH_PressAndLick, 'Daisy9/10 Press vs Lick', 2, [-2, 0], true)
 scatter_press_vs_lick(PETH_PressAndLick, 'Daisy9/10 Press vs Lick', 2, [-0, 0.5], true)
 

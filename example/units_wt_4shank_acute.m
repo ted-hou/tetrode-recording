@@ -60,3 +60,16 @@ scatter_press_vs_lick(PETH(contains({PETH.ExpName}, 'daisy12')), 'Daisy12 Press 
 %% Daisy13 only
 scatter_press_vs_lick(PETH(contains({PETH.ExpName}, 'daisy13')), 'Daisy13 Press vs Lick (Pre-move)', 2, [-2, 0], true)
 scatter_press_vs_lick(PETH(contains({PETH.ExpName}, 'daisy13')), 'Daisy13 Press vs Lick (Post-move)', 2, [0, 0.5], true)
+
+%% Pre-move
+scatter_press_vs_lick(PETH_9, 'Press vs Lick vs Location (Daisy9)', 1, [-2, 0], true)
+scatter_press_vs_lick(PETH_10, 'Press vs Lick vs Location (Daisy10)', 1, [-2, 0], true)
+scatter_press_vs_lick(PETH_12, 'Press vs Lick vs Location (Daisy12)', 1, [-2, 0], true)
+scatter_press_vs_lick(PETH_13, 'Press vs Lick vs Location (Daisy13)', 1, [-2, 0], true)
+
+%% Peri-move
+scatter_press_vs_lick(PETH_9, 'Press vs Lick vs Location (Daisy9)', 1, [-2, 1], true)
+scatter_press_vs_lick(PETH_10, 'Press vs Lick vs Location (Daisy10)', 1, [-2, 1], true)
+scatter_press_vs_lick(PETH_12, 'Press vs Lick vs Location (Daisy12)', 1, [-2, 1], true)
+scatter_press_vs_lick(PETH_13, 'Press vs Lick vs Location (Daisy13)', 1, [-2, 1], true)
+scatter_press_vs_lick(PETH_Selected_4shank, 'Press vs Lick vs Location (Daisy13)', 1, [-2, 1], true)
