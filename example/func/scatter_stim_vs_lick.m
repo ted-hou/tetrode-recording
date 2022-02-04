@@ -88,7 +88,7 @@ function scatter_stim_vs_lick(PETH, titletext, sigma_threshold, stimType, moveEf
 	plot(ax, ax.XLim, [0, 0], 'k:')
 	plot(ax, [0, 0], ax.YLim, 'k:')
 	hold off
-	xlabel(sprintf('Peak MOVE effect (\\sigma) ([%gs, %gs])', moveEffectWindow(1), moveEffectWindow(2)), 'FontSize', 14)
+	xlabel(sprintf('Peak LICK effect (\\sigma) ([%gs, %gs])', moveEffectWindow(1), moveEffectWindow(2)), 'FontSize', 14)
 	ylabel(sprintf('Peak STIM effect (\\sigma) ([%gms, %gms]', stimEffectWindow(1)*1e3, stimEffectWindow(2)*1e3), 'FontSize', 14)
 	title(sprintf('%s', titletext), 'FontSize', 14)
 	legend(hItems, 'FontSize', 14)

@@ -1,4 +1,4 @@
-function scatter_stim_vs_press(PETH, titletext, sigma_threshold, stimType, moveEffectWindow, stimEffectWindow, colorByProbePos)% Sorted stim PETH
+function scatter_stim_vs_press(PETH, titletext, sigma_threshold, stimTypes, moveEffectWindow, stimEffectWindow, colorByProbePos)% Sorted stim PETH
 	if nargin < 7
 		colorByProbePos = true;
 	end
@@ -29,7 +29,7 @@ function scatter_stim_vs_press(PETH, titletext, sigma_threshold, stimType, moveE
 	for i = 1:length(PETH)
 		Stim = PETH(i).Stim;
 		% Add up all stim types
-		if nargin < 4
+		if isempty(stimTypes)
 			sel = Stim(1).Timestamps <= 0.2;
 			t = Stim(1).Timestamps(sel);
 			thisPeth = zeros(1, sum(sel));
@@ -39,9 +39,15 @@ function scatter_stim_vs_press(PETH, titletext, sigma_threshold, stimType, moveE
 			pethStim(i, 1:length(t)) = thisPeth ./ sum([Stim.NumTrains]);
 		% Use specific stim type
 		else
-			iStimType = find([Stim.TrainType] == stimType);
+			iStimType = [];
+			for k = 1:length(stimTypes)
+				iStimType = find([Stim.TrainType] == stimTypes(k));
+				if ~isempty(iStimType)
+					break
+				end
+			end
 			if isempty(iStimType)
-				error('Cannot find stim type %d', stimType)
+				error('Cannot find stim types %d', stimTypes)
 			end
 			sel = Stim(iStimType).Timestamps <= 0.2;
 			t = Stim(iStimType).Timestamps(sel);
@@ -59,12 +65,14 @@ function scatter_stim_vs_press(PETH, titletext, sigma_threshold, stimType, moveE
 	% Find Max effect
 	for i = 1:length(PETH)
 		normStim = pethStimNorm(i, t >= stimEffectWindow(1) & t <= stimEffectWindow(2));
+		% PETH(i).MaxStimEffect = mean(normStim);
 		[~, iMaxStimEffect] = max(abs(normStim));
 		PETH(i).MaxStimEffect = normStim(iMaxStimEffect);
 
 		normPress = pethPressNorm(i, tPress >= moveEffectWindow(1) & tPress <= moveEffectWindow(2));
-		[~, iMaxPressEffect] = max(abs(normPress));
-		PETH(i).MaxPressEffect = normPress(iMaxPressEffect);
+		PETH(i).MaxPressEffect = mean(normPress);
+		% [~, iMaxPressEffect] = max(abs(normPress));
+		% PETH(i).MaxPressEffect = normPress(iMaxPressEffect);
 	end
 
 	maxPressEffect = [PETH.MaxPressEffect];
@@ -88,7 +96,7 @@ function scatter_stim_vs_press(PETH, titletext, sigma_threshold, stimType, moveE
 	plot(ax, ax.XLim, [0, 0], 'k:')
 	plot(ax, [0, 0], ax.YLim, 'k:')
 	hold off
-	xlabel(sprintf('Peak MOVE effect (\\sigma) ([%gs, %gs])', moveEffectWindow(1), moveEffectWindow(2)), 'FontSize', 14)
+	xlabel(sprintf('Mean PRESS effect (\\sigma) ([%gs, %gs])', moveEffectWindow(1), moveEffectWindow(2)), 'FontSize', 14)
 	ylabel(sprintf('Peak STIM effect (\\sigma) ([%gms, %gms]', stimEffectWindow(1)*1e3, stimEffectWindow(2)*1e3), 'FontSize', 14)
 	title(sprintf('%s', titletext), 'FontSize', 14)
 	legend(hItems, 'FontSize', 14)

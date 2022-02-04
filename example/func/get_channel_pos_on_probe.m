@@ -1,4 +1,4 @@
-function [row, col] = get_channel_pos_on_probe(expName, channel)
+function varargout = get_channel_pos_on_probe(expName, channel)
 	% row starts from medial (1) to lateral (4), col starts from dorsal (1) to ventral (8)
 	if contains(expName, 'daisy9')
 		% Mid to Left
@@ -102,4 +102,7 @@ function [row, col] = get_channel_pos_on_probe(expName, channel)
 		error('%s not supported, must contain daisy9 or daisy10', expName)
     end
 	[row, col] = find(map==channel);
+    [nrows, ncols] = size(map);
+    
+    varargout = {row, col, nrows, ncols};
 end
