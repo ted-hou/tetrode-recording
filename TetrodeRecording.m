@@ -1053,13 +1053,19 @@ classdef TetrodeRecording < handle
 			% Check if ptr file exists
 			ptrFile = sprintf('%s..\\SpikeSort\\ptr_%s.mat', obj.Path, obj.GetExpName());
 			ptr = dir(ptrFile);
-			assert(~isempty(ptr))
+            
+            if ~isempty(ptr)
+                S = load(ptrFile);
+                ptr = S.tr;
 
-			S = load(ptrFile);
-			ptr = S.tr;
-
-			obj.ChannelMap = ptr.ChannelMap;
-			obj.SelectedChannels = ptr.SelectedChannels;
+                obj.ChannelMap = ptr.ChannelMap;
+                obj.SelectedChannels = ptr.SelectedChannels;
+            else
+                warning('Cannot find ptr file %s', ptrFile)
+                obj.ChannelMap = [];
+                obj.SelectedChannels = [];
+            end
+            
 		end
 
 		% This compresses data by ~ 20 times
@@ -4400,16 +4406,22 @@ classdef TetrodeRecording < handle
 			if nargin < 1
 				files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
 				for iFile = 1:length(files)
-					disp(['Loading file: ', files{iFile}, '...'])
+                    tTic = tic();
+                    fprintf(1, 'Loading file: %s... ', files{iFile})
 					S(iFile) = load(files{iFile}, 'tr');
+                    fprintf(1, 'Done (%.1f sec).\n', toc(tTic))
 				end
 			else
 				files = {};
 				for iFile = 1:length(expNames)
+                    t = tic();
 					if (isfile(expNames{iFile}))
 						files{length(files) + 1} = expNames{iFile};
-					else
-						thisFile = dir(['C:\SERVER\**\SpikeSort\tr*', expNames{iFile}, '*.mat']);
+                    else
+                        animalName = strsplit(expNames{iFile}, '_');
+                        animalName = animalName{1};
+						thisFile = dir(sprintf('C:\\SERVER\\%s\\SpikeSort\\tr*%s*.mat', animalName, expNames{iFile}));
+                        % dir(['C:\SERVER\**\SpikeSort\tr*', expNames{iFile}, '*.mat']);
 						thisFile = thisFile(~[thisFile.isdir]);
 
 						if length(thisFile) > 0
@@ -4420,13 +4432,16 @@ classdef TetrodeRecording < handle
 								files{length(files) + 1} = [thisFile(i).folder, '\', thisFile(i).name];
 							end
 						end
-					end
+                    end
+                    fprintf(1, '%i files found in %f sec.\n', length(files), toc(tTic));
 				end
 
 				for iFile = 1:length(files)
 					% Load files
-					disp(['Loading file: ', files{iFile}, '...'])
+                    tTic = tic();
+                    fprintf(1, 'Loading file: %s... ', files{iFile})
 					S(iFile) = load(files{iFile}, 'tr');
+                    fprintf(1, 'Done (%.1f sec).\n', toc(tTic))
 				end
 			end
 			% Merge multi-part files
@@ -4456,12 +4471,34 @@ classdef TetrodeRecording < handle
 			varargout = {tr, iExp};
         end
 
-        function tr = BatchLoadSimple()
+        function tr = BatchLoadSimple(expName)
         % Read multiple TR objects, assuming they're non-overlapping files from the same experiment.
-            files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
+            % Choose files
+            if nargin < 1
+                files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
+            else
+				files = {};
+                tTic = tic();
+                animalName = strsplit(expName, '_');
+                animalName = animalName{1};
+                thisFile = dir(sprintf('C:\\SERVER\\%s\\SpikeSort\\tr*%s*.mat', animalName, expName));
+                thisFile = thisFile(~[thisFile.isdir]);
+                if ~isempty(thisFile)
+                    [~, iLongest] = max(cellfun(@length, {thisFile.name}));
+                    iLongest = find(cellfun(@(x) length(x) == length(thisFile(iLongest).name), {thisFile.name}));
+                    for i = transpose(iLongest(:))
+                        files{length(files) + 1} = [thisFile(i).folder, '\', thisFile(i).name];
+                    end
+                end
+                fprintf(1, '%i files found in %f sec.\n', length(files), toc(tTic));
+            end
+            
+            % Read files
             for iFile = 1:length(files)
-                disp(['Loading file: ', files{iFile}, '...'])
+                tTic = tic();
+                fprintf(1, 'Loading file: %s... ', files{iFile})
                 S(iFile) = load(files{iFile}, 'tr');
+                fprintf(1, 'Done (%.1f sec).\n', toc(tTic))
             end
             tr = TetrodeRecording.BatchMergeSimple([S.tr]);
         end
@@ -5467,6 +5504,12 @@ classdef TetrodeRecording < handle
 			if nargin < 3
 				eventExclude = [];
             end
+            
+            if isempty(reference) || isempty(event)
+                varargout = {[], [], [], [], []};
+                return
+            end
+            
             reference = reshape(reference, 1, []);
             event = reshape(event, 1, []);
             eventExclude = reshape(eventExclude, 1, []);
@@ -5484,7 +5527,7 @@ classdef TetrodeRecording < handle
 			if ~isempty(eventExclude)
 				% Filter out trials where mouse licked before pressing
 				edges = [reference; event];
-				edges = edges(:);
+				edges = edges(:);             
 				[~, ~, bins] = histcounts(eventExclude, edges);
 				oddBins = rem(bins, 2) ~= 0;	% Licks in odd bins occur between cue on and lever press, should exclude these trials
 				toRemove = (unique(bins(oddBins)) + 1)/2;
