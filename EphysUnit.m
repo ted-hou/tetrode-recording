@@ -9,7 +9,7 @@ classdef EphysUnit < handle
         WaveformTimestamps = []
         ExtendedWindow = []
         EventTimes = struct('Cue', [], 'Press', [], 'Lick', [], 'StimOn', [], 'StimOff', [])
-        SpikeRates = []
+        Trials = struct('Press', [], 'Lick', [], 'Stim', [])
     end
     
     % public methods
@@ -69,9 +69,13 @@ classdef EphysUnit < handle
                             else
                                 obj(i).EventTimes.StimOn = [];
                                 obj(i).EventTimes.StimOff = [];
-                            end
-                                
+                            end                                
 
+                            % Make trials
+                            obj(i).Trials.Press = obj(i).makeTrials('press');
+                            obj(i).Trials.Lick = obj(i).makeTrials('lick');
+                            obj(i).Trials.Stim = obj(i).makeTrials('stim');
+                            
                             % Cull ITI spikes if told to do so.
                             if ~p.Results.ReadITI
                                 [inTrialPress, extendedWindowPress] = obj(i).findSpikesInTrial('press', extendedWindow);
@@ -129,38 +133,87 @@ classdef EphysUnit < handle
             end
         end
 
-		function displayName = getDisplayName(obj)
+		function name = getName(obj, varargin)
+            p = inputParser();
+            addOptional(p, 'sep', ' ', @ischar);
+            parse(p, varargin{:});
+            sep = p.Results.sep;
+            
             if length(obj) == 1
                 if isnan(obj.Electrode)
-                    displayName = sprintf('%s Channel%i Unit%i', obj.ExpName, obj.Channel, obj.Unit);
+                    name = sprintf('%s%sChannel%i%sUnit%i', obj.ExpName, sep, obj.Channel, sep, obj.Unit);
                 else
-                    displayName = sprintf('%s Electrode%i Unit%i', obj.ExpName, obj.Electrode, obj.Unit);
+                    name = sprintf('%s%sElectrode%i%sUnit%i', obj.ExpName, sep, obj.Electrode, sep, obj.Unit);
                 end
            else
-                displayName = arrayfun(@getDisplayName, obj, 'UniformOutput', false);
+                name = arrayfun(@getName, obj, 'UniformOutput', false);
             end
         end
+        
+        function save(obj, varargin)
+            p = inputParser();
+            addOptional(p, 'path', 'C:\SERVER\Units\', @ischar);
+            parse(p, varargin{:});
+            path = p.Results.path;
+            
+            if path(end) ~= '\'
+                path = [path, '\'];
+            end
+            
+            for i = 1:length(obj)
+                eu = obj(i);
+                if ~isfolder(path)
+                    mkdir(path)
+                end
+                file = sprintf('%s%s.mat', path, eu.getName('_'));
+                
+                tTic = tic();
+                fprintf(1, 'Saving EpysUnit to file %s...', file)
+                save(file, 'eu', '-v7.3')
+                fprintf(1, 'Done! (%.2f s)\n', toc(tTic));
+            end
+        end
+        
+        function trials = makeTrials(obj, trialType)
+            switch lower(trialType)
+                case 'press'
+                    trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Press, 'first', obj.EventTimes.Lick);
+                case 'lick'
+                    trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Lick, 'first', obj.EventTimes.Press);
+                case 'stim'
+                    trials = Trial(obj.EventTimes.StimOn, obj.EventTimes.StimOff);
+                case 'all'
+                    for i = 1:length(obj)
+                        obj(i).Trials.Press = obj(i).makeTrials('press');
+                        obj(i).Trials.Lick = obj(i).makeTrials('lick');
+                        obj(i).Trials.Stim = obj(i).makeTrials('stim');
+                    end
+            end
+        end
+        
+        function plot(obj, varargin)
+            p = inputParser();
+            parse(p, varargin{:});
+            
+        end
     end
-    
-    % static methods
-    methods (Static)
-    end
-    
+
     % private methods
     methods (Access = {})
         function [inTrial, extendedWindow] = findSpikesInTrial(obj, trialType, extendedWindow)
             switch lower(trialType)
                 case 'press'
-                    [start, stop] = TetrodeRecording.FindFirstInTrial(obj.EventTimes.Cue, obj.EventTimes.Press, obj.EventTimes.Lick, 'first');
+                    [~, start, stop] = Trial.findEdges(obj.EventTimes.Cue, obj.EventTimes.Press, 'first', obj.EventTimes.Lick);
+                    [edges, extendedWindow] = Trial.extendEdges(start, stop, 'window', extendedWindow);
                 case 'lick'
-                    [start, stop] = TetrodeRecording.FindFirstInTrial(obj.EventTimes.Cue, obj.EventTimes.Lick, obj.EventTimes.Press, 'first');
+                    [~, start, stop] = Trial.findEdges(obj.EventTimes.Cue, obj.EventTimes.Lick, 'first', obj.EventTimes.Press);
+                    [edges, extendedWindow] = Trial.extendEdges(start, stop, 'window', extendedWindow);
                 case 'stim'
                     % Use trainOn/trainOff as start/stop of stim trials
-                    [~, start] = TetrodeRecording.FindFirstInTrial(obj.EventTimes.Cue, obj.EventTimes.StimOn);
-                    [~, stop] = TetrodeRecording.FindLastInTrial(obj.EventTimes.Cue, obj.EventTimes.StimOff);
+                    [~, ~, start] = Trial.findEdges(obj.EventTimes.Cue, obj.EventTimes.StimOn, 'first');
+                    [~, ~, stop] = Trial.findEdges(obj.EventTimes.Cue, obj.EventTimes.StimOff, 'last');
+                    [edges, extendedWindow] = Trial.extendEdges(start, stop, 'window', extendedWindow, 'shrinkPriority', 'postwindow');
             end
-            
-            [edges, extendedWindow] = EphysUnit.validateTrialWindow(start, stop, extendedWindow, trialType);
             
             if ~isempty(edges)
                 % Find logical indices for spikes inside trial window.
@@ -169,37 +222,6 @@ classdef EphysUnit < handle
             else
                 inTrial = false(1, length(obj.SpikeTimes));
             end
-        end
-    end
-    
-    % private static methods
-    methods (Access = {}, Static)
-        function [edges, extendedWindow] = validateTrialWindow(cue, move, extendedWindow, trialType)
-            if isempty(cue) || isempty(move)
-                warning('Number of valid %s trials is zero.', trialType);
-                edges = [];
-                return
-            end
-            
-            edges = reshape(vertcat(cue + extendedWindow(1), move + extendedWindow(2)), [], 1);
-            % Check if edges is monotonic increasing
-            if nnz(diff(edges) > 0) + 1 == length(edges)
-                return
-            end
-            
-            % if trial edges not valid, retry a smaller window
-            if extendedWindow(1) < 0 && extendedWindow(2) > 0
-                extendedWindow = [0, extendedWindow(2)];
-            elseif extendedWindow(2) > 0
-                extendedWindow = [0, 0];
-            else
-                warning('Smallest extended window [%f, %f] would not work for %s trials.', extendedWindow(1), extendedWindow(2), trialType)
-                edges = [];
-                return;
-            end
-            
-            [edges, extendedWindow] = EphysUnit.validateTrialWindow(cue, move, extendedWindow);
-            
         end
     end
 end
