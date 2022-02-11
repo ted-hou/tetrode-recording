@@ -45,6 +45,66 @@ classdef Trial < handle
         function l = duration(obj)
             l = [obj.Stop] - [obj.Start];
         end
+        
+        % Sort trials by start time
+        function sortedObj = sortby(obj, varargin)
+            p = inputParser();
+            p.addOptional('property', 'start', @(x) ischar(x) && ismember(lower(x), {'start', 'stop', 'duration'}))
+            p.addOptional('direction', 'ascend', @(x) ischar(x) && ismember(lower(x), {'ascend', 'descend'}))
+            p.parse(varargin{:})
+            property = lower(p.Results.property);
+            direction = lower(p.Results.direction);
+            
+            switch property
+                case 'start'
+                    value = [obj.Start];
+                case 'stop'
+                    value = [obj.Stop];
+                case 'duration'
+                    value = obj.duration();
+            end
+            [~, I] = sort(value, direction);
+            sortedObj = obj(I);
+        end
+        
+        function b = inTrial(obj, t, varargin)
+            %INTRIAL Given a vector of timestamps, returns a logical vector
+            %that is TRUE for timestamps that occur in trial.
+            %   b = INTRIAL(t, [-1, 1]) uses an extended the trial window
+            p = inputParser();
+            p.addRequired('t', @isnumeric);
+            p.addOptional('extendedWindow', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
+            p.parse(t, varargin{:})
+            t = p.Results.t;
+            extendedWindow = p.Results.extendedWindow;
+            
+            if isempty(obj)
+                b = false(size(t));
+                return
+            end
+            
+            obj = obj.sortby('start', 'ascend');
+            
+            start = horzcat(obj.Start);
+            stop = horzcat(obj.Stop);
+            edges = reshape([start; stop], [], 1);
+            
+            % Odd bins are in trial
+            [~, ~, bins] = histcounts(t, edges);
+            b = rem(bins, 2) ~= 0;
+            
+            % Shift edges left
+            if extendedWindow(1) < 0
+                [~, ~, bins] = histcounts(t, edges + extendedWindow(1));
+                b = b | rem(bins, 2) ~= 0;
+            end
+            
+            % Shift edges right
+            if extendedWindow(2) > 0
+                [~, ~, bins] = histcounts(t, edges + extendedWindow(2));
+                b = b | rem(bins, 2) ~= 0;
+            end
+        end
     end
 
     % public static methods
