@@ -14,11 +14,9 @@ classdef EphysUnit < handle
         SpikeCountTimestamps = single([])
         SpikeRates = single([])
         SpikeRateTimestamps = single([])
-        SpikeRateKernel = struct('type', [], 'window', [], 'resolution', [], 't', [], 'y', [])
-        SpikeRateMedian = []
-        SpikeRateMAD = []
-        ITISpikeRateMedian = []
-        ITISpikeRateMAD = []
+        SpikeRateKernel = struct('type', [], 'params', [], 't', [], 'y', [])
+        SpikeCountStats = struct('median', [], 'mad', [], 'medianITI', [], 'madITI', [], 'resolution', [])
+        SpikeRateStats = struct('median', [], 'mad', [], 'medianITI', [], 'madITI', [], 'resolution', [])
     end
     
     % public methods
@@ -92,13 +90,33 @@ classdef EphysUnit < handle
                         obj(i).Trials.Stim = obj(i).makeTrials('stim');
 
                         % Calculate spike rates and spike counts
-                        obj(i).getSpikeCounts(0.1);
-                        obj(i).getSpikeRates('gaussian', 0.1, 'resolution', 1e-3, 'kernelWidth', 1);
+                        resolution_sc = 0.1;
+                        resolution_sr = 1e-3;
+                        
+                        [sc, tsc] = obj(i).getSpikeCounts(resolution_sc);
+                        [sr, tsr, kernel] = obj(i).getSpikeRates('gaussian', 0.1, resolution_sr, 'kernelWidth', 1);
+                        
+                        % Calculate 
+                        [~, ~, scInTrial] = obj(i).cullITIData(tsc, sc, 'all', 'extendedWindow', extendedWindow);
+                        [~, ~, srInTrial] = obj(i).cullITIData(tsr, sr, 'all', 'extendedWindow', extendedWindow);
+                        
+                        obj(i).SpikeCountStats = struct('median', median(double(sc)), 'mad', mad(double(sc), 1), 'medianITI', median(double(sc(~scInTrial))), 'madITI', mad(double(sc(~scInTrial)), 1), 'resolution', resolution_sc);
+                        obj(i).SpikeRateStats = struct('median', median(sr), 'mad', mad(sr, 1), 'medianITI', median(sr(~srInTrial)), 'madITI', mad(sr(~srInTrial), 1), 'resolution', resolution_sr);
 
                         % Cull ITI spikes if told to do so.
                         if p.Results.cullITI
                             [obj(i).SpikeTimes, obj(i).Waveforms] = obj(i).cullITIData(obj(i).SpikeTimes, obj(i).Waveforms, 'all', 'extendedWindow', extendedWindow);
+                            obj(i).SpikeCounts = sc(scInTrial);
+                            obj(i).SpikeCountTimestamps = tsc(scInTrial);
+                            obj(i).SpikeRates = sr(srInTrial);
+                            obj(i).SpikeRateTimestamps = tsr(srInTrial);
+                        else
+                            obj(i).SpikeCounts = sc;
+                            obj(i).SpikeCountTimestamps = tsc;
+                            obj(i).SpikeRates = sr;
+                            obj(i).SpikeRateTimestamps = tsr;
                         end
+                        obj(i).SpikeRateKernel = kernel;
 
                         obj(i).save();
                         
@@ -113,6 +131,30 @@ classdef EphysUnit < handle
                 clear tr
             end
             fprintf(1, 'Done.\n')
+        end
+        
+        function save(obj, varargin)
+            p = inputParser();
+            addOptional(p, 'path', 'C:\SERVER\Units\', @ischar);
+            parse(p, varargin{:});
+            path = p.Results.path;
+            
+            if path(end) ~= '\'
+                path = [path, '\'];
+            end
+            
+            for i = 1:length(obj)
+                eu = obj(i);
+                if ~isfolder(path)
+                    mkdir(path)
+                end
+                file = sprintf('%s%s.mat', path, eu.getName('_'));
+                
+                tTic = tic();
+                fprintf(1, 'Saving EpysUnit to file %s...', file)
+                save(file, 'eu', '-v7.3')
+                fprintf(1, 'Done! (%.2f s)\n', toc(tTic));
+            end
         end
         
         function name = getAnimalName(obj)
@@ -148,39 +190,15 @@ classdef EphysUnit < handle
             end
         end
         
-        function save(obj, varargin)
+        function [X, T, N, S, B] = getBinnedTrialAverage(obj, data, varargin)
             p = inputParser();
-            addOptional(p, 'path', 'C:\SERVER\Units\', @ischar);
-            parse(p, varargin{:});
-            path = p.Results.path;
-            
-            if path(end) ~= '\'
-                path = [path, '\'];
-            end
-            
-            for i = 1:length(obj)
-                eu = obj(i);
-                if ~isfolder(path)
-                    mkdir(path)
-                end
-                file = sprintf('%s%s.mat', path, eu.getName('_'));
-                
-                tTic = tic();
-                fprintf(1, 'Saving EpysUnit to file %s...', file)
-                save(file, 'eu', '-v7.3')
-                fprintf(1, 'Done! (%.2f s)\n', toc(tTic));
-            end
-        end
-        
-        function [X, T, N, B] = getBinnedTrialAverage(obj, data, varargin)
-            p = inputParser();
-            p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'spikerate', 'spikecount', 'spikerates', 'spikecounts', 'rate', 'count'}))
+            p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
             p.addOptional('edges', 0:2.5:10, @(x) isnumeric(x) && nnz(diff(x) <= 0) == 0)
             p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim'}))
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
+            p.addParameter('window', [], @(x) isnumeric(x) && ismember(length(x), [0, 2]))
             p.addParameter('resolution', 0.001, @(x) isnumeric(x) && x > 0)
             p.addParameter('normalize', false, @islogical)
-            p.addParameter('plot', true, @islogical)
             p.parse(data, varargin{:})
             data = lower(p.Results.data);
             edges = p.Results.edges;
@@ -188,102 +206,180 @@ classdef EphysUnit < handle
             alignTo = lower(p.Results.alignTo);
             resolution = p.Results.resolution;
             
-            X = {};
-            T = {};
-            N = [];
-            B = {};
+            if isempty(p.Results.window)
+                window = [-edges(end), 1];
+            else
+                window = p.Results.window;
+            end
+            
+            % Preallocate outputs
+            nBins = length(edges) - 1;
+            nSamples = length(window(1):resolution:window(2)) - 1;
+            X = zeros(nBins, nSamples); % nxt matrix, each row = mean spike rate across trials for that bin
+            S = zeros(nBins, nSamples); % nxt matrix, each row = variance for that bin
+            T = zeros(1, nSamples); % 1xt matrix = shared timestamps for all bins
+            N = zeros(nBins, 1); % nx1 matrix, number of trials per bin
+            B = zeros(nBins, 2); % nx2 matrix, each row representing bin edges
+            for iBin = 1:nBins
+                B(iBin, :) = [edges(iBin), edges(iBin + 1)];
+            end
+            
+            tTic = tic();
             for i = 1:length(obj)
-                for bin = 1:length(edges) - 1
+                fprintf(1, 'Binning %i/%i...\n', i, length(obj))
+                for iBin = 1:nBins
                     switch data
-                        case {'rate', 'spikerate', 'spikerates'}
-                            x = obj(i).SpikeRates;
-                            t = obj(i).SpikeRateTimestamps;
-                        case {'count', 'spikecount', 'spikecounts'}
-                            x = obj(i).SpikeCounts;
-                            t = obj(i).SpikeCountTimestamps;
+                        case 'rate'
+                            stats = obj(i).SpikeRateStats;
+                        case 'count'
+                            stats = obj(i).SpikeCountStats;
                     end
                     
-                    if ~isempty(obj(i).ExtendedWindow)
-                        postWindow = obj(i).ExtendedWindow(2);
-                    else
-                        postWindow = 1;
+                    [xx, tt] = obj(i).getTrialAlignedData(data, window, trialType, 'allowedTrialDuration', [edges(iBin), edges(iBin+1)], 'alignTo', alignTo, 'resolution', resolution);
+
+                    if i == 1 && iBin == 1
+                        T = tt;
                     end
-                    [xx, tt] = obj(i).getTrialAlignedData(x, t, [-20, postWindow], trialType, 'allowedTrialDuration', [edges(bin), edges(bin+1)], 'alignTo', alignTo, 'resolution', resolution);
+                    
+                    if isempty(xx)
+                        continue
+                    end
                     
                     % Use modified z-score if requested
                     if p.Results.normalize
-                        xx = obj(i).normalizeSpikeRate(xx);
+                        xx = EphysUnit.normalize(xx, 'iti', stats);
                     end
                     
-                    if i == 1
-                        N(bin) = size(xx, 1);
-                        X{bin} = mean(xx, 1);
-                        T{bin} = tt;
-                        B{bin} = [edges(bin), edges(bin+1)];
-                    else
-                        X{bin} = (X{bin} .* N(bin) + mean(xx, 1) .* size(xx, 1));
-                        N(bin) = N(bin) + size(xx, 1);
-                        X{bin} = X{bin} ./ N(bin);
-                    end
+                    mu = mean(xx, 1);
+                    ss = sum((xx - mu).^2, 1);
+                    n = size(xx, 1);
+                    
+                    [mu, ss, n] = EphysUnit.combinestats(X(iBin, :), S(iBin, :), N(iBin), mu, ss, n);
+                    
+                    X(iBin, :) = mu;
+                    S(iBin, :) = ss;
+                    N(iBin) = n;
                 end
             end
             
-            if p.Results.plot
-                f = figure();
-                ax = axes(f);
-                hold(ax, 'on')
-                for iBin = 1:length(B)
-                    bin = B{iBin};
-                    h(iBin) = plot(ax, T{iBin} + bin(2), X{iBin}, 'DisplayName', sprintf('[%.1fs, %.1fs], %i trials', bin(1), bin(2), N(iBin)));
-                    plot([bin(2), bin(2)], [0, max(X{iBin})], '--', 'Color', h(iBin).Color)
-                end
-                hold(ax, 'off')
-                xlim([0, 11])
-                legend(ax, h)
-            end
+            % Convert sum of squares to (unbiased) standard deviation
+            S = (S ./ (N - 1)).^0.5;
+            
+            fprintf(1, 'Done (%.1f sec)!\n', toc(tTic))
         end
         
-        function [X, t, N] = getEventTriggeredAverage(obj, varargin)
-            %GETEVENTTRIGGEREDAVERAGE estimate mean spikerate around an
+        function [X, t, N] = getPETH(obj, data, event, varargin)
+            %GETPETH estimate mean spikerate around an
             %event
             p = inputParser();
+            p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
             p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
+            p.addParameter('minTrialDuration', -Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
+            p.addParameter('resolution', [], @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('normalize', 'none', @(x) ischar(x) && ismember(lower(x), {'none', 'iti', 'all'}))
-            p.parse(varargin{:})
+            p.parse(data, event, varargin{:})
+            data = lower(p.Results.data);
             event = p.Results.event;
             window = p.Results.window;
+            minTrialDuration = p.Results.minTrialDuration;
+            resolution = p.Results.resolution;
+            normalize = p.Results.normalize;
             
+            % Use default resolutions
+            if isempty(resolution)
+                switch data
+                    case 'count'
+                        resolution = obj(1).SpikeCountStats.resolution;
+                    case 'rate'
+                        resolution = obj(1).SpikeRateStats.resolution;
+                end
+            end
+                
+            edges = window(1):resolution:window(2);
+            t = (edges(1:end-1) + edges(2:end)) / 2;
+            X = zeros(length(obj), length(t));
+            N = zeros(length(obj), 1);
+
+            tTic = tic();
+            fprintf(1, 'Processing ETA for %i units...', length(obj))
             for i = 1:length(obj)
                 if strcmpi(event, 'stim')
                     alignTo = 'stop';
                 else
                     alignTo = 'start';
                 end
-                [x, t] = obj(i).getTrialAlignedData(obj(i).SpikeRates, obj(i).SpikeRateTimestamps, window, event, 'alignTo', alignTo);
-                n = size(x, 1);
-                x = nanmean(x, 1);
-                switch lower(p.Results.normalize)
-                    case 'iti'
-                        x = (x - obj(i).ITISpikeRateMedian) / (obj(i).ITISpikeRateMAD / 0.6745);
-                    case 'all'
-                        x = (x - obj(i).SpikeRateMedian) / (obj(i).SpikeRateMAD / 0.6745);
+                
+                [x, ~] = obj(i).getTrialAlignedData(data, window, event, 'alignTo', alignTo, 'allowedTrialDuration', [minTrialDuration, Inf], 'resolution', resolution);
+                
+                if isempty(x)
+                    warning('EventTriggeredAverage cannot be calculated for Unit %i (%s), likely because trial count is zero.', i, obj(i).getName())
+                    X(i, :) = NaN;
+                    N(i) = 0;
+                    continue
                 end
                 
-                % Preallocate output
-                if length(obj) > 1
-                    if i == 1
-                        X = zeros(length(obj), size(x, 2));
-                        N = zeros(length(obj), 1);
+                % Average
+                n = size(x, 1);
+                x = mean(x, 1);
+                
+                % Normalize
+                if ~strcmpi(normalize, 'none')
+                    switch data
+                        case 'count'
+                            stats = obj(1).SpikeCountStats;
+                        case 'rate'
+                            stats = obj(1).SpikeRateStats;
                     end
-                    X(i, :) = x;
-                    N(i) = n;
-                else
-                    X = x;
-                    N = n;
+                    x = EphysUnit.normalize(x, normalize, stats);
                 end
-
+                
+                % Write results
+                X(i, :) = x;
+                N(i) = n;
             end
+            fprintf(1, 'Done (%.1f sec)\n', toc(tTic))
+        end
+        
+    end
+    
+    % static methods
+    methods (Static)
+
+        function ax = plotBinnedTrialAverage(varargin)
+            p = inputParser();
+            if isgraphics(varargin{1}, 'axes')
+                p.addRequired('ax', @(x) isgraphics(x, 'axes'));
+            end
+            p.addRequired('S', @isstruct)
+            p.addOptional('xlim', [0, 11], @(x) isnumeric(x) && length(x) == 2 && x(2) > x(1))
+            p.parse(varargin{:})
+            if isfield(p.Results, 'ax')
+                ax = p.Results.ax;
+            else
+                f = figure();
+                ax = axes(f);
+            end
+            X = p.Results.S.X;
+            T = p.Results.S.T;
+            N = p.Results.S.N;
+            S = p.Results.S.S;
+            B = p.Results.S.B;
+            
+            hold(ax, 'on')
+            colors = 'rgbcmkrgbcmkrgbcmkrgbcmkrgbcmkrgbcmk';
+            for iBin = 1:length(B)
+                bin = B(iBin, :);
+                t = T + bin(2);
+                high = X(iBin, :) + 0.25*S(iBin, :); 
+                low = X(iBin, :) - 0.25*S(iBin, :);
+                h(iBin) = plot(ax, t, X(iBin, :), colors(iBin), 'DisplayName', sprintf('[%.1fs, %.1fs], %i trials', bin(1), bin(2), N(iBin)));
+                patch(ax, [t, flip(t)], [low, flip(high)], colors(iBin), 'FaceAlpha', 0.1, 'EdgeColor', 'none')
+                plot(ax, [bin(2), bin(2)], [0, max(X(iBin, :))], '--', 'Color', h(iBin).Color)
+            end
+            hold(ax, 'off')
+            xlim(ax, p.Results.xlim)
+            legend(ax, h)
         end
         
     end
@@ -379,78 +475,44 @@ classdef EphysUnit < handle
             end
         end
 
-        function [xAligned, tAligned] = getTrialAlignedData(obj, x, t, varargin)
-            assert(length(obj) == 1)
-            
-            p = inputParser();
-            p.addRequired('x', @isnumeric)
-            p.addRequired('t', @isnumeric)
-            p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
-            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim'}))
-            p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
-            p.addParameter('resolution', 0.001, @(x) isnumeric(x) && x > 0)
-            p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) > x(1))
-            p.parse(x, t, varargin{:})
-            x = p.Results.x;
-            t = p.Results.t;
-            window = p.Results.window(1:2);
-            trialType = lower(p.Results.trialType);
-            alignTo = lower(p.Results.alignTo);
-            resolution = p.Results.resolution(1);
-            allowedTrialDuration = p.Results.allowedTrialDuration(1:2);
-                        
-            % Filter out trials with incorrect lengths
-            trials = obj.getTrials(trialType);
-            durations = trials.duration();
-            trials = trials(durations >= allowedTrialDuration(1) & durations < allowedTrialDuration(2));
-            % durations = trials.duration();
-
-            tAligned = window(1):resolution:window(2);
-            xAligned = zeros(length(trials), length(tAligned));
-            switch alignTo
-                case 'stop'
-                    tAlignedGlobal = tAligned + vertcat(trials.Stop);
-                case 'start'
-                    tAlignedGlobal = tAligned + vertcat(trials.Stop);
-            end
-            for iTrial = 1:length(trials)
-                xAligned(iTrial, :) = interp1(t, double(x), tAlignedGlobal(iTrial, :), 'linear');
-            end
-        end
-        
-        function varargout = getSpikeCounts(obj, varargin)
+        function [sc, t] = getSpikeCounts(obj, varargin)
             % GETSPIKECOUNTS Generates binned spike counts
+            %   [sc, t] = GETSPIKECOUNTS(binWidth) uses binWidth to automatically construct bins
+            %   [sc, t] = GETSPIKECOUNTS(edges) uses specific bin edges
+            assert(length(obj) == 1)
             p = inputParser();
-            p.addOptional('binWidth', 0.1, @(x) isnumeric(x) && x > 0 && x <= 1);
-            p.parse(varargin{:})
-            binWidth = p.Results.binWidth;
-            
-            for i = 1:length(obj)
-                spikes = obj(i).SpikeTimes;
-                edges = spikes(1) - binWidth:binWidth:spikes(end) + binWidth;
-                spikeCounts = histcounts(spikes, edges);
-                t = (edges(1:end-1) + edges(2:end)) / 2;
-                
-                % Cull ITI data
-                if ~isempty(obj(i).ExtendedWindow)
-                    [t, spikeCounts] = obj(i).cullITIData(t, spikeCounts, 'all', 'extendedWindow', obj(i).ExtendedWindow);
-                end
-                assert(sum(spikeCounts > 2^16 - 1) == 0, 'Spike counts per bin should exceeded 2^16-1 (%i)', max(spikeCounts)) % There should not be more than 255 spikes in an 100ms bin
-                obj(i).SpikeCounts = uint16(spikeCounts);
-                obj(i).SpikeCountTimestamps = single(t);
-            end
-            
-            if length(obj) == 1
-                varargout = {obj(i).SpikeCounts, obj(i).SpikeCountTimestamps};
+            if length(varargin{1}) == 1
+                p.addRequired('binWidth', @(x) isnumeric(x) && x>0);
             else
-                varargout = {{obj.SpikeCounts}, {obj.SpikeCountTimestamps}};
+                p.addRequired('edges', @(x) isnumeric(x) && length(x)>=2 && nnz(diff(x)<=0)==0)
             end
+            p.parse(varargin{:})
+            if isfield(p.Results, 'binWidth')
+                binWidth = p.Results.binWidth;
+                edges = [];
+            else
+                binWidth = [];
+                edges = p.Results.edges;
+            end        
+            
+            spikes = obj.SpikeTimes;
+            if isempty(edges)
+                edges = spikes(1) - binWidth:binWidth:spikes(end) + binWidth;
+            end
+            sc = histcounts(spikes, edges);
+            t = (edges(1:end-1) + edges(2:end)) / 2;
+
+            assert(sum(sc > 2^16 - 1) == 0, 'Spike counts per bin should exceeded 2^16-1 (%i)', max(sc)) % There should not be more than 255 spikes in an 100ms bin
+            sc = uint16(sc);
+            t = single(t);
         end
         
-        function varargout = getSpikeRates(obj, varargin)
+        function [sr, t, kernel] = getSpikeRates(obj, varargin)
             % GETSPIKERATES Convolve discrete spikes with a Guassian (default) or Exponential kernel to get smooth spike rate estimate
+            assert(length(obj) == 1)
             p = inputParser();
             defaultKernelType = 'gaussian';
+            defaultResolution = 1e-3;
             p.addOptional('kernel', defaultKernelType, @(x) ischar(x) && ismember(lower(x), {'gaussian', 'exponential'}))
             if length(varargin) < 1
                 kernelType = defaultKernelType;
@@ -464,81 +526,162 @@ classdef EphysUnit < handle
                     p.addOptional('lambda1', 5, @(x) isnumeric(x) && x > 0)
                     p.addOptional('lambda2', 10, @(x) isnumeric(x) && x > 0)
             end
-            p.addParameter('resolution', 1e-3, @(x) isnumeric(x) && x > 0)
+            p.addOptional('edgesOrResolution', defaultResolution, @isnumeric)
             p.addParameter('kernelWidth', 1.0, @(x) isnumeric(x) && x > 0)
             p.parse(varargin{:})
-            resolution = p.Results.resolution;
+            if length(p.Results.edgesOrResolution) <= 1
+                resolution = p.Results.edgesOrResolution;
+                edges = [];
+            else
+                edges = p.Results.edgesOrResolution;
+                assert(all(diff(edges) > 0), '''edges'' must be monotonic increasing.')
+                assert(all(single(diff(edges)) == single(edges(2) - edges(1))), '''edges'' must have equal distance between neighboring elements.')
+                resolution = edges(2) - edges(1);
+            end
             kernelWidth = p.Results.kernelWidth;
             switch kernelType
                 case 'gaussian'
-                    sigma = p.Results.sigma;
+                    kernelParams.sigma = p.Results.sigma;
                     kernelWindow = kernelWidth * [-0.5, 0.5];
                     tKernel = kernelWindow(1):resolution:kernelWindow(2);
-                    yKernel = normpdf(tKernel, 0, sigma);
-                    kernel = struct('type', kernelType, 'window', kernelWindow, 'resolution', resolution, 't', tKernel, 'y', yKernel, 'sigma', sigma);
+                    yKernel = normpdf(tKernel, 0, kernelParams.sigma);
                 case 'exponential'
-                    lambda1 = p.Results.lambda1;
-                    lambda2 = p.Results.lambda2;
+                    kernelParams.lambda1 = p.Results.lambda1;
+                    kernelParams.lambda2 = p.Results.lambda2;
                     kernelWindow = [0, kernelWidth];
                     tKernel = kernelWindow(1):resolution:kernelWindow(2);
-                    yKernel = exp(-lambda1*tKernel) - exp(-lambda2*tKernel);
-                    kernel = struct('type', kernelType, 'window', kernelWindow, 'resolution', resolution, 't', tKernel, 'y', yKernel, 'lambda1', lambda1, 'lambda2', lambda2);
+                    yKernel = exp(-kernelParams.lambda1*tKernel) - exp(-kernelParams.lambda2*tKernel);
             end
+            kernelParams.window = kernelWindow;
+            kernelParams.resolution = resolution;
+            kernelParams.width = kernelWidth;
             yKernel = yKernel / sum(yKernel) / resolution;
+            kernel = struct('type', kernelType, 'params', kernelParams, 't', tKernel, 'y', yKernel);
             
-            for i = 1:length(obj)
-                spikes = obj(i).SpikeTimes;
+            spikes = obj.SpikeTimes;
+            if isempty(edges)
                 edges = spikes(1) + kernelWindow(1):resolution:spikes(end) + kernelWindow(2);
-                spikeCounts = histcounts(spikes, edges);
-                sr = conv(spikeCounts, yKernel, 'same');
-                
-                t = (edges(1:end-1) + edges(2:end)) / 2;
-                
-                % Cull ITI data
-                [~, ~, inTrial] = obj(i).cullITIData(t, sr, 'all', 'extendedWindow', obj(i).ExtendedWindow);
-                sr_median = median(sr);
-                sr_mad = mad(sr, 1);
-                srITI_median = median(sr(~inTrial));
-                srITI_mad = mad(sr(~inTrial), 1);
-                if ~isempty(obj(i).ExtendedWindow)
-                    t = t(inTrial);
-                    sr = sr(inTrial);
-                end
-                
-                obj(i).SpikeRateTimestamps = single(t);
-                obj(i).SpikeRates = single(sr);
-                obj(i).SpikeRateKernel = kernel;
-                obj(i).SpikeRateMedian = sr_median;
-                obj(i).SpikeRateMAD = sr_mad;
-                obj(i).ITISpikeRateMedian = srITI_median;
-                obj(i).ITISpikeRateMAD = srITI_mad;
-            end
-            
-            if length(obj) == 1
-                varargout = {obj(i).SpikeRates, obj(i).SpikeRateTimestamps, obj(i).SpikeRateKernel};
+                nPrepad = 0;
+                nPostpad = 0;
             else
-                varargout = {{obj.SpikeRates}, {obj.SpikeRateTimestamps}, obj(1).SpikeRateKernel};
+                prepad = kernelWindow(1)+edges(1):resolution:edges(1)-resolution;
+                postpad = edges(end)+resolution:resolution:edges(end)+kernelWindow(2);
+                nPrepad = length(prepad);
+                nPostpad = length(postpad);
+                edges = [prepad, edges, postpad];
             end
+            spikeCounts = histcounts(spikes, edges);
+            sr = conv(spikeCounts, yKernel, 'same');
+            sr = sr(1+nPrepad:end-nPostpad);
+            t = (edges(1:end-1) + edges(2:end)) / 2;
+            t = t(1+nPrepad:end-nPostpad);
+            
+            sr = single(sr);
+            t = single(t);
         end
 
-        function z = normalizeSpikeRate(obj, x, mode)
+        function [xAligned, tAligned] = getTrialAlignedData(obj, varargin)
             assert(length(obj) == 1)
-            if nargin < 2
-                x = obj.SpikeRates;
+            p = inputParser();
+            if isnumeric(varargin{1}) && isnumeric(varargin{2})
+                p.addRequired('x', @isnumeric)
+                p.addRequired('t', @isnumeric)
+                useResampleMethod = true;
+            elseif ischar(varargin{1})
+                p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
+                useResampleMethod = false;
             end
-            if nargin < 3
-                mode = 'ITI';
+            p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
+            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim'}))
+            p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
+            p.addParameter('resolution', 0.001, @(x) isnumeric(x) && x > 0)
+            p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) > x(1))
+            p.parse(varargin{:})
+            if useResampleMethod
+                x = p.Results.x;
+                t = p.Results.t;
+            else
+                data = lower(p.Results.data);
+            end
+            window = p.Results.window(1:2);
+            trialType = lower(p.Results.trialType);
+            alignTo = lower(p.Results.alignTo);
+            resolution = p.Results.resolution(1);
+            allowedTrialDuration = p.Results.allowedTrialDuration(1:2);
+                        
+            % Filter out trials with incorrect lengths
+            trials = obj.getTrials(trialType);
+            durations = trials.duration();
+            trials = trials(durations >= allowedTrialDuration(1) & durations < allowedTrialDuration(2));
+            if isempty(trials)
+                xAligned = [];
+                tAligned = [];
+                return
+            end
+
+            tAligned = window(1):resolution:window(2);
+            switch alignTo
+                case 'stop'
+                    tAlignedGlobal = tAligned + vertcat(trials.Stop);
+                case 'start'
+                    tAlignedGlobal = tAligned + vertcat(trials.Stop);
             end
             
+            % Resample by interpolating data (x, t) at new t
+            if useResampleMethod
+                xAligned = zeros(length(trials), length(tAligned));
+                x = double(x);
+                for iTrial = 1:length(trials)
+                    xAligned(iTrial, :) = interp1(t, x, tAlignedGlobal(iTrial, :), 'linear');
+                end
+            % Recalculate data (count or rate) in new bins.
+            else
+                tAligned = (tAligned(1:end-1) + tAligned(2:end)) / 2;
+                xAligned = zeros(length(trials), length(tAligned));
+                switch data
+                    case 'rate'
+                        kernel = obj.SpikeRateKernel;
+                        width = kernel.params.width;
+                        if strcmpi(kernel.type, 'gaussian')
+                            sigma = kernel.params.sigma;
+                            for iTrial = 1:length(trials)
+                                [xAligned(iTrial, :), ~, ~] = obj.getSpikeRates('gaussian', sigma, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
+                            end
+                        else
+                            lambda1 = kernel.params.lambda1;
+                            lambda2 = kernel.params.lambda2;
+                            for iTrial = 1:length(trials)
+                                [xAligned(iTrial, :), ~, ~] = obj.getSpikeRates('gaussian', lambda1, lambda2, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
+                            end
+                        end
+                    case 'count'
+                        for iTrial = 1:length(trials)
+                            [xAligned(iTrial, :), ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :));
+                        end
+                end
+            end
+            
+        end
+    end
+    
+    % private staic
+    methods (Static, Access = {})
+        function z = normalize(x, mode, stats)
             switch lower(mode)
                 case 'iti'
-                    m = obj.ITISpikeRateMedian;
-                    s = obj.ITISpikeRateMAD / 0.6745;
+                    m = double(stats.medianITI);
+                    s = double(stats.madITI) / 0.6745;
                 case 'all'
-                    m = obj.SpikeRateMedial;
-                    s = obj.SpikeRateMAD / 0.6745;
+                    m = double(stats.median);
+                    s = double(stats.mad) / 0.6745;
             end
             z = (x - m) ./ s;
-        end     
+        end
+        
+        function [mu, ss, k] = combinestats(mu_x, ss_x, m, mu_y, ss_y, n)
+            k = m + n;
+            mu = (m*mu_x + n*mu_y) / k;
+            ss = ss_x + ss_y + m*mu_x.^2 + n*mu_y.^2 - 2*(m*mu_x + n*mu_y).*mu + (m+n)*mu.^2;
+        end
     end
 end
