@@ -1,4 +1,4 @@
-load('PETH_All_aggregate_20220201.mat')
+load('C:\SERVER\PETH_All_aggregate_20220201.mat')
 
 %% Make eu objects (SLOW, takes ~60min)
 eu = EphysUnit(PETH, 'cullITI', true, 'extendedWindow', [-1, 2], 'readWaveforms', true);

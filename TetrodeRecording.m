@@ -154,11 +154,11 @@ classdef TetrodeRecording < handle
 % 							channels = obj.MapChannel_RawToTetrode([obj.Amplifier.Channels.NativeOrder] + 1);
                             channels = [obj.Amplifier.Channels.NativeOrder] + 1;
                         end
-                        if strcmpi(digitalChannels, 'auto')
-                            digitalChannels = {'Cue', 1; 'Reward', 2; 'Lick', 3; 'Press', 4};
-                        end
+%                         if strcmpi(digitalChannels, 'auto')
+%                             digitalChannels = {'Cue', 1; 'Reward', 2; 'Lick', 3; 'Press', 4; 'LED', 5; 'Opto', 6};
+%                         end
 						obj.GetDigitalData('ChannelLabels', digitalChannels, 'Append', iChunk > 1);
-						obj.GetAnalogData('ChannelLabels', analogChannels, 'Append', iChunk > 1);
+% 						obj.GetAnalogData('ChannelLabels', analogChannels, 'Append', iChunk > 1);
 						obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', iChunk > 1);
 						obj.ClearCache();
 					end
@@ -402,7 +402,7 @@ classdef TetrodeRecording < handle
 				% load name of digital reference channel.
 				if (data_file_main_version_number > 1)
 					objTemp(iFile).ReferenceChannel = TetrodeRecording.ReadQString(fid);
-				end
+                end
 
 				% Place frequency-related information in data structure.
 				frequency_parameters = struct( ...
@@ -687,8 +687,8 @@ classdef TetrodeRecording < handle
 			obj.Amplifier.Data = zeros(length(obj.Amplifier.Channels), obj.Amplifier.NumSamples);
 			obj.BoardDigIn.Timestamps = zeros(1, obj.BoardDigIn.NumSamples);
 			obj.BoardDigIn.Data = zeros(length(obj.BoardDigIn.Channels), obj.BoardDigIn.NumSamples);
-			obj.BoardADC.Timestamps = zeros(1, obj.BoardADC.NumSamples);
-			obj.BoardADC.Data = zeros(length(obj.BoardADC.Channels), obj.BoardADC.NumSamples);
+% 			obj.BoardADC.Timestamps = zeros(1, obj.BoardADC.NumSamples);
+% 			obj.BoardADC.Data = zeros(length(obj.BoardADC.Channels), obj.BoardADC.NumSamples);
 
 			iSample.Amplifier = 0;
 			iSample.BoardDigIn = 0;
@@ -698,12 +698,12 @@ classdef TetrodeRecording < handle
 				obj.Amplifier.Data(:, iSample.Amplifier + 1:iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2)) = objTemp(iFile).Amplifier.Data;
 				obj.BoardDigIn.Timestamps(1, iSample.BoardDigIn + 1:iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2)) = objTemp(iFile).BoardDigIn.Timestamps;
 				obj.BoardDigIn.Data(:, iSample.BoardDigIn + 1:iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2)) = objTemp(iFile).BoardDigIn.Data;
-				obj.BoardADC.Timestamps(1, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Timestamps;
-				obj.BoardADC.Data(:, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Data;
+% 				obj.BoardADC.Timestamps(1, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Timestamps;
+% 				obj.BoardADC.Data(:, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Data;
 
 				iSample.Amplifier = iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2);
 				iSample.BoardDigIn = iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2);
-				iSample.BoardADC = iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2);
+% 				iSample.BoardADC = iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2);
 			end
 			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
         end
@@ -1015,11 +1015,11 @@ classdef TetrodeRecording < handle
 			channelNames = channelLabels(:, 1);
 
 			if append
-				obj.DigitalEvents.Data = [obj.DigitalEvents.Data, obj.BoardDigIn.Data(channels, :)];
+				obj.DigitalEvents.Data = [obj.DigitalEvents.Data, sparse(obj.BoardDigIn.Data(channels, :))];
 				obj.DigitalEvents.Timestamps = [obj.DigitalEvents.Timestamps, obj.BoardDigIn.Timestamps];
 			else
 				obj.DigitalEvents.ChannelNames = channelNames;
-				obj.DigitalEvents.Data = obj.BoardDigIn.Data(channels, :);
+				obj.DigitalEvents.Data = sparse(obj.BoardDigIn.Data(channels, :));
 				obj.DigitalEvents.Timestamps = obj.BoardDigIn.Timestamps;
 			end
 		end
@@ -2464,21 +2464,27 @@ classdef TetrodeRecording < handle
 				title(hAxes(iChannel), ['Channel ', num2str(iChannel)]);
 				clusterID = obj.Spikes(iChannel).Cluster.Classes;
 				for iCluster = unique(nonzeros(clusterID))'
+					[thisColor, thisStyle] = TetrodeRecording.GetColorAndStyle(iCluster);
 					thisWaveforms = obj.Spikes(iChannel).Waveforms(clusterID==iCluster, :);
+                    t = obj.Spikes(iChannel).WaveformTimestamps;
 					switch lower(plotMethod)
 						case 'all'
 							thisWaveforms = thisWaveforms(1:ceil(100/percentShown):end, :);
 							if size(thisWaveforms, 1) > maxShown
 								thisWaveforms = thisWaveforms(randperm(size(thisWaveforms, 1), maxShown), :);
-							end
+                            end
+                            line(hAxes(iChannel), t, thisWaveforms, 'LineStyle', thisStyle, 'Color', thisColor);
 						case 'mean'
-							thisWaveforms = mean(thisWaveforms, 1);
+							thisMean = mean(thisWaveforms, 1);
+							thisUp = prctile(thisWaveforms, 95, 1);
+							thisDown = prctile(thisWaveforms, 5, 1);
+							line(hAxes(iChannel), t, thisMean, 'LineStyle', thisStyle, 'Color', thisColor);
+							patch(hAxes(iChannel), [t, t(end:-1:1)], [thisDown, thisUp(end:-1:1)], thisColor,...
+								'FaceAlpha', 0.15, 'EdgeColor', 'none');
 					end
-					[thisColor, thisStyle] = TetrodeRecording.GetColorAndStyle(iCluster);
-					line(hAxes(iChannel), obj.Spikes(iChannel).WaveformTimestamps, thisWaveforms, 'LineStyle', thisStyle, 'Color', thisColor);
 				end
 				ylim(hAxes(iChannel), yRange);
-				drawnow
+% 				drawnow
 			end
 
 			suptitle(expName);
@@ -3175,7 +3181,7 @@ classdef TetrodeRecording < handle
 						'SelectedSampleIndex', selectedSampleIndex,...
 						'Ax', h.Raster2);
 				end
-			end
+            end
 
 			if length(clusters) == 1
 				selectedCluster = clusters;
@@ -4362,13 +4368,13 @@ classdef TetrodeRecording < handle
 				end
 				channels = selectedChannels{iDir};
 				if ~isempty(channels)
-					try
+% 					try
 						TetrodeRecording.TTS(['Processing folder ', num2str(iDir), '/', num2str(length(selectedChannels)), ':\n']);
 						TetrodeRecording.ProcessFolder(allPaths{iDir}, savePath, chunkSize, channels, channelsOnRig, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, waveformFeatureWindow, featureMethod, clusterMethod, dimension, prefix, rig);
-					catch ME
-						warning(['Error when processing folder (', allPaths{iDir}, ') - this one will be skipped.'])
-						warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
-					end
+% 					catch ME
+% 						warning(['Error when processing folder (', allPaths{iDir}, ') - this one will be skipped.'])
+% 						warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
+% 					end
 				end
 			end
 			TetrodeRecording.RandomWords();
@@ -5584,8 +5590,9 @@ classdef TetrodeRecording < handle
 				rig = 1;
 			elseif contains(filepath, {'desmond13', 'daisy5', 'desmond15', 'desmond17', 'desmond19', 'desmond20', 'daisy8', 'daisy10'})
 				rig = 2;
-			else
-				error('This version was designed for desmond12/13 daisy4/5 only');
+            else
+                rig = 1;
+% 				error('This version was designed for desmond12/13 daisy4/5 only');
 			end
 		end
 
