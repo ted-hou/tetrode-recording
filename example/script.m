@@ -2,18 +2,25 @@
 ptr = TetrodeRecording.BatchPreview();
 
 
-set(findobj(gcf, 'Type', 'Axes', '-not', 'Tag', 'suptitle'), 'YLim', [-500, 500]);
+set(findobj(gcf, 'Type', 'Axes', '-not', 'Tag', 'suptitle'), 'YLim', [-200, 200]);
 
 % Save/load batch preview files
 TetrodeRecording.BatchSave(ptr, 'Prefix', 'ptr_', 'DiscardData', true);
 ptr = TetrodeRecording.BatchLoad();
+ptr1 = TetrodeRecording.BatchLoad();
+ptr2 = TetrodeRecording.BatchLoad();
+ptr1.SelectedChannels = ptr.SelectedChannels(1:30);
+ptr2.SelectedChannels = ptr.SelectedChannels(31:end);
 
 % Batch process
 TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 3, 'WaveformWindow', [-0.5, 0.5], 'FeatureMethod', 'WaveletTransform', 'ClusterMethod', 'kmeans', 'Dimension', 10);
 TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-0.5, 0.5], 'FeatureMethod', 'WaveletTransform', 'ClusterMethod', 'kmeans', 'Dimension', 10);
 TetrodeRecording.BatchProcess(ptr, 'SavePath', 'D:\Data\', 'NumSigmas', 2, 'NumSigmasReturn', 1.5, 'NumSigmasReject', 40, 'WaveformWindow', [-0.5, 0.5], 'FeatureMethod', 'WaveletTransform', 'ClusterMethod', 'kmeans', 'Dimension', 10);
-TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-0.5, 0.5], 'FeatureMethod', 'WaveletTransform', 'ClusterMethod', 'kmeans', 'Dimension', 10);
-TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-0.5, 0.5], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 5);
+TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-1, 1], 'FeatureMethod', 'WaveletTransform', 'ClusterMethod', 'kmeans', 'Dimension', 10);
+TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-1, 1], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 10, 'ChunkSize', 5);
+
+TetrodeRecording.BatchProcess(ptr1, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-.5, .5], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 5, 'ChunkSize', 1);
+TetrodeRecording.BatchProcess(ptr2, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-.5, .5], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 5, 'ChunkSize', 1);
 
 % Batch load
 tr = TetrodeRecording.BatchLoad();
