@@ -56,7 +56,7 @@ classdef TetrodeRecording < handle
 			obj.ReadFiles(chunkSize, 'Rig', rig, 'Duration', duration, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-0.5, 0.5]);
 			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
 			if ~hideResults
-				obj.PlotAllChannels();
+				obj.PlotAllChannels('plotMethod', 'mean');
 			end
 		end
 
@@ -679,12 +679,22 @@ classdef TetrodeRecording < handle
 
 			obj.Notes = notes;
 			obj.FrequencyParameters = frequency_parameters;
-			obj.Amplifier.Channels = objTemp(1).Amplifier.Channels;
-			obj.BoardDigIn.Channels = objTemp(1).BoardDigIn.Channels;
-			obj.BoardADC.Channels = objTemp(1).BoardADC.Channels;
-
+            
+            obj.Amplifier.Channels = objTemp(1).Amplifier.Channels;
+            nChannels = max([objTemp(1).Amplifier.Channels.NativeOrder]) + 1;
+            obj.BoardDigIn.Channels = objTemp(1).BoardDigIn.Channels;
+            obj.BoardADC.Channels = objTemp(1).BoardADC.Channels;
+            % Find common channels in all files, some files may have more
+            % channels than others, we will only keep channels that exist
+            % in all files
+            for iFile = 2:length(objTemp)
+                [~, ia, ~] = intersect([obj.Amplifier.Channels.NativeOrder], [objTemp(iFile).Amplifier.Channels.NativeOrder]);
+                obj.Amplifier.Channels = obj.Amplifier.Channels(ia);
+                nChannels = max(nChannels, max([objTemp(iFile).Amplifier.Channels.NativeOrder]) + 1);
+            end
+            
 			obj.Amplifier.Timestamps = zeros(1, obj.Amplifier.NumSamples);
-			obj.Amplifier.Data = zeros(length(obj.Amplifier.Channels), obj.Amplifier.NumSamples);
+			obj.Amplifier.Data = zeros(nChannels, obj.Amplifier.NumSamples);
 			obj.BoardDigIn.Timestamps = zeros(1, obj.BoardDigIn.NumSamples);
 			obj.BoardDigIn.Data = zeros(length(obj.BoardDigIn.Channels), obj.BoardDigIn.NumSamples);
 % 			obj.BoardADC.Timestamps = zeros(1, obj.BoardADC.NumSamples);
@@ -695,7 +705,8 @@ classdef TetrodeRecording < handle
 			iSample.BoardADC = 0;
 			for iFile = 1:length(files)
 				obj.Amplifier.Timestamps(1, iSample.Amplifier + 1:iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2)) = objTemp(iFile).Amplifier.Timestamps;
-				obj.Amplifier.Data(:, iSample.Amplifier + 1:iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2)) = objTemp(iFile).Amplifier.Data;
+                [~, ia, ib] = intersect(1:nChannels, [objTemp(iFile).Amplifier.Channels.NativeOrder]);
+				obj.Amplifier.Data(ia, iSample.Amplifier + 1:iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2)) = objTemp(iFile).Amplifier.Data(ib, :);
 				obj.BoardDigIn.Timestamps(1, iSample.BoardDigIn + 1:iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2)) = objTemp(iFile).BoardDigIn.Timestamps;
 				obj.BoardDigIn.Data(:, iSample.BoardDigIn + 1:iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2)) = objTemp(iFile).BoardDigIn.Data;
 % 				obj.BoardADC.Timestamps(1, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Timestamps;
@@ -877,9 +888,6 @@ classdef TetrodeRecording < handle
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
 
 			for iChannel = channels
-				% Auto-threshold for spikes
-				% median(abs(x))/0.6745 is a better estimation of noise amplitude than std() when there are spikes -- Quiroga, 2004
-				% shoud be median(abx(x - median(x))) but for ephys usually median(x) = 0;
 				sigma = nanmedian(abs(obj.Amplifier.Data(iChannel, :)))/0.6745;
 				threshold = numSigmas*sigma;
 				switch lower(directionMode)
@@ -4310,7 +4318,7 @@ classdef TetrodeRecording < handle
 			if showResults
 				for iDir = 1:length(dirs)
 					try
-						previewObj(iDir).PlotAllChannels('YLim', 'auto');
+						previewObj(iDir).PlotAllChannels('YLim', 'auto', 'plotMethod', 'mean');
 						previewObj(iDir).ClearCache();
 					catch ME
 						warning(['Error when processing folder (', dirs{iDir}, ') - this one will be skipped.'])
