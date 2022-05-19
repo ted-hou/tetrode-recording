@@ -1,8 +1,9 @@
 fdir = 'C:\SERVER\daisy15\daisy15_20220511';
 br = readBlackRock(fdir);
 tr = readIntan(fdir);
-
 appendBRtoTR(br, tr);
+
+TetrodeRecording.BatchSave(tr, 'Prefix', 'tr_sorted_', 'DiscardData', false, 'MaxChannels', 5);
 
 function tr = readIntan(fdir)
     if nargin < 1
