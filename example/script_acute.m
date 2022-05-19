@@ -3,6 +3,12 @@ br = readBlackRock(fdir);
 tr = readIntan(fdir);
 appendBRtoTR(br, tr);
 
+%%
+tr.PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'PlotStim', true);
+
+%%
+
+
 TetrodeRecording.BatchSave(tr, 'Prefix', 'tr_sorted_', 'DiscardData', false);
 
 function tr = readIntan(fdir)
