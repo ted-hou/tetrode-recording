@@ -2739,7 +2739,9 @@ classdef TetrodeRecording < handle
 			expName = obj.GetExpName();
 			if ~isempty(obj.SelectedChannels)
 				iChannelDisp = obj.SelectedChannels(iChannel);
-			end
+            else
+                iChannelDisp = iChannel;
+            end
 			displayName = sprintf('%s (Channel %d)', expName, iChannelDisp);
 
 			if ~isempty(h.Figure)
@@ -4485,8 +4487,12 @@ classdef TetrodeRecording < handle
 			varargout = {tr, iExp};
         end
 
-        function tr = BatchLoadSimple(expName)
+        function tr = BatchLoadSimple(expName, intan)
         % Read multiple TR objects, assuming they're non-overlapping files from the same experiment.
+            if nargin < 2
+                intan = false;
+            end
+        
             % Choose files
             if nargin < 1
                 files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
@@ -4495,7 +4501,11 @@ classdef TetrodeRecording < handle
                 tTic = tic();
                 animalName = strsplit(expName, '_');
                 animalName = animalName{1};
-                thisFile = dir(sprintf('C:\\SERVER\\%s\\SpikeSort\\tr*%s*.mat', animalName, expName));
+                if ~intan
+                    thisFile = dir(sprintf('C:\\SERVER\\%s\\SpikeSort\\tr*%s*.mat', animalName, expName));
+                else
+                    thisFile = dir(sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\tr*%s*.mat', animalName, expName, expName));
+                end
                 thisFile = thisFile(~[thisFile.isdir]);
                 if ~isempty(thisFile)
                     [~, iLongest] = max(cellfun(@length, {thisFile.name}));
