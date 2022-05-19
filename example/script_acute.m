@@ -3,7 +3,7 @@ br = readBlackRock(fdir);
 tr = readIntan(fdir);
 appendBRtoTR(br, tr);
 
-TetrodeRecording.BatchSave(tr, 'Prefix', 'tr_sorted_', 'DiscardData', false, 'MaxChannels', 5);
+TetrodeRecording.BatchSave(tr, 'Prefix', 'tr_sorted_', 'DiscardData', false);
 
 function tr = readIntan(fdir)
     if nargin < 1
