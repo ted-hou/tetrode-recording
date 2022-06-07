@@ -4,9 +4,9 @@ headstage_source='Intan';
 disp(['***Using the Intan 128 ch amplifier board***'])
 end
 
-if strcmp(intan_or_muxi, 'muxi')
+if strcmpi(intan_or_muxi, 'muxi')
 headstage_source='UCLA';  %options: 'UCLA' or 'Intan'.  Value must be entered as a string.
-elseif strcmp(intan_or_muxi, 'intan')
+elseif strcmpi(intan_or_muxi, 'intan')
 headstage_source='Intan';  
 end
    

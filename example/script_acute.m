@@ -1,16 +1,23 @@
-fdir = 'C:\SERVER\daisy15\daisy15_20220511';
+fdir = 'C:\SERVER\daisy14\daisy14_20220506';
 br = readBlackRock(fdir);
 tr = readIntan(fdir);
 appendBRtoTR(br, tr);
+
+tr.SpikeClusterAutoReorder([], 'range')
+tr.PlotAllChannels('plotMethod', 'mean')
 
 %%
 tr.PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'PlotStim', true);
 
 %%
-
-
 TetrodeRecording.BatchSave(tr, 'Prefix', 'tr_sorted_', 'DiscardData', false);
 
+%%
+ar = AcuteRecording(tr, 'D1-Cre;Dlx-Flp;Ai80');
+stim = ar.extractAllPulses('A', 0.5);
+probeMap = ar.importProbeMap('back', 1300, -4300, -3280);
+
+%%
 function tr = readIntan(fdir)
     if nargin < 1
         fdir = uigetdir('C:\SERVER\');
@@ -73,3 +80,4 @@ function appendBRtoTR(br, tr)
     tr.AnalogIn.Timestamps = br.analogTimestamps + interp1(br.digitalEvents.LaserOn, brTimeOffset, br.analogTimestamps, 'linear', 'extrap');
     tr.AnalogIn.Data = br.analogData;
 end
+

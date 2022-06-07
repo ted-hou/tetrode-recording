@@ -20,6 +20,7 @@ classdef TetrodeRecording < handle
 		BoardADC
 		NEV
 		NSx
+        UserData
 	end
 
 	%----------------------------------------------------
@@ -1111,6 +1112,62 @@ classdef TetrodeRecording < handle
 			obj.Cluster(channels, 'Method', clusterMethod, 'NumClusters', numClusters);
         end
 
+        function SpikeClusterAutoReorder(obj, channels, varargin)
+            p = inputParser;
+            p.addRequired('Channels', @isnumeric);
+            p.addOptional('SortBy', 'range', @(x) ischar(x) && ismember(x, {'range', 'maxabs', 'snr'})); % range: max(mean)-min(mean), maxabs: max(abs(mean)), snr: maxabs / std
+            p.addOptional('SortOrder', 'descend', @(x) ischar(x) && ismember(x, {'descend', 'ascend'}));
+            p.parse(channels, varargin{:});
+            channels = p.Results.Channels;
+            
+            if isempty(channels)
+                channels = [obj.Spikes.Channel];
+            end
+            
+            for channel = channels
+                clusters = unique(obj.Spikes(channel).Cluster.Classes);
+                stats = NaN(length(clusters), 1);
+                for cluster = clusters
+                    sourceStats = obj.SpikeClusterSummary(channel, cluster);
+                    switch lower(p.Results.SortBy)
+                        case 'range'
+                            stats(cluster) = max(sourceStats.mean) - min(sourceStats.mean);
+                        case 'maxabs'
+                            stats(cluster) = max(abs(sourceStats.mean));
+                        case 'snr'
+                            stats(cluster) = max(max(abs(sourceStats.prct95 ./ sourceStats.std)), max(abs(sourceStats.prct5 ./ sourceStats.std)));
+                    end
+                end
+                [~, I] = sort(stats, p.Results.SortOrder);
+                fprintf(1, sprintf('Reordering spike clusters in channel %i, new order: [%s]...', channel, num2str(I(:)')))
+                obj.SpikeClusterReorder(channel, I);
+                fprintf(1, 'Done.\n')
+            end
+        end
+        
+        function SpikeClusterReorder(obj, channel, newOrder)
+            assert(length(newOrder) == max(newOrder));
+            oldClasses = obj.Spikes(channel).Cluster.Classes;
+            newClasses = zeros(size(oldClasses));
+            for iNewClass = 1:length(newOrder)
+                iOldClass = newOrder(iNewClass);
+                newClasses(oldClasses == iOldClass) = iNewClass;
+            end
+            obj.Spikes(channel).Cluster.Classes = newClasses;
+        end
+        
+        function stats = SpikeClusterSummary(obj, channel, cluster)
+            inCluster = obj.Spikes(channel).Cluster.Classes == cluster;
+            
+            assert(any(inCluster), 'Cluster %i is empty.', cluster)
+            
+            waveforms = obj.Spikes(channel).Waveforms(inCluster, :);
+            stats.mean = mean(waveforms, 1);
+            stats.std = std(waveforms, 0, 1);
+            stats.prct5 = prctile(waveforms, 5, 1);
+            stats.prct95 = prctile(waveforms, 95, 1);
+        end
+        
         function SpikeCullLowISI(obj, channels, varargin)
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric); % Default to all
@@ -2458,6 +2515,21 @@ classdef TetrodeRecording < handle
 			hFigure.UserData.SelectedChannels = false(nChannels, 1);
 			hAxes = gobjects(1, nChannels);
 
+            % Create context menu (common to all channels, mark for delete, reorder, merge)
+            cm = uicontextmenu(hFigure);
+            m0 = uimenu(cm, 'Text', 'Inspect', 'MenuSelectedFcn', @obj.PlotAllChannels_OnInspect);
+            m0_1 = uimenu(m0, 'Text', 'Press/Stim', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Stim'});
+            m0_2 = uimenu(m0, 'Text', 'Lick/Stim', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Lick/Stim'});
+            m0_3 = uimenu(m0, 'Text', 'Press/Lick', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Lick'});
+            m1 = uimenu(cm, 'Text', 'Delete Channel', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteChn, 'Separator', true);
+            m2 = uimenu(cm, 'Text', 'Delete Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteClusters, 'Separator', true);
+            m3 = uimenu(cm, 'Text', 'Merge Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnMergeClusters);
+            m4 = uimenu(cm, 'Text', 'Reorder Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnReorderClusters);
+            m5 = uimenu(cm, 'Text', 'Execute', 'MenuSelectedFcn', @obj.PlotAllChannels_OnExecute, 'Separator', true);
+            m6 = uimenu(cm, 'Text', 'Execute All', 'MenuSelectedFcn', @obj.PlotAllChannels_OnExecuteAll);
+            cm.ContextMenuOpeningFcn = {@obj.PlotAllChannels_OnContextMenuOpened, m1, m2, m3, m4};
+            
+            
 			for iChannel = channels
 				if isempty(obj.Spikes(iChannel).Waveforms)
 					continue
@@ -2465,72 +2537,299 @@ classdef TetrodeRecording < handle
 
 
 				hAxes(iChannel)	= subplot(8, 16, iChannel);
-				hAxes(iChannel).UserData.Channel = iChannel;
-				hAxes(iChannel).ButtonDownFcn = @obj.OnAxesClicked;
-				xlabel(hAxes(iChannel), 'Time (ms)');
-				ylabel(hAxes(iChannel), 'Voltage (\muV)');
-				title(hAxes(iChannel), ['Channel ', num2str(iChannel)]);
-				clusterID = obj.Spikes(iChannel).Cluster.Classes;
-				for iCluster = unique(nonzeros(clusterID))'
-					[thisColor, thisStyle] = TetrodeRecording.GetColorAndStyle(iCluster);
-					thisWaveforms = obj.Spikes(iChannel).Waveforms(clusterID==iCluster, :);
-                    t = obj.Spikes(iChannel).WaveformTimestamps;
-					switch lower(plotMethod)
-						case 'all'
-							thisWaveforms = thisWaveforms(1:ceil(100/percentShown):end, :);
-							if size(thisWaveforms, 1) > maxShown
-								thisWaveforms = thisWaveforms(randperm(size(thisWaveforms, 1), maxShown), :);
-                            end
-                            line(hAxes(iChannel), t, thisWaveforms, 'LineStyle', thisStyle, 'Color', thisColor);
-						case 'mean'
-							thisMean = mean(thisWaveforms, 1);
-							thisUp = prctile(thisWaveforms, 95, 1);
-							thisDown = prctile(thisWaveforms, 5, 1);
-							line(hAxes(iChannel), t, thisMean, 'LineStyle', thisStyle, 'Color', thisColor);
-							patch(hAxes(iChannel), [t, t(end:-1:1)], [thisDown, thisUp(end:-1:1)], thisColor,...
-								'FaceAlpha', 0.15, 'EdgeColor', 'none');
-					end
-				end
-				ylim(hAxes(iChannel), yRange);
-% 				drawnow
+                hAxes(iChannel).ContextMenu = cm;
+                obj.PlotAllChannels_PlotSingle(hAxes(iChannel), iChannel, p)
 			end
 
 			suptitle(expName);
-		end
+        end
+    end
+    
+    methods (Access = {})
+        function PlotAllChannels_PlotSingle(obj, ax, channel, p)
+            if nargin < 4
+                percentShown 	= 5;
+                maxShown 		= 200;
+                fontSize 		= 8;
+                plotMethod 		= 'mean';
+                yRange 			= 'auto';
+            else
+                percentShown 	= p.Results.PercentShown;
+                maxShown 		= p.Results.MaxShown;
+                fontSize 		= p.Results.Fontsize;
+                plotMethod 		= p.Results.PlotMethod;
+                yRange 			= p.Results.YLim;
+            end
+            
+            cm = ax.ContextMenu;
+            cla(ax, 'reset');
+            ax.ContextMenu = cm;
+            ax.Tag = 'Channel';
+            ax.UserData.Channel = channel;
+            ax.UserData.ToDelete = false;
+            ax.UserData.ToDeleteClusters = [];
+            ax.UserData.ToMerge = [];
+            ax.UserData.ToReorder = [];
+            ax.ButtonDownFcn = @obj.PlotAllChannels_OnAxesClicked;            
+            xlabel(ax, 'Time (ms)');
+            ylabel(ax, 'Voltage (\muV)');
+            title(ax, ['Channel ', num2str(channel)]);
+            clusterID = obj.Spikes(channel).Cluster.Classes;
+            for iCluster = unique(nonzeros(clusterID))'
+                [thisColor, thisStyle] = TetrodeRecording.GetColorAndStyle(iCluster);
+                thisWaveforms = obj.Spikes(channel).Waveforms(clusterID==iCluster, :);
+                t = obj.Spikes(channel).WaveformTimestamps;
+                switch lower(plotMethod)
+                    case 'all'
+                        thisWaveforms = thisWaveforms(1:ceil(100/percentShown):end, :);
+                        if size(thisWaveforms, 1) > maxShown
+                            thisWaveforms = thisWaveforms(randperm(size(thisWaveforms, 1), maxShown), :);
+                        end
+                        line(ax, t, thisWaveforms, 'LineStyle', thisStyle, 'Color', thisColor);
+                    case 'mean'
+                        thisMean = mean(thisWaveforms, 1);
+                        thisUp = prctile(thisWaveforms, 95, 1);
+                        thisDown = prctile(thisWaveforms, 5, 1);
+                        line(ax, t, thisMean, 'LineStyle', thisStyle, 'Color', thisColor);
+                        patch(ax, [t, t(end:-1:1)], [thisDown, thisUp(end:-1:1)], thisColor,...
+                            'FaceAlpha', 0.15, 'EdgeColor', 'none');
+                end
+            end
+            ylim(ax, yRange);            
+        end
+        
+        function PlotAllChannels_OnContextMenuOpened(obj, src, event, m1, m2, m3, m4)
+            ax = gca();
+            channel = ax.UserData.Channel;
+            
+            m1.Checked = ax.UserData.ToDelete;
+            
+            m2.Checked = ~isempty(ax.UserData.ToDeleteClusters);
+            if isempty(ax.UserData.ToDeleteClusters)
+                m2.Text = 'Delete Clusters...';
+            else
+                m2.Text = sprintf('Delete Clusters (%s)...', num2str(ax.UserData.ToDeleteClusters));
+            end
+            
+            m3.Checked = ~isempty(ax.UserData.ToMerge);
+            if isempty(ax.UserData.ToMerge)
+                m3.Text = 'Merge Clusters...';
+            else
+                m3.Text = sprintf('Merge Clusters (%s)...', num2str(ax.UserData.ToMerge));
+            end
+            
+            m4.Checked = ~isempty(ax.UserData.ToReorder);
+            if isempty(ax.UserData.ToReorder)
+                m4.Text = 'Reorder Clusters...';
+            else
+                m4.Text = sprintf('Reorder Clusters (%s)...', num2str(ax.UserData.ToReorder));
+            end
+            
+        end
+        
+        function axes = PlotAllChannels_GetAxes(obj, channels)
+            if nargin < 2
+                channels = [];
+            end
+            
+            fig = gcf;
+            axes = findobj(fig.Children, '-depth', 1, 'type', 'axes', 'Tag', 'Channel');
+            
+            if ~isempty(channels)
+                figChannels = {axes.UserData};
+                figChannels = cellfun(@(x) x.Channel, figChannels);
+                axes = axes(ismember(figChannels, channels));
+            end
+        end
+        
+        function PlotAllChannels_OnInspect(obj, src, event, mode)
+            if nargin < 4
+                mode = 'Press/Stim';
+            end
+            
+            ax = gca();
+            channel = ax.UserData.Channel;
+            
+            switch mode
+                case 'Press/Stim'
+                    tr.PlotChannel(channel, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', true);
+                case 'Lick/Stim'
+                    tr.PlotChannel(channel, 'Reference', 'CueOn', 'Event', 'LickOn', 'Exclude', 'PressOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', true);
+                case 'Press/Lick'
+                    tr.PlotChannel(channel, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', 'LickOn', 'Exclude2', 'PressOn', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', false);
+            end
+        end
+        
+        function PlotAllChannels_OnDeleteChn(obj, src, event, ax)
+            if ~isempty(obj.SelectedChannels)
+                axes = obj.PlotAllChannels_GetAxes(obj.SelectedChannels);
+                for i = 1:length(axes)
+                    obj.PlotAllChannels_OnDeleteChn([], [], axes(i));
+                end
+                return
+            end
+            
+            if nargin < 4
+                ax = gca();
+            end
+            
+            if ~ax.UserData.ToDelete
+                ax.UserData.ToDelete = true;
+                set(ax.Children, 'Visible', false);
+            else
+                ax.UserData.ToDelete = false;
+                set(ax.Children, 'Visible', true);
+            end
+        end
+        
+        function PlotAllChannels_OnDeleteClusters(obj, src, event)
+            ax = gca();
+            channel = ax.UserData.Channel;
+            
+			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(channel).Cluster.Classes)), 'UniformOutput', false);
 
-		function OnAxesClicked(obj, hAxes, evnt)
-			channel = hAxes.UserData.Channel;
-			button = evnt.Button; % 1, 2, 3 (LMB, MMB, RMB click)
-			hFigure = hAxes.Parent;
+			[clusters, ok] = listdlg(...
+				'PromptString', 'Delete clusters:',...
+				'SelectionMode', 'multiple',...
+				'OKString', 'Delete',...
+				'ListString', liststr,...
+				'InitialValue', [],...
+				'ListSize', [250, 150]);
 
-			switch button
-				case 1
-					hFigure.UserData.SelectedChannels(channel) = true;
-					hAxes.Box 						= 'on';
-					hAxes.LineWidth 				= 2;
-					hAxes.XColor 					= 'r';
-					hAxes.YColor 					= 'r';
-					hAxes.Title.Color 				= 'r';
-					hAxes.TitleFontSizeMultiplier 	= 1.6;
-					selectedChannels = transpose(find(hFigure.UserData.SelectedChannels));
-					obj.SelectedChannels = selectedChannels;
-					disp(['Selected channels: ', mat2str(selectedChannels)])
-					drawnow
-				case 3
-					hFigure.UserData.SelectedChannels(channel) = false;
-					hAxes.Box 						= 'off';
-					hAxes.LineWidth 				= 0.5;
-					hAxes.XColor 					= 'k';
-					hAxes.YColor 					= 'k';
-					hAxes.Title.Color 				= 'k';
-					hAxes.TitleFontSizeMultiplier 	= 1.1;
-					selectedChannels = transpose(find(hFigure.UserData.SelectedChannels));
-					obj.SelectedChannels = selectedChannels;
-					disp(['Selected channels: ', mat2str(selectedChannels)])
-					drawnow
-			end
-		end
+			if (ok && ~isempty(clusters))
+				clusters = cellfun(@str2num, liststr(clusters));
+				% Replot clusters
+				ax.UserData.ToDeleteClusters = clusters;
+            else
+                ax.UserData.ToDeleteClusters = [];
+            end
+        end
+        
+        function PlotAllChannels_OnMergeClusters(obj, src, event)
+            ax = gca();
+            channel = ax.UserData.Channel;
+            
+			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(channel).Cluster.Classes)), 'UniformOutput', false);
 
+			[clusters, ok] = listdlg(...
+				'PromptString', 'Merge clusters:',...
+				'SelectionMode', 'multiple',...
+				'OKString', 'Merge',...
+				'ListString', liststr,...
+				'InitialValue', [],...
+				'ListSize', [250, 150]);
+
+			if (ok && ~isempty(clusters))
+				clusters = cellfun(@str2num, liststr(clusters));
+				ax.UserData.ToMerge = clusters;
+            else
+                ax.UserData.ToMerge = [];
+            end
+        end
+        
+        function PlotAllChannels_OnReorderClusters(obj, src, event)
+            ax = gca();
+            channel = ax.UserData.Channel;
+            
+            answer = inputdlg('Enter new cluster order:', 'Reorder', [1, 50]);
+
+			if ~isempty(answer)
+				ax.UserData.ToReorder = str2num(answer{1});
+            else
+                ax.UserData.ToReorder = [];
+            end
+        end
+        
+		function PlotAllChannels_OnAxesClicked(obj, ax, event)
+            if event.Button == 1 % 1, 2, 3 (LMB, MMB, RMB click)
+                obj.PlotAllChannels_SelectChannel(ax, true);
+            elseif event.Button == 2
+                obj.PlotAllChannels_SelectChannel(ax, false);
+            end
+        end
+        
+        function PlotAllChannels_SelectChannel(obj, ax, select)
+			channel = ax.UserData.Channel;
+            fig = ax.Parent;
+            
+            if select
+                fig.UserData.SelectedChannels(channel) = true;
+                ax.Box 						= 'on';
+                ax.LineWidth 				= 2;
+                ax.XColor 					= 'r';
+                ax.YColor 					= 'r';
+                ax.Title.Color 				= 'r';
+                ax.TitleFontSizeMultiplier 	= 1.6;
+                obj.SelectedChannels = transpose(find(fig.UserData.SelectedChannels));
+            else
+                fig.UserData.SelectedChannels(channel) = false;
+                ax.Box 						= 'off';
+                ax.LineWidth 				= 0.5;
+                ax.XColor 					= 'k';
+                ax.YColor 					= 'k';
+                ax.Title.Color 				= 'k';
+                ax.TitleFontSizeMultiplier 	= 1.1;
+                obj.SelectedChannels = transpose(find(fig.UserData.SelectedChannels));
+            end
+        end
+        
+        function PlotAllChannels_Execute(obj, ax)
+            if ~isfield(ax.UserData, 'Channel')
+                return
+            end
+            channel = ax.UserData.Channel;
+            
+            % Delete Channel
+            if ax.UserData.ToDelete
+				% Delete channel
+				for field = fieldnames(obj.Spikes)'
+					obj.Spikes(channel).(field{1}) = [];
+                end
+                delete(ax)
+                return
+            end
+            
+            % Delete cluster
+            if ~isempty(ax.UserData.ToDeleteClusters)
+                % Delete cluster
+                obj.ClusterRemove(channel, ax.UserData.ToDeleteClusters);
+                obj.PlotAllChannels_PlotSingle(ax, channel)
+                return
+            end
+            
+            % Merge cluster
+            if ~isempty(ax.UserData.ToMerge)
+                clusters = ax.UserData.ToMerge;
+                allClusters = unique(obj.Spikes(channel).Cluster.Classes);
+                mergeList = [num2cell(allClusters(~ismember(allClusters, clusters))), {clusters}];
+                obj.ClusterMerge(channel, mergeList);
+            end
+            
+            % Reorder cluster
+            if ~isempty(ax.UserData.ToReorder)
+                obj.SpikeClusterReorder(channel, ax.UserData.ToReorder);
+            end
+            
+            obj.PlotAllChannels_PlotSingle(ax, channel)
+        end
+        
+        function PlotAllChannels_OnExecute(obj, src, event)
+            ax = gca();
+            obj.PlotAllChannels_Execute(ax)
+        end
+        
+        function PlotAllChannels_OnExecuteAll(obj, src, event)
+            fig = gcf;
+            axes = obj.PlotAllChannels_GetAxes();
+            
+            for i = 1:length(axes)
+                obj.PlotAllChannels_Execute(axes(i))
+            end
+        end
+        
+    end
+        
+    methods
 		%% PlotUnit: Plot a single unit
 		function varargout = PlotUnitSimple(obj, channel, unit, varargin)
 			p = inputParser;
@@ -3330,7 +3629,7 @@ classdef TetrodeRecording < handle
 				if strcmpi(answer, 'Merge')
 					% Merge selected clusters
 					allClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
-					mergeList = [{clusters}, num2cell(allClusters(~ismember(allClusters, clusters)))];
+					mergeList = [num2cell(allClusters(~ismember(allClusters, clusters))), {clusters}];
 					obj.ClusterMerge(iChannel, mergeList);
 					h.Figure.UserData.SelectedClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
 
@@ -5599,7 +5898,7 @@ classdef TetrodeRecording < handle
 					hThisWaveform.YData = waveforms(iWaveform, :);
 					[hThisWaveform.Color, hThisWaveform.LineStyle] = TetrodeRecording.GetColorAndStyle(clusterID(iWaveform));
 				end
-				drawnow
+% 				drawnow
 			end	
 		end
 
