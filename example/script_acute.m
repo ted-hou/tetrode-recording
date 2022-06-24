@@ -13,9 +13,16 @@ tr.PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn'
 TetrodeRecording.BatchSave(tr, 'Prefix', 'tr_sorted_', 'DiscardData', false);
 
 %%
+load('C:\SERVER\daisy14\daisy14_20220506\SpikeSort\tr_sorted_daisy14_20220506_220506_210458.mat')
+
+%%
+clear ar bsr probeMap stim
+
 ar = AcuteRecording(tr, 'D1-Cre;Dlx-Flp;Ai80');
 stim = ar.extractAllPulses('A', 0.5);
 probeMap = ar.importProbeMap('back', 1300, -4300, -3280);
+[bsr, m, s] = ar.binStimResponse([]);
+ar.plotPSTHvsStimLocation(bsr, 0.5, 0.010, 'Mode', 'both', 'CLim', [-.5, .5]);
 
 %%
 function tr = readIntan(fdir)

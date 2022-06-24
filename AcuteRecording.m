@@ -37,6 +37,8 @@ classdef AcuteRecording < handle
             stim.tOff = NaN(nPulses, 1);
             stim.power = NaN(nPulses, 1);
             stim.galvo = NaN(nPulses, 1);
+            stim.dvRank = NaN(nPulses, 1);
+            stim.mlRank = NaN(nPulses, 1);
             stim.fiber = repmat('?', nPulses, 1);
             stim.light = NaN(nPulses, 1);
             stim.powerError = NaN(nPulses, 1);
@@ -53,6 +55,13 @@ classdef AcuteRecording < handle
                 [stim.light(iPulse), stim.fiber(iPulse), stim.powerError(iPulse)] = AcuteRecording.findMatchingCalibration(stim.calibration, stim.power(iPulse), stim.galvo(iPulse));
             end
             
+            isFiberA = stim.fiber == 'A';
+            isFiberB = ~isFiberA;
+            stim.mlRank(isFiberA) = 1;
+            stim.mlRank(isFiberB) = 2;
+            [~, stim.dvRank(isFiberA)] = ismember(abs(stim.galvo(isFiberA)), unique(abs(stim.galvo(isFiberA))));
+            [~, stim.dvRank(isFiberB)] = ismember(abs(stim.galvo(isFiberB)), unique(abs(stim.galvo(isFiberB))));
+            
             % Figure out iTrain and iPulseInTrain
             edges = transpose([obj.tr.DigitalEvents.GalvoOn(:), obj.tr.DigitalEvents.GalvoOff(:)]);
             edges = edges(:);
@@ -68,7 +77,7 @@ classdef AcuteRecording < handle
                 i = i + n;
             end
             
-            stim.duration = (stim.tOff - stim.tOn);
+            stim.duration = round((stim.tOff - stim.tOn) .* 1000) ./ 1000;
 
             obj.stim = stim;
         end
@@ -172,7 +181,233 @@ classdef AcuteRecording < handle
             obj.probeMap = probeMap;
         end
         
-        function [psth] = getPSTH(obj, channel, unit)
+        function [bsr, m, s] = binStimResponse(obj, channels, varargin)
+            p = inputParser();
+            p.addRequired('Channels', @isnumeric);
+            p.addOptional('Units', [], @isnumeric);
+            p.addParameter('BinWidth', 0.01, @isnumeric); % Bin width in seconds
+            p.addParameter('Window', [-0.2, 0.5]); % Additional seconds before and after tOn
+            p.parse(channels, varargin{:});
+            channels = p.Results.Channels;
+            units = p.Results.Units;
+            binWidth = p.Results.BinWidth;
+            window = p.Results.Window;
+            
+            % Do all channels
+            if isempty(channels)
+                channels = [obj.tr.Spikes.Channel];
+            end
+            
+            nChannels = length(channels);
+            nUnitsInChannel = zeros(nChannels, 1);
+            for i = 1:nChannels
+                nUnitsInChannel(i) = max(obj.tr.Spikes(channels(i)).Cluster.Classes) - 1;
+            end
+            assert(isempty(units) || max(nUnitsInChannel) >= max(units), 'Requested units (%s) exceeds total number of units (%i) in data.', num2str(units), max(units));
+            
+            if isempty(units)
+                nUnits = sum(nUnitsInChannel);
+            else
+                nUnits = length(units) * nChannels;
+            end
+            
+            bsr(nUnits) = struct('expName', '', 'channel', [], 'unit', [], 't', [], 'spikeRates', [], 'normalizedSpikeRates', []);
+            m = zeros(nUnits, 1);
+            s = zeros(nUnits, 1);
+
+            % Bin spikes
+            nPulses = length(obj.stim.tOn);
+            t = window(1):binWidth:window(2);
+            nBins = length(t) - 1;
+
+            iUnit = 0;
+            for iChn = 1:nChannels
+                channel = channels(iChn);
+                
+                if isempty(units)
+                    selUnits = 1:nUnitsInChannel(iChn);
+                else
+                    selUnits = units;
+                end
+                
+                for iUnitInChannel = 1:length(selUnits)
+                    iUnit = iUnit + 1;
+                    unit = selUnits(iUnitInChannel);
+
+                    % Extract unit spike times
+                    sel = obj.tr.Spikes(channel).Cluster.Classes == unit;
+                    spikeTimes = obj.tr.Spikes(channel).Timestamps(sel);
+
+                    % Stats for normalizing spike rates
+                    spikeRates = histcounts(spikeTimes, spikeTimes(1):binWidth:spikeTimes(end)) ./ binWidth;
+                    m(iUnit) = mean(spikeRates);
+                    s(iUnit) = mad(spikeRates, 0) / 0.6745;
+                    expName = strsplit(obj.tr.GetExpName(), '_');
+                    expName = strjoin(expName(1:2), '_');
+                    bsr(iUnit).expName = expName;
+                    bsr(iUnit).channel = channel;
+                    bsr(iUnit).unit = unit;
+                    bsr(iUnit).t = t;
+                    bsr(iUnit).spikeRates = zeros(nPulses, nBins);
+                    bsr(iUnit).normalizedSpikeRates = zeros(nPulses, nBins);
+                    isPreWindow = t < 0;
+                    for iPulse = 1:nPulses
+                        edges = obj.stim.tOn(iPulse) + window(1):binWidth:obj.stim.tOn(iPulse) + window(2);
+                        bsr(iUnit).t = (edges(1:end - 1) + edges(2:end))/2 - obj.stim.tOn(iPulse);
+                        bsr(iUnit).spikeRates(iPulse, :) = histcounts(spikeTimes, edges) ./ binWidth;
+                        % Normalize by substracting pre stim window and dividing by global MAD
+                        bsr(iUnit).normalizedSpikeRates(iPulse, :) = (bsr(iUnit).spikeRates(iPulse, :) - mean(bsr(iUnit).spikeRates(iPulse, isPreWindow))) ./ s(iUnit);
+                    end
+                end
+            end
+        end
+        
+        function [selBSR, IPulse] = selectStimResponse(obj, bsr, varargin)
+            p = inputParser();
+            p.addRequired('BinnedStimResponse', @isstruct);
+            p.addParameter('Light', [], @isnumeric);
+            p.addParameter('Duration', [], @isnumeric);
+            p.addParameter('MLRank', [], @isnumeric); % 1: most medial, 4: most lateral
+            p.addParameter('DVRank', [], @isnumeric); % 1: most ventral, 4: most dorsal
+            p.addParameter('Fiber', {}, @(x) ischar(x) || iscell(x));
+            p.addParameter('Galvo', [], @isnumeric);
+            p.parse(bsr, varargin{:});
+            bsr = p.Results.BinnedStimResponse;
+            crit.light = p.Results.Light;
+            crit.duration = p.Results.Duration;
+            crit.mlRank = p.Results.MLRank;
+            crit.dvRank = p.Results.DVRank;
+            crit.fiber = p.Results.Fiber;
+            crit.galvo = p.Results.Galvo;
+            
+            sel = true(size(obj.stim.tOn));
+            if ~isempty(crit.light)
+                sel = sel & ismember(obj.stim.light, crit.light);
+            end
+            if ~isempty(crit.duration)
+                sel = sel & ismember(obj.stim.duration, crit.duration);
+            end
+            if ~isempty(crit.mlRank)
+                sel = sel & ismember(obj.stim.mlRank, crit.mlRank);
+            end
+            if ~isempty(crit.dvRank)
+                sel = sel & ismember(obj.stim.dvRank, crit.dvRank);
+            end
+            if ~isempty(crit.fiber)
+                sel = sel & ismember(obj.stim.fiber, crit.fiber);
+            end
+            if ~isempty(crit.galvo)
+                sel = sel & ismember(obj.stim.galvo, crit.galvo);
+            end
+            
+            selBSR = bsr;
+            for i = 1:length(bsr)
+                selBSR(i).spikeRates = selBSR(i).spikeRates(sel, :);
+                selBSR(i).normalizedSpikeRates = selBSR(i).normalizedSpikeRates(sel, :);
+            end
+            IPulse = find(sel);
+        end
+        
+        function ssr = summarizeStimResponse(obj, bsr, varargin)
+            p = inputParser();
+            p.addRequired('BinnedStimResponse', @isstruct);
+            p.addParameter('');
+            nUnits = length(bsr);
+            ssr(nUnits) = struct('expName', '', 'channel', [], 'unit', [], 'stats', [], 'pos', []);
+            for i = 1:nUnits
+                ssr(i).expName = bsr(i).expName;
+                ssr(i).channel = bsr(i).channel;
+                ssr(i).unit = bsr(i).unit;
+                t = bsr(i).t;
+                nsr = bsr(i).nsr;
+                nsrPre = nsr(t < 0);
+                nsrPost = nst(t >= 0 & t <= 0.1);
+            end
+        end
+        
+        function plotPSTHvsStimLocation(obj, bsr, light, duration, varargin)
+            p = inputParser();
+            p.addParameter('Mode', 'line', @(x) ischar(x) && ismember(x, {'heatmap', 'line', 'both'}));
+            p.addParameter('CLim', [], @isnumeric);
+            p.parse(varargin{:});
+            
+            if length(bsr) > 1
+                for i = 1:length(bsr)
+                    obj.plotPSTHvsStimLocation(bsr(i), light, duration, 'CLim', p.Results.CLim, 'Mode', p.Results.Mode);
+                end
+                return
+            end
+            
+            fig = figure('Units', 'Normalized', 'Position', [0.3, 0.5, 0.3, 0.15]);
+            
+            switch p.Results.Mode
+                case 'line'
+                    ax(1) = axes(fig);
+                case 'heatmap'
+                    ax(2) = axes(fig);
+                case 'both'
+                    ax(1) = subplot(2, 1, 1);
+                    ax(2) = subplot(2, 1, 2);
+                    fig.Position = [0.3, 0.5, 0.3, 0.3];
+            end
+            
+            [bsr, I] = obj.selectStimResponse(bsr, 'Light', light, 'Duration', duration);
+            spikeRates = bsr.spikeRates;
+            normalizedSpikeRates = bsr.normalizedSpikeRates;
+            fiber = obj.stim.fiber(I);
+            galvo = obj.stim.galvo(I);
+            nConditionsA = length(unique(galvo(fiber=='A')));
+            nConditionsB = length(unique(galvo(fiber=='B')));
+            nConditions = nConditionsA + nConditionsB;
+            
+            iCond = 0;
+            for g = reshape(unique(galvo(fiber=='A')), 1, [])
+                iCond = iCond + 1;
+                condFiber(iCond) = 'A';
+                condGalvo = g;
+                condLabel{iCond} = sprintf('mStr, %.1fV, %.1fmW, %.0fms', g/1000, light, duration*1000);
+                condSel = fiber=='A' & galvo == g;
+                condSR(iCond, :) = mean(spikeRates(condSel, :), 1);
+                condNSR(iCond, :) = mean(normalizedSpikeRates(condSel, :), 1);
+                condColor{iCond} = [0.9, 0.9 - 0.2*iCond, 0.1];
+            end
+            
+            for g = reshape(unique(galvo(fiber=='B')), 1, [])
+                iCond = iCond + 1;
+                condFiber(iCond) = 'B';
+                condGalvo = g;
+                condLabel{iCond} = sprintf('lStr, %.1fV, %.1fmW, %.0fms', g/1000, light, duration*1000);
+                condSel = fiber=='B' & galvo == g;
+                condSR(iCond, :) = mean(spikeRates(condSel, :), 1);
+                condNSR(iCond, :) = mean(normalizedSpikeRates(condSel, :), 1);
+                condColor{iCond} = [0.9 - 0.2*(iCond - 4), 0.9, 0.1];
+            end
+            
+            if ismember(p.Results.Mode, {'line', 'both'})
+                hold(ax(1), 'on')
+                for iCond = 1:nConditions
+                    plot(ax(1), bsr.t, condSR(iCond, :), 'Color', condColor{iCond}, 'DisplayName', condLabel{iCond});
+                end
+                hold(ax(1), 'off')
+                xlabel(ax(1), 'Time (s)')
+                ylabel(ax(1), 'Spike Rate (sp/s)')
+                legend(ax(1), 'Location', 'eastoutside')
+            end
+            if ismember(p.Results.Mode, {'heatmap', 'both'})
+                imagesc(ax(2), bsr.t, 1:nConditions, condNSR, [-max(abs(condNSR(:))), max(abs(condNSR(:)))])
+                colormap(ax(2), 'jet');
+                cb = colorbar(ax(2));
+                cb.Label.String = 'Normalized Spike Rate (a.u.)';
+                xlabel(ax(2), 'Time (s)')
+                yticks(ax(2), 1:nConditions)
+                yticklabels(ax(2), condLabel)
+                ylabel(ax(2), 'Stim Condition')
+                title(ax(2), sprintf('%s Chn %i Unit %i', bsr.expName, bsr.channel, bsr.unit), 'Interpreter', 'none')
+
+                if ~isempty(p.Results.CLim)
+                    ax(2).CLim = p.Results.CLim;
+                end
+            end
         end
         
         function plotPSTHByLocation(obj)
