@@ -247,13 +247,14 @@ classdef AcuteRecording < handle
                     bsr(iUnit).expName = expName;
                     bsr(iUnit).channel = channel;
                     bsr(iUnit).unit = unit;
-                    bsr(iUnit).t = t;
                     bsr(iUnit).spikeRates = zeros(nPulses, nBins);
                     bsr(iUnit).normalizedSpikeRates = zeros(nPulses, nBins);
                     isPreWindow = t < 0;
                     for iPulse = 1:nPulses
                         edges = obj.stim.tOn(iPulse) + window(1):binWidth:obj.stim.tOn(iPulse) + window(2);
-                        bsr(iUnit).t = (edges(1:end - 1) + edges(2:end))/2 - obj.stim.tOn(iPulse);
+                        % bsr(iUnit).t = (edges(1:end - 1) + edges(2:end))/2 - obj.stim.tOn(iPulse);
+                        bsr(iUnit).tRight = edges(2:end) - obj.stim.tOn(iPulse);
+                        bsr(iUnit).t = (edges(1:end-1) + edges(2:end))/2 - obj.stim.tOn(iPulse);
                         bsr(iUnit).spikeRates(iPulse, :) = histcounts(spikeTimes, edges) ./ binWidth;
                         % Normalize by substracting pre stim window and dividing by global MAD
                         bsr(iUnit).normalizedSpikeRates(iPulse, :) = (bsr(iUnit).spikeRates(iPulse, :) - mean(bsr(iUnit).spikeRates(iPulse, isPreWindow))) ./ s(iUnit);
@@ -308,37 +309,67 @@ classdef AcuteRecording < handle
             IPulse = find(sel);
         end
         
-        function ssr = summarizeStimResponse(obj, bsr, varargin)
+        function plotPSTHByStimCondition(obj, bsr, varargin)
             p = inputParser();
             p.addRequired('BinnedStimResponse', @isstruct);
-            p.addParameter('');
-            nUnits = length(bsr);
-            ssr(nUnits) = struct('expName', '', 'channel', [], 'unit', [], 'stats', [], 'pos', []);
-            for i = 1:nUnits
-                ssr(i).expName = bsr(i).expName;
-                ssr(i).channel = bsr(i).channel;
-                ssr(i).unit = bsr(i).unit;
-                t = bsr(i).t;
-                nsr = bsr(i).nsr;
-                nsrPre = nsr(t < 0);
-                nsrPost = nst(t >= 0 & t <= 0.1);
-            end
-        end
-        
-        function plotPSTHvsStimLocation(obj, bsr, light, duration, varargin)
-            p = inputParser();
-            p.addParameter('Mode', 'line', @(x) ischar(x) && ismember(x, {'heatmap', 'line', 'both'}));
+            p.addParameter('Mode', 'both', @(x) ischar(x) && ismember(x, {'heatmap', 'line', 'both'}));
             p.addParameter('CLim', [], @isnumeric);
-            p.parse(varargin{:});
+            p.addParameter('Light', [], @isnumeric);
+            p.addParameter('Duration', [], @isnumeric);
+            p.addParameter('MLRank', [], @isnumeric); % 1: most medial, 4: most lateral
+            p.addParameter('DVRank', [], @isnumeric); % 1: most ventral, 4: most dorsal
+            p.addParameter('Fiber', {}, @(x) ischar(x) || iscell(x));
+            p.addParameter('Galvo', [], @isnumeric);
+            p.parse(bsr, varargin{:});
+            bsr = p.Results.BinnedStimResponse;
             
             if length(bsr) > 1
                 for i = 1:length(bsr)
-                    obj.plotPSTHvsStimLocation(bsr(i), light, duration, 'CLim', p.Results.CLim, 'Mode', p.Results.Mode);
+                    obj.plotPSTHByStimCondition(bsr(i), 'Mode', p.Results.Mode, 'CLim', p.Results.CLim, 'Light', p.Results.Light, 'Duration', p.Results.Duration, 'MLRank', p.Results.MLRank, 'DVRank', p.Results.DVRank, 'Fiber', p.Results.Fiber, 'Galvo', p.Results.Galvo);
                 end
                 return
             end
             
-            fig = figure('Units', 'Normalized', 'Position', [0.3, 0.5, 0.3, 0.15]);
+            [bsr, I] = obj.selectStimResponse(bsr, 'Light', p.Results.Light, 'Duration', p.Results.Duration, 'MLRank', p.Results.MLRank, 'DVRank', p.Results.DVRank, 'Fiber', p.Results.Fiber, 'Galvo', p.Results.Galvo);
+            spikeRates = bsr.spikeRates;
+            normalizedSpikeRates = bsr.normalizedSpikeRates;
+            
+            % Find total number of unique conditions
+            light = obj.stim.light(I);
+            duration = obj.stim.duration(I);
+            [~, lightRank] = ismember(light, unique(light));
+            [~, durationRank] = ismember(duration, unique(duration));
+            mlRank = obj.stim.mlRank(I);
+            dvRank = obj.stim.dvRank(I);
+            
+            base = max([max(lightRank), max(durationRank), max(mlRank), max(dvRank)]);
+            condInt = lightRank*(base^3) + durationRank*(base^2) + mlRank*(base^1) + dvRank*(base^0);
+            [uniqueConditions, ia] = unique(condInt);
+            nConditions = length(uniqueConditions);
+            nColorsA = length(unique(dvRank(mlRank==1)));
+            nColorsB = length(unique(dvRank(mlRank==2)));
+            condLabel = cell(nConditions, 1);
+            condColor = cell(nConditions, 1);
+            condWidth = ones(nConditions, 1);
+            condSR = NaN(nConditions, size(spikeRates, 2));
+            condNSR = NaN(nConditions, size(spikeRates, 2));
+            for iCond = 1:nConditions
+                i = ia(iCond);
+                condLabel{iCond} = sprintf('%.1fmW, %.0fms (ML %i, DV %i))', light(i), duration(i)*1000, mlRank(i), dvRank(i));
+                condWidth(iCond) = AcuteRecording.lerp(1, 2, (lightRank(i) - 1)/(max(lightRank) - 1));
+                if mlRank(i) == 1
+                    condColor{iCond} = [0.9, AcuteRecording.lerp(0.1, 0.9, (dvRank(i)-1)/(nColorsA-1)), 0.1];
+                elseif mlRank(i) == 2
+                    condColor{iCond} = [AcuteRecording.lerp(0.1, 0.9, (dvRank(i)-1)/(nColorsB-1)), 0.9, 0.1];
+                else
+                    error('ml rank must be 1 or 2, got %i instead', mlrank(i));
+                end
+                condSel = condInt == condInt(ia(iCond));
+                condSR(iCond, :) = mean(spikeRates(condSel, :), 1);
+                condNSR(iCond, :) = mean(normalizedSpikeRates(condSel, :), 1);
+            end
+            
+            fig = figure('Units', 'Normalized', 'Position', [0.1, 0, 0.8, AcuteRecording.lerp(0.125, 0.3, nConditions/10)]);
             
             switch p.Results.Mode
                 case 'line'
@@ -348,50 +379,19 @@ classdef AcuteRecording < handle
                 case 'both'
                     ax(1) = subplot(2, 1, 1);
                     ax(2) = subplot(2, 1, 2);
-                    fig.Position = [0.3, 0.5, 0.3, 0.3];
-            end
-            
-            [bsr, I] = obj.selectStimResponse(bsr, 'Light', light, 'Duration', duration);
-            spikeRates = bsr.spikeRates;
-            normalizedSpikeRates = bsr.normalizedSpikeRates;
-            fiber = obj.stim.fiber(I);
-            galvo = obj.stim.galvo(I);
-            nConditionsA = length(unique(galvo(fiber=='A')));
-            nConditionsB = length(unique(galvo(fiber=='B')));
-            nConditions = nConditionsA + nConditionsB;
-            
-            iCond = 0;
-            for g = reshape(unique(galvo(fiber=='A')), 1, [])
-                iCond = iCond + 1;
-                condFiber(iCond) = 'A';
-                condGalvo = g;
-                condLabel{iCond} = sprintf('mStr, %.1fV, %.1fmW, %.0fms', g/1000, light, duration*1000);
-                condSel = fiber=='A' & galvo == g;
-                condSR(iCond, :) = mean(spikeRates(condSel, :), 1);
-                condNSR(iCond, :) = mean(normalizedSpikeRates(condSel, :), 1);
-                condColor{iCond} = [0.9, 0.9 - 0.2*iCond, 0.1];
-            end
-            
-            for g = reshape(unique(galvo(fiber=='B')), 1, [])
-                iCond = iCond + 1;
-                condFiber(iCond) = 'B';
-                condGalvo = g;
-                condLabel{iCond} = sprintf('lStr, %.1fV, %.1fmW, %.0fms', g/1000, light, duration*1000);
-                condSel = fiber=='B' & galvo == g;
-                condSR(iCond, :) = mean(spikeRates(condSel, :), 1);
-                condNSR(iCond, :) = mean(normalizedSpikeRates(condSel, :), 1);
-                condColor{iCond} = [0.9 - 0.2*(iCond - 4), 0.9, 0.1];
+                    fig.Position(4) = fig.Position(4)*2;
             end
             
             if ismember(p.Results.Mode, {'line', 'both'})
                 hold(ax(1), 'on')
                 for iCond = 1:nConditions
-                    plot(ax(1), bsr.t, condSR(iCond, :), 'Color', condColor{iCond}, 'DisplayName', condLabel{iCond});
+                    plot(ax(1), bsr.tRight, condSR(iCond, :), 'Color', condColor{iCond}, 'LineWidth', condWidth(iCond), 'DisplayName', condLabel{iCond});
                 end
                 hold(ax(1), 'off')
                 xlabel(ax(1), 'Time (s)')
                 ylabel(ax(1), 'Spike Rate (sp/s)')
-                legend(ax(1), 'Location', 'eastoutside')
+                l = legend(ax(1), 'Location', 'west');
+                l.Position(1) = l.Position(1)-l.Position(3);
             end
             if ismember(p.Results.Mode, {'heatmap', 'both'})
                 imagesc(ax(2), bsr.t, 1:nConditions, condNSR, [-max(abs(condNSR(:))), max(abs(condNSR(:)))])
@@ -484,6 +484,16 @@ classdef AcuteRecording < handle
             else
                 error('No galvo voltage matches %f in calibration data.', galvo);
             end
+        end
+    end
+    
+    methods (Static, Access={})
+        function x = lerp(a, b, t)
+            if isnan(t)
+                t = 0;
+            end
+            t = max(0, min(1, t));
+            x = a + (b - a)*t;
         end
     end
 end

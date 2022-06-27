@@ -22,7 +22,7 @@ ar = AcuteRecording(tr, 'D1-Cre;Dlx-Flp;Ai80');
 stim = ar.extractAllPulses('A', 0.5);
 probeMap = ar.importProbeMap('back', 1300, -4300, -3280);
 [bsr, m, s] = ar.binStimResponse([]);
-ar.plotPSTHvsStimLocation(bsr, 0.5, 0.010, 'Mode', 'both', 'CLim', [-.5, .5]);
+ar.plotPSTHByStimCondition(bsr, 'Duration', 0.01, 'Light', 0.5, 'CLim', [-.5, .5]);
 
 %%
 function tr = readIntan(fdir)
