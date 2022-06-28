@@ -22,11 +22,29 @@ ar = AcuteRecording(tr, 'D1-Cre;Dlx-Flp;Ai80');
 stim = ar.extractAllPulses('A', 0.5);
 probeMap = ar.importProbeMap('back', 1300, -4300, -3280);
 [bsrFull, m, s] = ar.binStimResponse([]);
-% ar.plotPSTHByStimCondition(bsr, 'Duration', 0.01, 'Light', 0.5, 'CLim', [-.5, .5]);
-%%
-[bsr, I] = ar.selectStimResponse(bsr, 'Light', 0.5, 'Duration', 0.01);
-[stats, bsr] = ar.summarizeStimResponse(bsr, I, 'Window', [0 0.05], 'Method', 'firstPeak', 'Normalized', true, 'Threshold', 1);
+% ar.plotPSTHByStimCondition(bsrFull, 'CLim', [-.5, .5]);
 
+%% Calculate main effect, use 1d stat (mean or peak)
+window = [0 0.05];
+[bsr, I] = ar.selectStimResponse(bsrFull, 'Light', 0.5, 'Duration', 0.01);
+[statsPeak, bsr] = AcuteRecording.summarizeStimResponse(bsr, 'Window', window, 'Method', 'peak', 'Normalized', true);
+statsMean = ar.summarizeStimResponse(bsr, 'Window', window, 'Method', 'mean', 'Normalized', true);
+% ar.plotPSTHByStimCondition(bsr, 'CLim', [-.5, .5]);
+
+%% Plot and compare mean vs peak response. Check that mean and peak has same sign.
+figure, ax = axes();
+hold(ax, 'on')
+plot(ax, statsPeak, 'DisplayName', sprintf('peak %i-%ims', window(1)*1000, window(2)*1000));
+plot(ax, statsMean, 'DisplayName', sprintf('mean %i-%ims', window(1)*1000, window(2)*1000));
+ylabel(ax, 'Activity change (a.u.)')
+xlabel(ax, 'Unit')
+hold(ax, 'off');
+legend(ax);
+clear ax
+
+%% Plot heatmap per stim condition
+coords = ar.getProbeCoords([bsr.channel]);
+AcuteRecording.plotMap(coords, statsPeak);
 
 %%
 function tr = readIntan(fdir)

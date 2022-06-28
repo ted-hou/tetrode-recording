@@ -548,9 +548,11 @@ classdef AcuteRecording < handle
             ax = axes(fig);
 
             t = AcuteRecording.inverseLerp(clim(1), clim(2), stats);
-            C = [];
+            C = AcuteRecording.lerp([0.9, 0.1, 0.1], [0.1, 0.9, 0.1], t);
+            disp([t, stats])
 
-            h = scatter3(ax, coords(:, 1), coords(:, 2), coords(:, 3), 36, stats);
+            h = scatter3(ax, coords(:, 1) / 1000, coords(:, 2) / 1000, coords(:, 3) / 1000, 36, C);
+            view(ax, 0, 90)
             xlabel('ML')
             ylabel('DV')
             zlabel('AP')
@@ -563,7 +565,7 @@ classdef AcuteRecording < handle
                 t = 0;
             end
             t = max(0, min(1, t));
-            x = a + (b - a)*t;
+            x = a + (b - a).*t;
         end
 
         function t = inverseLerp(a, b, x)
