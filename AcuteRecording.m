@@ -310,44 +310,6 @@ classdef AcuteRecording < handle
             end
         end
 
-        function [stats, bsr] = summarizeStimResponse(obj, bsr, varargin)
-            p = inputParser();
-            p.addRequired('BinnedStimResponse', @isstruct)
-            p.addParameter('Window', [0, 0.05], @(x) isnumeric(x) && length(x) == 2)
-            p.addParameter('Method', 'max', @(x) ismember(x, {'peak', 'mean', 'firstPeak'}))
-            p.addParameter('Normalized', true, @islogical)
-            p.parse(bsr, varargin{:});
-            bsr = p.Results.BinnedStimResponse;
-            window = p.Results.Window;
-
-            stats = NaN(length(bsr), 1);
-            for i = 1:length(bsr)
-                sel = bsr(i).t <= window(2) & bsr(i).t >= window(1);
-                if p.Results.Normalized
-                    sr = bsr(i).normalizedSpikeRates(:, sel);
-                else
-                    sr = bsr(i).spikeRates(:, sel);
-                end
-                msr = mean(sr, 1);  % Mean (normalized/raw) spike rate across trials
-                switch p.Results.Method
-                    case 'mean'
-                        stats(i) = mean(msr);
-                    case 'peak'
-                        [M, I] = max(abs(msr), [], 2);
-                        stats(i) = M * sign(msr(I));
-                    case 'firstPeak'
-                        [peaks, I] = AcuteRecording.findpeaks(msr);
-                        stats(i) = peaks(1);
-                    otherwise
-                        error('Not implemented method %s', p.Results.Method)
-                end
-                bsr(i).stat.value = stats(i);
-                bsr(i).stat.name = p.Results.Method;
-                bsr(i).stat.normalized = p.Results.Normalized;
-                bsr(i).stat.window = window;
-            end
-        end
-
         function plotPSTHByStimCondition(obj, bsr, varargin)
             p = inputParser();
             p.addRequired('BinnedStimResponse', @isstruct);
@@ -447,6 +409,18 @@ classdef AcuteRecording < handle
                 end
             end
         end
+
+        function coords = getProbeCoords(obj, channels)
+            map = obj.probeMap;
+            coords = zeros(length(channels), 3);
+            for i = 1:length(channels)
+                I = find(map.channel == channels(i), 1);
+                assert(~isempty(I))
+                coords(i, 1) = map.ml(I);
+                coords(i, 2) = map.dv(I);
+                coords(i, 3) = map.ap(I);
+            end
+        end
     end
     
     methods (Static)
@@ -526,6 +500,53 @@ classdef AcuteRecording < handle
             df4 = df >= 0;
             I = find((df1 & circshift(df2, -1)) | (df3 & circshift(df4, -1)));
             peaks = x(I);
+        end
+
+        function [stats, bsr] = summarizeStimResponse(bsr, varargin)
+            p = inputParser();
+            p.addRequired('BinnedStimResponse', @isstruct)
+            p.addParameter('Window', [0, 0.05], @(x) isnumeric(x) && length(x) == 2)
+            p.addParameter('Method', 'max', @(x) ismember(x, {'peak', 'mean', 'firstPeak'}))
+            p.addParameter('Normalized', true, @islogical)
+            p.parse(bsr, varargin{:});
+            bsr = p.Results.BinnedStimResponse;
+            window = p.Results.Window;
+
+            stats = NaN(length(bsr), 1);
+            for i = 1:length(bsr)
+                sel = bsr(i).t <= window(2) & bsr(i).t >= window(1);
+                if p.Results.Normalized
+                    sr = bsr(i).normalizedSpikeRates(:, sel);
+                else
+                    sr = bsr(i).spikeRates(:, sel);
+                end
+                msr = mean(sr, 1);  % Mean (normalized/raw) spike rate across trials
+                switch p.Results.Method
+                    case 'mean'
+                        stats(i) = mean(msr);
+                    case 'peak'
+                        [M, I] = max(abs(msr), [], 2);
+                        stats(i) = M * sign(msr(I));
+                    case 'firstPeak'
+                        [peaks, I] = AcuteRecording.findpeaks(msr);
+                        stats(i) = peaks(1);
+                    otherwise
+                        error('Not implemented method %s', p.Results.Method)
+                end
+                bsr(i).stat.value = stats(i);
+                bsr(i).stat.name = p.Results.Method;
+                bsr(i).stat.normalized = p.Results.Normalized;
+                bsr(i).stat.window = window;
+            end
+        end
+
+        function plotMap(coords, stats)
+            fig = figure();
+            ax = axes(fig);
+            h = scatter3(ax, coords(:, 1), coords(:, 2), coords(:, 3), stats);
+            xlabel('ML')
+            ylabel('DV')
+            zlabel('AP')
         end
     end
     
