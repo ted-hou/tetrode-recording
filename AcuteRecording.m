@@ -540,10 +540,17 @@ classdef AcuteRecording < handle
             end
         end
 
-        function plotMap(coords, stats)
+        function plotMap(coords, stats, clim)
+            if nargin < 3
+                clim = [-.5, .5];
+            end
             fig = figure();
             ax = axes(fig);
-            h = scatter3(ax, coords(:, 1), coords(:, 2), coords(:, 3), stats);
+
+            t = AcuteRecording.inverseLerp(clim(1), clim(2), stats);
+            C = [];
+
+            h = scatter3(ax, coords(:, 1), coords(:, 2), coords(:, 3), 36, stats);
             xlabel('ML')
             ylabel('DV')
             zlabel('AP')
@@ -557,6 +564,11 @@ classdef AcuteRecording < handle
             end
             t = max(0, min(1, t));
             x = a + (b - a)*t;
+        end
+
+        function t = inverseLerp(a, b, x)
+            t = (x - a) / (b - a);
+            t = max(0, min(1, t));
         end
     end
 end
