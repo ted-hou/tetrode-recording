@@ -21,9 +21,11 @@ clear ar bsr probeMap stim
 ar = AcuteRecording(tr, 'D1-Cre;Dlx-Flp;Ai80');
 stim = ar.extractAllPulses('A', 0.5);
 probeMap = ar.importProbeMap('back', 1300, -4300, -3280);
-[bsr, m, s] = ar.binStimResponse([]);
+[bsrFull, m, s] = ar.binStimResponse([]);
 % ar.plotPSTHByStimCondition(bsr, 'Duration', 0.01, 'Light', 0.5, 'CLim', [-.5, .5]);
+%%
 [bsr, I] = ar.selectStimResponse(bsr, 'Light', 0.5, 'Duration', 0.01);
+[stats, bsr] = ar.summarizeStimResponse(bsr, I, 'Window', [0 0.05], 'Method', 'firstPeak', 'Normalized', true, 'Threshold', 1);
 
 
 %%

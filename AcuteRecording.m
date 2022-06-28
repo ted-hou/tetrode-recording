@@ -302,15 +302,15 @@ classdef AcuteRecording < handle
             end
             
             selBSR = bsr;
+            selPulse = find(sel);
             for i = 1:length(bsr)
                 selBSR(i).spikeRates = selBSR(i).spikeRates(sel, :);
                 selBSR(i).normalizedSpikeRates = selBSR(i).normalizedSpikeRates(sel, :);
                 selBSR(i).selPulse = selPulse;
             end
-            selPulse = find(sel);
         end
 
-        function stats = summarizeStimResponse(obj, bsr, varargin)
+        function [stats, bsr] = summarizeStimResponse(obj, bsr, varargin)
             p = inputParser();
             p.addRequired('BinnedStimResponse', @isstruct)
             p.addOptional('PulseSelection', [], @(x) isnumeric(x) || islogical(x))
@@ -321,10 +321,12 @@ classdef AcuteRecording < handle
             p.parse(bsr, varargin{:});
             bsr = p.Results.BinnedStimResponse;
             selPulse = p.Results.PulseSelection;
+            window = p.Results.Window;
+            threshold = p.Results.Threshold;
 
             stats = NaN(length(bsr), 1);
             for i = 1:length(bsr)
-                sel = bsr(i).t <= window(2) && bsr(i).t >= window(1);
+                sel = bsr(i).t <= window(2) & bsr(i).t >= window(1);
                 if p.Results.Normalized
                     sr = bsr(i).normalizedSpikeRates(:, sel);
                 else
@@ -340,7 +342,7 @@ classdef AcuteRecording < handle
                         stats(i) = M * sign(msr(I));
                         bsr(i).stat.threshold = NaN;
                     case 'firstPeak'
-                        I = find(abs(msr) >= abs(p.Results.Threshold), 1, 'first');
+                        I = find(abs(msr) >= abs(threshold), 1, 'first');
                         if isempty(I)
                             % Fallback to 'peak' if no threshold crossing
                             [M, I] = max(abs(msr), [], 2);
@@ -349,7 +351,7 @@ classdef AcuteRecording < handle
                         else
                             peakSign = sign(msr(I));
                             stats(i) = peakSign * max(peakSign * msr);
-                            bsr(i).stat.threshold = p.Results.Threshold;
+                            bsr(i).stat.threshold = threshold;
                         end
                     otherwise
                         error('Not implemented method %s', p.Results.Method)
@@ -357,7 +359,7 @@ classdef AcuteRecording < handle
                 bsr(i).stat.value = stats(i);
                 bsr(i).stat.name = p.Results.Method;
                 bsr(i).stat.normalized = p.Results.Normalized;
-                bsr(i).stat.window = p.Results.Window;
+                bsr(i).stat.window = window;
             end
         end
 
