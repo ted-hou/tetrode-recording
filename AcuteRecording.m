@@ -313,13 +313,11 @@ classdef AcuteRecording < handle
         function [stats, bsr] = summarizeStimResponse(obj, bsr, varargin)
             p = inputParser();
             p.addRequired('BinnedStimResponse', @isstruct)
-            p.addOptional('PulseSelection', [], @(x) isnumeric(x) || islogical(x))
             p.addParameter('Window', [0, 0.05], @(x) isnumeric(x) && length(x) == 2)
             p.addParameter('Method', 'max', @(x) ismember(x, {'peak', 'mean', 'firstPeak'}))
             p.addParameter('Normalized', true, @islogical)
             p.parse(bsr, varargin{:});
             bsr = p.Results.BinnedStimResponse;
-            selPulse = p.Results.PulseSelection;
             window = p.Results.Window;
 
             stats = NaN(length(bsr), 1);
@@ -355,26 +353,25 @@ classdef AcuteRecording < handle
             p.addRequired('BinnedStimResponse', @isstruct);
             p.addParameter('Mode', 'both', @(x) ischar(x) && ismember(x, {'heatmap', 'line', 'both'}));
             p.addParameter('CLim', [], @isnumeric);
-            p.addParameter('Light', [], @isnumeric);
-            p.addParameter('Duration', [], @isnumeric);
-            p.addParameter('MLRank', [], @isnumeric); % 1: most medial, 4: most lateral
-            p.addParameter('DVRank', [], @isnumeric); % 1: most ventral, 4: most dorsal
-            p.addParameter('Fiber', {}, @(x) ischar(x) || iscell(x));
-            p.addParameter('Galvo', [], @isnumeric);
             p.parse(bsr, varargin{:});
             bsr = p.Results.BinnedStimResponse;
             
             if length(bsr) > 1
                 for i = 1:length(bsr)
-                    obj.plotPSTHByStimCondition(bsr(i), 'Mode', p.Results.Mode, 'CLim', p.Results.CLim, 'Light', p.Results.Light, 'Duration', p.Results.Duration, 'MLRank', p.Results.MLRank, 'DVRank', p.Results.DVRank, 'Fiber', p.Results.Fiber, 'Galvo', p.Results.Galvo);
+                    obj.plotPSTHByStimCondition(bsr(i), 'Mode', p.Results.Mode, 'CLim', p.Results.CLim);
                 end
                 return
             end
             
-            [bsr, I] = obj.selectStimResponse(bsr, 'Light', p.Results.Light, 'Duration', p.Results.Duration, 'MLRank', p.Results.MLRank, 'DVRank', p.Results.DVRank, 'Fiber', p.Results.Fiber, 'Galvo', p.Results.Galvo);
+            % [bsr, I] = obj.selectStimResponse(bsr, 'Light', p.Results.Light, 'Duration', p.Results.Duration, 'MLRank', p.Results.MLRank, 'DVRank', p.Results.DVRank, 'Fiber', p.Results.Fiber, 'Galvo', p.Results.Galvo);
             spikeRates = bsr.spikeRates;
             normalizedSpikeRates = bsr.normalizedSpikeRates;
-            
+            if isfield(bsr, 'selPulse')
+                I = bsr.selPulse;
+            else
+                I = 1:length(obj.stim.tOn);
+            end
+
             % Find total number of unique conditions
             light = obj.stim.light(I);
             duration = obj.stim.duration(I);
@@ -449,12 +446,6 @@ classdef AcuteRecording < handle
                     ax(2).CLim = p.Results.CLim;
                 end
             end
-        end
-        
-        function plotPSTHByLocation(obj)
-        end
-        
-        function plotPSTHByStim(obj)
         end
     end
     
