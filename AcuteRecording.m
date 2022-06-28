@@ -317,12 +317,10 @@ classdef AcuteRecording < handle
             p.addParameter('Window', [0, 0.05], @(x) isnumeric(x) && length(x) == 2)
             p.addParameter('Method', 'max', @(x) ismember(x, {'peak', 'mean', 'firstPeak'}))
             p.addParameter('Normalized', true, @islogical)
-            p.addParameter('Threshold', 1, @isnumeric) % For 'firstPeak'
             p.parse(bsr, varargin{:});
             bsr = p.Results.BinnedStimResponse;
             selPulse = p.Results.PulseSelection;
             window = p.Results.Window;
-            threshold = p.Results.Threshold;
 
             stats = NaN(length(bsr), 1);
             for i = 1:length(bsr)
@@ -336,23 +334,12 @@ classdef AcuteRecording < handle
                 switch p.Results.Method
                     case 'mean'
                         stats(i) = mean(msr);
-                        bsr(i).stat.threshold = NaN;
                     case 'peak'
                         [M, I] = max(abs(msr), [], 2);
                         stats(i) = M * sign(msr(I));
-                        bsr(i).stat.threshold = NaN;
                     case 'firstPeak'
-                        I = find(abs(msr) >= abs(threshold), 1, 'first');
-                        if isempty(I)
-                            % Fallback to 'peak' if no threshold crossing
-                            [M, I] = max(abs(msr), [], 2);
-                            stats(i) = M * sign(msr(I));
-                            bsr(i).stat.threshold = NaN;
-                        else
-                            peakSign = sign(msr(I));
-                            stats(i) = peakSign * max(peakSign * msr);
-                            bsr(i).stat.threshold = threshold;
-                        end
+                        [peaks, I] = AcuteRecording.findpeaks(msr);
+                        stats(i) = peaks(1);
                     otherwise
                         error('Not implemented method %s', p.Results.Method)
                 end
@@ -538,6 +525,16 @@ classdef AcuteRecording < handle
             else
                 error('No galvo voltage matches %f in calibration data.', galvo);
             end
+        end
+
+        function [peaks, I] = findpeaks(x)
+            df = [0, diff(x)];
+            df1 = df > 0;
+            df2 = df <= 0;
+            df3 = df < 0;
+            df4 = df >= 0;
+            I = find((df1 & circshift(df2, -1)) | (df3 & circshift(df4, -1)));
+            peaks = x(I);
         end
     end
     
