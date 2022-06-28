@@ -263,7 +263,7 @@ classdef AcuteRecording < handle
             end
         end
         
-        function [selBSR, IPulse] = selectStimResponse(obj, bsr, varargin)
+        function [selBSR, selPulse] = selectStimResponse(obj, bsr, varargin)
             p = inputParser();
             p.addRequired('BinnedStimResponse', @isstruct);
             p.addParameter('Light', [], @isnumeric);
@@ -305,10 +305,45 @@ classdef AcuteRecording < handle
             for i = 1:length(bsr)
                 selBSR(i).spikeRates = selBSR(i).spikeRates(sel, :);
                 selBSR(i).normalizedSpikeRates = selBSR(i).normalizedSpikeRates(sel, :);
+                selBSR(i).selPulse = selPulse;
             end
-            IPulse = find(sel);
+            selPulse = find(sel);
         end
-        
+
+        function stats = summarizeStimResponse(obj, bsr, varargin)
+            p = inputParser();
+            p.addRequired('BinnedStimResponse', @isstruct)
+            p.addOptional('PulseSelection', [], @(x) isnumeric(x) || islogical(x))
+            p.addParameter('Window', [0, 0.05], @(x) isnumeric(x) && length(x) == 2)
+            p.addParameter('Method', 'max', @(x) ismember(x, {'peak', 'mean', 'firstPeakOverThreshold'}))
+            p.addParameter('Normalized', true, @islogical)
+            p.addParameter('Threshold', 1, @isnumeric)
+            p.parse(bsr, varargin{:});
+            bsr = p.Results.BinnedStimResponse;
+            selPulse = p.Results.PulseSelection;
+
+            stats = NaN(length(bsr), 1);
+            for i = 1:length(bsr)
+                sel = bsr(i).t <= window(2) && bsr(i).t >= window(1);
+                if p.Results.Normalized
+                    sr = bsr(i).normalizedSpikeRates(:, sel);
+                else
+                    sr = bsr(i).spikeRates(:, sel);
+                end
+                msr = mean(sr, 1);  % Mean (normalized/raw) spike rate across trials
+                switch p.Results.Method
+                    case 'mean'
+                        stats(i) = mean(msr);
+                    case 'peak'
+                        [M, I] = max(abs(msr), [], 2);
+                        stats(i) = M * sign(msr(I));
+                    otherwise
+                        error('Not implemented method %s', p.Results.Method)
+                end
+            end
+
+        end
+
         function plotPSTHByStimCondition(obj, bsr, varargin)
             p = inputParser();
             p.addRequired('BinnedStimResponse', @isstruct);
