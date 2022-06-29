@@ -310,22 +310,28 @@ classdef AcuteRecording < handle
             end
         end
 
-        function plotPSTHByStimCondition(obj, bsr, varargin)
+        function [stats, conditions] = summarize(obj, bsr, varargin)
             p = inputParser();
-            p.addRequired('BinnedStimResponse', @isstruct);
-            p.addParameter('Mode', 'both', @(x) ischar(x) && ismember(x, {'heatmap', 'line', 'both'}));
-            p.addParameter('CLim', [], @isnumeric);
-            p.parse(bsr, varargin{:});
+            p.addRequired('BinnedStimResponse', @isstruct)
+            p.addOptional('Method', 'peak', @(x) ismember(x, {'peak', 'mean', 'firstPeak'}))
+            p.addOptional('Window', [0, 0.05], @(x) isnumeric(x) && length(x) == 2)
+            p.parse(bsr, varargin{:})
             bsr = p.Results.BinnedStimResponse;
-            
-            if length(bsr) > 1
-                for i = 1:length(bsr)
-                    obj.plotPSTHByStimCondition(bsr(i), 'Mode', p.Results.Mode, 'CLim', p.Results.CLim);
-                end
-                return
+
+            [conditions, ~, ~, ~] = obj.groupByConditions(bsr(1));
+            nConditions = length(conditions);
+            nUnits = length(bsr);
+            stats = NaN(nUnits, nConditions);
+            t = bsr(1).t;
+            for i = 1:length(bsr)
+                [~, ~, condNSR, ~] = obj.groupByConditions(bsr(i));
+                stats(i, :) = AcuteRecording.summarizeMeanSpikeRates(condNSR, t, p.Results.Method, p.Results.Window);
             end
-            
-            % [bsr, I] = obj.selectStimResponse(bsr, 'Light', p.Results.Light, 'Duration', p.Results.Duration, 'MLRank', p.Results.MLRank, 'DVRank', p.Results.DVRank, 'Fiber', p.Results.Fiber, 'Galvo', p.Results.Galvo);
+        end
+
+        function [conditions, condSR, condNSR, condId] = groupByConditions(obj, bsr)
+            assert(length(bsr) == 1)
+
             spikeRates = bsr.spikeRates;
             normalizedSpikeRates = bsr.normalizedSpikeRates;
             if isfield(bsr, 'selPulse')
@@ -341,34 +347,61 @@ classdef AcuteRecording < handle
             [~, durationRank] = ismember(duration, unique(duration));
             mlRank = obj.stim.mlRank(I);
             dvRank = obj.stim.dvRank(I);
+            fiber = obj.stim.fiber(I);
+            galvo = obj.stim.galvo(I);
+
             
             base = max([max(lightRank), max(durationRank), max(mlRank), max(dvRank)]);
-            condInt = lightRank*(base^3) + durationRank*(base^2) + mlRank*(base^1) + dvRank*(base^0);
-            [uniqueConditions, ia] = unique(condInt);
+            condId = lightRank*(base^3) + durationRank*(base^2) + mlRank*(base^1) + dvRank*(base^0);
+            [uniqueConditions, ia] = unique(condId);
             nConditions = length(uniqueConditions);
             nColorsA = length(unique(dvRank(mlRank==1)));
             nColorsB = length(unique(dvRank(mlRank==2)));
-            condLabel = cell(nConditions, 1);
-            condColor = cell(nConditions, 1);
-            condWidth = ones(nConditions, 1);
+            conditions(nConditions) = struct('light', [], 'duration', [], 'fiber', '', 'galvo', [], 'mlRank', [], 'dvRank', [], 'id', [], 'label', '', 'linewidth', '');
             condSR = NaN(nConditions, size(spikeRates, 2));
             condNSR = NaN(nConditions, size(spikeRates, 2));
             for iCond = 1:nConditions
                 i = ia(iCond);
-                condLabel{iCond} = sprintf('%.1fmW, %.0fms (ML %i, DV %i))', light(i), duration(i)*1000, mlRank(i), dvRank(i));
-                condWidth(iCond) = AcuteRecording.lerp(1, 2, (lightRank(i) - 1)/(max(lightRank) - 1));
+                conditions(iCond).light = light(i);
+                conditions(iCond).duration = duration(i);
+                conditions(iCond).mlRank = mlRank(i);
+                conditions(iCond).dvRank = dvRank(i);
+                conditions(iCond).fiber = fiber(i);
+                conditions(iCond).galvo = galvo(i);
+                conditions(iCond).id = condId(i);
+                conditions(iCond).label = sprintf('%.1fmW, %.0fms (ML %i, DV %i)', light(i), duration(i)*1000, mlRank(i), dvRank(i));
+                conditions(iCond).linewidth = AcuteRecording.lerp(1, 2, (lightRank(i) - 1)/(max(lightRank) - 1));
                 if mlRank(i) == 1
-                    condColor{iCond} = [0.9, AcuteRecording.lerp(0.1, 0.9, (dvRank(i)-1)/(nColorsA-1)), 0.1];
+                    conditions(iCond).linecolor = [0.9, AcuteRecording.lerp(0.1, 0.9, (dvRank(i)-1)/(nColorsA-1)), 0.1];
                 elseif mlRank(i) == 2
-                    condColor{iCond} = [AcuteRecording.lerp(0.1, 0.9, (dvRank(i)-1)/(nColorsB-1)), 0.9, 0.1];
+                    conditions(iCond).linecolor = [AcuteRecording.lerp(0.1, 0.9, (dvRank(i)-1)/(nColorsB-1)), 0.9, 0.1];
                 else
                     error('ml rank must be 1 or 2, got %i instead', mlrank(i));
                 end
-                condSel = condInt == condInt(ia(iCond));
+                condSel = condId == condId(ia(iCond));
                 condSR(iCond, :) = mean(spikeRates(condSel, :), 1);
                 condNSR(iCond, :) = mean(normalizedSpikeRates(condSel, :), 1);
             end
+        end
+
+        function plotPSTHByStimCondition(obj, bsr, varargin)
+            p = inputParser();
+            p.addRequired('BinnedStimResponse', @isstruct);
+            p.addParameter('Mode', 'both', @(x) ischar(x) && ismember(x, {'heatmap', 'line', 'both'}));
+            p.addParameter('CLim', [], @isnumeric);
+            p.parse(bsr, varargin{:});
+            bsr = p.Results.BinnedStimResponse;
+
+            if length(bsr) > 1
+                for i = 1:length(bsr)
+                    obj.plotPSTHByStimCondition(bsr(i), 'Mode', p.Results.Mode, 'CLim', p.Results.CLim);
+                end
+                return
+            end
             
+            [conditions, condSR, condNSR, ~] = groupByConditions(obj, bsr);
+            nConditions = length(conditions);
+
             fig = figure('Units', 'Normalized', 'Position', [0.1, 0, 0.8, AcuteRecording.lerp(0.125, 0.3, nConditions/10)]);
             
             switch p.Results.Mode
@@ -385,7 +418,7 @@ classdef AcuteRecording < handle
             if ismember(p.Results.Mode, {'line', 'both'})
                 hold(ax(1), 'on')
                 for iCond = 1:nConditions
-                    plot(ax(1), bsr.tRight, condSR(iCond, :), 'Color', condColor{iCond}, 'LineWidth', condWidth(iCond), 'DisplayName', condLabel{iCond});
+                    plot(ax(1), bsr.tRight, condSR(iCond, :), 'Color', conditions(iCond).linecolor, 'LineWidth', conditions(iCond).linewidth, 'DisplayName', conditions(iCond).label);
                 end
                 hold(ax(1), 'off')
                 xlabel(ax(1), 'Time (s)')
@@ -400,13 +433,47 @@ classdef AcuteRecording < handle
                 cb.Label.String = 'Normalized Spike Rate (a.u.)';
                 xlabel(ax(2), 'Time (s)')
                 yticks(ax(2), 1:nConditions)
-                yticklabels(ax(2), condLabel)
+                yticklabels(ax(2), {conditions.label})
                 ylabel(ax(2), 'Stim Condition')
                 title(ax(2), sprintf('%s Chn %i Unit %i', bsr.expName, bsr.channel, bsr.unit), 'Interpreter', 'none')
 
                 if ~isempty(p.Results.CLim)
                     ax(2).CLim = p.Results.CLim;
                 end
+            end
+        end
+
+        function plotMapByStimCondition(obj, bsr, srange, threshold)
+            if nargin < 3
+                srange = [0, 1];
+            end
+            if nargin < 4
+                threshold = 0.25;
+            end
+
+            coords = obj.getProbeCoords([bsr.channel]);
+            [stats, conditions] = obj.summarize(bsr, 'peak', [0, 0.05]);
+
+            nConditions = length(conditions);
+            nCols = max(1, floor(sqrt(nConditions)));
+            nRows = ceil(nConditions / nCols);
+            fig = figure();
+            ax = gobjects(nConditions, 1);
+            for iCond = 1:nConditions
+                [i, j] = ind2sub([nRows, nCols], iCond);
+                iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
+                ax(iCond) = subplot(nRows, nCols, iSubplot);
+                AcuteRecording.plotMap(ax(iCond), coords, stats(:, iCond), srange, threshold);
+                nicelabel = conditions(iCond).label;
+                nicelabel = strrep(nicelabel, 'ML 1', 'mStr');
+                nicelabel = strrep(nicelabel, 'ML 2', 'lStr');
+                nicelabel = strrep(nicelabel, 'DV 1', '-4.15');
+                nicelabel = strrep(nicelabel, 'DV 2', '-3.48');
+                nicelabel = strrep(nicelabel, 'DV 3', '-2.81');
+                nicelabel = strrep(nicelabel, 'DV 4', '-2.15');
+                title(ax(iCond), nicelabel)
+                axis(ax(iCond), 'image')
+                xlim(ax(iCond), [0.9, 1.7])
             end
         end
 
@@ -492,66 +559,61 @@ classdef AcuteRecording < handle
             end
         end
 
-        function [peaks, I] = findpeaks(x)
-            df = [0, diff(x)];
-            df1 = df > 0;
-            df2 = df <= 0;
-            df3 = df < 0;
-            df4 = df >= 0;
-            I = find((df1 & circshift(df2, -1)) | (df3 & circshift(df4, -1)));
-            peaks = x(I);
-        end
-
-        function [stats, bsr] = summarizeStimResponse(bsr, varargin)
+        function [stats, info] = summarizeMeanSpikeRates(msr, t, varargin)
             p = inputParser();
-            p.addRequired('BinnedStimResponse', @isstruct)
-            p.addParameter('Window', [0, 0.05], @(x) isnumeric(x) && length(x) == 2)
-            p.addParameter('Method', 'max', @(x) ismember(x, {'peak', 'mean', 'firstPeak'}))
-            p.addParameter('Normalized', true, @islogical)
-            p.parse(bsr, varargin{:});
-            bsr = p.Results.BinnedStimResponse;
+            p.addRequired('MeanSpikeRates', @isnumeric)
+            p.addRequired('Timestamps', @isnumeric)
+            p.addOptional('Method', 'peak', @(x) ismember(x, {'peak', 'mean', 'firstPeak'}))
+            p.addOptional('Window', [0, 0.05], @(x) isnumeric(x) && length(x) == 2)
+            p.parse(msr, t, varargin{:});
+            msr = p.Results.MeanSpikeRates;
+            t = p.Results.Timestamps;
             window = p.Results.Window;
 
-            stats = NaN(length(bsr), 1);
-            for i = 1:length(bsr)
-                sel = bsr(i).t <= window(2) & bsr(i).t >= window(1);
-                if p.Results.Normalized
-                    sr = bsr(i).normalizedSpikeRates(:, sel);
-                else
-                    sr = bsr(i).spikeRates(:, sel);
-                end
-                msr = mean(sr, 1);  % Mean (normalized/raw) spike rate across trials
-                switch p.Results.Method
-                    case 'mean'
-                        stats(i) = mean(msr);
-                    case 'peak'
-                        [M, I] = max(abs(msr), [], 2);
-                        stats(i) = M * sign(msr(I));
-                    case 'firstPeak'
-                        [peaks, I] = AcuteRecording.findpeaks(msr);
+            N = size(msr, 1);
+            sel = t <= window(2) & t >= window(1);
+            msr = msr(:, sel); % Truncate by window
+            switch p.Results.Method
+                case 'mean'
+                    stats = mean(msr, 2);
+                case 'peak'
+                    [~, I] = max(abs(msr), [], 2);
+                    stats = diag(msr(:, I));
+                case 'firstPeak'
+                    stats = NaN(N, 1);
+                    for i = 1:N
+                        [peaks, I] = AcuteRecording.findpeaks(msr(i, :));
                         stats(i) = peaks(1);
-                    otherwise
-                        error('Not implemented method %s', p.Results.Method)
-                end
-                bsr(i).stat.value = stats(i);
-                bsr(i).stat.name = p.Results.Method;
-                bsr(i).stat.normalized = p.Results.Normalized;
-                bsr(i).stat.window = window;
+                    end
+                otherwise
+                    error('Not implemented method %s', p.Results.Method)
             end
+            info.name = p.Results.Method;
+            info.window = window;
         end
 
-        function plotMap(coords, stats, clim)
-            if nargin < 3
-                clim = [-.5, .5];
+        function h = plotMap(varargin)
+            if nargin == 5
+                ax = varargin{1};
+                coords = varargin{2};
+                stats = varargin{3};
+                srange = varargin{4};
+                threshold = varargin{5};
+            else
+                fig = figure();
+                ax = axes(fig);
+                coords = varargin{1};
+                stats = varargin{2};
+                srange = varargin{3};
+                threshold = varargin{4};
             end
-            fig = figure();
-            ax = axes(fig);
 
-            t = AcuteRecording.inverseLerp(clim(1), clim(2), stats);
-            C = AcuteRecording.lerp([0.9, 0.1, 0.1], [0.1, 0.9, 0.1], t);
-            disp([t, stats])
-
-            h = scatter3(ax, coords(:, 1) / 1000, coords(:, 2) / 1000, coords(:, 3) / 1000, 36, C);
+            t = AcuteRecording.inverseLerp(srange(1), srange(2), abs(stats));
+            C = zeros(length(stats), 3);
+            C(stats>=threshold, 2) = 1;
+            C(stats<=-threshold, 1) = 1;
+            S = AcuteRecording.lerp(9, 72*2, t);
+            h = scatter3(ax, coords(:, 1) / 1000, coords(:, 2) / 1000, coords(:, 3) / 1000, S, C, 'filled');
             view(ax, 0, 90)
             xlabel('ML')
             ylabel('DV')
@@ -571,6 +633,16 @@ classdef AcuteRecording < handle
         function t = inverseLerp(a, b, x)
             t = (x - a) / (b - a);
             t = max(0, min(1, t));
+        end
+
+        function [peaks, I] = findpeaks(x)
+            df = [0, diff(x)];
+            df1 = df > 0;
+            df2 = df <= 0;
+            df3 = df < 0;
+            df4 = df >= 0;
+            I = find((df1 & circshift(df2, -1)) | (df3 & circshift(df4, -1)));
+            peaks = x(I);
         end
     end
 end
