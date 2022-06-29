@@ -1,24 +1,58 @@
 classdef AcuteRecording < handle
     properties
-        tr
+        expName = ''
+        path = ''
+        strain = ''
         stim = struct([])
         probeMap = struct([])
-        strain = ''
+        bsr = struct([])
+        conditions = struct([])
+        stats = []
+        statsInfo = struct([])
     end
     
     methods
         function obj = AcuteRecording(tr, strain)
-            obj.tr = tr;
             obj.strain = strain;
+
+            splitPath = strsplit(tr.Path, '\');
+            expName = splitPath{end-2};
+            path = strjoin(splitPath(1:end-2), '\');
+            if tr.Path(1) == '\'
+                path = ['\', path];
+            end
+            obj.path = path;
+
+            expName = strsplit(tr.GetExpName(), '_');
+            obj.expName = strjoin(expName(1:2), '_');
+        end
+
+        function save(obj, varargin)
+            p = inputParser();
+            p.addOptional('Prefix', 'ar_', @ischar)
+            p.addOptional('Path', obj.path, @ischar)
+            p.parse(varargin{:})
+            folder = sprintf('%s\\AcuteRecording', p.Results.Path);
+            if ~isdir(folder)
+                mkdir(folder)
+            end
+            file = sprintf('%s\\%s%s.mat', folder, p.Results.Prefix, obj.expName);
+            tTic = tic();
+            fprintf(1, 'Saving to file %s...', file)
+            save(file, 'obj', '-v7.3');
+            f = dir(file);
+            fprintf(1, '(%.2fsec, %.2fMB)\n', toc(tTic), f.bytes*1e-6)
         end
         
-        function stim = extractAllPulses(obj, firstFiber, firstLight)
-            if nargin < 2
-                firstFiber = 'B';
-            end
-            if nargin < 3
-                firstLight = 0.1;
-            end
+        function stim = extractAllPulses(obj, tr, varargin)
+            p = inputParser();
+            p.addRequired('TetrodeRecording', @(x) isa(x, 'TetrodeRecording'))
+            p.addOptional('FirstFiber', 'B', @(x) ismember(x, {'A', 'B'}))
+            p.addOptional('FirstLight', 0.1, @(x) isnumeric(x) && length(x) == 1 && x > 0)
+            p.parse(tr, varargin{:})
+            tr = p.Results.TetrodeRecording;
+            firstFiber = p.Results.FirstFiber;
+            firstLight = p.Results.FirstLight;
 
             stim.calibration = obj.importCalibrationData();
             refPower = stim.calibration.(['Power_', firstFiber]);
@@ -27,12 +61,12 @@ classdef AcuteRecording < handle
             refPower = refPower(find(refLight == firstLight, 1));
             refGalvo = refGalvo(find(refLight == firstLight, 1));
 
-            [stim.power, stim.galvo, ~, ~] = AcuteRecording.extractPulse(obj.tr.DigitalEvents.LaserOn, obj.tr.DigitalEvents.LaserOff, obj.tr.AnalogIn.Timestamps, obj.tr.AnalogIn.Data, 1);
+            [stim.power, stim.galvo, ~, ~] = AcuteRecording.extractPulse(tr.DigitalEvents.LaserOn, tr.DigitalEvents.LaserOff, tr.AnalogIn.Timestamps, tr.AnalogIn.Data, 1);
             assert(stim.galvo == refGalvo);
 
             stim.powerCorrection = refPower - stim.power;
 
-            nPulses = length(obj.tr.DigitalEvents.LaserOn);
+            nPulses = length(tr.DigitalEvents.LaserOn);
             stim.tOn = NaN(nPulses, 1);
             stim.tOff = NaN(nPulses, 1);
             stim.power = NaN(nPulses, 1);
@@ -44,14 +78,14 @@ classdef AcuteRecording < handle
             stim.powerError = NaN(nPulses, 1);
             
             % Trim analog data where laser was off
-            t = obj.tr.AnalogIn.Timestamps;
-            data = obj.tr.AnalogIn.Data;
+            t = tr.AnalogIn.Timestamps;
+            data = tr.AnalogIn.Data;
             sel = data(1, :) > 1000;
             t = t(sel);
             data = data(:, sel);
             
             for iPulse = 1:nPulses
-                [stim.power(iPulse), stim.galvo(iPulse), stim.tOn(iPulse), stim.tOff(iPulse)] = AcuteRecording.extractPulse(obj.tr.DigitalEvents.LaserOn, obj.tr.DigitalEvents.LaserOff, t, data, iPulse, stim.powerCorrection);
+                [stim.power(iPulse), stim.galvo(iPulse), stim.tOn(iPulse), stim.tOff(iPulse)] = AcuteRecording.extractPulse(tr.DigitalEvents.LaserOn, tr.DigitalEvents.LaserOff, t, data, iPulse, stim.powerCorrection);
                 [stim.light(iPulse), stim.fiber(iPulse), stim.powerError(iPulse)] = AcuteRecording.findMatchingCalibration(stim.calibration, stim.power(iPulse), stim.galvo(iPulse));
             end
             
@@ -63,7 +97,7 @@ classdef AcuteRecording < handle
             [~, stim.dvRank(isFiberB)] = ismember(abs(stim.galvo(isFiberB)), unique(abs(stim.galvo(isFiberB))));
             
             % Figure out iTrain and iPulseInTrain
-            edges = transpose([obj.tr.DigitalEvents.GalvoOn(:), obj.tr.DigitalEvents.GalvoOff(:)]);
+            edges = transpose([tr.DigitalEvents.GalvoOn(:), tr.DigitalEvents.GalvoOff(:)]);
             edges = edges(:);
             [N, ~, bins] = histcounts(stim.tOn, edges); % Odd bins are in train, 1 -> 1st train, 3 -> 2nd, 5 -> 3rd, k -> (k + 1)/2
             stim.train = (bins + 1) / 2;
@@ -83,13 +117,7 @@ classdef AcuteRecording < handle
         end
         
         function calibrationData = importCalibrationData(obj)
-            splitPath = strsplit(obj.tr.Path, '\');
-            expName = splitPath{end-2};
-            path = strjoin(splitPath(1:end-2), '\');
-            if obj.tr.Path(1) == '\'
-                path = ['\', path];
-            end
-            filename = sprintf('%s\\GalvoCalibration_%s.csv', path, expName);
+            filename = sprintf('%s\\GalvoCalibration_%s.csv', obj.path, obj.expName);
 
             % Set up the Import Options and import the data
             opts = delimitedTextImportOptions("NumVariables", 7);
@@ -181,27 +209,31 @@ classdef AcuteRecording < handle
             obj.probeMap = probeMap;
         end
         
-        function [bsr, m, s] = binStimResponse(obj, channels, varargin)
+        function [bsr, m, s] = binStimResponse(obj, tr, channels, varargin)
             p = inputParser();
+            p.addRequired('TetrodeRecording', @(x) isa(x, 'TetrodeRecording'))
             p.addRequired('Channels', @isnumeric);
             p.addOptional('Units', [], @isnumeric);
             p.addParameter('BinWidth', 0.01, @isnumeric); % Bin width in seconds
             p.addParameter('Window', [-0.2, 0.5]); % Additional seconds before and after tOn
-            p.parse(channels, varargin{:});
+            p.addParameter('Store', false, @islogical);
+            p.parse(tr, channels, varargin{:});
+            tr = p.Results.TetrodeRecording;
             channels = p.Results.Channels;
             units = p.Results.Units;
             binWidth = p.Results.BinWidth;
             window = p.Results.Window;
+            store = p.Results.Store;
             
             % Do all channels
             if isempty(channels)
-                channels = [obj.tr.Spikes.Channel];
+                channels = [tr.Spikes.Channel];
             end
             
             nChannels = length(channels);
             nUnitsInChannel = zeros(nChannels, 1);
             for i = 1:nChannels
-                nUnitsInChannel(i) = max(obj.tr.Spikes(channels(i)).Cluster.Classes) - 1;
+                nUnitsInChannel(i) = max(tr.Spikes(channels(i)).Cluster.Classes) - 1;
             end
             assert(isempty(units) || max(nUnitsInChannel) >= max(units), 'Requested units (%s) exceeds total number of units (%i) in data.', num2str(units), max(units));
             
@@ -211,7 +243,7 @@ classdef AcuteRecording < handle
                 nUnits = length(units) * nChannels;
             end
             
-            bsr(nUnits) = struct('expName', '', 'channel', [], 'unit', [], 't', [], 'spikeRates', [], 'normalizedSpikeRates', []);
+            bsr(nUnits) = struct('expName', '', 'channel', [], 'unit', [], 't', [], 'tRight', [], 'spikeRates', [], 'normalizedSpikeRates', []);
             m = zeros(nUnits, 1);
             s = zeros(nUnits, 1);
 
@@ -235,16 +267,14 @@ classdef AcuteRecording < handle
                     unit = selUnits(iUnitInChannel);
 
                     % Extract unit spike times
-                    sel = obj.tr.Spikes(channel).Cluster.Classes == unit;
-                    spikeTimes = obj.tr.Spikes(channel).Timestamps(sel);
+                    sel = tr.Spikes(channel).Cluster.Classes == unit;
+                    spikeTimes = tr.Spikes(channel).Timestamps(sel);
 
                     % Stats for normalizing spike rates
                     spikeRates = histcounts(spikeTimes, spikeTimes(1):binWidth:spikeTimes(end)) ./ binWidth;
                     m(iUnit) = mean(spikeRates);
                     s(iUnit) = mad(spikeRates, 0) / 0.6745;
-                    expName = strsplit(obj.tr.GetExpName(), '_');
-                    expName = strjoin(expName(1:2), '_');
-                    bsr(iUnit).expName = expName;
+                    bsr(iUnit).expName = obj.expName;
                     bsr(iUnit).channel = channel;
                     bsr(iUnit).unit = unit;
                     bsr(iUnit).spikeRates = zeros(nPulses, nBins);
@@ -261,18 +291,22 @@ classdef AcuteRecording < handle
                     end
                 end
             end
+
+            if store
+                obj.bsr = bsr;
+            end
         end
         
-        function [selBSR, selPulse] = selectStimResponse(obj, bsr, varargin)
+        function [selBSR, selPulse] = selectStimResponse(obj, varargin)
             p = inputParser();
-            p.addRequired('BinnedStimResponse', @isstruct);
+            p.addOptional('BinnedStimResponse', obj.bsr, @isstruct);
             p.addParameter('Light', [], @isnumeric);
             p.addParameter('Duration', [], @isnumeric);
             p.addParameter('MLRank', [], @isnumeric); % 1: most medial, 4: most lateral
             p.addParameter('DVRank', [], @isnumeric); % 1: most ventral, 4: most dorsal
             p.addParameter('Fiber', {}, @(x) ischar(x) || iscell(x));
             p.addParameter('Galvo', [], @isnumeric);
-            p.parse(bsr, varargin{:});
+            p.parse(varargin{:});
             bsr = p.Results.BinnedStimResponse;
             crit.light = p.Results.Light;
             crit.duration = p.Results.Duration;
@@ -315,6 +349,7 @@ classdef AcuteRecording < handle
             p.addRequired('BinnedStimResponse', @isstruct)
             p.addOptional('Method', 'peak', @(x) ismember(x, {'peak', 'mean', 'firstPeak'}))
             p.addOptional('Window', [0, 0.05], @(x) isnumeric(x) && length(x) == 2)
+            p.addParameter('Store', false, @islogical)
             p.parse(bsr, varargin{:})
             bsr = p.Results.BinnedStimResponse;
 
@@ -326,6 +361,12 @@ classdef AcuteRecording < handle
             for i = 1:length(bsr)
                 [~, ~, condNSR, ~] = obj.groupByConditions(bsr(i));
                 stats(i, :) = AcuteRecording.summarizeMeanSpikeRates(condNSR, t, p.Results.Method, p.Results.Window);
+            end
+
+            if p.Results.Store
+                obj.conditions = conditions;
+                obj.stats = stats;
+                obj.statsInfo = struct('Method', p.Results.Method, 'Window', p.Results.Window);
             end
         end
 
@@ -357,7 +398,7 @@ classdef AcuteRecording < handle
             nConditions = length(uniqueConditions);
             nColorsA = length(unique(dvRank(mlRank==1)));
             nColorsB = length(unique(dvRank(mlRank==2)));
-            conditions(nConditions) = struct('light', [], 'duration', [], 'fiber', '', 'galvo', [], 'mlRank', [], 'dvRank', [], 'id', [], 'label', '', 'linewidth', '');
+            conditions(nConditions) = struct('id', [], 'label', '', 'numTrials', [], 'light', [], 'duration', [], 'fiber', '', 'galvo', [], 'mlRank', [], 'dvRank', [] , 'linewidth', '');
             condSR = NaN(nConditions, size(spikeRates, 2));
             condNSR = NaN(nConditions, size(spikeRates, 2));
             for iCond = 1:nConditions
@@ -369,7 +410,23 @@ classdef AcuteRecording < handle
                 conditions(iCond).fiber = fiber(i);
                 conditions(iCond).galvo = galvo(i);
                 conditions(iCond).id = condId(i);
-                conditions(iCond).label = sprintf('%.1fmW, %.0fms (ML %i, DV %i)', light(i), duration(i)*1000, mlRank(i), dvRank(i));
+                switch mlRank(i)
+                    case 1
+                        mlText = 'mStr';
+                    case 2
+                        mlText = 'lStr';
+                end
+                switch dvRank(i)
+                    case 1
+                        dvText = '-4.15';
+                    case 2
+                        dvText = '-3.48';
+                    case 3
+                        dvText = '-2.81';
+                    case 4
+                        dvText = '-2.15';
+                end
+                conditions(iCond).label = sprintf('%.1fmW, %.0fms (%s %s)', light(i), duration(i)*1000, mlText, dvText);
                 conditions(iCond).linewidth = AcuteRecording.lerp(1, 2, (lightRank(i) - 1)/(max(lightRank) - 1));
                 if mlRank(i) == 1
                     conditions(iCond).linecolor = [0.9, AcuteRecording.lerp(0.1, 0.9, (dvRank(i)-1)/(nColorsA-1)), 0.1];
@@ -379,6 +436,7 @@ classdef AcuteRecording < handle
                     error('ml rank must be 1 or 2, got %i instead', mlrank(i));
                 end
                 condSel = condId == condId(ia(iCond));
+                conditions(iCond).numTrials = nnz(condSel);
                 condSR(iCond, :) = mean(spikeRates(condSel, :), 1);
                 condNSR(iCond, :) = mean(normalizedSpikeRates(condSel, :), 1);
             end
@@ -457,24 +515,19 @@ classdef AcuteRecording < handle
             nConditions = length(conditions);
             nCols = max(1, floor(sqrt(nConditions)));
             nRows = ceil(nConditions / nCols);
-            fig = figure();
+            fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
             ax = gobjects(nConditions, 1);
             for iCond = 1:nConditions
                 [i, j] = ind2sub([nRows, nCols], iCond);
                 iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
                 ax(iCond) = subplot(nRows, nCols, iSubplot);
                 AcuteRecording.plotMap(ax(iCond), coords, stats(:, iCond), srange, threshold);
-                nicelabel = conditions(iCond).label;
-                nicelabel = strrep(nicelabel, 'ML 1', 'mStr');
-                nicelabel = strrep(nicelabel, 'ML 2', 'lStr');
-                nicelabel = strrep(nicelabel, 'DV 1', '-4.15');
-                nicelabel = strrep(nicelabel, 'DV 2', '-3.48');
-                nicelabel = strrep(nicelabel, 'DV 3', '-2.81');
-                nicelabel = strrep(nicelabel, 'DV 4', '-2.15');
-                title(ax(iCond), nicelabel)
+                title(ax(iCond), conditions(iCond).label)
                 axis(ax(iCond), 'image')
                 xlim(ax(iCond), [0.9, 1.7])
             end
+            figure(fig);
+            suptitle(sprintf('%s (%s)', obj.expName, obj.strain));
         end
 
         function coords = getProbeCoords(obj, channels)
@@ -491,6 +544,20 @@ classdef AcuteRecording < handle
     end
     
     methods (Static)
+        function obj = load(varargin)
+            p = inputParser();
+            p.addOptional('FilePath', '', @ischar)
+            p.parse(varargin{:})
+            filepath = p.Results.FilePath;
+
+            if isempty(filepath)
+                [f, p] = uigetfile('*.mat');
+                filepath = sprintf('%s%s', p, f);
+            end
+            S = load(filepath);
+            obj = S.obj;
+        end
+
         % TODO: Return iPulseInTrain
         function [power, galvo, tOn, tOff] = extractPulse(laserOn, laserOff, analogTimestamps, analogData, iPulse, offset, threshold)
             if nargin < 6

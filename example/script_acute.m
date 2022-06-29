@@ -18,15 +18,18 @@ load('C:\SERVER\daisy14\daisy14_20220506\SpikeSort\tr_sorted_daisy14_20220506_22
 %%
 clear ar bsr probeMap stim
 
+window = [0 0.05];
+
 ar = AcuteRecording(tr, 'D1-Cre;Dlx-Flp;Ai80');
-stim = ar.extractAllPulses('A', 0.5);
+stim = ar.extractAllPulses(tr, 'A', 0.5);
 probeMap = ar.importProbeMap('back', 1300, -4300, -3280);
-[bsrFull, ~, ~] = ar.binStimResponse([]);
+ar.binStimResponse(tr, [], 'Store', true);
+ar.summarize(ar.bsr, 'peak', [0, 0.05], 'Store', true);
+
 % ar.plotPSTHByStimCondition(bsrFull, 'CLim', [-.5, .5]);
 
 %% Calculate main effect, use 1d stat (mean or peak)
-window = [0 0.05];
-[bsr, ~] = ar.selectStimResponse(bsrFull, 'Light', 0.5, 'Duration', 0.01);
+[bsr, ~] = ar.selectStimResponse('Light', 0.5, 'Duration', 0.01);
 [statsMean, conditions] = ar.summarize(bsr, 'mean', window);
 statsPeak = ar.summarize(bsr, 'peak', window);
 
@@ -48,7 +51,6 @@ clear ax i nConditions statsPeak statsMean
 
 %% Plot probe map per stim condition
 ar.plotMapByStimCondition(bsr, [0.25, 3], 0.25)
-suptitle(sprintf('%s (%s)', 'daisy14_20220506', ar.strain))
 
 %%
 function tr = readIntan(fdir)
