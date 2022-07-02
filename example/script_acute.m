@@ -1,12 +1,15 @@
-fdir = 'C:\SERVER\daisy14\daisy14_20220506';
+%%
+fdir = uigetdir('C:\SERVER\');
+% fdir = 'C:\SERVER\daisy14\daisy14_20220506';
 br = readBlackRock(fdir);
 tr = readIntan(fdir);
+%%
 appendBRtoTR(br, tr);
 
 tr.SpikeClusterAutoReorder([], 'range')
 tr.PlotAllChannels('plotMethod', 'mean')
 
-%%
+%% Do manual spike sorting
 tr.PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'PlotStim', true);
 
 %%
@@ -26,12 +29,17 @@ probeMap = ar.importProbeMap('back', 1300, -4300, -3280);
 ar.binStimResponse(tr, [], 'Store', true);
 ar.summarize(ar.bsr, 'peak', [0, 0.05], 'Store', true);
 
-% ar.plotPSTHByStimCondition(bsrFull, 'CLim', [-.5, .5]);
+ar.save();
 
-%% Calculate main effect, use 1d stat (mean or peak)
+%% 
+ar = AcuteRecording.load('C:\SERVER\daisy14\daisy14_20220506\AcuteRecording\ar_daisy14_20220506.mat');
+
+% ar.plotPSTHByStimCondition(ar.bsr, 'CLim', [-.5, .5]);
+
+%% One SNr map per Str site (1 figure)
 [bsr, ~] = ar.selectStimResponse('Light', 0.5, 'Duration', 0.01);
-[statsMean, conditions] = ar.summarize(bsr, 'mean', window);
-statsPeak = ar.summarize(bsr, 'peak', window);
+[statsPeak, conditions] = ar.summarize(bsr, 'peak', window);
+statsFirstPeak = ar.summarize(bsr, 'firstPeak', window, 0.25);
 
 % Plot and compare mean vs peak response. Check that mean and peak has same sign.
 nConditions = length(conditions);
@@ -40,17 +48,20 @@ for i = 1:nConditions
     ax = subplot(nConditions, 1, i);
     hold(ax, 'on')
     plot(ax, statsPeak(:, i), 'DisplayName', sprintf('peak %i-%ims', window(1)*1000, window(2)*1000));
-    plot(ax, statsMean(:, i), 'DisplayName', sprintf('mean %i-%ims', window(1)*1000, window(2)*1000));
+    plot(ax, statsFirstPeak(:, i), 'DisplayName', sprintf('first Peak %i-%ims', window(1)*1000, window(2)*1000));
     ylabel(ax, '\DeltaActivity')
     xlabel(ax, 'Unit')
     title(ax, conditions(i).label)
     hold(ax, 'off');
     legend(ax);
 end
-clear ax i nConditions statsPeak statsMean
+clear ax i nConditions statsPeak statsFirstPeak
 
-%% Plot probe map per stim condition
-ar.plotMapByStimCondition(bsr, [0.25, 3], 0.25)
+% Plot probe map per stim condition
+ar.plotMapByStimCondition(bsr, [0.25, 3], 0.25, 'firstPeak', window, 0.25)
+
+%% One Str map per SNr unit (WARNING: MANY FIGURES)
+ar.plotPSTHByStimCondition(bsr, 'CLim', [-.5, .5]);
 
 %%
 function tr = readIntan(fdir)
