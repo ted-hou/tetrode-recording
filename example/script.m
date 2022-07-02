@@ -19,6 +19,7 @@ TetrodeRecording.BatchProcess(ptr, 'SavePath', 'D:\Data\', 'NumSigmas', 2, 'NumS
 TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-1, 1], 'FeatureMethod', 'WaveletTransform', 'ClusterMethod', 'kmeans', 'Dimension', 10);
 TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-1, 1], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 10, 'ChunkSize', 5);
 
+TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-.5, .5], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 5, 'ChunkSize', 1);
 TetrodeRecording.BatchProcess(ptr1, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-.5, .5], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 5, 'ChunkSize', 1);
 TetrodeRecording.BatchProcess(ptr2, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-.5, .5], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 5, 'ChunkSize', 1);
 
