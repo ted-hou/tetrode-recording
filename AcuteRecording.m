@@ -155,7 +155,7 @@ classdef AcuteRecording < handle
         
         function probeMap = importProbeMap(obj, frontOrBack, varargin)
             p = inputParser();
-            p.addRequired('FrontOrBack', @(x) ischar(x) && ismember(x, {'front', 'back'})); % Whether probe is anterior or posterior to the headstage
+            p.addRequired('FrontOrBack', @(x) ischar(x) && ismember(x, {'front', 'back'})); % Whether probe is anterior (front) or posterior (back) to the headstage. Usually this is back, unless recording in anterior SNr, and probe needed to be reversed (front) to make space for fiber optics.
             p.addOptional('ML', 1300, @isnumeric); % Center of probe. Negative for left hemisphere.
             p.addOptional('DV', -4600, @isnumeric); % From surface of brain, not bregma. Bregma is usually 200um above surface here.
             p.addOptional('AP', -3280, @isnumeric);
@@ -349,6 +349,7 @@ classdef AcuteRecording < handle
             p.addRequired('BinnedStimResponse', @isstruct)
             p.addOptional('Method', 'peak', @(x) ismember(x, {'peak', 'mean', 'firstPeak'}))
             p.addOptional('Window', [0, 0.05], @(x) isnumeric(x) && length(x) == 2)
+            p.addOptional('FirstPeakThreshold', 0, @isnumeric)
             p.addParameter('Store', false, @islogical)
             p.parse(bsr, varargin{:})
             bsr = p.Results.BinnedStimResponse;
@@ -360,13 +361,13 @@ classdef AcuteRecording < handle
             t = bsr(1).t;
             for i = 1:length(bsr)
                 [~, ~, condNSR, ~] = obj.groupByConditions(bsr(i));
-                stats(i, :) = AcuteRecording.summarizeMeanSpikeRates(condNSR, t, p.Results.Method, p.Results.Window);
+                stats(i, :) = AcuteRecording.summarizeMeanSpikeRates(condNSR, t, p.Results.Method, p.Results.Window, p.Results.FirstPeakThreshold);
             end
 
             if p.Results.Store
                 obj.conditions = conditions;
                 obj.stats = stats;
-                obj.statsInfo = struct('Method', p.Results.Method, 'Window', p.Results.Window);
+                obj.statsInfo = struct('Method', p.Results.Method, 'Window', p.Results.Window, 'FirstPeakThreshold', p.Results.FirstPeakThreshold);
             end
         end
 
@@ -501,27 +502,38 @@ classdef AcuteRecording < handle
             end
         end
 
-        function plotMapByStimCondition(obj, bsr, srange, threshold)
+        function plotMapByStimCondition(obj, bsr, srange, threshold, method, window, firstPeakThreshold)
             if nargin < 3
                 srange = [0, 1];
             end
             if nargin < 4
                 threshold = 0.25;
             end
+            if nargin < 5
+                method = 'peak';
+            end
+            if nargin < 6
+                window = [0, 0.05];
+            end
+            if nargin < 7
+                firstPeakThreshold = 0;
+            end
 
             coords = obj.getProbeCoords([bsr.channel]);
-            [stats, conditions] = obj.summarize(bsr, 'peak', [0, 0.05]);
+            [stats, conditions] = obj.summarize(bsr, method, window, firstPeakThreshold);
 
             nConditions = length(conditions);
             nCols = max(1, floor(sqrt(nConditions)));
             nRows = ceil(nConditions / nCols);
             fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
             ax = gobjects(nConditions, 1);
+            methodLabel = method;
+            methodLabel(1) = upper(method(1));
             for iCond = 1:nConditions
                 [i, j] = ind2sub([nRows, nCols], iCond);
                 iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
                 ax(iCond) = subplot(nRows, nCols, iSubplot);
-                AcuteRecording.plotMap(ax(iCond), coords, stats(:, iCond), srange, threshold);
+                h = AcuteRecording.plotMap(ax(iCond), coords, stats(:, iCond), srange, threshold, [bsr.channel], methodLabel);
                 title(ax(iCond), conditions(iCond).label)
                 axis(ax(iCond), 'image')
                 xlim(ax(iCond), [0.9, 1.7])
@@ -529,6 +541,24 @@ classdef AcuteRecording < handle
             figure(fig);
             suptitle(sprintf('%s (%s)', obj.expName, obj.strain));
         end
+        
+%         function displayDataTip(obj, src, event)
+%             %disp(src)
+%             %disp(event)
+%             if event.Button == 1
+%                 if isfield(src.UserData, 'CurrentDataTip')
+%                     delete(src.UserData.CurrentDataTip)
+%                 end
+%                 x = event.IntersectionPoint(1);
+%                 y = event.IntersectionPoint(2);
+%                 z = event.IntersectionPoint(3);
+%                 dt = datatip(src, x, y);
+%                 dt.DataTipTemplate.dataTipRows(1).Label = sprintf('ML %.3f, DV %.3f, AP %.3f', x, y, z);
+%                 channel = obj.probeMap.channel(obj.probeMap.ml == x & obj.probeMap.dv == y & obj.probeMap.ap == z);
+%                 dt.DataTipTemplate.dataTipRows(2).Label = sprintf('Channel %i', channel);
+%                 src.UserData.CurrentDataTip = dt;
+%             end
+%         end
 
         function coords = getProbeCoords(obj, channels)
             map = obj.probeMap;
@@ -632,6 +662,7 @@ classdef AcuteRecording < handle
             p.addRequired('Timestamps', @isnumeric)
             p.addOptional('Method', 'peak', @(x) ismember(x, {'peak', 'mean', 'firstPeak'}))
             p.addOptional('Window', [0, 0.05], @(x) isnumeric(x) && length(x) == 2)
+            p.addOptional('FirstPeakThreshold', 0, @isnumeric)
             p.parse(msr, t, varargin{:});
             msr = p.Results.MeanSpikeRates;
             t = p.Results.Timestamps;
@@ -649,7 +680,7 @@ classdef AcuteRecording < handle
                 case 'firstPeak'
                     stats = NaN(N, 1);
                     for i = 1:N
-                        [peaks, I] = AcuteRecording.findpeaks(msr(i, :));
+                        [peaks, ~] = AcuteRecording.findpeaks(msr(i, :), p.Results.FirstPeakThreshold);
                         stats(i) = peaks(1);
                     end
                 otherwise
@@ -660,35 +691,51 @@ classdef AcuteRecording < handle
         end
 
         function h = plotMap(varargin)
-            if nargin == 5
-                ax = varargin{1};
-                coords = varargin{2};
-                stats = varargin{3};
-                srange = varargin{4};
-                threshold = varargin{5};
-            else
-                fig = figure();
-                ax = axes(fig);
-                coords = varargin{1};
-                stats = varargin{2};
-                srange = varargin{3};
-                threshold = varargin{4};
+            p = inputParser();
+            if isgraphics(varargin{1})
+                p.addRequired('ax', @isgraphics)
             end
+            p.addRequired('coords', @isnumeric)
+            p.addRequired('stats', @isnumeric)
+            p.addOptional('srange', [0.25, 3], @(x) isnumeric(x) && length(x) == 2)
+            p.addOptional('threshold', 0.25, @isnumeric)
+            p.addOptional('channels', [], @isnumeric)
+            p.addOptional('method', 'Stat', @ischar)
+            p.parse(varargin{:})
+            
+            ax = p.Results.ax;
+            coords = p.Results.coords;
+            stats = p.Results.stats;
+            srange = p.Results.srange;
+            threshold = p.Results.threshold;
+            channels = p.Results.channels;
+            method = p.Results.method;
 
             t = AcuteRecording.inverseLerp(srange(1), srange(2), abs(stats));
             C = zeros(length(stats), 3);
-            C(stats>=threshold, 2) = 1;
-            C(stats<=-threshold, 1) = 1;
+            isUp = stats>=threshold;
+            isDown = stats<=-threshold;
+            isFlat = ~(isUp | isDown);
+            C(isUp, 1) = 1;
+            C(isDown, 3) = 1;
+            C(isFlat, :) = 0.5;
             S = AcuteRecording.lerp(9, 72*2, t);
             h = scatter3(ax, coords(:, 1) / 1000, coords(:, 2) / 1000, coords(:, 3) / 1000, S, C, 'filled');
             view(ax, 0, 90)
             xlabel('ML')
             ylabel('DV')
             zlabel('AP')
+            
+            h.DataTipTemplate.DataTipRows(1).Label = 'ML';
+            h.DataTipTemplate.DataTipRows(2).Label = 'DV';
+            h.DataTipTemplate.DataTipRows(3).Label = 'AP';
+            h.DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('Channel', channels);
+            h.DataTipTemplate.DataTipRows(end+2) = dataTipTextRow(method, stats);
+            h.DataTipTemplate.DataTipRows(end+3) = dataTipTextRow('Index', 1:length(stats));
         end
     end
     
-    methods (Static, Access={})
+    methods (Static, Access = {})
         function x = lerp(a, b, t)
             if isnan(t)
                 t = 0;
@@ -702,14 +749,29 @@ classdef AcuteRecording < handle
             t = max(0, min(1, t));
         end
 
-        function [peaks, I] = findpeaks(x)
+        function [peaks, I] = findpeaks(x, varargin)
+            % Find local maxima and minima (maginitue must be greater than
+            % threshold (default 0). If no peak found, use max(abs).
+            p = inputParser();
+            p.addRequired('X', @isnumeric)
+            p.addOptional('Threshold', 0, @isnumeric)
+            p.parse(x, varargin{:})
+            x = p.Results.X;
+            threshold = p.Results.Threshold;
+            
+            x = [0, x(:)'];
+            
             df = [0, diff(x)];
             df1 = df > 0;
             df2 = df <= 0;
             df3 = df < 0;
             df4 = df >= 0;
-            I = find((df1 & circshift(df2, -1)) | (df3 & circshift(df4, -1)));
+            I = find(abs(x) > threshold & ((df1 & circshift(df2, -1)) | (df3 & circshift(df4, -1))));
+            if isempty(I)
+                [~, I] = max(abs(x));
+            end
             peaks = x(I);
+            I = I - 1;
         end
     end
 end
