@@ -2517,7 +2517,7 @@ classdef TetrodeRecording < handle
 
             % Create context menu (common to all channels, mark for delete, reorder, merge)
             cm = uicontextmenu(hFigure);
-            m0 = uimenu(cm, 'Text', 'Inspect', 'MenuSelectedFcn', @obj.PlotAllChannels_OnInspect);
+            m0 = uimenu(cm, 'Text', 'Inspect');
             m0_1 = uimenu(m0, 'Text', 'Press/Stim', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Stim'});
             m0_2 = uimenu(m0, 'Text', 'Lick/Stim', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Lick/Stim'});
             m0_3 = uimenu(m0, 'Text', 'Press/Lick', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Lick'});
@@ -2652,11 +2652,11 @@ classdef TetrodeRecording < handle
             
             switch mode
                 case 'Press/Stim'
-                    tr.PlotChannel(channel, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', true);
+                    obj.PlotChannel(channel, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', true);
                 case 'Lick/Stim'
-                    tr.PlotChannel(channel, 'Reference', 'CueOn', 'Event', 'LickOn', 'Exclude', 'PressOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', true);
+                    obj.PlotChannel(channel, 'Reference', 'CueOn', 'Event', 'LickOn', 'Exclude', 'PressOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', true);
                 case 'Press/Lick'
-                    tr.PlotChannel(channel, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', 'LickOn', 'Exclude2', 'PressOn', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', false);
+                    obj.PlotChannel(channel, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', 'LickOn', 'Exclude2', 'PressOn', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', false);
             end
         end
         
