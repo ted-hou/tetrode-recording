@@ -4644,6 +4644,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Dimension', 10, @isnumeric);
 			addParameter(p, 'Prefix', 'tr_', @ischar);
 			addParameter(p, 'SavePath', '', @ischar);
+			addParameter(p, 'MaxChannelsPerBatch', 32, @isnumeric)
 			parse(p, previewObj, varargin{:});
 			previewObj 		= p.Results.Obj;
 			chunkSize 		= p.Results.ChunkSize;
@@ -4657,6 +4658,7 @@ classdef TetrodeRecording < handle
 			dimension 		= p.Results.Dimension;
 			prefix 			= p.Results.Prefix;
 			savePath 		= p.Results.SavePath;
+			maxChannelsPerBatch = p.Results.MaxChannelsPerBatch;
 
 			selectedChannels = {previewObj.SelectedChannels};
 			allPaths = {previewObj.Path};
@@ -4679,7 +4681,15 @@ classdef TetrodeRecording < handle
 				if ~isempty(channels)
 % 					try
 						TetrodeRecording.TTS(['Processing folder ', num2str(iDir), '/', num2str(length(selectedChannels)), ':\n']);
-						TetrodeRecording.ProcessFolder(allPaths{iDir}, savePath, chunkSize, channels, channelsOnRig, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, waveformFeatureWindow, featureMethod, clusterMethod, dimension, prefix, rig);
+						remainingChannels = channels;
+						while length(remainingChannels) > maxChannelsPerBatch
+							batchChannels = remainingChannels(1:maxChannelsPerBatch);
+							remainingChannels = remainingChannels(maxChannelsPerBatch+1:end);
+							fprintf(1, '\tProcessing batch with %i channels...\n', length(batchChannels));
+							TetrodeRecording.ProcessFolder(allPaths{iDir}, savePath, chunkSize, batchChannels, channelsOnRig, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, waveformFeatureWindow, featureMethod, clusterMethod, dimension, prefix, rig);
+						end
+						fprintf(1, '\tProcessing batch with %i channels...\n', length(remainingChannels));
+						TetrodeRecording.ProcessFolder(allPaths{iDir}, savePath, chunkSize, remainingChannels, channelsOnRig, numSigmas, numSigmasReturn, numSigmasReject, waveformWindow, waveformFeatureWindow, featureMethod, clusterMethod, dimension, prefix, rig);
 % 					catch ME
 % 						warning(['Error when processing folder (', allPaths{iDir}, ') - this one will be skipped.'])
 % 						warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
