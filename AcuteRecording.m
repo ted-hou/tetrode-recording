@@ -576,16 +576,29 @@ classdef AcuteRecording < handle
     methods (Static)
         function obj = load(varargin)
             p = inputParser();
-            p.addOptional('FilePath', '', @ischar)
+            p.addOptional('FilePath', '', @(x) ischar(x) || iscell(x))
             p.parse(varargin{:})
             filepath = p.Results.FilePath;
 
             if isempty(filepath)
-                [f, p] = uigetfile('*.mat');
-                filepath = sprintf('%s%s', p, f);
+                [f, p] = uigetfile('*.mat', 'MultiSelect', 'on');
+                if iscell(f)
+                    filepath = cellfun(@(x) sprintf('%s%s', p, x), f, 'UniformOutput', false);
+                else
+                    filepath = sprintf('%s%s', p, f);
+                end
             end
-            S = load(filepath);
-            obj = S.obj;
+            
+            if iscell(filepath)
+                S(length(filepath)) = struct('obj', []);
+                for i = 1:length(filepath)
+                    S(i) = load(filepath{i}, 'obj');
+                end
+                obj = [S.obj];
+            else
+                S = load(filepath);
+                obj = S.obj;
+            end
         end
 
         % TODO: Return iPulseInTrain
