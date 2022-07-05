@@ -1,6 +1,10 @@
 %%
 fdir = uigetdir('C:\SERVER\');
-% fdir = 'C:\SERVER\daisy14\daisy14_20220506';
+expName = strsplit(fdir, '\');
+expName = expName{end};
+animalName = strsplit(expName, '_');
+animalName = animalName{1};
+
 br = readBlackRock(fdir);
 tr = readIntan(fdir);
 %%
@@ -16,7 +20,9 @@ tr.PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn'
 TetrodeRecording.BatchSave(tr, 'Prefix', 'tr_sorted_', 'DiscardData', false);
 
 %%
-load('C:\SERVER\daisy14\daisy14_20220506\SpikeSort\tr_sorted_daisy14_20220506_220506_210458.mat')
+f = dir(sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\tr_sorted_%s*.mat', animalName, expName, expName));
+load(sprintf('%s\\%s', f.folder, f.name));
+clear f
 
 %%
 clear ar bsr probeMap stim
