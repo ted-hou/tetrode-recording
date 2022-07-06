@@ -209,7 +209,7 @@ classdef AcuteRecording < handle
             obj.probeMap = probeMap;
         end
         
-        function [bsr, m, s] = binStimResponse(obj, tr, channels, varargin)
+        function varargout = binStimResponse(obj, tr, channels, varargin)
             p = inputParser();
             p.addRequired('TetrodeRecording', @(x) isa(x, 'TetrodeRecording'))
             p.addRequired('Channels', @isnumeric);
@@ -295,9 +295,11 @@ classdef AcuteRecording < handle
             if store
                 obj.bsr = bsr;
             end
+            
+            varargout = {bsr, m, s};
         end
         
-        function [selBSR, selPulse] = selectStimResponse(obj, varargin)
+        function varargout = selectStimResponse(obj, varargin)
             p = inputParser();
             p.addOptional('BinnedStimResponse', obj.bsr, @isstruct);
             p.addParameter('Light', [], @isnumeric);
@@ -342,6 +344,8 @@ classdef AcuteRecording < handle
                 selBSR(i).normalizedSpikeRates = selBSR(i).normalizedSpikeRates(sel, :);
                 selBSR(i).selPulse = selPulse;
             end
+            
+            varargout = {selBSR, selPulse};
         end
 
         function [stats, conditions] = summarize(obj, bsr, varargin)
@@ -371,7 +375,7 @@ classdef AcuteRecording < handle
             end
         end
 
-        function [conditions, condSR, condNSR, condId] = groupByConditions(obj, bsr)
+        function varargout = groupByConditions(obj, bsr)
             assert(length(bsr) == 1)
 
             spikeRates = bsr.spikeRates;
@@ -441,6 +445,8 @@ classdef AcuteRecording < handle
                 condSR(iCond, :) = mean(spikeRates(condSel, :), 1);
                 condNSR(iCond, :) = mean(normalizedSpikeRates(condSel, :), 1);
             end
+            
+            varargout = {conditions, condSR, condNSR, condId};
         end
 
         function plotPSTHByStimCondition(obj, bsr, varargin)
@@ -542,24 +548,6 @@ classdef AcuteRecording < handle
             suptitle(sprintf('%s (%s)', obj.expName, obj.strain));
         end
         
-%         function displayDataTip(obj, src, event)
-%             %disp(src)
-%             %disp(event)
-%             if event.Button == 1
-%                 if isfield(src.UserData, 'CurrentDataTip')
-%                     delete(src.UserData.CurrentDataTip)
-%                 end
-%                 x = event.IntersectionPoint(1);
-%                 y = event.IntersectionPoint(2);
-%                 z = event.IntersectionPoint(3);
-%                 dt = datatip(src, x, y);
-%                 dt.DataTipTemplate.dataTipRows(1).Label = sprintf('ML %.3f, DV %.3f, AP %.3f', x, y, z);
-%                 channel = obj.probeMap.channel(obj.probeMap.ml == x & obj.probeMap.dv == y & obj.probeMap.ap == z);
-%                 dt.DataTipTemplate.dataTipRows(2).Label = sprintf('Channel %i', channel);
-%                 src.UserData.CurrentDataTip = dt;
-%             end
-%         end
-
         function coords = getProbeCoords(obj, channels)
             map = obj.probeMap;
             coords = zeros(length(channels), 3);
@@ -589,16 +577,28 @@ classdef AcuteRecording < handle
                 end
             end
             
-            if iscell(filepath)
-                S(length(filepath)) = struct('obj', []);
-                for i = 1:length(filepath)
-                    S(i) = load(filepath{i}, 'obj');
+            % Read all files in folder (string, dir path)
+            if ~iscell(filepath) && isdir(filepath)
+                if filepath(end) == '\'
+                    filepath = filepath(1:end-1);
                 end
-                obj = [S.obj];
+                files = dir(sprintf('%s\\*.mat', filepath));
+                files = cellfun(@(x) sprintf('%s\\%s', filepath, x), {files.name}, 'UniformOutput', false);
+            % Read list of files (cell array of filepaths)
+            elseif iscell(filepath)
+                files = filepath;
+            % Read single file (string containing one filepath)
+            elseif isfile(filepath)
+                files = {filepath};
             else
-                S = load(filepath);
-                obj = S.obj;
+                error()
             end
+
+            S(length(files)) = struct('obj', []);
+            for i = 1:length(files)
+                S(i) = load(files{i}, 'obj');
+            end
+            obj = [S.obj];
         end
 
         % TODO: Return iPulseInTrain
