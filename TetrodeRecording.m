@@ -4822,6 +4822,8 @@ classdef TetrodeRecording < handle
                     for i = transpose(iLongest(:))
                         files{length(files) + 1} = [thisFile(i).folder, '\', thisFile(i).name];
                     end
+                else
+                    error('No files found in %f sec.', toc(tTic));
                 end
                 fprintf(1, '%i files found in %f sec.\n', length(files), toc(tTic));
             end
