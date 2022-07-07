@@ -345,6 +345,8 @@ classdef AcuteRecording < handle
                 selBSR(i).selPulse = selPulse;
             end
             
+            fprintf(1, '%i trials selected with provided criteria.\n', length(selPulse))
+            
             varargout = {selBSR, selPulse};
         end
 
@@ -508,44 +510,110 @@ classdef AcuteRecording < handle
             end
         end
 
-        function plotMapByStimCondition(obj, bsr, srange, threshold, method, window, firstPeakThreshold)
-            if nargin < 3
-                srange = [0, 1];
-            end
-            if nargin < 4
-                threshold = 0.25;
-            end
-            if nargin < 5
-                method = 'peak';
-            end
-            if nargin < 6
-                window = [0, 0.05];
-            end
-            if nargin < 7
-                firstPeakThreshold = 0;
+        function plotMapByStimCondition(obj, bsr, varargin)
+            % ar.plotMapByStimCondition(bsr, srange, threshold, method, window, firstPeakThreshold)
+            % AR.plotMapByStimCondition(BSR, STATS, CONDITIONS, srange, threshold);          
+            p = inputParser();
+            % Single experiment
+            p.addRequired('BinnedStimResponse', @(x) isstruct(x) || iscell(x));
+            p.addOptional('SRange', [0.25, 3], @(x) isnumeric(x) && length(x)==2);
+            p.addOptional('Threshold', 0.25, @isnumeric);
+            p.addOptional('Method', 'peak', @(x) ismember(x, {'peak', 'firstPeak', 'mean'}));
+            p.addOptional('Window', [0, 0.05], @(x) isnumeric(x) && length(x)==2);
+            p.addOptional('FirstPeakThreshold', [], @isnumeric);
+            p.parse(bsr, varargin{:});
+            srange = p.Results.SRange;
+            threshold = p.Results.Threshold;
+            method = p.Results.Method;
+            window = p.Results.Window;
+            firstPeakThreshold = p.Results.FirstPeakThreshold;
+            if isempty(firstPeakThreshold)
+                firstPeakThreshold = threshold;
             end
 
-            coords = obj.getProbeCoords([bsr.channel]);
-            [stats, conditions] = obj.summarize(bsr, method, window, firstPeakThreshold);
+            % Single experiment
+            if length(obj) == 1
+                coords = obj.getProbeCoords([bsr.channel]);
+                [stats, conditions] = obj.summarize(bsr, method, window, firstPeakThreshold);
 
-            nConditions = length(conditions);
-            nCols = max(1, floor(sqrt(nConditions)));
-            nRows = ceil(nConditions / nCols);
-            fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
-            ax = gobjects(nConditions, 1);
-            methodLabel = method;
-            methodLabel(1) = upper(method(1));
-            for iCond = 1:nConditions
-                [i, j] = ind2sub([nRows, nCols], iCond);
-                iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
-                ax(iCond) = subplot(nRows, nCols, iSubplot);
-                h = AcuteRecording.plotMap(ax(iCond), coords, stats(:, iCond), srange, threshold, [bsr.channel], methodLabel);
-                title(ax(iCond), conditions(iCond).label)
-                axis(ax(iCond), 'image')
-                xlim(ax(iCond), [0.9, 1.7])
+                nConditions = length(conditions);
+                nCols = max(1, floor(sqrt(nConditions)));
+                nRows = max(4, ceil(nConditions / nCols));
+                fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
+                ax = gobjects(nConditions, 1);
+                methodLabel = method;
+                methodLabel(1) = upper(method(1));
+                for iCond = 1:nConditions
+                    [i, j] = ind2sub([nRows, nCols], iCond);
+                    iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
+                    ax(iCond) = subplot(nRows, nCols, iSubplot);
+                    h = AcuteRecording.plotMap(ax(iCond), coords, stats(:, iCond), srange, threshold, [bsr.channel], methodLabel);
+                    title(ax(iCond), conditions(iCond).label)
+                    axis(ax(iCond), 'image')
+                    xlim(ax(iCond), [0.9, 1.7])
+                end
+                figure(fig);
+                suptitle(sprintf('%s (%s)', obj.expName, obj.strain));
+            elseif length(obj) > 1
+                assert(iscell(bsr) && length(obj) == length(bsr))
+                
+                % Pool experiments
+                for i = 1:length(obj)
+                    coords{i} = obj(i).getProbeCoords([bsr{i}.channel]);
+                    [stats{i}, conditions{i}] = obj(i).summarize(bsr{i}, method, window, firstPeakThreshold);
+                end
+                pooledConditions = AcuteRecording.poolConditions(conditions);
+                nConditions = length(pooledConditions);
+                pooledCoords = cell(1, nConditions);
+                pooledStats = cell(1, nConditions);
+                pooledChannels = cell(1, nConditions);
+                for iCond = 1:nConditions
+                    id = pooledConditions(iCond).id;
+                    for iExp = 1:length(obj)
+                        iCondInExp = find([conditions{iExp}.id] == id);
+                        if ~isempty(iCondInExp)
+                            pooledCoords{iCond} = vertcat(pooledCoords{iCond}, coords{iExp});
+                            pooledStats{iCond} = vertcat(pooledStats{iCond}, stats{iExp}(:, iCondInExp));
+                            pooledChannels{iCond} = vertcat(pooledChannels{iCond}, [bsr{iExp}.channel]');
+                        end
+                    end
+                end
+                
+                % Plot
+                nCols = max(1, floor(sqrt(nConditions)));
+                nRows = max(4, ceil(nConditions / nCols));
+                fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
+                ax = gobjects(nConditions, 1);
+                methodLabel = method;
+                methodLabel(1) = upper(method(1));
+                for iCond = 1:nConditions
+                    [i, j] = ind2sub([nRows, nCols], iCond);
+                    iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
+                    ax(iCond) = subplot(nRows, nCols, iSubplot);
+                    h = AcuteRecording.plotMap(ax(iCond), pooledCoords{iCond}, pooledStats{iCond}, srange, threshold, pooledChannels{iCond}, methodLabel);
+                    title(ax(iCond), pooledConditions(iCond).label)
+                    axis(ax(iCond), 'image')
+                    xlim(ax(iCond), [0.9, 1.7])
+                end
+                
+                strain = unique({obj.strain});
+                if length(strain) == 1
+                    strain = strain{1};
+                else
+                    strain = 'Multiple Strains';
+                end
+                nUnits = sum(cellfun(@length, bsr));
+                nSessions = length(obj);
+                animalNames = cellfun(@toAnimalName, {obj.expName}, 'UniformOutput', false);
+                nAnimals = length(unique(animalNames));
+                figure(fig);
+                suptitle(sprintf('%s (%i animals, %i sessions)', strain, nAnimals, nSessions));
             end
-            figure(fig);
-            suptitle(sprintf('%s (%s)', obj.expName, obj.strain));
+
+            function animalName = toAnimalName(expName)
+                animalName = strsplit(expName, '_');
+                animalName = animalName{1};
+            end
         end
         
         function coords = getProbeCoords(obj, channels)
@@ -582,7 +650,7 @@ classdef AcuteRecording < handle
                 if filepath(end) == '\'
                     filepath = filepath(1:end-1);
                 end
-                files = dir(sprintf('%s\\*.mat', filepath));
+                files = dir(sprintf('%s\\ar_*.mat', filepath));
                 files = cellfun(@(x) sprintf('%s\\%s', filepath, x), {files.name}, 'UniformOutput', false);
             % Read list of files (cell array of filepaths)
             elseif iscell(filepath)
@@ -714,6 +782,8 @@ classdef AcuteRecording < handle
             p.addOptional('threshold', 0.25, @isnumeric)
             p.addOptional('channels', [], @isnumeric)
             p.addOptional('method', 'Stat', @ischar)
+            p.addParameter('SLim', [9, 144], @isnumeric)
+            p.addParameter('ARange', [0.25, 1], @isnumeric)
             p.parse(varargin{:})
             
             ax = p.Results.ax;
@@ -732,8 +802,10 @@ classdef AcuteRecording < handle
             C(isUp, 1) = 1;
             C(isDown, 3) = 1;
             C(isFlat, :) = 0.5;
-            S = AcuteRecording.lerp(9, 72*2, t);
-            h = scatter3(ax, coords(:, 1) / 1000, coords(:, 2) / 1000, coords(:, 3) / 1000, S, C, 'filled');
+            S = AcuteRecording.lerp(p.Results.SLim(1), p.Results.SLim(2), t);
+            A = ones(size(S)) * 40;
+            A(isFlat) = 1;
+            h = scatter3(ax, coords(:, 1) / 1000, coords(:, 2) / 1000, coords(:, 3) / 1000, S, C, 'filled', 'MarkerFaceAlpha', 'flat', 'AlphaData', A, 'AlphaDataMapping', 'direct');
             view(ax, 0, 90)
             xlabel('ML')
             ylabel('DV')
@@ -745,6 +817,71 @@ classdef AcuteRecording < handle
             h.DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('Channel', channels);
             h.DataTipTemplate.DataTipRows(end+2) = dataTipTextRow(method, stats);
             h.DataTipTemplate.DataTipRows(end+3) = dataTipTextRow('Index', 1:length(stats));
+        end
+        
+        function pc = poolConditions(conditions)
+            assert(iscell(conditions) && length(conditions) > 1)
+            allConditions = conditions{1};
+            for i = 2:length(conditions)
+                allConditions = [allConditions, conditions{i}];
+            end
+            uniqueIDs = unique([allConditions.id]);
+            pc(length(uniqueIDs)) = struct('id', [], 'label', [], 'numTrials', [], 'light', [], 'duration', [], 'fiber', [], 'galvo', [], 'mlRank', [], 'dvRank', [], 'linewidth', [], 'linecolor', []);
+            for i = 1:length(uniqueIDs)
+                id = uniqueIDs(i);
+                sel = [allConditions.id] == id;
+                pc(i).id = id;
+                pc(i).numTrials = range([allConditions(sel).numTrials]);
+                pc(i).light = range([allConditions(sel).light]);
+                pc(i).duration = range([allConditions(sel).duration]);
+                pc(i).fiber = unique([allConditions(sel).fiber]);
+                pc(i).galvo = unique([allConditions(sel).galvo]);
+                pc(i).mlRank = unique([allConditions(sel).mlRank]);
+                pc(i).dvRank = unique([allConditions(sel).dvRank]);
+                pc(i).linewidth = mean(unique([allConditions(sel).linewidth]));
+                pc(i).linecolor = mean(vertcat(allConditions(sel).linecolor), 1);
+                
+                assert(length(pc(i).fiber) == 1)
+                assert(length(pc(i).mlRank) == 1)
+                assert(length(pc(i).dvRank) == 1)
+                
+                switch pc(i).mlRank
+                    case 1
+                        mlText = 'mStr';
+                    case 2
+                        mlText = 'lStr';
+                end
+                switch pc(i).dvRank
+                    case 1
+                        dvText = '-4.15';
+                    case 2
+                        dvText = '-3.48';
+                    case 3
+                        dvText = '-2.81';
+                    case 4
+                        dvText = '-2.15';
+                end
+                lightText = range2text(pc(i).light, '%.1f');
+                durationText = range2text(pc(i).duration*1000, '%.0f');
+                numTrialsText = range2text(pc(i).numTrials, '%.0f');
+                
+                pc(i).label = sprintf('%smW, %sms (%s %s) (%s trials)', lightText, durationText, mlText, dvText, numTrialsText);
+            end
+            
+            function r = range(x)
+                r = [min(x), max(x)];
+                if r(1) == r(2)
+                    r = r(1);
+                end
+            end
+            
+            function s = range2text(r, formatSpec)
+                if length(r) == 1
+                    s = sprintf(formatSpec, r);
+                else
+                    s = sprintf([formatSpec, '-', formatSpec], r(1), r(2));
+                end
+            end
         end
     end
     
