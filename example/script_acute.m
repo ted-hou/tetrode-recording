@@ -69,26 +69,39 @@ ar.plotMapByStimCondition(bsr, [0.25, 3], 0.25, 'mean', window, 0.25)
 ar.plotPSTHByStimCondition(bsr, 'CLim', [-.5, .5]);
 
 %% Read multiple files, pool stats and plot in same map.
-clear bsr ar crit
-window = [0, 0.05];
+plotD1(-3280)
+plotD1(-2930)
+plotD1([])
 
-fdir = 'C:\SERVER\Experiment_Galvo_D1Cre;DlxFlp;Ai80\AcuteRecording';
-load(sprintf('%s\\crit.mat', fdir), 'crit');
-load(sprintf('%s\\sessionInfo.mat', fdir), 'sessionInfo');
-ar = AcuteRecording.load(fdir);
-sel = [sessionInfo.ap] == -3280;
-ar = ar(sel);
-crit = crit(sel);
-sessionInfo = sessionInfo(sel);
-for i = 1:length(ar)
-    ar(i).importProbeMap(sessionInfo(i).orientation, sessionInfo(i).ml, sessionInfo(i).dv, sessionInfo(i).ap);
-    bsr{i} = ar(i).selectStimResponse('Light', crit(i).light, 'Duration', crit(i).duration);
-    [stats{i}, conditions{i}] = ar(i).summarize(bsr{i}, 'peak', window);
-    ar(i).plotMapByStimCondition(bsr{i}, [0.25, 2], 0.25, 'peak', window, 0.25);
+function plotD1(ap)
+    if nargin < 1
+        ap = [];
+    end
+
+    window = [0, 0.05];
+
+    fdir = 'C:\SERVER\Experiment_Galvo_D1Cre;DlxFlp;Ai80\AcuteRecording';
+    load(sprintf('%s\\crit.mat', fdir), 'crit');
+    load(sprintf('%s\\sessionInfo.mat', fdir), 'sessionInfo');
+    ar = AcuteRecording.load(fdir);
+    
+    if ~isempty(ap)
+        sel = [sessionInfo.ap] == ap;
+        ar = ar(sel);
+        crit = crit(sel);
+        sessionInfo = sessionInfo(sel);
+    end
+
+    for i = 1:length(ar)
+        ar(i).importProbeMap(sessionInfo(i).orientation, sessionInfo(i).ml, sessionInfo(i).dv, sessionInfo(i).ap);
+        bsr{i} = ar(i).selectStimResponse('Light', crit(i).light, 'Duration', crit(i).duration);
+        [stats{i}, conditions{i}] = ar(i).summarize(bsr{i}, 'peak', window);
+        % titleText = ar(i).plotMapByStimCondition(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25);
+        % print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
+    end
+    titleText = ar.plotMapByStimCondition(bsr, [0.25, 1], 0.25, 'peak', window, 0.25);
+    print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
 end
-ar.plotMapByStimCondition(bsr, [0.25, 2], 0.25, 'peak', window, 0.25);
-
-clear i
 
 %%
 function tr = readIntan(fdir)
@@ -100,7 +113,7 @@ function tr = readIntan(fdir)
     tr = TetrodeRecording.BatchLoadSimple(expName, true);
 end
 
-% function br = readBlackRock(fdir)
+function br = readBlackRock(fdir)
     if nargin < 1
         fdir = uigetdir('C:\SERVER\');
     end

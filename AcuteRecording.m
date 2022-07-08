@@ -510,7 +510,7 @@ classdef AcuteRecording < handle
             end
         end
 
-        function plotMapByStimCondition(obj, bsr, varargin)
+        function titleText = plotMapByStimCondition(obj, bsr, varargin)
             % ar.plotMapByStimCondition(bsr, srange, threshold, method, window, firstPeakThreshold)
             % AR.plotMapByStimCondition(BSR, STATS, CONDITIONS, srange, threshold);          
             p = inputParser();
@@ -553,7 +553,8 @@ classdef AcuteRecording < handle
                     xlim(ax(iCond), [0.9, 1.7])
                 end
                 figure(fig);
-                suptitle(sprintf('%s (%s)', obj.expName, obj.strain));
+                titleText = sprintf('%s (%s)', obj.expName, obj.strain);
+                suptitle(titleText);
             elseif length(obj) > 1
                 assert(iscell(bsr) && length(obj) == length(bsr))
                 
@@ -607,7 +608,8 @@ classdef AcuteRecording < handle
                 animalNames = cellfun(@toAnimalName, {obj.expName}, 'UniformOutput', false);
                 nAnimals = length(unique(animalNames));
                 figure(fig);
-                suptitle(sprintf('%s (%i animals, %i sessions)', strain, nAnimals, nSessions));
+                titleText = sprintf('%s (%i animals, %i sessions)', strain, nAnimals, nSessions);
+                suptitle(titleText);
             end
 
             function animalName = toAnimalName(expName)
@@ -782,7 +784,7 @@ classdef AcuteRecording < handle
             p.addOptional('threshold', 0.25, @isnumeric)
             p.addOptional('channels', [], @isnumeric)
             p.addOptional('method', 'Stat', @ischar)
-            p.addParameter('SLim', [9, 144], @isnumeric)
+            p.addParameter('SLim', [9, 72], @isnumeric)
             p.addParameter('ARange', [0.25, 1], @isnumeric)
             p.parse(varargin{:})
             
