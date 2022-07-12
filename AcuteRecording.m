@@ -196,11 +196,7 @@ classdef AcuteRecording < handle
             end
             
             probeMap.channel = s.channels + 1;
-            if right
-                probeMap.ml = ml - 225 + s.x;
-            else
-                probeMap.ml = ml + 225 + s.x;
-            end
+            probeMap.ml = ml - 225 + s.x;
             probeMap.dv = dv + s.tipelectrode + s.z;
             probeMap.ap = repmat(ap, size(s.x));
             probeMap.shaft = s.shaft;
@@ -521,6 +517,7 @@ classdef AcuteRecording < handle
             p.addOptional('Method', 'peak', @(x) ismember(x, {'peak', 'firstPeak', 'mean'}));
             p.addOptional('Window', [0, 0.05], @(x) isnumeric(x) && length(x)==2);
             p.addOptional('FirstPeakThreshold', [], @isnumeric);
+            p.addParameter('UseSignedML', false, @islogical);
             p.parse(bsr, varargin{:});
             srange = p.Results.SRange;
             threshold = p.Results.Threshold;
@@ -547,10 +544,14 @@ classdef AcuteRecording < handle
                     [i, j] = ind2sub([nRows, nCols], iCond);
                     iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
                     ax(iCond) = subplot(nRows, nCols, iSubplot);
-                    h = AcuteRecording.plotMap(ax(iCond), coords, stats(:, iCond), srange, threshold, [bsr.channel], methodLabel);
+                    h = AcuteRecording.plotMap(ax(iCond), coords, stats(:, iCond), srange, threshold, [bsr.channel], methodLabel, 'UseSignedML', p.Results.UseSignedML);
                     title(ax(iCond), conditions(iCond).label)
                     axis(ax(iCond), 'image')
-                    xlim(ax(iCond), [0.9, 1.7])
+                    if p.Results.UseSignedML
+                        xlim(ax(iCond), sort(sign(coords(1, 1)).*[0.9, 1.7]))
+                    else
+                        xlim(ax(iCond), [0.9, 1.7])
+                    end
                 end
                 figure(fig);
                 titleText = sprintf('%s (%s)', obj.expName, obj.strain);
@@ -786,6 +787,8 @@ classdef AcuteRecording < handle
             p.addOptional('method', 'Stat', @ischar)
             p.addParameter('SLim', [9, 72], @isnumeric)
             p.addParameter('ARange', [0.25, 1], @isnumeric)
+            p.addParameter('HideInsignificantUnits', false, @islogical)
+            p.addParameter('UseSignedML', false, @islogical);
             p.parse(varargin{:})
             
             ax = p.Results.ax;
@@ -806,14 +809,27 @@ classdef AcuteRecording < handle
             C(isFlat, :) = 0.5;
             S = AcuteRecording.lerp(p.Results.SLim(1), p.Results.SLim(2), t);
             A = ones(size(S)) * 40;
-            A(isFlat) = 1;
-            h = scatter3(ax, coords(:, 1) / 1000, coords(:, 2) / 1000, coords(:, 3) / 1000, S, C, 'filled', 'MarkerFaceAlpha', 'flat', 'AlphaData', A, 'AlphaDataMapping', 'direct');
+            if p.Results.HideInsignificantUnits
+                A(isFlat) = 1;
+            end
+            ml = coords(:, 1) / 1000;
+            dv = coords(:, 2) / 1000;
+            ap = coords(:, 3) / 1000;
+            if ~p.Results.UseSignedML
+                ml = abs(ml);
+            end
+            h = scatter3(ax, ml, dv, ap, S, C, 'filled', 'MarkerFaceAlpha', 'flat', 'AlphaData', A, 'AlphaDataMapping', 'direct');
             view(ax, 0, 90)
-            xlabel('ML')
-            ylabel('DV')
-            zlabel('AP')
+            if p.Results.UseSignedML
+                mlLabel = 'ML';
+            else
+                mlLabel = 'ML (abs)';
+            end
+            xlabel(ax, mlLabel)
+            ylabel(ax, 'DV')
+            zlabel(ax, 'AP')
             
-            h.DataTipTemplate.DataTipRows(1).Label = 'ML';
+            h.DataTipTemplate.DataTipRows(1).Label = mlLabel;
             h.DataTipTemplate.DataTipRows(2).Label = 'DV';
             h.DataTipTemplate.DataTipRows(3).Label = 'AP';
             h.DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('Channel', channels);

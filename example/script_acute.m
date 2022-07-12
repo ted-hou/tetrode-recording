@@ -1,10 +1,11 @@
-%%
+%% Define animal/expname
 fdir = uigetdir('C:\SERVER\');
 expName = strsplit(fdir, '\');
 expName = expName{end};
 animalName = strsplit(expName, '_');
 animalName = animalName{1};
 
+%% Read auto-sorted(crude) intan data and combine with analog data from blackrock
 br = readBlackRock(fdir);
 tr = readIntan(fdir);
 appendBRtoTR(br, tr);
@@ -15,36 +16,71 @@ tr.PlotAllChannels('plotMethod', 'mean')
 %% Do manual spike sorting
 tr.PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'PlotStim', true);
 
-%%
+%% Save manually sorted units
 TetrodeRecording.BatchSave(tr, 'Prefix', 'tr_sorted_', 'DiscardData', false);
 
-%%
+%% Load manually sorted results
 f = dir(sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\tr_sorted_%s*.mat', animalName, expName, expName));
 load(sprintf('%s\\%s', f.folder, f.name));
 clear f
 
-%%
-clear ar bsr probeMap stim
+%% Extract stim response and save to file
+clear ar bsr probeMap stim sessionInfo
+sessionInfo.expName = expName;
+sessionInfo.strain = 'A2A-Cre'; % A2A-Cre or D1-Cre;Dlx-Flp;Ai80
+sessionInfo.orientation = 'front'; % Whether probe is anterior (front) or posterior (back) to the headstage. Usually this is back, unless recording in anterior SNr.
+sessionInfo.ml = 1300; % Center of probe. Negative for left hemisphere.
+sessionInfo.dv = -4600; % From surface of brain, not bregma. Assumes Bregma is 200um above brain surface unless otherwise specified for `importProbeMap`.
+sessionInfo.ap = -3280+350;
+sessionInfo.firstFiber = 'B'; % 'A' or 'B', name of the first patch cable
+sessionInfo.firstLight = 0.1; % 
 
 window = [0 0.05];
 
-ar = AcuteRecording(tr, 'D1-Cre;Dlx-Flp;Ai80');
-stim = ar.extractAllPulses(tr, 'B', 0.05);
-probeMap = ar.importProbeMap('front', 1300, -4600, -3280);
+ar = AcuteRecording(tr, sessionInfo.strain);
+stim = ar.extractAllPulses(tr, sessionInfo.firstFiber, sessionInfo.firstLight);
+probeMap = ar.importProbeMap(sessionInfo.orientation, sessionInfo.ml, sessionInfo.dv, sessionInfo.ap);
 ar.binStimResponse(tr, [], 'Store', true);
 ar.summarize(ar.bsr, 'peak', [0, 0.05], 'Store', true);
 
 ar.save();
+save(sprintf('C:\\SERVER\\%s\\%s\\AcuteRecording\\sessionInfo_%s.mat', animalName, expName, expName), 'sessionInfo');
 
 %% 
-ar = AcuteRecording.load('C:\SERVER\daisy14\daisy14_20220506\AcuteRecording\ar_daisy14_20220506.mat');
+ar = AcuteRecording.load(sprintf('C:\\SERVER\\%s\\%s\\AcuteRecording\\ar_%s.mat', animalName, expName, expName));
 
-% ar.plotPSTHByStimCondition(ar.bsr, 'CLim', [-.5, .5]);
+
+% %% Fix probemap ML
+% 
+% expName = 'daisy15_20220511';
+% animalName = strsplit(expName, '_');
+% animalName = animalName{1};
+% 
+% sessionInfo.expName = expName;
+% sessionInfo.strain = 'A2A-Cre'; % A2A-Cre or D1-Cre;Dlx-Flp;Ai80
+% sessionInfo.orientation = 'back'; % Whether probe is anterior (front) or posterior (back) to the headstage. Usually this is back, unless recording in anterior SNr.
+% sessionInfo.ml = 1300; % Center of probe. Negative for left hemisphere.
+% sessionInfo.dv = -4500; % From surface of brain, not bregma. Assumes Bregma is 200um above brain surface unless otherwise specified for `importProbeMap`.
+% sessionInfo.ap = -3280;
+% sessionInfo.firstFiber = 'B'; % 'A' or 'B', name of the first patch cable
+% sessionInfo.firstLight = 0.1; % 
+% 
+% ar = AcuteRecording.load(sprintf('C:\\SERVER\\%s\\%s\\AcuteRecording\\ar_%s.mat', animalName, expName, expName));
+% probeMap = ar.importProbeMap(sessionInfo.orientation, sessionInfo.ml, sessionInfo.dv, sessionInfo.ap);
+% ar.save();
+% save(sprintf('C:\\SERVER\\%s\\%s\\AcuteRecording\\sessionInfo_%s.mat', animalName, expName, expName), 'sessionInfo');
+% 
+% [bsr, ~] = ar.selectStimResponse('Light', 0.5, 'Duration', 0.01);
+% ar.plotMapByStimCondition(bsr, [0.25, 3], 0.25, 'peak', [0 0.05], 0.25, 'UseSignedML', true);
+% ar.plotMapByStimCondition(bsr, [0.25, 3], 0.25, 'peak', [0 0.05], 0.25);
+%% Load AR file (much faster than loading TR and rebuilding AR)
+ar = AcuteRecording.load(sprintf('C:\\SERVER\\%s\\%s\\AcuteRecording\\ar_%s.mat', animalName, expName, expName));
 
 %% One SNr map per Str site (1 figure)
 [bsr, ~] = ar.selectStimResponse('Light', 0.5, 'Duration', 0.01);
 [statsPeak, conditions] = ar.summarize(bsr, 'peak', window);
 statsFirstPeak = ar.summarize(bsr, 'firstPeak', window, 0.25);
+statsMean = ar.summarize(bsr, 'mean', window, 0.25);
 
 % Plot and compare mean vs peak response. Check that mean and peak has same sign.
 nConditions = length(conditions);
@@ -54,23 +90,24 @@ for i = 1:nConditions
     hold(ax, 'on')
     plot(ax, statsPeak(:, i), 'DisplayName', sprintf('peak %i-%ims', window(1)*1000, window(2)*1000));
     plot(ax, statsFirstPeak(:, i), 'DisplayName', sprintf('first Peak %i-%ims', window(1)*1000, window(2)*1000));
+    plot(ax, statsMean(:, i), 'DisplayName', sprintf('mean %i-%ims', window(1)*1000, window(2)*1000));
     ylabel(ax, '\DeltaActivity')
     xlabel(ax, 'Unit')
     title(ax, conditions(i).label)
     hold(ax, 'off');
     legend(ax);
 end
-clear ax i nConditions statsPeak statsFirstPeak
+clear ax i nConditions statsPeak statsFirstPeak statsMean
 
 % Plot probe map per stim condition
-ar.plotMapByStimCondition(bsr, [0.25, 3], 0.25, 'mean', window, 0.25)
+ar.plotMapByStimCondition(bsr, [0.25, 3], 0.25, 'peak', window, 0.25);
 
 %% One Str map per SNr unit (WARNING: MANY FIGURES)
 ar.plotPSTHByStimCondition(bsr, 'CLim', [-.5, .5]);
 
 %% Read multiple files, pool stats and plot in same map.
-plotD1(-3280)
-plotD1(-2930)
+% plotD1(-3280)
+% plotD1(-2930)
 plotD1([])
 
 function plotD1(ap)
@@ -94,13 +131,13 @@ function plotD1(ap)
 
     for i = 1:length(ar)
         ar(i).importProbeMap(sessionInfo(i).orientation, sessionInfo(i).ml, sessionInfo(i).dv, sessionInfo(i).ap);
-        bsr{i} = ar(i).selectStimResponse('Light', crit(i).light, 'Duration', crit(i).duration);
+        bsr{i} = ar(i).selectStimResponse('Light', 2, 'Duration', crit(i).duration);
         [stats{i}, conditions{i}] = ar(i).summarize(bsr{i}, 'peak', window);
-        % titleText = ar(i).plotMapByStimCondition(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25);
-        % print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
+        titleText = ar(i).plotMapByStimCondition(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25);
+%         print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
     end
     titleText = ar.plotMapByStimCondition(bsr, [0.25, 1], 0.25, 'peak', window, 0.25);
-    print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
+%     print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
 end
 
 %%
