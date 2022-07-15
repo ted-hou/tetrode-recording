@@ -518,6 +518,7 @@ classdef AcuteRecording < handle
             p.addOptional('Window', [0, 0.05], @(x) isnumeric(x) && length(x)==2);
             p.addOptional('FirstPeakThreshold', [], @isnumeric);
             p.addParameter('UseSignedML', false, @islogical);
+            p.addParameter('HideFlatUnits', false, @islogical);
             p.parse(bsr, varargin{:});
             srange = p.Results.SRange;
             threshold = p.Results.Threshold;
@@ -546,12 +547,12 @@ classdef AcuteRecording < handle
                     ax(iCond) = subplot(nRows, nCols, iSubplot);
                     h = AcuteRecording.plotMap(ax(iCond), coords, stats(:, iCond), srange, threshold, [bsr.channel], methodLabel, 'UseSignedML', p.Results.UseSignedML);
                     title(ax(iCond), conditions(iCond).label)
-                    axis(ax(iCond), 'image')
-                    if p.Results.UseSignedML
-                        xlim(ax(iCond), sort(sign(coords(1, 1)).*[0.9, 1.7]))
-                    else
-                        xlim(ax(iCond), [0.9, 1.7])
-                    end
+                    axis(ax(iCond), 'equal')
+%                     if p.Results.UseSignedML
+%                         xlim(ax(iCond), sort(sign(coords(1, 1)).*[0.9, 1.7]))
+%                     else
+%                         xlim(ax(iCond), [0.9, 1.7])
+%                     end
                 end
                 figure(fig);
                 titleText = sprintf('%s (%s)', obj.expName, obj.strain);
@@ -592,10 +593,10 @@ classdef AcuteRecording < handle
                     [i, j] = ind2sub([nRows, nCols], iCond);
                     iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
                     ax(iCond) = subplot(nRows, nCols, iSubplot);
-                    h = AcuteRecording.plotMap(ax(iCond), pooledCoords{iCond}, pooledStats{iCond}, srange, threshold, pooledChannels{iCond}, methodLabel);
+                    h = AcuteRecording.plotMap(ax(iCond), pooledCoords{iCond}, pooledStats{iCond}, srange, threshold, pooledChannels{iCond}, methodLabel, 'UseSignedML', p.Results.UseSignedML, 'HideFlatUnits', p.Results.HideFlatUnits);
                     title(ax(iCond), pooledConditions(iCond).label)
-                    axis(ax(iCond), 'image')
-                    xlim(ax(iCond), [0.9, 1.7])
+                    axis(ax(iCond), 'equal')
+%                     xlim(ax(iCond), [0.9, 1.7])
                 end
                 
                 strain = unique({obj.strain});
@@ -787,7 +788,7 @@ classdef AcuteRecording < handle
             p.addOptional('method', 'Stat', @ischar)
             p.addParameter('SLim', [9, 72], @isnumeric)
             p.addParameter('ARange', [0.25, 1], @isnumeric)
-            p.addParameter('HideInsignificantUnits', false, @islogical)
+            p.addParameter('HideFlatUnits', false, @islogical)
             p.addParameter('UseSignedML', false, @islogical);
             p.parse(varargin{:})
             
@@ -809,7 +810,7 @@ classdef AcuteRecording < handle
             C(isFlat, :) = 0.5;
             S = AcuteRecording.lerp(p.Results.SLim(1), p.Results.SLim(2), t);
             A = ones(size(S)) * 40;
-            if p.Results.HideInsignificantUnits
+            if p.Results.HideFlatUnits
                 A(isFlat) = 1;
             end
             ml = coords(:, 1) / 1000;

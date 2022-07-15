@@ -1,5 +1,6 @@
 %% Define animal/expname
 fdir = uigetdir('C:\SERVER\');
+assert(ischar(fdir) && isfolder(fdir), 'No directory selected.')
 expName = strsplit(fdir, '\');
 expName = expName{end};
 animalName = strsplit(expName, '_');
@@ -106,21 +107,26 @@ ar.plotMapByStimCondition(bsr, [0.25, 3], 0.25, 'peak', window, 0.25);
 ar.plotPSTHByStimCondition(bsr, 'CLim', [-.5, .5]);
 
 %% Read multiple files, pool stats and plot in same map.
-% plotD1(-3280)
-% plotD1(-2930)
-plotD1([])
+plotD1(-3280)
+plotD1(-3280+350)
+% plotD1([])
 
-function plotD1(ap)
+%%
+function plotD1(ap, useSignedML)
     if nargin < 1
         ap = [];
+    end
+    if nargin < 3
+        useSignedML = false;
     end
 
     window = [0, 0.05];
 
     fdir = 'C:\SERVER\Experiment_Galvo_D1Cre;DlxFlp;Ai80\AcuteRecording';
-    load(sprintf('%s\\crit.mat', fdir), 'crit');
-    load(sprintf('%s\\sessionInfo.mat', fdir), 'sessionInfo');
     ar = AcuteRecording.load(fdir);
+    sessionInfo = readSessionInfo(fdir);
+    crit = inferCriteria(ar);
+    assert(all(strcmp({ar.expName}, {sessionInfo.expName})))
     
     if ~isempty(ap)
         sel = [sessionInfo.ap] == ap;
@@ -130,17 +136,16 @@ function plotD1(ap)
     end
 
     for i = 1:length(ar)
-        ar(i).importProbeMap(sessionInfo(i).orientation, sessionInfo(i).ml, sessionInfo(i).dv, sessionInfo(i).ap);
-        bsr{i} = ar(i).selectStimResponse('Light', 2, 'Duration', crit(i).duration);
+        % ar(i).importProbeMap(sessionInfo(i).orientation, sessionInfo(i).ml, sessionInfo(i).dv, sessionInfo(i).ap);
+        bsr{i} = ar(i).selectStimResponse('Light', crit(i).light, 'Duration', crit(i).duration);
         [stats{i}, conditions{i}] = ar(i).summarize(bsr{i}, 'peak', window);
-        titleText = ar(i).plotMapByStimCondition(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25);
-%         print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
+        titleText = ar(i).plotMapByStimCondition(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25, 'UseSignedML', useSignedML);
+        print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
     end
-    titleText = ar.plotMapByStimCondition(bsr, [0.25, 1], 0.25, 'peak', window, 0.25);
-%     print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
+    titleText = ar.plotMapByStimCondition(bsr, [0.25, 1], 0.25, 'peak', window, 0.25, 'HideFlatUnits', true, 'UseSignedML', useSignedML);
+    print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
 end
 
-%%
 function tr = readIntan(fdir)
     if nargin < 1
         fdir = uigetdir('C:\SERVER\');
@@ -204,3 +209,22 @@ function appendBRtoTR(br, tr)
     tr.AnalogIn.Data = br.analogData;
 end
 
+function sessionInfo = readSessionInfo(fdir)
+    fileinfo = dir(sprintf('%s\\sessionInfo_*.mat', fdir));
+    for i = 1:length(fileinfo)
+        S(i) = load(sprintf('%s\\%s', fileinfo(i).folder, fileinfo(i).name), 'sessionInfo');
+    end
+    sessionInfo = [S.sessionInfo];
+end
+
+function crit = inferCriteria(ar)
+    for i = 1:length(ar)
+        if any([ar(i).conditions.light] == 0.5 & [ar(i).conditions.duration] == 0.01)
+            crit(i).light = 0.5;
+        else
+            assert(any([ar(i).conditions.light] == 0.4 & [ar(i).conditions.duration] == 0.01))
+            crit(i).light = 0.4;
+        end
+        crit(i).duration = 0.01;
+    end
+end
