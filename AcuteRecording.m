@@ -6,11 +6,17 @@ classdef AcuteRecording < handle
         stim = struct([])
         probeMap = struct([])
         bsr = struct([])
+        bmrPress = struct([])
+        bmrLick = struct([])
         conditions = struct([])
         stats = []
         statsInfo = struct([])
+        statsPress = []
+        statsLick = []
+        statsInfoPress = struct([])
+        statsInfoLick = struct([])
     end
-    
+
     methods
         function obj = AcuteRecording(tr, strain)
             obj.strain = strain;
@@ -43,7 +49,7 @@ classdef AcuteRecording < handle
             f = dir(file);
             fprintf(1, '(%.2fsec, %.2fMB)\n', toc(tTic), f.bytes*1e-6)
         end
-        
+
         function stim = extractAllPulses(obj, tr, varargin)
             p = inputParser();
             p.addRequired('TetrodeRecording', @(x) isa(x, 'TetrodeRecording'))
@@ -115,7 +121,7 @@ classdef AcuteRecording < handle
 
             obj.stim = stim;
         end
-        
+
         function calibrationData = importCalibrationData(obj)
             filename = sprintf('%s\\GalvoCalibration_%s.csv', obj.path, obj.expName);
 
@@ -142,7 +148,7 @@ classdef AcuteRecording < handle
             % Import the data
             calibrationData = readtable(filename, opts);
         end      
-        
+
         function plotPowerError(obj)
             fig = figure();
             ax = axes(fig);
@@ -152,7 +158,7 @@ classdef AcuteRecording < handle
             hold(ax, 'off');
             legend(ax);
         end
-        
+
         function probeMap = importProbeMap(obj, frontOrBack, varargin)
             p = inputParser();
             p.addRequired('FrontOrBack', @(x) ischar(x) && ismember(x, {'front', 'back'})); % Whether probe is anterior (front) or posterior (back) to the headstage. Usually this is back, unless recording in anterior SNr, and probe needed to be reversed (front) to make space for fiber optics.
@@ -204,16 +210,179 @@ classdef AcuteRecording < handle
             
             obj.probeMap = probeMap;
         end
-        
-        function varargout = binStimResponse(obj, tr, channels, varargin)
+
+        function varargout = binMoveResponse(obj, tr, moveType, varargin)
             p = inputParser();
             p.addRequired('TetrodeRecording', @(x) isa(x, 'TetrodeRecording'))
-            p.addRequired('Channels', @isnumeric);
+            p.addRequired('MoveType', @(x) ismember(lower(x), {'press', 'lick'}))
+            p.addOptional('Channels', [], @isnumeric);
+            p.addOptional('Units', [], @isnumeric);
+            p.addParameter('BinWidth', 0.1, @isnumeric); % Bin width in seconds
+            p.addParameter('Window', [-6, 1]); % Additional seconds before and after tMove
+            p.addParameter('BaselineWindow', [-6, -2]); % Window used for normalization, relative to move time
+            p.addParameter('Store', false, @islogical);
+            p.parse(tr, moveType, varargin{:})
+            tr = p.Results.TetrodeRecording;
+            moveType = p.Results.MoveType;
+            channels = p.Results.Channels;
+            units = p.Results.Units;
+            binWidth = p.Results.BinWidth;
+            window = p.Results.Window;
+            baselineWindow = p.Results.BaselineWindow;
+            store = p.Results.Store;
+
+            % Do all channels
+            if isempty(channels)
+                channels = [tr.Spikes.Channel];
+            end
+            
+            nChannels = length(channels);
+            nUnitsInChannel = zeros(nChannels, 1);
+            for i = 1:nChannels
+                nUnitsInChannel(i) = max(tr.Spikes(channels(i)).Cluster.Classes) - 1;
+            end
+            assert(isempty(units) || max(nUnitsInChannel) >= max(units), 'Requested units (%s) exceeds total number of units (%i) in data.', num2str(units), max(units));
+            
+            if isempty(units)
+                nUnits = sum(nUnitsInChannel);
+            else
+                nUnits = length(units) * nChannels;
+            end
+            
+            bmr(nUnits) = struct('expName', '', 'channel', [], 'unit', [], 't', [], 'tRight', [], 'spikeRates', [], 'normalizedSpikeRates', [], 'trialLength', []);
+            m = zeros(nUnits, 1);
+            s = zeros(nUnits, 1);
+
+            tRef = tr.DigitalEvents.CueOn;
+            switch lower(moveType)
+                case 'press'
+                    tMove = tr.DigitalEvents.PressOn;
+                    tExclude = sort([tr.DigitalEvents.LickOn, tr.DigitalEvents.RewardOn]);
+                case 'lick'
+                    tMove = tr.DigitalEvents.LickOn;
+                    tExclude = sort([tr.DigitalEvents.PressOn, tr.DigitalEvents.RewardOn]);
+                otherwise
+                    error('Unrecognized move type: %s', lower(moveType))
+            end
+
+            [tRef, tMove] = tr.FindFirstInTrial(tRef, tMove, tExclude);
+
+            % Bin spikes
+            nTrials = length(tMove);
+            t = window(1):binWidth:window(2);
+            tBaseline = baselineWindow(1):binWidth:baselineWindow(2);
+            nBins = length(t) - 1;
+            nBaselineBins = length(tBaseline) - 1;
+
+            iUnit = 0;
+            for iChn = 1:nChannels
+                channel = channels(iChn);
+                
+                if isempty(units)
+                    selUnits = 1:nUnitsInChannel(iChn);
+                else
+                    selUnits = units;
+                end
+                
+                for iUnitInChannel = 1:length(selUnits)
+                    iUnit = iUnit + 1;
+                    unit = selUnits(iUnitInChannel);
+
+                    % Extract unit spike times
+                    sel = tr.Spikes(channel).Cluster.Classes == unit;
+                    spikeTimes = tr.Spikes(channel).Timestamps(sel);
+
+                    % Stats for selecting units (session-mean firing rate 
+                    spikeRates = histcounts(spikeTimes, spikeTimes(1):binWidth:spikeTimes(end)) ./ binWidth;
+                    m(iUnit) = mean(spikeRates);
+                    s(iUnit) = mad(spikeRates, 0) / 0.6745;
+                    bmr(iUnit).expName = obj.expName;
+                    bmr(iUnit).channel = channel;
+                    bmr(iUnit).unit = unit;
+                    bmr(iUnit).spikeRates = zeros(nTrials, nBins);
+                    bmr(iUnit).normalizedSpikeRates = zeros(nTrials, nBins);
+                    bmr(iUnit).trialLength = tMove - tRef;
+                    for iTrial = 1:nTrials
+                        edges = tMove(iTrial) + window(1):binWidth:tMove(iTrial) + window(2);
+                        baselineEdges = tMove(iTrial) + baselineWindow(1):binWidth:tMove(iTrial) + baselineWindow(2);
+                        bmr(iUnit).tRight = edges(2:end) - tMove(iTrial);
+                        bmr(iUnit).t = (edges(1:end-1) + edges(2:end))/2 - tMove(iTrial);
+                        bmr(iUnit).spikeRates(iTrial, :) = histcounts(spikeTimes, edges) ./ binWidth;
+                        baselineSpikeRates = histcounts(spikeTimes, baselineEdges) ./ binWidth;
+                        % Normalize by substracting mean norm window and dividing by global MAD
+                        bmr(iUnit).normalizedSpikeRates(iTrial, :) = (bmr(iUnit).spikeRates(iTrial, :) - mean(baselineSpikeRates)) ./ s(iUnit);
+                    end
+                end
+            end
+
+            if store
+                switch lower(moveType)
+                    case 'press'
+                        obj.bmrPress = bmr;
+                    case 'lick'
+                        obj.bmrLick = bmr;
+                end
+            end
+
+            varargout = {bmr, m, s};
+        end
+
+        function stats = summarizeMoveResponse(obj, bmrOrType, varargin)
+            % stats = ar.summarizeMoveResponse('press', 'peak', [-1, 0], 'AllowedTrialLength', [2, Inf])
+            p = inputParser();
+            if ischar(bmrOrType)
+                p.addRequired('MoveType', @(x) ismember(lower(x), {'press', 'lick'}))
+            else
+                p.addRequired('BinnedMoveResponse', @isstruct)
+            end
+            p.addOptional('Method', 'peak', @(x) ismember(x, {'peak', 'mean'}));
+            p.addOptional('Window', [-1, 0], @(x) isnumeric(x) && length(x) == 2);
+            p.addParameter('AllowedTrialLength', [0, Inf], @(x) isnumeric(x) && length(x) == 2);
+            p.addParameter('Store', false, @islogical);
+            p.parse(bmrOrType, varargin{:});
+
+            if ischar(bmrOrType)
+                switch lower(p.Results.MoveType)
+                    case 'press'
+                        bmr = obj.bmrPress;
+                    case 'lick'
+                        bmr = obj.bmrLick;
+                    otherwise
+                        error()
+                end
+            else
+                bmr = p.Results.BinnedMoveResponse;
+            end
+
+            nUnits = length(bmr);
+            stats = NaN(nUnits, 1);
+            for i = 1:length(bmr)
+                sel = bmr(i).trialLength >= p.Results.AllowedTrialLength(1) & bmr(i).trialLength <= p.Results.AllowedTrialLength(2);
+                meanNSR = mean(bmr(i).normalizedSpikeRates(sel, :), 1);
+                stats(i, :) = AcuteRecording.summarizeMeanSpikeRates(meanNSR, bmr(i).t, p.Results.Method, p.Results.Window);
+            end
+
+            if p.Results.Store && isfield(p.Results, 'MoveType')
+                switch lower(p.Results.MoveType)
+                    case 'press'
+                        obj.statsPress = stats;
+                        obj.statsInfoPress = struct('Method', p.Results.Method, 'Window', p.Results.Window, 'AllowedTrialLength', p.Results.AllowedTrialLength);
+                    case 'lick'
+                        obj.statsLick = stats;
+                        obj.statsInfoLick = struct('Method', p.Results.Method, 'Window', p.Results.Window, 'AllowedTrialLength', p.Results.AllowedTrialLength);
+                end
+            end
+        end
+
+        function varargout = binStimResponse(obj, tr, varargin)
+            p = inputParser();
+            p.addRequired('TetrodeRecording', @(x) isa(x, 'TetrodeRecording'))
+            p.addOptional('Channels', @isnumeric);
             p.addOptional('Units', [], @isnumeric);
             p.addParameter('BinWidth', 0.01, @isnumeric); % Bin width in seconds
             p.addParameter('Window', [-0.2, 0.5]); % Additional seconds before and after tOn
             p.addParameter('Store', false, @islogical);
-            p.parse(tr, channels, varargin{:});
+            p.parse(tr, varargin{:});
             tr = p.Results.TetrodeRecording;
             channels = p.Results.Channels;
             units = p.Results.Units;
@@ -294,7 +463,7 @@ classdef AcuteRecording < handle
             
             varargout = {bsr, m, s};
         end
-        
+
         function varargout = selectStimResponse(obj, varargin)
             p = inputParser();
             p.addOptional('BinnedStimResponse', obj.bsr, @isstruct);
@@ -360,10 +529,9 @@ classdef AcuteRecording < handle
             nConditions = length(conditions);
             nUnits = length(bsr);
             stats = NaN(nUnits, nConditions);
-            t = bsr(1).t;
             for i = 1:length(bsr)
                 [~, ~, condNSR, ~] = obj.groupByConditions(bsr(i));
-                stats(i, :) = AcuteRecording.summarizeMeanSpikeRates(condNSR, t, p.Results.Method, p.Results.Window, p.Results.FirstPeakThreshold);
+                stats(i, :) = AcuteRecording.summarizeMeanSpikeRates(condNSR, bsr(i).t, p.Results.Method, p.Results.Window, p.Results.FirstPeakThreshold);
             end
 
             if p.Results.Store
@@ -393,7 +561,6 @@ classdef AcuteRecording < handle
             dvRank = obj.stim.dvRank(I);
             fiber = obj.stim.fiber(I);
             galvo = obj.stim.galvo(I);
-
             
             base = max([max(lightRank), max(durationRank), max(mlRank), max(dvRank)]);
             condId = lightRank*(base^3) + durationRank*(base^2) + mlRank*(base^1) + dvRank*(base^0);
@@ -447,7 +614,7 @@ classdef AcuteRecording < handle
             varargout = {conditions, condSR, condNSR, condId};
         end
 
-        function plotPSTHByStimCondition(obj, bsr, varargin)
+        function plotStimResponse(obj, bsr, varargin)
             p = inputParser();
             p.addRequired('BinnedStimResponse', @isstruct);
             p.addParameter('Mode', 'both', @(x) ischar(x) && ismember(x, {'heatmap', 'line', 'both'}));
@@ -457,7 +624,7 @@ classdef AcuteRecording < handle
 
             if length(bsr) > 1
                 for i = 1:length(bsr)
-                    obj.plotPSTHByStimCondition(bsr(i), 'Mode', p.Results.Mode, 'CLim', p.Results.CLim);
+                    obj.plotStimResponse(bsr(i), 'Mode', p.Results.Mode, 'CLim', p.Results.CLim);
                 end
                 return
             end
@@ -506,11 +673,8 @@ classdef AcuteRecording < handle
             end
         end
 
-        function titleText = plotMapByStimCondition(obj, bsr, varargin)
-            % ar.plotMapByStimCondition(bsr, srange, threshold, method, window, firstPeakThreshold)
-            % AR.plotMapByStimCondition(BSR, STATS, CONDITIONS, srange, threshold);          
+        function titleText = plotStimResponseMap(obj, bsr, varargin)
             p = inputParser();
-            % Single experiment
             p.addRequired('BinnedStimResponse', @(x) isstruct(x) || iscell(x));
             p.addOptional('SRange', [0.25, 3], @(x) isnumeric(x) && length(x)==2);
             p.addOptional('Threshold', 0.25, @isnumeric);
@@ -519,6 +683,7 @@ classdef AcuteRecording < handle
             p.addOptional('FirstPeakThreshold', [], @isnumeric);
             p.addParameter('UseSignedML', false, @islogical);
             p.addParameter('HideFlatUnits', false, @islogical);
+            p.addParameter('ConditionBase', 4, @isnumeric); % Max number of stim conditions per category (e.g. if there are 2 durations, 3 light levels, 2 fibers and 4 galvo voltages, then use base 4 = max([2, 3, 2, 4])). Suggest 4, or [] to autocalculate.            
             p.parse(bsr, varargin{:});
             srange = p.Results.SRange;
             threshold = p.Results.Threshold;
@@ -548,11 +713,6 @@ classdef AcuteRecording < handle
                     h = AcuteRecording.plotMap(ax(iCond), coords, stats(:, iCond), srange, threshold, [bsr.channel], methodLabel, 'UseSignedML', p.Results.UseSignedML);
                     title(ax(iCond), conditions(iCond).label)
                     axis(ax(iCond), 'equal')
-%                     if p.Results.UseSignedML
-%                         xlim(ax(iCond), sort(sign(coords(1, 1)).*[0.9, 1.7]))
-%                     else
-%                         xlim(ax(iCond), [0.9, 1.7])
-%                     end
                 end
                 figure(fig);
                 titleText = sprintf('%s (%s)', obj.expName, obj.strain);
@@ -565,7 +725,7 @@ classdef AcuteRecording < handle
                     coords{i} = obj(i).getProbeCoords([bsr{i}.channel]);
                     [stats{i}, conditions{i}] = obj(i).summarize(bsr{i}, method, window, firstPeakThreshold);
                 end
-                pooledConditions = AcuteRecording.poolConditions(conditions);
+                pooledConditions = AcuteRecording.poolConditions(conditions, p.Results.ConditionBase);
                 nConditions = length(pooledConditions);
                 pooledCoords = cell(1, nConditions);
                 pooledStats = cell(1, nConditions);
@@ -619,7 +779,168 @@ classdef AcuteRecording < handle
                 animalName = animalName{1};
             end
         end
-        
+
+        function varargout = plotStimVsMoveResponse(obj, bsr, moveType, varargin)
+            p = inputParser();
+            p.addRequired('BinnedStimResponse', @(x) isstruct(x) || iscell(x));
+            p.addRequired('MoveType', @(x) ismember(lower(x), {'press', 'lick'}));
+            p.addParameter('StimThreshold', 0.5, @isnumeric);
+            p.addParameter('MoveThreshold', 1, @isnumeric);
+            p.addParameter('Highlight', 'intersect', @(x) ismember(lower(x), {'move', 'stim', 'union', 'intersect'}))
+            p.addParameter('ConditionBase', 4, @isnumeric); % Max number of stim conditions per category (e.g. if there are 2 durations, 3 light levels, 2 fibers and 4 galvo voltages, then use base 4 = max([2, 3, 2, 4])). Suggest 4, or [] to autocalculate.
+            p.parse(bsr, moveType, varargin{:});
+            bsr = p.Results.BinnedStimResponse;
+            moveType = p.Results.MoveType;
+
+            if length(obj) == 1
+                % Get single-numeric move/stim stats
+                switch lower(moveType)
+                    case 'press'
+                        bmr = obj.bmrPress;
+                    case 'lick'
+                        bmr = obj.bmrLick;
+                    otherwise
+                        error()
+                end
+                moveStats = obj.summarizeMoveResponse(bmr, 'peak', [-1, 0], 'AllowedTrialLength', [1, Inf]);
+                [stimStats, stimConditions] = obj.summarize(bsr, 'peak', [0, 0.05]);
+
+                % Figure layout, one subplot per stim condition
+                nConditions = length(stimConditions);
+                nCols = max(1, floor(sqrt(nConditions)));
+                nRows = max(4, ceil(nConditions / nCols));
+                fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
+                ax = gobjects(nConditions, 1);
+                for iCond = 1:nConditions
+                    [i, j] = ind2sub([nRows, nCols], iCond);
+                    iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
+                    ax(iCond) = subplot(nRows, nCols, iSubplot);
+                    hold(ax(iCond), 'on')
+                    [sel, labelSig, labelInsig] = selectSignificantUnits(moveStats, stimStats(:, iCond));
+                    hSig = scatter(ax(iCond), moveStats(sel), stimStats(sel, iCond), 35, 'blue', 'filled', 'DisplayName', labelSig);
+                    hInsig = scatter(ax(iCond), moveStats(~sel), stimStats(~sel, iCond), 25, 'black', 'DisplayName', labelInsig);
+                    axis(ax(iCond), 'equal')
+                    plot(ax(iCond), ax(iCond).XLim, [0, 0], 'k--')
+                    plot(ax(iCond), [0, 0], ax(iCond).YLim, 'k--')
+                    title(ax(iCond), stimConditions(iCond).label)
+                    xlabel(ax(iCond), moveType)
+                    ylabel(ax(iCond), 'Stim')
+                    hold(ax(iCond), 'off')
+                    legend(ax(iCond), [hSig, hInsig], 'Location', 'northoutside', 'Orientation', 'horizontal')
+                end
+                figure(fig);
+                titleText = sprintf('%s (%s)', obj.expName, obj.strain);
+                suptitle(titleText);                
+            elseif length(obj) > 1
+                assert(iscell(bsr) && length(obj) == length(bsr))
+                
+                % Get POOLED single-numeric move/stim stats
+                switch lower(moveType)
+                    case 'press'
+                        bmr = {obj.bmrPress};
+                    case 'lick'
+                        bmr = {obj.bmrLick};
+                    otherwise
+                        error()
+                end
+
+
+                for i = 1:length(obj)
+                    moveStats{i} = obj(i).summarizeMoveResponse(bmr{i}, 'peak', [-1, 0], 'AllowedTrialLength', [1, Inf]);
+                    [stimStats{i}, stimConditions{i}] = obj(i).summarize(bsr{i}, 'peak', [0, 0.05]);
+                end
+% 
+%                 pooledMoveStats = moveStats{1};
+%                 for i = 2:length(obj)
+%                     pooledMoveStats = [pooledMoveStats; moveStats{i}];
+%                 end
+
+                pooledConditions = AcuteRecording.poolConditions(stimConditions, p.Results.ConditionBase);
+                nConditions = length(pooledConditions);
+                pooledStimStats = cell(1, nConditions);
+                pooledMoveStats = cell(1, nConditions);
+                for iCond = 1:nConditions
+                    id = pooledConditions(iCond).id;
+                    for iExp = 1:length(obj)
+                        iCondInExp = find([stimConditions{iExp}.id] == id);
+                        if ~isempty(iCondInExp)
+                            pooledStimStats{iCond} = vertcat(pooledStimStats{iCond}, stimStats{iExp}(:, iCondInExp));
+                            pooledMoveStats{iCond} = vertcat(pooledMoveStats{iCond}, moveStats{iExp});
+                        end
+                    end
+                end
+
+                % Plot
+                nCols = max(1, floor(sqrt(nConditions)));
+                nRows = max(4, ceil(nConditions / nCols));
+                fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
+                ax = gobjects(nConditions, 1);
+                methodLabel = 'Peak';
+                for iCond = 1:nConditions
+                    stimStats = pooledStimStats{iCond};
+                    moveStats = pooledMoveStats{iCond};
+    
+                    [i, j] = ind2sub([nRows, nCols], iCond);
+                    iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
+                    ax(iCond) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
+                    hold(ax(iCond), 'on')
+                    [sel, labelSig, labelInsig] = selectSignificantUnits(moveStats, stimStats);                   
+                    hSig = scatter(ax(iCond), moveStats(sel), stimStats(sel), 35, 'blue', 'filled', 'DisplayName', labelSig);
+                    hInsig = scatter(ax(iCond), moveStats(~sel), stimStats(~sel), 25, 'black', 'DisplayName', labelInsig);
+                    axis(ax(iCond), 'equal')
+                    plot(ax(iCond), ax(iCond).XLim, [0, 0], 'k--')
+                    plot(ax(iCond), [0, 0], ax(iCond).YLim, 'k--')
+                    xlabel(ax(iCond), moveType)
+                    ylabel(ax(iCond), 'Stim')
+                    title(ax(iCond), pooledConditions(iCond).label)
+                    hold(ax(iCond), 'off')
+                    legend(ax(iCond), [hSig, hInsig], 'Location', 'northoutside', 'Orientation', 'horizontal')
+                end
+                
+                strain = unique({obj.strain});
+                if length(strain) == 1
+                    strain = strain{1};
+                else
+                    strain = 'Multiple Strains';
+                end
+                nUnits = sum(cellfun(@length, bsr));
+                nSessions = length(obj);
+                animalNames = cellfun(@toAnimalName, {obj.expName}, 'UniformOutput', false);
+                nAnimals = length(unique(animalNames));
+                figure(fig);
+                titleText = sprintf('%s (%i animals, %i sessions)', strain, nAnimals, nSessions);
+                suptitle(titleText);
+
+                varargout = {fig, pooledStimStats, pooledMoveStats, pooledConditions};
+            end
+
+            function animalName = toAnimalName(expName)
+                animalName = strsplit(expName, '_');
+                animalName = animalName{1};
+            end
+
+            function [sel, labelSig, labelInsig] = selectSignificantUnits(ms, ss)
+                switch lower(p.Results.Highlight)
+                    case 'stim'
+                        sel = abs(ss) >= p.Results.StimThreshold; 
+                        labelSig = sprintf('N=%i (stim resp)', nnz(sel));
+                        labelInsig = sprintf('N=%i', nnz(~sel));
+                    case 'move'
+                        sel = abs(ms) >= p.Results.MoveThreshold;    
+                        labelSig = sprintf('N=%i (move resp)', nnz(sel));
+                        labelInsig = sprintf('N=%i', nnz(~sel));
+                    case 'union'
+                        sel = abs(ms) >= p.Results.MoveThreshold | abs(ss) >= p.Results.StimThreshold;
+                        labelSig = sprintf('N=%i (move&stim resp)', nnz(sel));
+                        labelInsig = sprintf('N=%i', nnz(~sel));
+                    case 'intersect'
+                        sel = abs(ms) >= p.Results.MoveThreshold & abs(ss) >= p.Results.StimThreshold;
+                        labelSig = sprintf('N=%i (move/stim resp)', nnz(sel));
+                        labelInsig = sprintf('N=%i', nnz(~sel));
+                end
+            end
+        end
+
         function coords = getProbeCoords(obj, channels)
             map = obj.probeMap;
             coords = zeros(length(channels), 3);
@@ -632,45 +953,50 @@ classdef AcuteRecording < handle
             end
         end
     end
-    
+
     methods (Static)
         function obj = load(varargin)
             p = inputParser();
-            p.addOptional('FilePath', '', @(x) ischar(x) || iscell(x))
+            p.addOptional('FilesOrDirs', '', @(x) ischar(x) || iscell(x))
             p.parse(varargin{:})
-            filepath = p.Results.FilePath;
+            filesOrDirs = p.Results.FilesOrDirs;
 
-            if isempty(filepath)
-                [f, p] = uigetfile('*.mat', 'MultiSelect', 'on');
-                if iscell(f)
-                    filepath = cellfun(@(x) sprintf('%s%s', p, x), f, 'UniformOutput', false);
-                else
-                    filepath = sprintf('%s%s', p, f);
-                end
+            if isempty(filesOrDirs)
+                filesOrDirs = uipickfiles('FilterSpec', '*.mat');
             end
             
             % Read all files in folder (string, dir path)
-            if ~iscell(filepath) && isdir(filepath)
-                if filepath(end) == '\'
-                    filepath = filepath(1:end-1);
-                end
-                files = dir(sprintf('%s\\ar_*.mat', filepath));
-                files = cellfun(@(x) sprintf('%s\\%s', filepath, x), {files.name}, 'UniformOutput', false);
-            % Read list of files (cell array of filepaths)
-            elseif iscell(filepath)
-                files = filepath;
-            % Read single file (string containing one filepath)
-            elseif isfile(filepath)
-                files = {filepath};
-            else
-                error()
+            files = {};
+            if ~iscell(filesOrDirs)
+                assert(ischar(filesOrDirs));
+                filesOrDirs = {filesOrDirs};
             end
 
+
+            for i = 1:length(filesOrDirs)
+                thisPath = filesOrDirs{i};
+                if isfile(thisPath)
+                    files = [files, thisPath];
+                elseif isdir(thisPath)
+                    if thisPath(end) == '\'
+                        thisPath = thisPath(1:end-1);
+                    end
+                    filesInPath = dir(sprintf('%s\\ar_*.mat', thisPath));
+                    filesInPath = cellfun(@(x) sprintf('%s\\%s', thisPath, x), {filesInPath.name}, 'UniformOutput', false);
+                    files = [files, filesInPath];
+                else
+                    error('Path %i of %i (''%s'') cannot be read because it is neither a file or an directory.', i, length(filesOrDirs), thisPath)
+                end
+            end
+
+            tTic = tic();
             S(length(files)) = struct('obj', []);
             for i = 1:length(files)
+                fprintf(1, 'Loading file %i of %i (%s)...\n', i, length(files), files{i});
                 S(i) = load(files{i}, 'obj');
             end
             obj = [S.obj];
+            fprintf(1, 'Loaded %i files in %.2f seconds.\n', length(files), toc(tTic));
         end
 
         % TODO: Return iPulseInTrain
@@ -694,7 +1020,7 @@ classdef AcuteRecording < handle
             tOn = t(iOn);
             tOff = t(iOff);
         end
-        
+
         function [light, fiber, powerOffset] = findMatchingCalibration(data, power, galvo)
             % A
             sel_A = data.Galvo_A == galvo;
@@ -837,9 +1163,34 @@ classdef AcuteRecording < handle
             h.DataTipTemplate.DataTipRows(end+2) = dataTipTextRow(method, stats);
             h.DataTipTemplate.DataTipRows(end+3) = dataTipTextRow('Index', 1:length(stats));
         end
-        
-        function pc = poolConditions(conditions)
+
+        function id = calculateConditionID(conditions, base)
+            light = [conditions.light];
+            duration = [conditions.duration];
+            [~, lightRank] = ismember(light, unique(light));
+            [~, durationRank] = ismember(duration, unique(duration));
+            mlRank = [conditions.mlRank];
+            dvRank = [conditions.dvRank];
+            
+            if nargin < 2
+                base = max([max(lightRank), max(durationRank), max(mlRank), max(dvRank)]);
+            end
+            id = lightRank*(base^3) + durationRank*(base^2) + mlRank*(base^1) + dvRank*(base^0);
+        end
+
+        function pc = poolConditions(conditions, base)
+            if nargin < 2
+                base = []; % Suggest use base 4, or leave empty to autocalculate.
+            end
+
             assert(iscell(conditions) && length(conditions) > 1)
+            for i = 1:length(conditions)
+                id = AcuteRecording.calculateConditionID(conditions{i}, base);
+                for j = 1:length(conditions{i})
+                    conditions{i}(j).id = id(j);
+                end
+            end
+
             allConditions = conditions{1};
             for i = 2:length(conditions)
                 allConditions = [allConditions, conditions{i}];
@@ -903,7 +1254,7 @@ classdef AcuteRecording < handle
             end
         end
     end
-    
+
     methods (Static, Access = {})
         function x = lerp(a, b, t)
             if isnan(t)
@@ -944,4 +1295,3 @@ classdef AcuteRecording < handle
         end
     end
 end
-

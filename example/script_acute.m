@@ -30,7 +30,7 @@ clear ar bsr probeMap stim sessionInfo
 sessionInfo.expName = expName;
 sessionInfo.strain = 'A2A-Cre'; % A2A-Cre or D1-Cre;Dlx-Flp;Ai80
 sessionInfo.orientation = 'front'; % Whether probe is anterior (front) or posterior (back) to the headstage. Usually this is back, unless recording in anterior SNr.
-sessionInfo.ml = 1300; % Center of probe. Negative for left hemisphere.
+sessionInfo.ml = -1300; % Center of probe. Negative for left hemisphere.
 sessionInfo.dv = -4600; % From surface of brain, not bregma. Assumes Bregma is 200um above brain surface unless otherwise specified for `importProbeMap`.
 sessionInfo.ap = -3280+350;
 sessionInfo.firstFiber = 'B'; % 'A' or 'B', name of the first patch cable
@@ -47,33 +47,7 @@ ar.summarize(ar.bsr, 'peak', [0, 0.05], 'Store', true);
 ar.save();
 save(sprintf('C:\\SERVER\\%s\\%s\\AcuteRecording\\sessionInfo_%s.mat', animalName, expName, expName), 'sessionInfo');
 
-%% 
-ar = AcuteRecording.load(sprintf('C:\\SERVER\\%s\\%s\\AcuteRecording\\ar_%s.mat', animalName, expName, expName));
 
-
-% %% Fix probemap ML
-% 
-% expName = 'daisy15_20220511';
-% animalName = strsplit(expName, '_');
-% animalName = animalName{1};
-% 
-% sessionInfo.expName = expName;
-% sessionInfo.strain = 'A2A-Cre'; % A2A-Cre or D1-Cre;Dlx-Flp;Ai80
-% sessionInfo.orientation = 'back'; % Whether probe is anterior (front) or posterior (back) to the headstage. Usually this is back, unless recording in anterior SNr.
-% sessionInfo.ml = 1300; % Center of probe. Negative for left hemisphere.
-% sessionInfo.dv = -4500; % From surface of brain, not bregma. Assumes Bregma is 200um above brain surface unless otherwise specified for `importProbeMap`.
-% sessionInfo.ap = -3280;
-% sessionInfo.firstFiber = 'B'; % 'A' or 'B', name of the first patch cable
-% sessionInfo.firstLight = 0.1; % 
-% 
-% ar = AcuteRecording.load(sprintf('C:\\SERVER\\%s\\%s\\AcuteRecording\\ar_%s.mat', animalName, expName, expName));
-% probeMap = ar.importProbeMap(sessionInfo.orientation, sessionInfo.ml, sessionInfo.dv, sessionInfo.ap);
-% ar.save();
-% save(sprintf('C:\\SERVER\\%s\\%s\\AcuteRecording\\sessionInfo_%s.mat', animalName, expName, expName), 'sessionInfo');
-% 
-% [bsr, ~] = ar.selectStimResponse('Light', 0.5, 'Duration', 0.01);
-% ar.plotMapByStimCondition(bsr, [0.25, 3], 0.25, 'peak', [0 0.05], 0.25, 'UseSignedML', true);
-% ar.plotMapByStimCondition(bsr, [0.25, 3], 0.25, 'peak', [0 0.05], 0.25);
 %% Load AR file (much faster than loading TR and rebuilding AR)
 ar = AcuteRecording.load(sprintf('C:\\SERVER\\%s\\%s\\AcuteRecording\\ar_%s.mat', animalName, expName, expName));
 
@@ -101,15 +75,166 @@ end
 clear ax i nConditions statsPeak statsFirstPeak statsMean
 
 % Plot probe map per stim condition
-ar.plotMapByStimCondition(bsr, [0.25, 3], 0.25, 'peak', window, 0.25);
+ar.plotStimResponseMap(bsr, [0.25, 3], 0.25, 'peak', window, 0.25);
 
 %% One Str map per SNr unit (WARNING: MANY FIGURES)
-ar.plotPSTHByStimCondition(bsr, 'CLim', [-.5, .5]);
+ar.plotStimResponse(bsr, 'CLim', [-.5, .5]);
 
 %% Read multiple files, pool stats and plot in same map.
 plotD1(-3280)
-plotD1(-3280+350)
+plotD1(-3280+350) 
 % plotD1([])
+% 
+%%
+plotA2A(-3280)
+plotA2A([])
+
+%% Analyze movement responses 
+% (Step 1. Load Data)
+if ~exist('ar', 'var') || ~strcmpi(ar.expName, expName)
+    ar = AcuteRecording.load(sprintf('C:\\SERVER\\%s\\%s\\AcuteRecording\\ar_%s.mat', animalName, expName, expName));
+end
+
+if ~exist('tr', 'var') || ~contains(lower(tr.GetExpName()), lower(expName))
+    f = dir(sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\tr_sorted_%s*.mat', animalName, expName, expName));
+    load(sprintf('%s\\%s', f.folder, f.name));
+    clear f
+end
+
+% Analyze movement responses (Step 2. Summarize)
+[bmrPress, ~, ~] = ar.binMoveResponse(tr, 'Press', 'Window', [-6, 1], 'BaselineWindow', [-6, -2], 'Store', true);
+[bmrLick, ~, ~] = ar.binMoveResponse(tr, 'Lick', 'Window', [-6, 1], 'BaselineWindow', [-6, -2], 'Store', true);
+statsPress = ar.summarizeMoveResponse('Press', 'peak', [-1, 0], 'AllowedTrialLength', [2, Inf], 'Store', true);
+statsLick = ar.summarizeMoveResponse('Lick', 'peak', [-1, 0], 'AllowedTrialLength', [2, Inf], 'Store', true);
+
+%% Batch process movement responses, append to AR and save to disk
+% (Step 1. Load Data)
+ar = AcuteRecording.load();
+
+for i = 1:length(ar)
+    % Load related TetrodeRecording file.
+    expName = ar(i).expName;
+    animalName = strsplit(expName, '_');
+    animalName = animalName{1};
+    f = dir(sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\tr_sorted_%s*.mat', animalName, expName, expName));
+    assert(length(f) == 1)
+    S = load(sprintf('%s\\%s', f.folder, f.name));
+    tr = S.tr;
+
+    % Analyze movement responses (Step 2. Summarize)
+    ar(i).binMoveResponse(tr, 'Press', 'Window', [-6, 1], 'BaselineWindow', [-6, -2], 'Store', true);
+    ar(i).binMoveResponse(tr, 'Lick', 'Window', [-6, 1], 'BaselineWindow', [-6, -2], 'Store', true);
+    ar(i).summarizeMoveResponse('Press', 'peak', [-1, 0], 'AllowedTrialLength', [2, Inf], 'Store', true);
+    ar(i).summarizeMoveResponse('Lick', 'peak', [-1, 0], 'AllowedTrialLength', [2, Inf], 'Store', true);
+
+    clear tr
+
+    if strcmpi(ar(i).strain, 'A2A-Cre')
+        path = 'C:\SERVER\Experiment_Galvo_A2ACre';
+    elseif strcmpi(ar(i).strain, 'D1-Cre;Dlx-Flp;Ai80')
+        path = 'C:\SERVER\Experiment_Galvo_D1Cre;DlxFlp;Ai80';
+    else
+        error('Unrecognized strain %s', ar(i).strain);
+    end
+    ar(i).save('ar_', path);
+end
+
+clear i expName animalName f S
+
+
+%% Load and Visualize movement response vs stim response
+close all
+% Load data if necessary
+if ~exist('exp_D1', 'var')
+    exp_D1 = readdir('C:\SERVER\Experiment_Galvo_D1Cre;DlxFlp;Ai80\AcuteRecording');
+end
+if ~exist('exp_A2A', 'var')
+    exp_A2A = readdir('C:\SERVER\Experiment_Galvo_A2ACre\AcuteRecording');
+end
+
+clear bsr light
+% Visualize movement response data
+moveThreshold = 1;
+stimThreshold = .5;
+critLight = [];
+for i = 1:length(exp_A2A.ar)
+    if isempty(critLight)
+        l = exp_A2A.crit(i).light;
+    else
+        l = critLight;
+    end
+    bsr{i} = exp_A2A.ar(i).selectStimResponse('Light', l, 'Duration', exp_A2A.crit(i).duration);
+%     exp_A2A.ar(i).plotStimVsMoveResponse(bsr, 'press', 'StimThreshold', 0.25, 'MoveThreshold', 0.25);
+end
+f1 = exp_A2A.ar.plotStimVsMoveResponse(bsr, 'Press', 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim');
+f2 = exp_A2A.ar.plotStimVsMoveResponse(bsr, 'Lick', 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim');
+
+clear bsr
+for i = 1:length(exp_D1.ar)
+    if isempty(critLight)
+        l = exp_D1.crit(i).light;
+    else
+        l = critLight;
+    end
+    bsr{i} = exp_D1.ar(i).selectStimResponse('Light', l, 'Duration', exp_D1.crit(i).duration);
+%     exp_A2A.ar(i).plotStimVsMoveResponse(bsr, 'press', 'StimThreshold', 0.25, 'MoveThreshold', 0.25);
+end
+[f3, pss, pms, pc] = exp_D1.ar.plotStimVsMoveResponse(bsr, 'Press', 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim');
+f4 = exp_D1.ar.plotStimVsMoveResponse(bsr, 'Lick', 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim');
+
+f1.Position = [0, 0, .4, 1];
+f2.Position = [0.5, 0, .4, 1];
+f3.Position = [1, 0, .4, 1];
+f4.Position = [1.5, 0, .4, 1];
+
+ax = findobj('Type', 'axes', 'Tag', 'scatter');
+xlims = vertcat(ax.XLim);
+ylims = vertcat(ax.YLim);
+xrange = [min(xlims(:, 1)), max(xlims(:, 2))];
+yrange = [min(ylims(:, 1)), max(ylims(:, 2))];
+set(ax, 'XLim', xrange)
+set(ax, 'YLim', yrange)
+
+
+
+%% 
+function exp = readdir(fdir)
+    exp.fdir = fdir;
+    exp.ar = AcuteRecording.load(fdir);
+    exp.sessionInfo = readSessionInfo(fdir);
+    exp.crit = inferCriteria(exp.ar, [0.5, 0.4], 0.01);
+end
+
+function sessionInfo = readSessionInfo(fdir)
+    fileinfo = dir(sprintf('%s\\sessionInfo_*.mat', fdir));
+    for i = 1:length(fileinfo)
+        S(i) = load(sprintf('%s\\%s', fileinfo(i).folder, fileinfo(i).name), 'sessionInfo');
+    end
+    sessionInfo = [S.sessionInfo];
+end
+
+function crit = inferCriteria(ar, varargin)
+    p = inputParser();
+    p.addRequired('AcuteRecording', @(x) isa(x, 'AcuteRecording'));
+    p.addOptional('Light', [0.5, 0.4], @isnumeric);
+    p.addOptional('Duration', 0.01, @(x) isnumeric(x) && length(x) == 1);
+    p.parse(ar, varargin{:});
+    ar = p.Results.AcuteRecording;
+
+    crit(length(ar)) = struct('light', [], 'duration', []);
+    for i = 1:length(ar)
+        critFound = false;
+        for light = p.Results.Light(:)'
+            if any([ar(i).conditions.light] == light & [ar(i).conditions.duration] == p.Results.Duration)
+                crit(i).light = light;
+                critFound = true;
+                break
+            end
+        end
+        crit(i).duration = p.Results.Duration;
+        assert(critFound, 'Criteria (Light=%s, Duration=%s) not matched for experiment %i: %s.', num2str(p.Results.Light), num2str(p.Results.Duration), i, ar(i).expName)
+    end
+end
 
 %%
 function plotD1(ap, useSignedML)
@@ -139,10 +264,44 @@ function plotD1(ap, useSignedML)
         % ar(i).importProbeMap(sessionInfo(i).orientation, sessionInfo(i).ml, sessionInfo(i).dv, sessionInfo(i).ap);
         bsr{i} = ar(i).selectStimResponse('Light', crit(i).light, 'Duration', crit(i).duration);
         [stats{i}, conditions{i}] = ar(i).summarize(bsr{i}, 'peak', window);
-        titleText = ar(i).plotMapByStimCondition(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25, 'UseSignedML', useSignedML);
+        titleText = ar(i).plotStimResponseMap(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25, 'UseSignedML', useSignedML);
         print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
     end
-    titleText = ar.plotMapByStimCondition(bsr, [0.25, 1], 0.25, 'peak', window, 0.25, 'HideFlatUnits', true, 'UseSignedML', useSignedML);
+    titleText = ar.plotStimResponseMap(bsr, [0.25, 1], 0.25, 'peak', window, 0.25, 'HideFlatUnits', true, 'UseSignedML', useSignedML);
+    print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
+end
+
+function plotA2A(ap, useSignedML)
+    if nargin < 1
+        ap = [];
+    end
+    if nargin < 3
+        useSignedML = false;
+    end
+
+    window = [0, 0.05];
+
+    fdir = 'C:\SERVER\Experiment_Galvo_A2ACre\AcuteRecording';
+    ar = AcuteRecording.load(fdir);
+    sessionInfo = readSessionInfo(fdir);
+    crit = inferCriteria(ar);
+    assert(all(strcmp({ar.expName}, {sessionInfo.expName})))
+    
+    if ~isempty(ap)
+        sel = [sessionInfo.ap] == ap;
+        ar = ar(sel);
+        crit = crit(sel);
+        sessionInfo = sessionInfo(sel);
+    end
+
+    for i = 1:length(ar)
+        % ar(i).importProbeMap(sessionInfo(i).orientation, sessionInfo(i).ml, sessionInfo(i).dv, sessionInfo(i).ap);
+        bsr{i} = ar(i).selectStimResponse('Light', crit(i).light, 'Duration', crit(i).duration);
+        [stats{i}, conditions{i}] = ar(i).summarize(bsr{i}, 'peak', window);
+        titleText = ar(i).plotStimResponseMap(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25, 'UseSignedML', useSignedML);
+        print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
+    end
+    titleText = ar.plotStimResponseMap(bsr, [0.25, 1], 0.25, 'peak', window, 0.25, 'HideFlatUnits', true, 'UseSignedML', useSignedML);
     print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
 end
 
@@ -207,24 +366,4 @@ function appendBRtoTR(br, tr)
     tr.AnalogIn.Channels = br.analogChannels;
     tr.AnalogIn.Timestamps = br.analogTimestamps + interp1(br.digitalEvents.LaserOn, brTimeOffset, br.analogTimestamps, 'linear', 'extrap');
     tr.AnalogIn.Data = br.analogData;
-end
-
-function sessionInfo = readSessionInfo(fdir)
-    fileinfo = dir(sprintf('%s\\sessionInfo_*.mat', fdir));
-    for i = 1:length(fileinfo)
-        S(i) = load(sprintf('%s\\%s', fileinfo(i).folder, fileinfo(i).name), 'sessionInfo');
-    end
-    sessionInfo = [S.sessionInfo];
-end
-
-function crit = inferCriteria(ar)
-    for i = 1:length(ar)
-        if any([ar(i).conditions.light] == 0.5 & [ar(i).conditions.duration] == 0.01)
-            crit(i).light = 0.5;
-        else
-            assert(any([ar(i).conditions.light] == 0.4 & [ar(i).conditions.duration] == 0.01))
-            crit(i).light = 0.4;
-        end
-        crit(i).duration = 0.01;
-    end
 end
