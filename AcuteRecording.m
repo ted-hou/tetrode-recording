@@ -781,12 +781,22 @@ classdef AcuteRecording < handle
         end
 
         function varargout = plotStimVsMoveResponse(obj, bsr, moveType, varargin)
+            function m = mean2(x)
+                m = mean(x, 2);
+            end
+
+            function m = max2(x)
+                [~, I] = max(abs(x), [], 2);
+                m = diag(x(:, I));
+            end
+            
             p = inputParser();
             p.addRequired('BinnedStimResponse', @(x) isstruct(x) || iscell(x));
             p.addRequired('MoveType', @(x) ismember(lower(x), {'press', 'lick'}));
             p.addParameter('StimThreshold', 0.5, @isnumeric);
             p.addParameter('MoveThreshold', 1, @isnumeric);
             p.addParameter('Highlight', 'intersect', @(x) ismember(lower(x), {'move', 'stim', 'union', 'intersect'}))
+            p.addParameter('PoolConditions', 'off', @(x) ismember(lower(x), {'off', 'mean', 'max'})) % Should multiple stim conditions be merged into one?
             p.addParameter('ConditionBase', 4, @isnumeric); % Max number of stim conditions per category (e.g. if there are 2 durations, 3 light levels, 2 fibers and 4 galvo voltages, then use base 4 = max([2, 3, 2, 4])). Suggest 4, or [] to autocalculate.
             p.parse(bsr, moveType, varargin{:});
             bsr = p.Results.BinnedStimResponse;
@@ -806,31 +816,35 @@ classdef AcuteRecording < handle
                 [stimStats, stimConditions] = obj.summarize(bsr, 'peak', [0, 0.05]);
 
                 % Figure layout, one subplot per stim condition
-                nConditions = length(stimConditions);
-                nCols = max(1, floor(sqrt(nConditions)));
-                nRows = max(4, ceil(nConditions / nCols));
-                fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
-                ax = gobjects(nConditions, 1);
-                for iCond = 1:nConditions
-                    [i, j] = ind2sub([nRows, nCols], iCond);
-                    iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
-                    ax(iCond) = subplot(nRows, nCols, iSubplot);
-                    hold(ax(iCond), 'on')
-                    [sel, labelSig, labelInsig] = selectSignificantUnits(moveStats, stimStats(:, iCond));
-                    hSig = scatter(ax(iCond), moveStats(sel), stimStats(sel, iCond), 35, 'blue', 'filled', 'DisplayName', labelSig);
-                    hInsig = scatter(ax(iCond), moveStats(~sel), stimStats(~sel, iCond), 25, 'black', 'DisplayName', labelInsig);
-                    axis(ax(iCond), 'equal')
-                    plot(ax(iCond), ax(iCond).XLim, [0, 0], 'k--')
-                    plot(ax(iCond), [0, 0], ax(iCond).YLim, 'k--')
-                    title(ax(iCond), stimConditions(iCond).label)
-                    xlabel(ax(iCond), moveType)
-                    ylabel(ax(iCond), 'Stim')
-                    hold(ax(iCond), 'off')
-                    legend(ax(iCond), [hSig, hInsig], 'Location', 'northoutside', 'Orientation', 'horizontal')
+                if strcmpi(p.Results.PoolConditions, 'off')
+                    nConditions = length(stimConditions);
+                    nCols = max(1, floor(sqrt(nConditions)));
+                    nRows = max(4, ceil(nConditions / nCols));
+                    fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
+                    ax = gobjects(nConditions, 1);
+                    for iCond = 1:nConditions
+                        [i, j] = ind2sub([nRows, nCols], iCond);
+                        iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
+                        ax(iCond) = subplot(nRows, nCols, iSubplot);
+                        AcuteRecording.plotScatter(ax(iCond), moveStats, stimStats(:, iCond), p.Results.MoveThreshold, p.Results.StimThreshold, ...
+                            'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', stimConditions(iCond).label);
+                    end
+                    figure(fig);
+                    titleText = sprintf('%s (%s)', obj.expName, obj.strain);
+                    suptitle(titleText);
+                else
+                    fig = figure('Units', 'Normalized', 'Position', [0, 0, 0.4, 0.4]);
+                    ax = axes(fig);
+                    if strcmpi(p.Results.PoolConditions, 'mean')
+                        stimStats = mean2(stimStats);
+                        titleText = sprintf('Mean stim effect vs. %s', moveType);
+                    elseif strcmpi(p.Results.PoolConditions, 'max')
+                        stimStats = max2(stimStats);
+                        titleText = sprintf('Max stim effect vs. %s', moveType);
+                    end
+                    AcuteRecording.plotScatter(ax, moveStats, stimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
+                        'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', titleText);
                 end
-                figure(fig);
-                titleText = sprintf('%s (%s)', obj.expName, obj.strain);
-                suptitle(titleText);                
             elseif length(obj) > 1
                 assert(iscell(bsr) && length(obj) == length(bsr))
                 
@@ -844,57 +858,63 @@ classdef AcuteRecording < handle
                         error()
                 end
 
-
                 for i = 1:length(obj)
                     moveStats{i} = obj(i).summarizeMoveResponse(bmr{i}, 'peak', [-1, 0], 'AllowedTrialLength', [1, Inf]);
                     [stimStats{i}, stimConditions{i}] = obj(i).summarize(bsr{i}, 'peak', [0, 0.05]);
                 end
-% 
-%                 pooledMoveStats = moveStats{1};
-%                 for i = 2:length(obj)
-%                     pooledMoveStats = [pooledMoveStats; moveStats{i}];
-%                 end
 
-                pooledConditions = AcuteRecording.poolConditions(stimConditions, p.Results.ConditionBase);
-                nConditions = length(pooledConditions);
-                pooledStimStats = cell(1, nConditions);
-                pooledMoveStats = cell(1, nConditions);
-                for iCond = 1:nConditions
-                    id = pooledConditions(iCond).id;
-                    for iExp = 1:length(obj)
-                        iCondInExp = find([stimConditions{iExp}.id] == id);
-                        if ~isempty(iCondInExp)
-                            pooledStimStats{iCond} = vertcat(pooledStimStats{iCond}, stimStats{iExp}(:, iCondInExp));
-                            pooledMoveStats{iCond} = vertcat(pooledMoveStats{iCond}, moveStats{iExp});
+                if strcmpi(p.Results.PoolConditions, 'off')
+                    pooledConditions = AcuteRecording.poolConditions(stimConditions, p.Results.ConditionBase);
+                    nConditions = length(pooledConditions);
+                    pooledStimStats = cell(1, nConditions);
+                    pooledMoveStats = cell(1, nConditions);
+                    for iCond = 1:nConditions
+                        id = pooledConditions(iCond).id;
+                        for iExp = 1:length(obj)
+                            iCondInExp = find([stimConditions{iExp}.id] == id);
+                            if ~isempty(iCondInExp)
+                                pooledStimStats{iCond} = vertcat(pooledStimStats{iCond}, stimStats{iExp}(:, iCondInExp));
+                                pooledMoveStats{iCond} = vertcat(pooledMoveStats{iCond}, moveStats{iExp});
+                            end
                         end
                     end
-                end
-
-                % Plot
-                nCols = max(1, floor(sqrt(nConditions)));
-                nRows = max(4, ceil(nConditions / nCols));
-                fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
-                ax = gobjects(nConditions, 1);
-                methodLabel = 'Peak';
-                for iCond = 1:nConditions
-                    stimStats = pooledStimStats{iCond};
-                    moveStats = pooledMoveStats{iCond};
     
-                    [i, j] = ind2sub([nRows, nCols], iCond);
-                    iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
-                    ax(iCond) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
-                    hold(ax(iCond), 'on')
-                    [sel, labelSig, labelInsig] = selectSignificantUnits(moveStats, stimStats);                   
-                    hSig = scatter(ax(iCond), moveStats(sel), stimStats(sel), 35, 'blue', 'filled', 'DisplayName', labelSig);
-                    hInsig = scatter(ax(iCond), moveStats(~sel), stimStats(~sel), 25, 'black', 'DisplayName', labelInsig);
-                    axis(ax(iCond), 'equal')
-                    plot(ax(iCond), ax(iCond).XLim, [0, 0], 'k--')
-                    plot(ax(iCond), [0, 0], ax(iCond).YLim, 'k--')
-                    xlabel(ax(iCond), moveType)
-                    ylabel(ax(iCond), 'Stim')
-                    title(ax(iCond), pooledConditions(iCond).label)
-                    hold(ax(iCond), 'off')
-                    legend(ax(iCond), [hSig, hInsig], 'Location', 'northoutside', 'Orientation', 'horizontal')
+                    % Plot
+                    nCols = max(1, floor(sqrt(nConditions)));
+                    nRows = max(4, ceil(nConditions / nCols));
+                    fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
+                    ax = gobjects(nConditions, 1);
+                    methodLabel = 'Peak';
+                    for iCond = 1:nConditions
+                        stimStats = pooledStimStats{iCond};
+                        moveStats = pooledMoveStats{iCond};
+        
+                        [i, j] = ind2sub([nRows, nCols], iCond);
+                        iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
+                        ax(iCond) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
+                        AcuteRecording.plotScatter(ax(iCond), moveStats, stimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
+                            'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', pooledConditions(iCond).label);
+                    end
+
+                    varargout = {fig, pooledStimStats, pooledMoveStats, pooledConditions};
+                else
+                    switch lower(p.Results.PoolConditions)
+                        case 'mean'
+                            stimStats = cellfun(@mean2, stimStats, 'UniformOutput', false);
+                            titleText = sprintf('Mean stim effect vs. %s', moveType);
+                        case 'max'
+                            stimStats = cellfun(@max2, stimStats, 'UniformOutput', false);
+                            titleText = sprintf('Max stim effect vs. %s', moveType);
+                    end
+                    stimStats = cat(1, stimStats{:});
+                    moveStats = cat(1, moveStats{:});
+
+                    fig = figure('Units', 'Normalized', 'Position', [0, 0, 0.4, 0.4]);
+                    ax = axes(fig, 'Tag', 'scatter');
+                    AcuteRecording.plotScatter(ax, moveStats, stimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
+                        'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', titleText);
+
+                    varargout = {fig, stimStats, moveStats};
                 end
                 
                 strain = unique({obj.strain});
@@ -910,34 +930,11 @@ classdef AcuteRecording < handle
                 figure(fig);
                 titleText = sprintf('%s (%i animals, %i sessions)', strain, nAnimals, nSessions);
                 suptitle(titleText);
-
-                varargout = {fig, pooledStimStats, pooledMoveStats, pooledConditions};
             end
 
             function animalName = toAnimalName(expName)
                 animalName = strsplit(expName, '_');
                 animalName = animalName{1};
-            end
-
-            function [sel, labelSig, labelInsig] = selectSignificantUnits(ms, ss)
-                switch lower(p.Results.Highlight)
-                    case 'stim'
-                        sel = abs(ss) >= p.Results.StimThreshold; 
-                        labelSig = sprintf('N=%i (stim resp)', nnz(sel));
-                        labelInsig = sprintf('N=%i', nnz(~sel));
-                    case 'move'
-                        sel = abs(ms) >= p.Results.MoveThreshold;    
-                        labelSig = sprintf('N=%i (move resp)', nnz(sel));
-                        labelInsig = sprintf('N=%i', nnz(~sel));
-                    case 'union'
-                        sel = abs(ms) >= p.Results.MoveThreshold | abs(ss) >= p.Results.StimThreshold;
-                        labelSig = sprintf('N=%i (move&stim resp)', nnz(sel));
-                        labelInsig = sprintf('N=%i', nnz(~sel));
-                    case 'intersect'
-                        sel = abs(ms) >= p.Results.MoveThreshold & abs(ss) >= p.Results.StimThreshold;
-                        labelSig = sprintf('N=%i (move/stim resp)', nnz(sel));
-                        labelInsig = sprintf('N=%i', nnz(~sel));
-                end
             end
         end
 
@@ -1105,6 +1102,9 @@ classdef AcuteRecording < handle
             p = inputParser();
             if isgraphics(varargin{1})
                 p.addRequired('ax', @isgraphics)
+                ax = varargin{1};
+            else
+                ax = gca();
             end
             p.addRequired('coords', @isnumeric)
             p.addRequired('stats', @isnumeric)
@@ -1118,7 +1118,6 @@ classdef AcuteRecording < handle
             p.addParameter('UseSignedML', false, @islogical);
             p.parse(varargin{:})
             
-            ax = p.Results.ax;
             coords = p.Results.coords;
             stats = p.Results.stats;
             srange = p.Results.srange;
@@ -1162,6 +1161,62 @@ classdef AcuteRecording < handle
             h.DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('Channel', channels);
             h.DataTipTemplate.DataTipRows(end+2) = dataTipTextRow(method, stats);
             h.DataTipTemplate.DataTipRows(end+3) = dataTipTextRow('Index', 1:length(stats));
+        end
+
+        function varargout = plotScatter(varargin)
+            p = inputParser();
+            if isgraphics(varargin{1})
+                p.addRequired('ax', @isgraphics)
+                ax = varargin{1};
+            else
+                ax = gca();
+            end
+            p.addRequired('moveStats', @isnumeric)
+            p.addRequired('stimStats', @isnumeric)
+            p.addOptional('moveThreshold', 1, @isnumeric)
+            p.addOptional('stimThreshold', 0.5, @isnumeric)
+            p.addParameter('Highlight', 'intersect', @(x) ismember(lower(x), {'stim', 'move', 'union', 'intersect'}))
+            p.addParameter('Title', '', @ischar)
+            p.addParameter('MoveType', 'Move', @(x) ismember(lower(x), {'press', 'lick'}))
+            p.parse(varargin{:})
+            
+            moveStats = p.Results.moveStats;
+            stimStats = p.Results.stimStats;
+            moveThreshold = p.Results.moveThreshold;
+            stimThreshold = p.Results.stimThreshold;
+
+            hold(ax, 'on')
+    
+            switch lower(p.Results.Highlight)
+                case 'stim'
+                    sel = abs(stimStats) >= stimThreshold; 
+                    labelSig = sprintf('N=%i (stim resp)', nnz(sel));
+                    labelInsig = sprintf('N=%i', nnz(~sel));
+                case 'move'
+                    sel = abs(moveStats) >= moveThreshold;    
+                    labelSig = sprintf('N=%i (move resp)', nnz(sel));
+                    labelInsig = sprintf('N=%i', nnz(~sel));
+                case 'union'
+                    sel = abs(moveStats) >= moveThreshold | abs(stimStats) >= stimThreshold;
+                    labelSig = sprintf('N=%i (move&stim resp)', nnz(sel));
+                    labelInsig = sprintf('N=%i', nnz(~sel));
+                case 'intersect'
+                    sel = abs(moveStats) >= moveThreshold & abs(stimStats) >= stimThreshold;
+                    labelSig = sprintf('N=%i (move/stim resp)', nnz(sel));
+                    labelInsig = sprintf('N=%i', nnz(~sel));
+            end
+
+            hSig = scatter(ax, moveStats(sel), stimStats(sel), 35, 'blue', 'filled', 'DisplayName', labelSig);
+            hInsig = scatter(ax, moveStats(~sel), stimStats(~sel), 25, 'black', 'DisplayName', labelInsig);
+            axis(ax, 'equal')
+            hY = plot(ax, ax.XLim, [0, 0], 'k--');
+            hX = plot(ax, [0, 0], ax.YLim, 'k--');
+            title(ax, p.Results.Title)
+            xlabel(ax, p.Results.MoveType)
+            ylabel(ax, 'Stim')
+            hold(ax, 'off')
+            hLegend = legend(ax, [hSig, hInsig], 'Location', 'northoutside', 'Orientation', 'horizontal');
+            varargout = {ax, hSig, hInsig, hX, hY, hLegend};
         end
 
         function id = calculateConditionID(conditions, base)
