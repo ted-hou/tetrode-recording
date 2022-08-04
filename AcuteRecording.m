@@ -466,7 +466,6 @@ classdef AcuteRecording < handle
 
         function varargout = selectStimResponse(obj, varargin)
             p = inputParser();
-            p.addOptional('BinnedStimResponse', obj.bsr, @isstruct);
             p.addParameter('Light', [], @isnumeric);
             p.addParameter('Duration', [], @isnumeric);
             p.addParameter('MLRank', [], @isnumeric); % 1: most medial, 4: most lateral
@@ -474,7 +473,6 @@ classdef AcuteRecording < handle
             p.addParameter('Fiber', {}, @(x) ischar(x) || iscell(x));
             p.addParameter('Galvo', [], @isnumeric);
             p.parse(varargin{:});
-            bsr = p.Results.BinnedStimResponse;
             crit.light = p.Results.Light;
             crit.duration = p.Results.Duration;
             crit.mlRank = p.Results.MLRank;
@@ -502,17 +500,103 @@ classdef AcuteRecording < handle
                 sel = sel & ismember(obj.stim.galvo, crit.galvo);
             end
             
-            selBSR = bsr;
-            selPulse = find(sel);
-            for i = 1:length(bsr)
-                selBSR(i).spikeRates = selBSR(i).spikeRates(sel, :);
-                selBSR(i).normalizedSpikeRates = selBSR(i).normalizedSpikeRates(sel, :);
-                selBSR(i).selPulse = selPulse;
+            bsr = obj.bsr;
+            IPulse = find(sel);
+            for i = 1:length(obj.bsr)
+                bsr(i).spikeRates = bsr(i).spikeRates(sel, :);
+                bsr(i).normalizedSpikeRates = bsr(i).normalizedSpikeRates(sel, :);
+                bsr(i).IPulse = IPulse;
             end
             
-            fprintf(1, '%i trials selected with provided criteria.\n', length(selPulse))
+            fprintf(1, '%i trials selected with provided criteria.\n', length(IPulse))
             
-            varargout = {selBSR, selPulse};
+            varargout = {bsr, IPulse};
+        end
+
+        function groups = groupStimResponse(obj, bsrOrIPulse, groupBy, varargin)
+            function y = tryConsolidate(x)
+                if length(unique(x)) == 1
+                    y = x(1);
+                else
+                    y = x;
+                end
+            end
+
+            p = inputParser();
+            if isstruct(bsrOrIPulse)
+                p.addRequired('BinnedStimResponse', @isstruct);
+                if isfield(bsrOrIPulse, 'IPulse')
+                    IPulse = bsrOrIPulse.IPulse;
+                else
+                    IPulse = 1:length(obj.stim.tOn);
+                end
+            else
+                p.addRequired('IPulse', @isnumeric);
+                if ~isempty(bsrOrIPulse)
+                    IPulse = bsrOrIPulse;
+                else
+                    IPulse = 1:length(obj.stim.tOn);
+                end
+            end
+            p.addRequired('GroupBy', @(x) all(ismember(x, {'light', 'duration', 'ml', 'dv'})))
+            p.addParameter('HashBase', 10, @isnumeric);
+            p.parse(bsrOrIPulse, groupBy, varargin{:});
+            groupBy = p.Results.GroupBy;
+            hashBase = p.Results.HashBase;
+
+            % Find total number of unique conditions
+            light = obj.stim.light(IPulse);
+            duration = obj.stim.duration(IPulse);
+            fiber = obj.stim.fiber(IPulse);
+            galvo = obj.stim.galvo(IPulse);
+            [~, lightRank] = ismember(light, unique(light));
+            [~, durationRank] = ismember(duration, unique(duration));
+            mlRank = obj.stim.mlRank(IPulse);
+            dvRank = obj.stim.dvRank(IPulse);
+            
+            suggestedHashBase = max([max(lightRank), max(durationRank), max(mlRank), max(dvRank)]);
+            if hashBase < suggestedHashBase
+                error('Using hash base %i will cause problems, suggest using %i or higher.', hashBase, suggestedHashBase);
+            end
+            
+            % Hash for each stim pulse, identical conditions should
+            % generate same hash. This will NOT hold up across sessions
+            % though.
+            hash = lightRank*(hashBase^3) + durationRank*(hashBase^2) + mlRank*(hashBase^1) + dvRank*(hashBase^0);
+            
+            % Hash for each group. Ignored critera do not add to hash.
+            groupHash = 0;
+            if ismember('light', groupBy)
+                groupHash = groupHash + lightRank*(hashBase^3);
+            end
+            if ismember('duration', groupBy)
+                groupHash = groupHash + durationRank*(hashBase^2);
+            end
+            if ismember('ml', groupBy)
+                groupHash = groupHash + mlRank*(hashBase^1);
+            end
+            if ismember('dv', groupBy)
+                groupHash = groupHash + dvRank*(hashBase^0);
+            end
+
+            [uniqueGroupHash, ia] = unique(groupHash);
+            nGroups = length(uniqueGroupHash);
+            groups(nGroups) = struct('groupHash', [], 'hash', [], 'numTrials', [], 'light', [], 'duration', [], 'mlRank', [], 'dvRank', [], 'fiber', '', 'galvo', [], 'IPulse', []);
+
+            for iGrp = 1:nGroups
+                i = ia(iGrp);
+                groups(iGrp).groupHash = groupHash(i);
+                sel = groupHash == groupHash(i);
+                groups(iGrp).IPulse = IPulse(sel);
+                groups(iGrp).hash = tryConsolidate(hash(sel));
+                groups(iGrp).numTrials = nnz(sel);
+                groups(iGrp).light = tryConsolidate(light(sel));
+                groups(iGrp).duration = tryConsolidate(duration(sel));
+                groups(iGrp).mlRank = tryConsolidate(mlRank(sel));
+                groups(iGrp).dvRank = tryConsolidate(dvRank(sel));
+                groups(iGrp).fiber = tryConsolidate(fiber(sel));
+                groups(iGrp).galvo = tryConsolidate(galvo(sel));
+            end
         end
 
         function [stats, conditions] = summarize(obj, bsr, varargin)
@@ -541,13 +625,13 @@ classdef AcuteRecording < handle
             end
         end
 
-        function varargout = groupByConditions(obj, bsr)
+        function varargout = groupByConditions(obj, bsr, base)
             assert(length(bsr) == 1)
 
             spikeRates = bsr.spikeRates;
             normalizedSpikeRates = bsr.normalizedSpikeRates;
-            if isfield(bsr, 'selPulse')
-                I = bsr.selPulse;
+            if isfield(bsr, 'IPulse')
+                I = bsr.IPulse;
             else
                 I = 1:length(obj.stim.tOn);
             end
@@ -555,14 +639,16 @@ classdef AcuteRecording < handle
             % Find total number of unique conditions
             light = obj.stim.light(I);
             duration = obj.stim.duration(I);
+            fiber = obj.stim.fiber(I);
+            galvo = obj.stim.galvo(I);
             [~, lightRank] = ismember(light, unique(light));
             [~, durationRank] = ismember(duration, unique(duration));
             mlRank = obj.stim.mlRank(I);
             dvRank = obj.stim.dvRank(I);
-            fiber = obj.stim.fiber(I);
-            galvo = obj.stim.galvo(I);
             
-            base = max([max(lightRank), max(durationRank), max(mlRank), max(dvRank)]);
+            if nargin < 3
+                base = max([max(lightRank), max(durationRank), max(mlRank), max(dvRank)]);
+            end
             condId = lightRank*(base^3) + durationRank*(base^2) + mlRank*(base^1) + dvRank*(base^0);
             [uniqueConditions, ia] = unique(condId);
             nConditions = length(uniqueConditions);
@@ -796,7 +882,8 @@ classdef AcuteRecording < handle
             p.addParameter('StimThreshold', 0.5, @isnumeric);
             p.addParameter('MoveThreshold', 1, @isnumeric);
             p.addParameter('Highlight', 'intersect', @(x) ismember(lower(x), {'move', 'stim', 'union', 'intersect'}))
-            p.addParameter('PoolConditions', 'off', @(x) ismember(lower(x), {'off', 'mean', 'max'})) % Should multiple stim conditions be merged into one?
+            p.addParameter('GroupBy', 'StimCondition', @(x) ismember(lower(x), {'stimcondition', 'stimlight', 'stimduration', 'stimml', 'stimdv', 'stimpos', 'unitml', 'unitdv', 'unitpos'}))
+            p.addParameter('GroupStatistics', 'max', @(x) ismember(lower(x), {'mean', 'max'})) % Should multiple stim conditions be merged into one?
             p.addParameter('ConditionBase', 4, @isnumeric); % Max number of stim conditions per category (e.g. if there are 2 durations, 3 light levels, 2 fibers and 4 galvo voltages, then use base 4 = max([2, 3, 2, 4])). Suggest 4, or [] to autocalculate.
             p.parse(bsr, moveType, varargin{:});
             bsr = p.Results.BinnedStimResponse;
@@ -815,36 +902,80 @@ classdef AcuteRecording < handle
                 moveStats = obj.summarizeMoveResponse(bmr, 'peak', [-1, 0], 'AllowedTrialLength', [1, Inf]);
                 [stimStats, stimConditions] = obj.summarize(bsr, 'peak', [0, 0.05]);
 
-                % Figure layout, one subplot per stim condition
-                if strcmpi(p.Results.PoolConditions, 'off')
-                    nConditions = length(stimConditions);
-                    nCols = max(1, floor(sqrt(nConditions)));
-                    nRows = max(4, ceil(nConditions / nCols));
-                    fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
-                    ax = gobjects(nConditions, 1);
-                    for iCond = 1:nConditions
-                        [i, j] = ind2sub([nRows, nCols], iCond);
-                        iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
-                        ax(iCond) = subplot(nRows, nCols, iSubplot);
-                        AcuteRecording.plotScatter(ax(iCond), moveStats, stimStats(:, iCond), p.Results.MoveThreshold, p.Results.StimThreshold, ...
-                            'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', stimConditions(iCond).label);
-                    end
-                    figure(fig);
-                    titleText = sprintf('%s (%s)', obj.expName, obj.strain);
-                    suptitle(titleText);
-                else
-                    fig = figure('Units', 'Normalized', 'Position', [0, 0, 0.4, 0.4]);
-                    ax = axes(fig);
-                    if strcmpi(p.Results.PoolConditions, 'mean')
-                        stimStats = mean2(stimStats);
-                        titleText = sprintf('Mean stim effect vs. %s', moveType);
-                    elseif strcmpi(p.Results.PoolConditions, 'max')
-                        stimStats = max2(stimStats);
-                        titleText = sprintf('Max stim effect vs. %s', moveType);
-                    end
-                    AcuteRecording.plotScatter(ax, moveStats, stimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
-                        'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', titleText);
+                % Group responses by conditions
+                switch lower(p.Results.GroupBy)
+                    case 'stimcondition'
+                        nGroups = length(stimConditions);
+                        nCols = max(1, floor(sqrt(nGroups)));
+                        nRows = max(4, ceil(nGroups/nCols));
+                        groups(nGroups) = struct('stimStats', [], 'label', []);
+                        for iGrp = 1:nGroups
+                            groups(iGrp).stimStats = stimStats(:, iGrp);
+                            groups(iGrp).label = stimConditions(iGrp).label;
+                        end
+                    case 'stimlight'
+                        nGroups = length(stimConditions);
+                    case 'stimduration'
+                        error('GroupBy method "%s" not implemented.', p.Results.GroupBy)
+                    case 'stimml'
+                        error('GroupBy method "%s" not implemented.', p.Results.GroupBy)
+                    case 'stimdv'
+                        error('GroupBy method "%s" not implemented.', p.Results.GroupBy)
+                    case 'stimpos'
+                        error('GroupBy method "%s" not implemented.', p.Results.GroupBy)
+                    case 'unitml'
+                        error('GroupBy method "%s" not implemented.', p.Results.GroupBy)
+                    case 'unitdv'
+                        error('GroupBy method "%s" not implemented.', p.Results.GroupBy)
+                    case 'unitpos'
+                        error('GroupBy method "%s" not implemented.', p.Results.GroupBy)
+                    otherwise
+                        error('Unsupported groupBy method "%s"', p.Results.GroupBy);
                 end
+
+                fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
+                ax = gobjects(nGroups, 1);
+                for iGrp = 1:nGroups
+                    [i, j] = ind2sub([nRows, nCols], iGrp);
+                    iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
+                    ax(iGrp) = subplot(nRows, nCols, iSubplot);
+                    AcuteRecording.plotScatter(ax(iGrp), moveStats, groups(iGrp).stimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
+                        'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', groups(iGrp).label);
+                end
+                figure(fig);
+                titleText = sprintf('%s (%s)', obj.expName, obj.strain);
+                suptitle(titleText);
+
+%                 % Figure layout, one subplot per stim condition
+%                 if strcmpi(p.Results.PoolConditions, 'off')
+%                     nConditions = length(stimConditions);
+%                     nCols = max(1, floor(sqrt(nConditions)));
+%                     nRows = max(4, ceil(nConditions / nCols));
+%                     fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
+%                     ax = gobjects(nConditions, 1);
+%                     for iCond = 1:nConditions
+%                         [i, j] = ind2sub([nRows, nCols], iCond);
+%                         iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
+%                         ax(iCond) = subplot(nRows, nCols, iSubplot);
+%                         AcuteRecording.plotScatter(ax(iCond), moveStats, stimStats(:, iCond), p.Results.MoveThreshold, p.Results.StimThreshold, ...
+%                             'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', stimConditions(iCond).label);
+%                     end
+%                     figure(fig);
+%                     titleText = sprintf('%s (%s)', obj.expName, obj.strain);
+%                     suptitle(titleText);
+%                 else
+%                     fig = figure('Units', 'Normalized', 'Position', [0, 0, 0.4, 0.4]);
+%                     ax = axes(fig);
+%                     if strcmpi(p.Results.PoolConditions, 'mean')
+%                         stimStats = mean2(stimStats);
+%                         titleText = sprintf('Mean stim effect vs. %s', moveType);
+%                     elseif strcmpi(p.Results.PoolConditions, 'max')
+%                         stimStats = max2(stimStats);
+%                         titleText = sprintf('Max stim effect vs. %s', moveType);
+%                     end
+%                     AcuteRecording.plotScatter(ax, moveStats, stimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
+%                         'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', titleText);
+%                 end
             elseif length(obj) > 1
                 assert(iscell(bsr) && length(obj) == length(bsr))
                 
