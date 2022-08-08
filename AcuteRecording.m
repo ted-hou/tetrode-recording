@@ -508,7 +508,7 @@ classdef AcuteRecording < handle
                 bsr(i).IPulse = IPulse;
             end
             
-            fprintf(1, '%g trials selected with provided criteria.\n', length(IPulse))
+%             fprintf(1, '%g trials selected with provided criteria.\n', length(IPulse))
         end
 
         function groups = groupByStimCondition(obj, bsrOrIPulse, groupBy, varargin)
@@ -921,6 +921,7 @@ classdef AcuteRecording < handle
                         error()
                 end
                 [~, I] = obj.selectStimResponse('Light', select.light, 'Duration', select.duration, 'MLRank', select.ml, 'DVRank', select.dv, 'Fiber', select.fiber, 'Galvo', select.galvo);
+                assert(~isempty(I), 'Requested stim condition not found in experiment.');
                 groups = obj.groupByStimCondition(I, p.Results.GroupBy);
                 stimStats = obj.summarizeStimResponse(groups, 'peak');
                 moveStats = obj.summarizeMoveResponse(bmr, 'peak', [-1, 0], 'AllowedTrialLength', [1, Inf]);
@@ -961,9 +962,13 @@ classdef AcuteRecording < handle
 
                 for i = 1:length(obj)
                     [~, I] = obj(i).selectStimResponse('Light', select.light, 'Duration', select.duration, 'MLRank', select.ml, 'DVRank', select.dv, 'Fiber', select.fiber, 'Galvo', select.galvo);
-                    groups{i} = obj(i).groupByStimCondition(I, p.Results.GroupBy);
-                    stimStats{i} = obj(i).summarizeStimResponse(groups{i}, 'peak');
-                    moveStats{i} = obj(i).summarizeMoveResponse(bmr{i}, 'peak', [-1, 0], 'AllowedTrialLength', [1, Inf]);
+                    if ~isempty(I)
+                        groups{i} = obj(i).groupByStimCondition(I, p.Results.GroupBy);
+                        stimStats{i} = obj(i).summarizeStimResponse(groups{i}, 'peak');
+                        moveStats{i} = obj(i).summarizeMoveResponse(bmr{i}, 'peak', [-1, 0], 'AllowedTrialLength', [1, Inf]);
+                    else
+                        groups{i} = [];
+                    end
                 end
 
                 pooledGroups = AcuteRecording.poolGroups(groups);
@@ -973,6 +978,9 @@ classdef AcuteRecording < handle
                 for iGrp = 1:nGroups
                     groupHash = pooledGroups(iGrp).groupHash;
                     for iExp = 1:length(obj)
+                        if ~isstruct(groups{iExp})
+                            continue
+                        end
                         iGrpInExp = find([groups{iExp}.groupHash] == groupHash);
                         if ~isempty(iGrpInExp)
                             pooledStimStats{iGrp} = vertcat(pooledStimStats{iGrp}, stimStats{iExp}(:, iGrpInExp));
@@ -1310,9 +1318,9 @@ classdef AcuteRecording < handle
                     labelInsig = sprintf('N=%g', nnz(~sel));
             end
 
-            hSig = scatter(ax, moveStats(sel), stimStats(sel), 35, 'blue', 'filled', 'DisplayName', labelSig);
-            hInsig = scatter(ax, moveStats(~sel), stimStats(~sel), 25, 'black', 'DisplayName', labelInsig);
-            axis(ax, 'equal')
+            hSig = scatter(ax, moveStats(sel), stimStats(sel), 15, 'blue', 'filled', 'DisplayName', labelSig);
+            hInsig = scatter(ax, moveStats(~sel), stimStats(~sel), 8, 'black', 'DisplayName', labelInsig);
+            % axis(ax, 'equal')
             hY = plot(ax, ax.XLim, [0, 0], 'k--');
             hX = plot(ax, [0, 0], ax.YLim, 'k--');
             title(ax, p.Results.Title)

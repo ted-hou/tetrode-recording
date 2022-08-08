@@ -153,22 +153,26 @@ if ~exist('exp_A2A', 'var')
 end
 
 fig(1) = figure('Units', 'Normalized', 'Position', [0, 0, 0.5, 0.5]);
-for i = 1:4
+for i = 1:8
     figure(fig(1));
-    ax(i) = subplot(2, 2, i, 'Tag', 'scatter');
+    ax(i) = subplot(4, 2, i, 'Tag', 'scatter');
 end
 fig(2) = figure('Units', 'Normalized', 'Position', [0, 0, 0.5, 0.5]);
-for i = 5:8
+for i = 9:16
     figure(fig(2));
-    ax(i) = subplot(2, 2, i - 4, 'Tag', 'scatter');
+    ax(i) = subplot(4, 2, i - 8, 'Tag', 'scatter');
 end
-plotMoveVsStim_MergedMax(ax(1:2), exp_A2A, 1, 0.5, [0.4, 0.5], 0.01);
-plotMoveVsStim_MergedMax(ax(3:4), exp_A2A, 1, 0.5, 2, 0.01);
-plotMoveVsStim_MergedMax(ax(5:6), exp_D1, 1, 0.5, [0.4, 0.5], 0.01);
-plotMoveVsStim_MergedMax(ax(7:8), exp_D1, 1, 0.5, 2, 0.01);
+plotMoveVsStim_MergedMax(ax(1:2), exp_A2A, 1, 0.5, [0.05, 0.1], 0.01);
+plotMoveVsStim_MergedMax(ax(3:4), exp_A2A, 1, 0.5, [0.4, 0.5], 0.01);
+plotMoveVsStim_MergedMax(ax(5:6), exp_A2A, 1, 0.5, 2, 0.01);
+plotMoveVsStim_MergedMax(ax(7:8), exp_A2A, 1, 0.5, 8, 0.01);
+plotMoveVsStim_MergedMax(ax(9:10), exp_D1, 1, 0.5, [0.05, 0.1], 0.01);
+plotMoveVsStim_MergedMax(ax(11:12), exp_D1, 1, 0.5, [0.4, 0.5], 0.01);
+plotMoveVsStim_MergedMax(ax(13:14), exp_D1, 1, 0.5, 2, 0.01);
+plotMoveVsStim_MergedMax(ax(15:16), exp_D1, 1, 0.5, 8, 0.01);
 
-unifyAxesLims(ax(1:4))
-unifyAxesLims(ax(5:8))
+unifyAxesLims(ax(1:8))
+unifyAxesLims(ax(9:16))
 
 % set(f, 'Position', [0, 0, 0.25, 0.4])
 
