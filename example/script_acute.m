@@ -152,26 +152,42 @@ if ~exist('exp_A2A', 'var')
     exp_A2A = readdir('C:\SERVER\Experiment_Galvo_A2ACre\AcuteRecording');
 end
 
-[f(1), f(2)] = plotMoveVsStim(exp_A2A, 1, 0.5, [0.4, 0.5], 0.01);
-[f(3), f(4)] = plotMoveVsStim(exp_A2A, 1, 0.5, 2, 0.01);
-[f(5), f(6)] = plotMoveVsStim(exp_D1, 1, 0.5, [0.4, 0.5], 0.01);
-[f(7), f(8)] = plotMoveVsStim(exp_D1, 1, 0.5, 2, 0.01);
+fig(1) = figure('Units', 'Normalized', 'Position', [0, 0, 0.5, 0.5]);
+for i = 1:4
+    figure(fig(1));
+    ax(i) = subplot(2, 2, i, 'Tag', 'scatter');
+end
+fig(2) = figure('Units', 'Normalized', 'Position', [0, 0, 0.5, 0.5]);
+for i = 5:8
+    figure(fig(2));
+    ax(i) = subplot(2, 2, i - 4, 'Tag', 'scatter');
+end
+plotMoveVsStim_MergedMax(ax(1:2), exp_A2A, 1, 0.5, [0.4, 0.5], 0.01);
+plotMoveVsStim_MergedMax(ax(3:4), exp_A2A, 1, 0.5, 2, 0.01);
+plotMoveVsStim_MergedMax(ax(5:6), exp_D1, 1, 0.5, [0.4, 0.5], 0.01);
+plotMoveVsStim_MergedMax(ax(7:8), exp_D1, 1, 0.5, 2, 0.01);
 
-set(f, 'Position', [0, 0, 0.25, 0.4])
+unifyAxesLims(ax(1:4))
+unifyAxesLims(ax(5:8))
 
-ax = findobj('Type', 'axes', 'Tag', 'scatter');
-xlims = vertcat(ax.XLim);
-ylims = vertcat(ax.YLim);
-xrange = [min(xlims(:, 1)), max(xlims(:, 2))];
-yrange = [min(ylims(:, 1)), max(ylims(:, 2))];
-set(ax, 'XLim', xrange)
-set(ax, 'YLim', yrange)
+% set(f, 'Position', [0, 0, 0.25, 0.4])
 
-function [f1, f2] = plotMoveVsStim(exp, moveThreshold, stimThreshold, critLight, critDuration)
+% ax = findobj('Type', 'axes', 'Tag', 'scatter');
+
+function plotMoveVsStim_MergedMax(ax, exp, moveThreshold, stimThreshold, critLight, critDuration)
     % Visualize movement response data
     selection = AcuteRecording.makeSelection('Light', critLight, 'Duration', critDuration);
-    f1 = exp.ar.plotStimVsMoveResponse('Press', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim');
-    f2 = exp.ar.plotStimVsMoveResponse('Lick', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim');
+    exp.ar.plotStimVsMoveResponse(ax(1), 'Press', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max');
+    exp.ar.plotStimVsMoveResponse(ax(2), 'Lick', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max');
+end
+
+function unifyAxesLims(ax)
+    xlims = vertcat(ax.XLim);
+    ylims = vertcat(ax.YLim);
+    xrange = [min(xlims(:, 1)), max(xlims(:, 2))];
+    yrange = [min(ylims(:, 1)), max(ylims(:, 2))];
+    set(ax, 'XLim', xrange)
+    set(ax, 'YLim', yrange)
 end
 
 %% 

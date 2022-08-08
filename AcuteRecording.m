@@ -241,7 +241,7 @@ classdef AcuteRecording < handle
             for i = 1:nChannels
                 nUnitsInChannel(i) = max(tr.Spikes(channels(i)).Cluster.Classes) - 1;
             end
-            assert(isempty(units) || max(nUnitsInChannel) >= max(units), 'Requested units (%s) exceeds total number of units (%i) in data.', num2str(units), max(units));
+            assert(isempty(units) || max(nUnitsInChannel) >= max(units), 'Requested units (%s) exceeds total number of units (%g) in data.', num2str(units), max(units));
             
             if isempty(units)
                 nUnits = sum(nUnitsInChannel);
@@ -400,7 +400,7 @@ classdef AcuteRecording < handle
             for i = 1:nChannels
                 nUnitsInChannel(i) = max(tr.Spikes(channels(i)).Cluster.Classes) - 1;
             end
-            assert(isempty(units) || max(nUnitsInChannel) >= max(units), 'Requested units (%s) exceeds total number of units (%i) in data.', num2str(units), max(units));
+            assert(isempty(units) || max(nUnitsInChannel) >= max(units), 'Requested units (%s) exceeds total number of units (%g) in data.', num2str(units), max(units));
             
             if isempty(units)
                 nUnits = sum(nUnitsInChannel);
@@ -508,7 +508,7 @@ classdef AcuteRecording < handle
                 bsr(i).IPulse = IPulse;
             end
             
-            fprintf(1, '%i trials selected with provided criteria.\n', length(IPulse))
+            fprintf(1, '%g trials selected with provided criteria.\n', length(IPulse))
         end
 
         function groups = groupByStimCondition(obj, bsrOrIPulse, groupBy, varargin)
@@ -554,7 +554,7 @@ classdef AcuteRecording < handle
             
             suggestedHashBase = max([max(lightRank), max(durationRank), max(mlRank), max(dvRank)]);
             if hashBase < suggestedHashBase
-                error('Using hash base %i will cause problems, suggest using %i or higher.', hashBase, suggestedHashBase);
+                error('Using hash base %g will cause problems, suggest using %g or higher.', hashBase, suggestedHashBase);
             end
             
             % Hash for each stim pulse, identical conditions should
@@ -579,7 +579,7 @@ classdef AcuteRecording < handle
 
             [uniqueGroupHash, ia] = unique(groupHash);
             nGroups = length(uniqueGroupHash);
-            groups(nGroups) = struct('groupHash', [], 'hash', [], 'numTrials', [], 'light', [], 'duration', [], 'mlRank', [], 'dvRank', [], 'fiber', '', 'galvo', [], 'IPulse', []);
+            groups(nGroups) = struct('groupHash', [], 'hash', [], 'label', '', 'numTrials', [], 'light', [], 'duration', [], 'mlRank', [], 'dvRank', [], 'fiber', '', 'galvo', [], 'IPulse', []);
 
             for iGrp = 1:nGroups
                 i = ia(iGrp);
@@ -594,6 +594,7 @@ classdef AcuteRecording < handle
                 groups(iGrp).dvRank = tryConsolidate(dvRank(sel));
                 groups(iGrp).fiber = tryConsolidate(fiber(sel));
                 groups(iGrp).galvo = tryConsolidate(galvo(sel));
+                groups(iGrp).label = AcuteRecording.makeGroupLabel(groups(iGrp).light, groups(iGrp).duration, groups(iGrp).mlRank, groups(iGrp).dvRank);
             end
         end
 
@@ -707,7 +708,7 @@ classdef AcuteRecording < handle
                 elseif mlRank(i) == 2
                     conditions(iCond).linecolor = [AcuteRecording.lerp(0.1, 0.9, (dvRank(i)-1)/(nColorsB-1)), 0.9, 0.1];
                 else
-                    error('ml rank must be 1 or 2, got %i instead', mlrank(i));
+                    error('ml rank must be 1 or 2, got %g instead', mlrank(i));
                 end
                 condSel = condId == condId(ia(iCond));
                 conditions(iCond).numTrials = nnz(condSel);
@@ -769,7 +770,7 @@ classdef AcuteRecording < handle
                 yticks(ax(2), 1:nConditions)
                 yticklabels(ax(2), {conditions.label})
                 ylabel(ax(2), 'Stim Condition')
-                title(ax(2), sprintf('%s Chn %i Unit %i', bsr.expName, bsr.channel, bsr.unit), 'Interpreter', 'none')
+                title(ax(2), sprintf('%s Chn %g Unit %g', bsr.expName, bsr.channel, bsr.unit), 'Interpreter', 'none')
 
                 if ~isempty(p.Results.CLim)
                     ax(2).CLim = p.Results.CLim;
@@ -874,7 +875,7 @@ classdef AcuteRecording < handle
                 animalNames = cellfun(@toAnimalName, {obj.expName}, 'UniformOutput', false);
                 nAnimals = length(unique(animalNames));
                 figure(fig);
-                titleText = sprintf('%s (%i animals, %i sessions)', strain, nAnimals, nSessions);
+                titleText = sprintf('%s (%g animals, %g sessions)', strain, nAnimals, nSessions);
                 suptitle(titleText);
             end
 
@@ -884,7 +885,7 @@ classdef AcuteRecording < handle
             end
         end
 
-        function fig = plotStimVsMoveResponse(obj, moveType, varargin)
+        function fig = plotStimVsMoveResponse(obj, varargin)
             function m = mean2(x)
                 m = mean(x, 2);
             end
@@ -895,15 +896,17 @@ classdef AcuteRecording < handle
             end
             
             p = inputParser();
+            if isgraphics(varargin{1})
+                p.addRequired('Ax', @(x) strcmp(varargin{1}.Type, 'axes'));
+            end
             p.addRequired('MoveType', @(x) ismember(lower(x), {'press', 'lick'}));
             p.addParameter('StimThreshold', 0.5, @isnumeric);
             p.addParameter('MoveThreshold', 1, @isnumeric);
             p.addParameter('Highlight', 'stim', @(x) ismember(lower(x), {'move', 'stim', 'union', 'intersect'}))
             p.addParameter('Select', struct('light', [0.4, 0.5, 2], 'duration', 0.01, 'ml', [], 'dv', [], 'fiber', '', 'galvo', []), @isstruct)
             p.addParameter('GroupBy', {'light', 'duration', 'ml', 'dv'}, @(x) ismember(x, {'light', 'duration', 'ml', 'dv'}))
-            p.addParameter('GroupStatistics', 'max', @(x) ismember(lower(x), {'mean', 'max'})) % Should multiple stim conditions be merged into one?
-            p.addParameter('ConditionBase', 4, @isnumeric); % Max number of stim conditions per category (e.g. if there are 2 durations, 3 light levels, 2 fibers and 4 galvo voltages, then use base 4 = max([2, 3, 2, 4])). Suggest 4, or [] to autocalculate.
-            p.parse(moveType, varargin{:});
+            p.addParameter('MergeGroups', 'off', @(x) ismember(lower(x), {'off', 'mean', 'max'})) % Should all condition groups be merged into one by taking the mean or max across groups?
+            p.parse(varargin{:});
             moveType = p.Results.MoveType;
             select = p.Results.Select;
 
@@ -926,14 +929,21 @@ classdef AcuteRecording < handle
                 nGroups = length(groups);
                 nCols = max(1, floor(sqrt(nGroups)));
                 nRows = max(4, ceil(nGroups/nCols));
-                fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
-                ax = gobjects(nGroups, 1);
+                if isfield(p.Results, 'Ax')
+                    ax = p.Results.Ax;
+                    fig = ax.Parent;
+                else
+                    fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
+                    ax = gobjects(nGroups, 1);
+                    for iGrp = 1:nGroups
+                        [i, j] = ind2sub([nRows, nCols], iGrp);
+                        iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
+                        ax(iGrp) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
+                    end
+                end
                 for iGrp = 1:nGroups
-                    [i, j] = ind2sub([nRows, nCols], iGrp);
-                    iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
-                    ax(iGrp) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
                     AcuteRecording.plotScatter(ax(iGrp), moveStats, stimStats(:, iGrp), p.Results.MoveThreshold, p.Results.StimThreshold, ...
-                        'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', '');
+                        'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', groups(iGrp).label);
                 end
                 figure(fig);
                 titleText = sprintf('%s (%s)', obj.expName, obj.strain);
@@ -972,18 +982,6 @@ classdef AcuteRecording < handle
                 end
                 
                 % Plot
-                nCols = max(1, floor(sqrt(nGroups)));
-                nRows = max(4, ceil(nGroups/nCols));
-                fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
-                ax = gobjects(nGroups, 1);
-                for iGrp = 1:nGroups
-                    [i, j] = ind2sub([nRows, nCols], iGrp);
-                    iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
-                    ax(iGrp) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
-                    AcuteRecording.plotScatter(ax(iGrp), pooledMoveStats{iGrp}, pooledStimStats{iGrp}, p.Results.MoveThreshold, p.Results.StimThreshold, ...
-                        'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', '');
-                end
-                
                 strain = unique({obj.strain});
                 if length(strain) == 1
                     strain = strain{1};
@@ -993,8 +991,48 @@ classdef AcuteRecording < handle
                 nSessions = length(obj);
                 animalNames = cellfun(@toAnimalName, {obj.expName}, 'UniformOutput', false);
                 nAnimals = length(unique(animalNames));
+                titleText = sprintf('%s (%g animals, %g sessions)', strain, nAnimals, nSessions);
+
+                if strcmpi(p.Results.MergeGroups, 'off')
+                    nCols = max(1, floor(sqrt(nGroups)));
+                    nRows = max(4, ceil(nGroups/nCols));
+                    if isfield(p.Results, 'Ax')
+                        ax = p.Results.Ax;
+                        fig = ax.Parent;
+                    else
+                        fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
+                        ax = gobjects(nGroups, 1);
+                        for iGrp = 1:nGroups
+                            [i, j] = ind2sub([nRows, nCols], iGrp);
+                            iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
+                            ax(iGrp) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
+                        end
+                    end
+                    for iGrp = 1:nGroups
+                        AcuteRecording.plotScatter(ax(iGrp), pooledMoveStats{iGrp}, pooledStimStats{iGrp}, p.Results.MoveThreshold, p.Results.StimThreshold, ...
+                            'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', pooledGroups(iGrp).label);
+                    end
+                else
+                    if isfield(p.Results, 'Ax')
+                        ax = p.Results.Ax;
+                        fig = ax.Parent;
+                    else
+                        fig = figure('Units', 'normalized', 'Position', [0, 0, 0.25, 0.4]);
+                        ax = axes(fig, 'Tag', 'scatter');
+                    end
+                    if strcmpi(p.Results.MergeGroups, 'mean')
+                        mergedStimStats = cellfun(@mean2, stimStats, 'UniformOutput', false);
+                    elseif strcmpi(p.Results.MergeGroups, 'max')
+                        mergedStimStats = cellfun(@max2, stimStats, 'UniformOutput', false);
+                    else
+                        error()
+                    end
+                    mergedStimStats = cat(1, mergedStimStats{:});
+                    mergedMoveStats = cat(1, moveStats{:});
+                    AcuteRecording.plotScatter(ax, mergedMoveStats, mergedStimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
+                        'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', AcuteRecording.makeGroupLabel([pooledGroups.light], [pooledGroups.duration]));
+                end
                 figure(fig);
-                titleText = sprintf('%s (%i animals, %i sessions)', strain, nAnimals, nSessions);
                 suptitle(titleText);
             end
 
@@ -1048,18 +1086,18 @@ classdef AcuteRecording < handle
                     filesInPath = cellfun(@(x) sprintf('%s\\%s', thisPath, x), {filesInPath.name}, 'UniformOutput', false);
                     files = [files, filesInPath];
                 else
-                    error('Path %i of %i (''%s'') cannot be read because it is neither a file or an directory.', i, length(filesOrDirs), thisPath)
+                    error('Path %g of %g (''%s'') cannot be read because it is neither a file or an directory.', i, length(filesOrDirs), thisPath)
                 end
             end
 
             tTic = tic();
             S(length(files)) = struct('obj', []);
             for i = 1:length(files)
-                fprintf(1, 'Loading file %i of %i (%s)...\n', i, length(files), files{i});
+                fprintf(1, 'Loading file %g of %g (%s)...\n', i, length(files), files{i});
                 S(i) = load(files{i}, 'obj');
             end
             obj = [S.obj];
-            fprintf(1, 'Loaded %i files in %.2f seconds.\n', length(files), toc(tTic));
+            fprintf(1, 'Loaded %g files in %.2f seconds.\n', length(files), toc(tTic));
         end
 
         % TODO: Return iPulseInTrain
@@ -1256,20 +1294,20 @@ classdef AcuteRecording < handle
             switch lower(p.Results.Highlight)
                 case 'stim'
                     sel = abs(stimStats) >= stimThreshold; 
-                    labelSig = sprintf('N=%i (stim resp)', nnz(sel));
-                    labelInsig = sprintf('N=%i', nnz(~sel));
+                    labelSig = sprintf('N=%g (stim resp)', nnz(sel));
+                    labelInsig = sprintf('N=%g', nnz(~sel));
                 case 'move'
                     sel = abs(moveStats) >= moveThreshold;    
-                    labelSig = sprintf('N=%i (move resp)', nnz(sel));
-                    labelInsig = sprintf('N=%i', nnz(~sel));
+                    labelSig = sprintf('N=%g (move resp)', nnz(sel));
+                    labelInsig = sprintf('N=%g', nnz(~sel));
                 case 'union'
                     sel = abs(moveStats) >= moveThreshold | abs(stimStats) >= stimThreshold;
-                    labelSig = sprintf('N=%i (move&stim resp)', nnz(sel));
-                    labelInsig = sprintf('N=%i', nnz(~sel));
+                    labelSig = sprintf('N=%g (move&stim resp)', nnz(sel));
+                    labelInsig = sprintf('N=%g', nnz(~sel));
                 case 'intersect'
                     sel = abs(moveStats) >= moveThreshold & abs(stimStats) >= stimThreshold;
-                    labelSig = sprintf('N=%i (move/stim resp)', nnz(sel));
-                    labelInsig = sprintf('N=%i', nnz(~sel));
+                    labelSig = sprintf('N=%g (move/stim resp)', nnz(sel));
+                    labelInsig = sprintf('N=%g', nnz(~sel));
             end
 
             hSig = scatter(ax, moveStats(sel), stimStats(sel), 35, 'blue', 'filled', 'DisplayName', labelSig);
@@ -1306,19 +1344,11 @@ classdef AcuteRecording < handle
                     r = r(1);
                 end
             end
-            
-            function s = range2text(r, formatSpec)
-                if length(r) == 1
-                    s = sprintf(formatSpec, r);
-                else
-                    s = sprintf([formatSpec, '-', formatSpec], r(1), r(2));
-                end
-            end
 
             assert(iscell(groups) && length(groups) > 1)
             allGroups = cat(2, groups{:});
             uniqueGroupHashes = unique([allGroups.groupHash]);
-            pg(length(uniqueGroupHashes)) = struct('groupHash', [], 'hash', [], 'numTrials', [], 'light', [], 'duration', [], 'mlRank', [], 'dvRank', [], 'fiber', '', 'galvo', []);
+            pg(length(uniqueGroupHashes)) = struct('groupHash', [], 'hash', [], 'label', '', 'numTrials', [], 'light', [], 'duration', [], 'mlRank', [], 'dvRank', [], 'fiber', '', 'galvo', []);
 
             for i = 1:length(uniqueGroupHashes)
                 groupHash = uniqueGroupHashes(i);
@@ -1332,6 +1362,7 @@ classdef AcuteRecording < handle
                 pg(i).dvRank = unique([allGroups(sel).dvRank]);
                 pg(i).fiber = unique([allGroups(sel).fiber]);
                 pg(i).galvo = unique([allGroups(sel).galvo]);
+                pg(i).label = AcuteRecording.makeGroupLabel(pg(i).light, pg(i).duration, pg(i).mlRank, pg(i).dvRank);
             end
         end
 
@@ -1463,5 +1494,70 @@ classdef AcuteRecording < handle
             peaks = x(I);
             I = I - 1;
         end
+
+        function label = makeGroupLabel(light, duration, varargin)
+            p = inputParser();
+            p.addRequired('light', @isnumeric);
+            p.addRequired('duration', @isnumeric);
+            p.addOptional('mlRank', [], @isnumeric);
+            p.addOptional('dvRank', [], @isnumeric);
+            p.parse(light, duration, varargin{:})
+            light = p.Results.light;
+            duration = p.Results.duration;
+            mlRank = p.Results.mlRank;
+            dvRank = p.Results.dvRank;
+
+            function txt = rangetxt(x, fmt)
+                if nargin < 2
+                    fmt = '%g';
+                end
+                if isempty(x)
+                    txt = '';
+                elseif min(x) == max(x)
+                    txt = sprintf(fmt, min(x));
+                else
+                    txt = sprintf([fmt, '-', fmt], min(x), max(x));
+                end
+            end
+
+            label = sprintf('%smW %sms', rangetxt(light, '%.1f'), rangetxt(duration*1000, '%g'));
+
+            if length(mlRank) == 1
+                switch mlRank
+                    case 1
+                        mlText = 'mStr';
+                    case 2
+                        mlText = 'lStr';
+                end
+            else
+                mlText = '';
+            end
+
+            if length(dvRank) == 1
+                switch dvRank
+                    case 1
+                        dvText = '-4.15';
+                    case 2
+                        dvText = '-3.48';
+                    case 3
+                        dvText = '-2.81';
+                    case 4
+                        dvText = '-2.15';
+                end
+            else
+                dvText = '';
+            end
+
+            if isempty(mlText) && isempty(dvText)
+                return
+            elseif isempty(mlText)
+                label = sprintf('%s (%s)', label, dvText);
+            elseif isempty(dvText)
+                label = sprintf('%s (%s)', label, mlText);
+            else
+                label = sprintf('%s (%s %s)', label, mlText, dvText);
+            end
+        end
+
     end
 end
