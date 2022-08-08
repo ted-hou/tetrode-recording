@@ -884,7 +884,7 @@ classdef AcuteRecording < handle
             end
         end
 
-        function varargout = plotStimVsMoveResponse(obj, moveType, varargin)
+        function fig = plotStimVsMoveResponse(obj, moveType, varargin)
             function m = mean2(x)
                 m = mean(x, 2);
             end
@@ -931,7 +931,7 @@ classdef AcuteRecording < handle
                 for iGrp = 1:nGroups
                     [i, j] = ind2sub([nRows, nCols], iGrp);
                     iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
-                    ax(iGrp) = subplot(nRows, nCols, iSubplot);
+                    ax(iGrp) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
                     AcuteRecording.plotScatter(ax(iGrp), moveStats, stimStats(:, iGrp), p.Results.MoveThreshold, p.Results.StimThreshold, ...
                         'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', '');
                 end
@@ -979,64 +979,10 @@ classdef AcuteRecording < handle
                 for iGrp = 1:nGroups
                     [i, j] = ind2sub([nRows, nCols], iGrp);
                     iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
-                    ax(iGrp) = subplot(nRows, nCols, iSubplot);
+                    ax(iGrp) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
                     AcuteRecording.plotScatter(ax(iGrp), pooledMoveStats{iGrp}, pooledStimStats{iGrp}, p.Results.MoveThreshold, p.Results.StimThreshold, ...
                         'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', '');
                 end
-
-%                 if strcmpi(p.Results.PoolConditions, 'off')
-%                     pooledConditions = AcuteRecording.poolConditions(stimConditions, p.Results.ConditionBase);
-%                     nConditions = length(pooledConditions);
-%                     pooledStimStats = cell(1, nConditions);
-%                     pooledMoveStats = cell(1, nConditions);
-%                     for iCond = 1:nConditions
-%                         id = pooledConditions(iCond).id;
-%                         for iExp = 1:length(obj)
-%                             iCondInExp = find([stimConditions{iExp}.id] == id);
-%                             if ~isempty(iCondInExp)
-%                                 pooledStimStats{iCond} = vertcat(pooledStimStats{iCond}, stimStats{iExp}(:, iCondInExp));
-%                                 pooledMoveStats{iCond} = vertcat(pooledMoveStats{iCond}, moveStats{iExp});
-%                             end
-%                         end
-%                     end
-%     
-%                     % Plot
-%                     nCols = max(1, floor(sqrt(nConditions)));
-%                     nRows = max(4, ceil(nConditions / nCols));
-%                     fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
-%                     ax = gobjects(nConditions, 1);
-%                     methodLabel = 'Peak';
-%                     for iCond = 1:nConditions
-%                         stimStats = pooledStimStats{iCond};
-%                         moveStats = pooledMoveStats{iCond};
-%         
-%                         [i, j] = ind2sub([nRows, nCols], iCond);
-%                         iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
-%                         ax(iCond) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
-%                         AcuteRecording.plotScatter(ax(iCond), moveStats, stimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
-%                             'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', pooledConditions(iCond).label);
-%                     end
-% 
-%                     varargout = {fig, pooledStimStats, pooledMoveStats, pooledConditions};
-%                 else
-%                     switch lower(p.Results.PoolConditions)
-%                         case 'mean'
-%                             stimStats = cellfun(@mean2, stimStats, 'UniformOutput', false);
-%                             titleText = sprintf('Mean stim effect vs. %s', moveType);
-%                         case 'max'
-%                             stimStats = cellfun(@max2, stimStats, 'UniformOutput', false);
-%                             titleText = sprintf('Max stim effect vs. %s', moveType);
-%                     end
-%                     stimStats = cat(1, stimStats{:});
-%                     moveStats = cat(1, moveStats{:});
-% 
-%                     fig = figure('Units', 'Normalized', 'Position', [0, 0, 0.4, 0.4]);
-%                     ax = axes(fig, 'Tag', 'scatter');
-%                     AcuteRecording.plotScatter(ax, moveStats, stimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
-%                         'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', titleText);
-% 
-%                     varargout = {fig, stimStats, moveStats};
-%                 end
                 
                 strain = unique({obj.strain});
                 if length(strain) == 1
@@ -1050,8 +996,6 @@ classdef AcuteRecording < handle
                 figure(fig);
                 titleText = sprintf('%s (%i animals, %i sessions)', strain, nAnimals, nSessions);
                 suptitle(titleText);
-
-                varargout = {pooledGroups, pooledStimStats, pooledMoveStats, groups, stimStats, moveStats};
             end
 
             function animalName = toAnimalName(expName)
@@ -1465,6 +1409,19 @@ classdef AcuteRecording < handle
                     s = sprintf([formatSpec, '-', formatSpec], r(1), r(2));
                 end
             end
+        end
+
+        function s = makeSelection(varargin)
+            p = inputParser();
+            p.addParameter('Light', [], @isnumeric);
+            p.addParameter('Duration', [], @isnumeric);
+            p.addParameter('ML', [], @isnumeric);
+            p.addParameter('DV', [], @isnumeric);
+            p.addParameter('Fiber', '', @ischar);
+            p.addParameter('Galvo', [], @isnumeric);
+            p.parse(varargin{:});
+
+            s = struct('light', p.Results.Light, 'duration', p.Results.Duration, 'ml', p.Results.ML, 'dv', p.Results.DV, 'fiber', p.Results.Fiber, 'galvo', p.Results.Galvo);
         end
     end
 

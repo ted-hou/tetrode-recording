@@ -152,10 +152,10 @@ if ~exist('exp_A2A', 'var')
     exp_A2A = readdir('C:\SERVER\Experiment_Galvo_A2ACre\AcuteRecording');
 end
 
-[f(1), f(2)] = plotMoveVsStim(exp_A2A, 1, 0.5, []);
-[f(3), f(4)] = plotMoveVsStim(exp_A2A, 1, 0.5, 2);
-[f(5), f(6)] = plotMoveVsStim(exp_D1, 1, 0.5, []);
-[f(7), f(8)] = plotMoveVsStim(exp_D1, 1, 0.5, 2);
+[f(1), f(2)] = plotMoveVsStim(exp_A2A, 1, 0.5, [0.4, 0.5], 0.01);
+[f(3), f(4)] = plotMoveVsStim(exp_A2A, 1, 0.5, 2, 0.01);
+[f(5), f(6)] = plotMoveVsStim(exp_D1, 1, 0.5, [0.4, 0.5], 0.01);
+[f(7), f(8)] = plotMoveVsStim(exp_D1, 1, 0.5, 2, 0.01);
 
 set(f, 'Position', [0, 0, 0.25, 0.4])
 
@@ -167,18 +167,11 @@ yrange = [min(ylims(:, 1)), max(ylims(:, 2))];
 set(ax, 'XLim', xrange)
 set(ax, 'YLim', yrange)
 
-function [f1, f2] = plotMoveVsStim(exp, moveThreshold, stimThreshold, critLight)
+function [f1, f2] = plotMoveVsStim(exp, moveThreshold, stimThreshold, critLight, critDuration)
     % Visualize movement response data
-    for i = 1:length(exp.ar)
-        if isempty(critLight)
-            l = exp.crit(i).light;
-        else
-            l = critLight;
-        end
-        bsr{i} = exp.ar(i).selectStimResponse('Light', l, 'Duration', exp.crit(i).duration);
-    end
-    f1 = exp.ar.plotStimVsMoveResponse(bsr, 'Press', 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'PoolConditions', 'max');
-    f2 = exp.ar.plotStimVsMoveResponse(bsr, 'Lick', 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'PoolConditions', 'max');
+    selection = AcuteRecording.makeSelection('Light', critLight, 'Duration', critDuration);
+    f1 = exp.ar.plotStimVsMoveResponse('Press', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim');
+    f2 = exp.ar.plotStimVsMoveResponse('Lick', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim');
 end
 
 %% 
