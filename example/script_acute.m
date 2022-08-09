@@ -162,28 +162,91 @@ for i = 9:16
     figure(fig(2));
     ax(i) = subplot(4, 2, i - 8, 'Tag', 'scatter');
 end
-plotMoveVsStim_MergedMax(ax(1:2), exp_A2A, 1, 0.5, [0.05, 0.1], 0.01);
-plotMoveVsStim_MergedMax(ax(3:4), exp_A2A, 1, 0.5, [0.4, 0.5], 0.01);
-plotMoveVsStim_MergedMax(ax(5:6), exp_A2A, 1, 0.5, 2, 0.01);
-plotMoveVsStim_MergedMax(ax(7:8), exp_A2A, 1, 0.5, 8, 0.01);
-plotMoveVsStim_MergedMax(ax(9:10), exp_D1, 1, 0.5, [0.05, 0.1], 0.01);
-plotMoveVsStim_MergedMax(ax(11:12), exp_D1, 1, 0.5, [0.4, 0.5], 0.01);
-plotMoveVsStim_MergedMax(ax(13:14), exp_D1, 1, 0.5, 2, 0.01);
-plotMoveVsStim_MergedMax(ax(15:16), exp_D1, 1, 0.5, 8, 0.01);
+plotMoveVsStim(ax(1:2), exp_A2A, 1, 0.5, [0.05, 0.1], 0.01);
+plotMoveVsStim(ax(3:4), exp_A2A, 1, 0.5, [0.4, 0.5], 0.01);
+plotMoveVsStim(ax(5:6), exp_A2A, 1, 0.5, 2, 0.01);
+plotMoveVsStim(ax(7:8), exp_A2A, 1, 0.5, 8, 0.01);
+plotMoveVsStim(ax(9:10), exp_D1, 1, 0.5, [0.05, 0.1], 0.01);
+plotMoveVsStim(ax(11:12), exp_D1, 1, 0.5, [0.4, 0.5], 0.01);
+plotMoveVsStim(ax(13:14), exp_D1, 1, 0.5, 2, 0.01);
+plotMoveVsStim(ax(15:16), exp_D1, 1, 0.5, 8, 0.01);
 
 unifyAxesLims(ax(1:8))
 unifyAxesLims(ax(9:16))
 
-% set(f, 'Position', [0, 0, 0.25, 0.4])
+%% Compare 0.5mW to 2mW, plot in same figure, different colors
+% close all
+% clear fig ax
+% fig(1) = figure('Units', 'Normalized', 'Position', [0, 0, 0.25, 0.5]);
+% for i = 1:2
+%     ax(i) = subplot(1, 2, i);
+% end
+% plotMoveVsStim_MultiLight(ax, exp_D1, 1, 0.5, {[0.4, 0.5], 2}, 0.01);
+% unifyAxesLims(ax)
+% 
+% fig(2) = figure('Units', 'Normalized', 'Position', [0, 0, 0.25, 0.5]);
+% for i = 1:2
+%     ax(i) = subplot(1, 2, i);
+% end
+% plotMoveVsStim_MultiLight(ax, exp_A2A, 1, 0.5, {[0.4, 0.5], 2}, 0.01);
+% unifyAxesLims(ax)
 
-% ax = findobj('Type', 'axes', 'Tag', 'scatter');
+clear ar exp light duration il I groups stimStats
 
-function plotMoveVsStim_MergedMax(ax, exp, moveThreshold, stimThreshold, critLight, critDuration)
+exp = exp_A2A;
+light = {[0.4, 0.5], 2};
+duration = 0.01;
+for iExp = 1:length(exp.ar)
+    ar = exp.ar(iExp);
+    for il = 1:length(light)
+        [~, I] = ar.selectStimResponse('Light', light{il}, 'Duration', duration);
+        groups{iExp}{il} = ar.groupByStimCondition(I, {'light', 'duration', 'ml', 'dv'});
+        s = ar.summarizeStimResponse(groups{iExp}{il}, 'peak');
+        stimStats{iExp}(:, il) = max2(s);
+    end
+    clear il
+end
+stimStats = cat(1, stimStats{:});
+
+ax = axes(figure);
+hold(ax, 'on')
+sel = abs(stimStats(:, 1)) > .5 | abs(stimStats(:, 2)) > .5; 
+scatter(ax, stimStats(sel, 1), stimStats(sel, 2), 25, 'blue', 'filled')
+scatter(ax, stimStats(~sel, 1), stimStats(~sel, 2), 15, 'black')
+xlabel(ax, '0.4-0.5mW')
+ylabel(ax, '2mW')
+axis(ax, 'equal');
+xrange = ax.XLim;
+yrange = ax.YLim;
+ax.XLimMode = 'manual';
+ax.YLimMode = 'manual';
+plot([xrange(1), xrange(2)], [xrange(1), xrange(2)], 'k:')
+plot([xrange(1), xrange(2)], [0, 0], 'k:')
+plot([0, 0], [yrange(1), yrange(2)], 'k:')
+hold(ax, 'off')
+
+clear ar exp light duration il xrange yrange ax
+%%
+function m = max2(x)
+    [~, I] = max(abs(x), [], 2);
+    m = diag(x(:, I));
+end
+            
+function plotMoveVsStim(ax, exp, moveThreshold, stimThreshold, critLight, critDuration)
     % Visualize movement response data
     selection = AcuteRecording.makeSelection('Light', critLight, 'Duration', critDuration);
     exp.ar.plotStimVsMoveResponse(ax(1), 'Press', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max');
     exp.ar.plotStimVsMoveResponse(ax(2), 'Lick', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max');
 end
+
+% function plotMoveVsStim_MultiLight(ax, exp, moveThreshold, stimThreshold, critLight, critDuration)
+%     hues = linspace(0, 1, length(critLight) + 1);
+%     for il = 1:length(critLight)
+%         selection = AcuteRecording.makeSelection('Light', critLight{il}, 'Duration', critDuration);
+%         exp.ar.plotStimVsMoveResponse(ax(1), 'Press', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max', 'Hue', hues(il));
+%         exp.ar.plotStimVsMoveResponse(ax(2), 'Lick', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max', 'Hue', hues(il));
+%     end
+% end
 
 function unifyAxesLims(ax)
     xlims = vertcat(ax.XLim);

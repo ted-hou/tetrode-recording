@@ -22,7 +22,6 @@ classdef AcuteRecording < handle
             obj.strain = strain;
 
             splitPath = strsplit(tr.Path, '\');
-            expName = splitPath{end-2};
             path = strjoin(splitPath(1:end-2), '\');
             if tr.Path(1) == '\'
                 path = ['\', path];
@@ -906,6 +905,7 @@ classdef AcuteRecording < handle
             p.addParameter('Select', struct('light', [0.4, 0.5, 2], 'duration', 0.01, 'ml', [], 'dv', [], 'fiber', '', 'galvo', []), @isstruct)
             p.addParameter('GroupBy', {'light', 'duration', 'ml', 'dv'}, @(x) ismember(x, {'light', 'duration', 'ml', 'dv'}))
             p.addParameter('MergeGroups', 'off', @(x) ismember(lower(x), {'off', 'mean', 'max'})) % Should all condition groups be merged into one by taking the mean or max across groups?
+            p.addParameter('Hue', 2/3, @isnumeric);
             p.parse(varargin{:});
             moveType = p.Results.MoveType;
             select = p.Results.Select;
@@ -944,7 +944,7 @@ classdef AcuteRecording < handle
                 end
                 for iGrp = 1:nGroups
                     AcuteRecording.plotScatter(ax(iGrp), moveStats, stimStats(:, iGrp), p.Results.MoveThreshold, p.Results.StimThreshold, ...
-                        'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', groups(iGrp).label);
+                        'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', groups(iGrp).label, 'Hue', p.Results.Hue);
                 end
                 figure(fig);
                 titleText = sprintf('%s (%s)', obj.expName, obj.strain);
@@ -1018,7 +1018,7 @@ classdef AcuteRecording < handle
                     end
                     for iGrp = 1:nGroups
                         AcuteRecording.plotScatter(ax(iGrp), pooledMoveStats{iGrp}, pooledStimStats{iGrp}, p.Results.MoveThreshold, p.Results.StimThreshold, ...
-                            'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', pooledGroups(iGrp).label);
+                            'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', pooledGroups(iGrp).label, 'Hue', p.Results.Hue);
                     end
                 else
                     if isfield(p.Results, 'Ax')
@@ -1038,7 +1038,8 @@ classdef AcuteRecording < handle
                     mergedStimStats = cat(1, mergedStimStats{:});
                     mergedMoveStats = cat(1, moveStats{:});
                     AcuteRecording.plotScatter(ax, mergedMoveStats, mergedStimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
-                        'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', AcuteRecording.makeGroupLabel([pooledGroups.light], [pooledGroups.duration]));
+                        'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', AcuteRecording.makeGroupLabel([pooledGroups.light], [pooledGroups.duration]), ...
+                        'Hue', p.Results.Hue);
                 end
                 figure(fig);
                 suptitle(titleText);
@@ -1047,6 +1048,87 @@ classdef AcuteRecording < handle
             function animalName = toAnimalName(expName)
                 animalName = strsplit(expName, '_');
                 animalName = animalName{1};
+            end
+        end
+
+        function plotStimResponseVsLight(obj, varargin)
+            p = inputParser();
+            if isgraphics(varargin{1})
+                p.addRequired('Ax', @(x) strcmp(varargin{1}.Type, 'axes'));
+            end
+            p.addRequired('Light1', @isnumeric);
+            p.addRequired('Light2', @isnumeric);
+            p.addParameter('Select', struct('light', [], 'duration', 0.01, 'ml', [], 'dv', [], 'fiber', '', 'galvo', []), @isstruct)
+            p.addParameter('GroupBy', {'light', 'duration', 'ml', 'dv'}, @(x) ismember(x, {'light', 'duration', 'ml', 'dv'}))
+            p.addParameter('MergeGroups', 'off', @(x) ismember(lower(x), {'off', 'mean', 'max'})) % Should all condition groups be merged into one by taking the mean or max across groups?
+            p.parse(varargin{:})
+            light1 = p.Results.Light1;
+            light2 = p.Results.Light2;
+            select = p.Results.Select;
+
+            for i = 1:length(obj)
+                [~, I] = obj(i).selectStimResponse('Light', select.light, 'Duration', select.duration, 'MLRank', select.ml, 'DVRank', select.dv, 'Fiber', select.fiber, 'Galvo', select.galvo);
+                if ~isempty(I)
+                    groups{i} = obj(i).groupByStimCondition(I, p.Results.GroupBy);
+                    stimStats{i} = obj(i).summarizeStimResponse(groups{i}, 'peak');
+                else
+                    groups{i} = [];
+                end
+            end
+            pooledGroups = AcuteRecording.poolGroups(groups);
+            nGroups = length(pooledGroups);
+            pooledStimStats = cell(1, nGroups);
+            for iGrp = 1:nGroups
+                groupHash = pooledGroups(iGrp).groupHash;
+                for iExp = 1:length(obj)
+                    if ~isstruct(groups{iExp})
+                        continue
+                    end
+                    iGrpInExp = find([groups{iExp}.groupHash] == groupHash);
+                    if ~isempty(iGrpInExp)
+                        pooledStimStats{iGrp} = vertcat(pooledStimStats{iGrp}, stimStats{iExp}(:, iGrpInExp));
+                    end
+                end
+            end
+
+            if strcmpi(p.Results.MergeGroups, 'off')
+                nCols = max(1, floor(sqrt(nGroups)));
+                nRows = max(4, ceil(nGroups/nCols));
+                if isfield(p.Results, 'Ax')
+                    ax = p.Results.Ax;
+                    fig = ax.Parent;
+                else
+                    fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
+                    ax = gobjects(nGroups, 1);
+                    for iGrp = 1:nGroups
+                        [i, j] = ind2sub([nRows, nCols], iGrp);
+                        iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
+                        ax(iGrp) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
+                    end
+                end
+                for iGrp = 1:nGroups
+                    pooledStimStats{iGrp}
+                end
+            else
+%                 if isfield(p.Results, 'Ax')
+%                     ax = p.Results.Ax;
+%                     fig = ax.Parent;
+%                 else
+%                     fig = figure('Units', 'normalized', 'Position', [0, 0, 0.25, 0.4]);
+%                     ax = axes(fig, 'Tag', 'scatter');
+%                 end
+%                 if strcmpi(p.Results.MergeGroups, 'mean')
+%                     mergedStimStats = cellfun(@mean2, stimStats, 'UniformOutput', false);
+%                 elseif strcmpi(p.Results.MergeGroups, 'max')
+%                     mergedStimStats = cellfun(@max2, stimStats, 'UniformOutput', false);
+%                 else
+%                     error()
+%                 end
+%                 mergedStimStats = cat(1, mergedStimStats{:});
+%                 mergedMoveStats = cat(1, moveStats{:});
+%                 AcuteRecording.plotScatter(ax, mergedMoveStats, mergedStimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
+%                     'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', AcuteRecording.makeGroupLabel([pooledGroups.light], [pooledGroups.duration]), ...
+%                     'Hue', p.Results.Hue);
             end
         end
 
@@ -1288,6 +1370,7 @@ classdef AcuteRecording < handle
             p.addOptional('moveThreshold', 1, @isnumeric)
             p.addOptional('stimThreshold', 0.5, @isnumeric)
             p.addParameter('Highlight', 'intersect', @(x) ismember(lower(x), {'stim', 'move', 'union', 'intersect'}))
+            p.addParameter('Hue', 2/3, @isnumeric);
             p.addParameter('Title', '', @ischar)
             p.addParameter('MoveType', 'Move', @(x) ismember(lower(x), {'press', 'lick'}))
             p.parse(varargin{:})
@@ -1318,8 +1401,8 @@ classdef AcuteRecording < handle
                     labelInsig = sprintf('N=%g', nnz(~sel));
             end
 
-            hSig = scatter(ax, moveStats(sel), stimStats(sel), 15, 'blue', 'filled', 'DisplayName', labelSig);
-            hInsig = scatter(ax, moveStats(~sel), stimStats(~sel), 8, 'black', 'DisplayName', labelInsig);
+            hSig = scatter(ax, moveStats(sel), stimStats(sel), 15, hsl2rgb([p.Results.Hue, 1, 0.5]), 'filled', 'DisplayName', labelSig);
+            hInsig = scatter(ax, moveStats(~sel), stimStats(~sel), 8, hsl2rgb([p.Results.Hue, 0.5, 0.5]), 'DisplayName', labelInsig);
             % axis(ax, 'equal')
             hY = plot(ax, ax.XLim, [0, 0], 'k--');
             hX = plot(ax, [0, 0], ax.YLim, 'k--');
