@@ -944,7 +944,8 @@ classdef AcuteRecording < handle
                 end
                 for iGrp = 1:nGroups
                     AcuteRecording.plotScatter(ax(iGrp), moveStats, stimStats(:, iGrp), p.Results.MoveThreshold, p.Results.StimThreshold, ...
-                        'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', groups(iGrp).label, 'Hue', p.Results.Hue);
+                        'XLabel', moveType, 'YLabel', 'Stim', ...
+                        'Highlight', p.Results.Highlight, 'Title', groups(iGrp).label, 'Hue', p.Results.Hue);
                 end
                 figure(fig);
                 titleText = sprintf('%s (%s)', obj.expName, obj.strain);
@@ -1018,7 +1019,8 @@ classdef AcuteRecording < handle
                     end
                     for iGrp = 1:nGroups
                         AcuteRecording.plotScatter(ax(iGrp), pooledMoveStats{iGrp}, pooledStimStats{iGrp}, p.Results.MoveThreshold, p.Results.StimThreshold, ...
-                            'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', pooledGroups(iGrp).label, 'Hue', p.Results.Hue);
+                            'XLabel', moveType, 'YLabel', 'Stim', ...
+                            'Highlight', p.Results.Highlight, 'Title', pooledGroups(iGrp).label, 'Hue', p.Results.Hue);
                     end
                 else
                     if isfield(p.Results, 'Ax')
@@ -1038,7 +1040,8 @@ classdef AcuteRecording < handle
                     mergedStimStats = cat(1, mergedStimStats{:});
                     mergedMoveStats = cat(1, moveStats{:});
                     AcuteRecording.plotScatter(ax, mergedMoveStats, mergedStimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
-                        'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', AcuteRecording.makeGroupLabel([pooledGroups.light], [pooledGroups.duration]), ...
+                        'XLabel', moveType, 'YLabel', 'Stim', ...
+                        'Highlight', p.Results.Highlight, 'Title', AcuteRecording.makeGroupLabel([pooledGroups.light], [pooledGroups.duration]), ...
                         'Hue', p.Results.Hue);
                 end
                 figure(fig);
@@ -1106,29 +1109,9 @@ classdef AcuteRecording < handle
                         ax(iGrp) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
                     end
                 end
-                for iGrp = 1:nGroups
-                    pooledStimStats{iGrp}
-                end
+                error('Not implemented')
             else
-%                 if isfield(p.Results, 'Ax')
-%                     ax = p.Results.Ax;
-%                     fig = ax.Parent;
-%                 else
-%                     fig = figure('Units', 'normalized', 'Position', [0, 0, 0.25, 0.4]);
-%                     ax = axes(fig, 'Tag', 'scatter');
-%                 end
-%                 if strcmpi(p.Results.MergeGroups, 'mean')
-%                     mergedStimStats = cellfun(@mean2, stimStats, 'UniformOutput', false);
-%                 elseif strcmpi(p.Results.MergeGroups, 'max')
-%                     mergedStimStats = cellfun(@max2, stimStats, 'UniformOutput', false);
-%                 else
-%                     error()
-%                 end
-%                 mergedStimStats = cat(1, mergedStimStats{:});
-%                 mergedMoveStats = cat(1, moveStats{:});
-%                 AcuteRecording.plotScatter(ax, mergedMoveStats, mergedStimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
-%                     'MoveType', moveType, 'Highlight', p.Results.Highlight, 'Title', AcuteRecording.makeGroupLabel([pooledGroups.light], [pooledGroups.duration]), ...
-%                     'Hue', p.Results.Hue);
+                error('Not implemented')
             end
         end
 
@@ -1365,52 +1348,71 @@ classdef AcuteRecording < handle
             else
                 ax = gca();
             end
-            p.addRequired('moveStats', @isnumeric)
-            p.addRequired('stimStats', @isnumeric)
-            p.addOptional('moveThreshold', 1, @isnumeric)
-            p.addOptional('stimThreshold', 0.5, @isnumeric)
-            p.addParameter('Highlight', 'intersect', @(x) ismember(lower(x), {'stim', 'move', 'union', 'intersect'}))
+            p.addRequired('x', @isnumeric)
+            p.addRequired('y', @isnumeric)
+            p.addOptional('xThreshold', 0.5, @isnumeric)
+            p.addOptional('yThreshold', 0.5, @isnumeric)
+            p.addParameter('XLabel', '', @ischar)
+            p.addParameter('YLabel', '', @ischar)
+            p.addParameter('Highlight', 'intersect', @(x) ismember(lower(x), {'x', 'y', 'union', 'intersect'}))
             p.addParameter('Hue', 2/3, @isnumeric);
             p.addParameter('Title', '', @ischar)
-            p.addParameter('MoveType', 'Move', @(x) ismember(lower(x), {'press', 'lick'}))
+            p.addParameter('Verbose', false, @islogical)
             p.parse(varargin{:})
             
-            moveStats = p.Results.moveStats;
-            stimStats = p.Results.stimStats;
-            moveThreshold = p.Results.moveThreshold;
-            stimThreshold = p.Results.stimThreshold;
+            x = p.Results.x;
+            y = p.Results.y;
+            xThreshold = p.Results.xThreshold;
+            yThreshold = p.Results.yThreshold;
+            xname = p.Results.XLabel;
+            yname = p.Results.YLabel;
+            verbose = p.Results.Verbose;
+
 
             hold(ax, 'on')
     
             switch lower(p.Results.Highlight)
-                case 'stim'
-                    sel = abs(stimStats) >= stimThreshold; 
-                    labelSig = sprintf('N=%g (stim resp)', nnz(sel));
-                    labelInsig = sprintf('N=%g', nnz(~sel));
-                case 'move'
-                    sel = abs(moveStats) >= moveThreshold;    
-                    labelSig = sprintf('N=%g (move resp)', nnz(sel));
-                    labelInsig = sprintf('N=%g', nnz(~sel));
+                case 'x'
+                    sel = abs(x) >= xThreshold; 
+                    if verbose
+                        labelSig = sprintf('N=%g (%s)', nnz(sel), xname);
+                    else
+                        labelSig = sprintf('N=%g (x)', nnz(sel));
+                    end
+                case 'y'
+                    sel = abs(y) >= yThreshold;    
+                    if verbose
+                        labelSig = sprintf('N=%g (%s)', nnz(sel), yname);
+                    else
+                        labelSig = sprintf('N=%g (y)', nnz(sel));
+                    end
                 case 'union'
-                    sel = abs(moveStats) >= moveThreshold | abs(stimStats) >= stimThreshold;
-                    labelSig = sprintf('N=%g (move&stim resp)', nnz(sel));
-                    labelInsig = sprintf('N=%g', nnz(~sel));
+                    sel = abs(x) >= xThreshold | abs(y) >= yThreshold;
+                    if verbose
+                        labelSig = sprintf('N=%g (%s or %s)', nnz(sel), xname, yname);
+                    else
+                        labelSig = sprintf('N=%g (x|y)', nnz(sel));
+                    end
                 case 'intersect'
-                    sel = abs(moveStats) >= moveThreshold & abs(stimStats) >= stimThreshold;
-                    labelSig = sprintf('N=%g (move/stim resp)', nnz(sel));
-                    labelInsig = sprintf('N=%g', nnz(~sel));
+                    sel = abs(x) >= xThreshold & abs(y) >= yThreshold;
+                    if verbose
+                        labelSig = sprintf('N=%g (%s and %s)', nnz(sel), xname, yname);
+                    else
+                        labelSig = sprintf('N=%g (x&y)', nnz(sel));
+                    end
             end
+            labelInsig = sprintf('N=%g', nnz(~sel));
 
-            hSig = scatter(ax, moveStats(sel), stimStats(sel), 15, hsl2rgb([p.Results.Hue, 1, 0.5]), 'filled', 'DisplayName', labelSig);
-            hInsig = scatter(ax, moveStats(~sel), stimStats(~sel), 8, hsl2rgb([p.Results.Hue, 0.5, 0.5]), 'DisplayName', labelInsig);
+            hSig = scatter(ax, x(sel), y(sel), 15, hsl2rgb([p.Results.Hue, 1, 0.5]), 'filled', 'DisplayName', labelSig);
+            hInsig = scatter(ax, x(~sel), y(~sel), 8, hsl2rgb([p.Results.Hue, 0.2, 0.5]), 'DisplayName', labelInsig);
             % axis(ax, 'equal')
             hY = plot(ax, ax.XLim, [0, 0], 'k--');
             hX = plot(ax, [0, 0], ax.YLim, 'k--');
             title(ax, p.Results.Title)
-            xlabel(ax, p.Results.MoveType)
-            ylabel(ax, 'Stim')
+            xlabel(ax, xname)
+            ylabel(ax, yname)
             hold(ax, 'off')
-            hLegend = legend(ax, [hSig, hInsig], 'Location', 'northoutside', 'Orientation', 'horizontal');
+            hLegend = legend(ax, [hSig, hInsig], 'Location', 'northoutside', 'Orientation', 'horizontal', 'AutoUpdate', 'off');
             varargout = {ax, hSig, hInsig, hX, hY, hLegend};
         end
 
@@ -1429,6 +1431,11 @@ classdef AcuteRecording < handle
         end
 
         function pg = poolGroups(groups)
+            p = inputParser();
+            p.addRequired('groups', @(x) iscell(x) && length(x) > 1)
+            p.parse(groups);
+            groups = p.Results.groups;
+
             function r = range(x)
                 r = [min(x), max(x)];
                 if r(1) == r(2)
@@ -1436,7 +1443,6 @@ classdef AcuteRecording < handle
                 end
             end
 
-            assert(iscell(groups) && length(groups) > 1)
             allGroups = cat(2, groups{:});
             uniqueGroupHashes = unique([allGroups.groupHash]);
             pg(length(uniqueGroupHashes)) = struct('groupHash', [], 'hash', [], 'label', '', 'numTrials', [], 'light', [], 'duration', [], 'mlRank', [], 'dvRank', [], 'fiber', '', 'galvo', []);
@@ -1544,6 +1550,22 @@ classdef AcuteRecording < handle
             p.parse(varargin{:});
 
             s = struct('light', p.Results.Light, 'duration', p.Results.Duration, 'ml', p.Results.ML, 'dv', p.Results.DV, 'fiber', p.Results.Fiber, 'galvo', p.Results.Galvo);
+        end
+
+        function [ax, fig, nCols, nRows] = makeSubplots(nGroups, fig)
+            if nargin < 2
+                fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
+            end
+
+            nCols = max(1, floor(sqrt(nGroups)));
+            nRows = max(4, ceil(nGroups/nCols));
+            figure(fig);
+            ax = gobjects(nGroups, 1);
+            for iGrp = 1:nGroups
+                [i, j] = ind2sub([nRows, nCols], iGrp);
+                iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
+                ax(iGrp) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
+            end
         end
     end
 

@@ -146,12 +146,12 @@ clear i expName animalName f S
 close all
 % Load data if necessary
 if ~exist('exp_D1', 'var')
-    exp_D1 = readdir('C:\SERVER\Experiment_Galvo_D1Cre;DlxFlp;Ai80\AcuteRecording');
+    exp_D1 = readdir('C:\SERVER\Experiment_Galvo_D1Cre;DlxFlp;Ai80\AcuteRecording', 'D1');
 end
 if ~exist('exp_A2A', 'var')
-    exp_A2A = readdir('C:\SERVER\Experiment_Galvo_A2ACre\AcuteRecording');
+    exp_A2A = readdir('C:\SERVER\Experiment_Galvo_A2ACre\AcuteRecording', 'A2A');
 end
-
+%%
 fig(1) = figure('Units', 'Normalized', 'Position', [0, 0, 0.5, 0.5]);
 for i = 1:8
     figure(fig(1));
@@ -175,58 +175,77 @@ unifyAxesLims(ax(1:8))
 unifyAxesLims(ax(9:16))
 
 %% Compare 0.5mW to 2mW, plot in same figure, different colors
-% close all
-% clear fig ax
-% fig(1) = figure('Units', 'Normalized', 'Position', [0, 0, 0.25, 0.5]);
-% for i = 1:2
-%     ax(i) = subplot(1, 2, i);
-% end
-% plotMoveVsStim_MultiLight(ax, exp_D1, 1, 0.5, {[0.4, 0.5], 2}, 0.01);
-% unifyAxesLims(ax)
-% 
-% fig(2) = figure('Units', 'Normalized', 'Position', [0, 0, 0.25, 0.5]);
-% for i = 1:2
-%     ax(i) = subplot(1, 2, i);
-% end
-% plotMoveVsStim_MultiLight(ax, exp_A2A, 1, 0.5, {[0.4, 0.5], 2}, 0.01);
-% unifyAxesLims(ax)
+close all
 
-clear ar exp light duration il I groups stimStats
-
-exp = exp_A2A;
 light = {[0.4, 0.5], 2};
 duration = 0.01;
-for iExp = 1:length(exp.ar)
-    ar = exp.ar(iExp);
-    for il = 1:length(light)
-        [~, I] = ar.selectStimResponse('Light', light{il}, 'Duration', duration);
-        groups{iExp}{il} = ar.groupByStimCondition(I, {'light', 'duration', 'ml', 'dv'});
-        s = ar.summarizeStimResponse(groups{iExp}{il}, 'peak');
-        stimStats{iExp}(:, il) = max2(s);
-    end
-    clear il
-end
-stimStats = cat(1, stimStats{:});
 
-ax = axes(figure);
-hold(ax, 'on')
-sel = abs(stimStats(:, 1)) > .5 | abs(stimStats(:, 2)) > .5; 
-scatter(ax, stimStats(sel, 1), stimStats(sel, 2), 25, 'blue', 'filled')
-scatter(ax, stimStats(~sel, 1), stimStats(~sel, 2), 15, 'black')
-xlabel(ax, '0.4-0.5mW')
-ylabel(ax, '2mW')
-axis(ax, 'equal');
-xrange = ax.XLim;
-yrange = ax.YLim;
-ax.XLimMode = 'manual';
-ax.YLimMode = 'manual';
-plot([xrange(1), xrange(2)], [xrange(1), xrange(2)], 'k:')
-plot([xrange(1), xrange(2)], [0, 0], 'k:')
-plot([0, 0], [yrange(1), yrange(2)], 'k:')
-hold(ax, 'off')
+[exp_A2A.groups, exp_A2A.stimStats] = getPaddedGroupsAndStimStats(exp_A2A, light, duration);
+[exp_D1.groups, exp_D1.stimStats] = getPaddedGroupsAndStimStats(exp_D1, light, duration);
+clear fig ax
+[fig(1), ax{1}] = plotStimResponseVsLightBySite(exp_A2A);
+[fig(2), ax{2}] = plotStimResponseVsLightBySite(exp_D1);
+unifyAxesLims(ax{1}, true, true);
+unifyAxesLims(ax{2}, true, true);
 
-clear ar exp light duration il xrange yrange ax
 %%
+
+function [fig, ax] = plotStimResponseVsLightBySite(exp)
+    nGroups = size(exp.groups, 1);
+    nLights = size(exp.groups, 2);
+    assert(nLights == 2)
+    
+    [ax, fig] = AcuteRecording.makeSubplots(nGroups);
+    for iGrp = 1:nGroups
+        AcuteRecording.plotScatter(ax(iGrp), exp.stimStats(:, iGrp, 1), exp.stimStats(:, iGrp, 2), 0.5, 0.5, 'XLabel', exp.groups(iGrp, 1).label, 'YLabel', exp.groups(iGrp, 2).label, ...
+            'Highlight', 'intersect');
+    end
+    figure(fig)
+    suptitle(exp.label);
+end
+
+function [pooledGroupsPadded, stimStatsPadded] = getPaddedGroupsAndStimStats(exp, light, duration)
+    for iExp = 1:length(exp.ar)
+        ar = exp.ar(iExp);
+        for iLi = 1:length(light)
+            [~, I] = ar.selectStimResponse('Light', light{iLi}, 'Duration', duration);
+            groups{iExp, iLi} = ar.groupByStimCondition(I, {'light', 'duration', 'ml', 'dv'});
+            stimStats{iExp, iLi} = ar.summarizeStimResponse(groups{iExp, iLi}, 'peak');
+        end
+    end
+    
+    % Find all unique group hashes
+    h = cellfun(@(g) [g.groupHash], groups, 'UniformOutput', false);
+    uniqueHashes = unique(cat(2, h{:}));
+    nGroups = length(uniqueHashes);
+    for iExp = 1:length(exp.ar)
+        nUnits = size(stimStats{iExp, 1}, 1);
+        stimStatsPadded{iExp} = NaN(nUnits, nGroups, length(light));
+        for iLi = 1:length(light)
+            for iGrp = 1:length(uniqueHashes)
+                sel = [groups{iExp, iLi}.groupHash] == uniqueHashes(iGrp);
+                if nnz(sel) > 0
+                    assert(nnz(sel) == 1)
+                    stimStatsPadded{iExp}(:, iGrp, iLi) = stimStats{iExp, iLi}(:, sel);
+                end
+            end
+        end
+    end
+    
+    for iLi = 1:length(light)
+        pooledGroups{iLi} = AcuteRecording.poolGroups(groups(:, iLi));
+        for iGrp = 1:length(uniqueHashes)
+            sel = find([pooledGroups{iLi}.groupHash] == uniqueHashes(iGrp));
+            if ~isempty(sel)
+                pooledGroupsPadded(iGrp, iLi) = pooledGroups{iLi}(sel);
+            end
+        end
+    end
+    
+    stimStatsPadded = cat(1, stimStatsPadded{:});
+end
+
+
 function m = max2(x)
     [~, I] = max(abs(x), [], 2);
     m = diag(x(:, I));
@@ -248,21 +267,46 @@ end
 %     end
 % end
 
-function unifyAxesLims(ax)
+function unifyAxesLims(ax, varargin)
+    p = inputParser();
+    p.addRequired('ax');
+    p.addOptional('drawXY', false, @islogical)
+    p.addOptional('drawDiag', false, @islogical)
+    p.parse(ax, varargin{:})
+    ax = p.Results.ax;
+    drawXY = p.Results.drawXY;
+    drawDiag = p.Results.drawDiag;
+
     xlims = vertcat(ax.XLim);
     ylims = vertcat(ax.YLim);
     xrange = [min(xlims(:, 1)), max(xlims(:, 2))];
     yrange = [min(ylims(:, 1)), max(ylims(:, 2))];
     set(ax, 'XLim', xrange)
     set(ax, 'YLim', yrange)
+    set(ax, 'XLimMode', 'manual')
+    set(ax, 'YLimMode', 'manual')
+
+    for i = 1:length(ax)
+        hold(ax(i), 'on')
+        if drawXY
+            plot(ax(i), xrange, [0, 0], 'k:')
+            plot(ax(i), [0, 0],yrange, 'k:')
+        end
+        if drawDiag
+            plot(ax(i), xrange, xrange, 'k:')
+        end
+        hold(ax(i), 'off')
+    end
 end
 
+
 %% 
-function exp = readdir(fdir)
+function exp = readdir(fdir, label)
     exp.fdir = fdir;
     exp.ar = AcuteRecording.load(fdir);
     exp.sessionInfo = readSessionInfo(fdir);
     exp.crit = inferCriteria(exp.ar, [0.5, 0.4], 0.01);
+    exp.label = label;
 end
 
 function sessionInfo = readSessionInfo(fdir)
