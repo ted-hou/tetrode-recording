@@ -171,80 +171,36 @@ plotMoveVsStim(ax(11:12), exp_D1, 1, 0.5, [0.4, 0.5], 0.01);
 plotMoveVsStim(ax(13:14), exp_D1, 1, 0.5, 2, 0.01);
 plotMoveVsStim(ax(15:16), exp_D1, 1, 0.5, 8, 0.01);
 
-unifyAxesLims(ax(1:8))
-unifyAxesLims(ax(9:16))
+AcuteRecording.unifyAxesLims(ax(1:8))
+AcuteRecording.unifyAxesLims(ax(9:16))
 
 %% Compare 0.5mW to 2mW, plot in same figure, different colors
 close all
+clear ax fig
 
-light = {[0.4, 0.5], 2};
+lights = {[0.4, 0.5], 2};
 duration = 0.01;
 
-[exp_A2A.groups, exp_A2A.stimStats] = getPaddedGroupsAndStimStats(exp_A2A, light, duration);
-[exp_D1.groups, exp_D1.stimStats] = getPaddedGroupsAndStimStats(exp_D1, light, duration);
-clear fig ax
-[fig(1), ax{1}] = plotStimResponseVsLightBySite(exp_A2A);
-[fig(2), ax{2}] = plotStimResponseVsLightBySite(exp_D1);
-unifyAxesLims(ax{1}, true, true);
-unifyAxesLims(ax{2}, true, true);
+[~, ax{1}] = exp_D1.ar.plotStimResponseVsLight(lights, duration);
+[~, ax{2}] = exp_A2A.ar.plotStimResponseVsLight(lights, duration);
+
+figure();
+ax{3}(1) = subplot(1, 2, 1);
+ax{3}(2) = subplot(1, 2, 2);
+exp_D1.ar.plotStimResponseVsLight(ax{3}(1), lights, duration, 'MergeGroups', 'max');
+exp_A2A.ar.plotStimResponseVsLight(ax{3}(2), lights, duration, 'MergeGroups', 'max');
+
+AcuteRecording.unifyAxesLims(ax{1});
+AcuteRecording.unifyAxesLims(ax{2});
+AcuteRecording.drawLines(ax{1}, true, true)
+AcuteRecording.drawLines(ax{2}, true, true)
+AcuteRecording.unifyAxesLims(ax{3});
+AcuteRecording.drawLines(ax{3}(1), true, true)
+AcuteRecording.drawLines(ax{3}(2), true, true)
+
+clear ax fig
 
 %%
-
-function [fig, ax] = plotStimResponseVsLightBySite(exp)
-    nGroups = size(exp.groups, 1);
-    nLights = size(exp.groups, 2);
-    assert(nLights == 2)
-    
-    [ax, fig] = AcuteRecording.makeSubplots(nGroups);
-    for iGrp = 1:nGroups
-        AcuteRecording.plotScatter(ax(iGrp), exp.stimStats(:, iGrp, 1), exp.stimStats(:, iGrp, 2), 0.5, 0.5, 'XLabel', exp.groups(iGrp, 1).label, 'YLabel', exp.groups(iGrp, 2).label, ...
-            'Highlight', 'intersect');
-    end
-    figure(fig)
-    suptitle(exp.label);
-end
-
-function [pooledGroupsPadded, stimStatsPadded] = getPaddedGroupsAndStimStats(exp, light, duration)
-    for iExp = 1:length(exp.ar)
-        ar = exp.ar(iExp);
-        for iLi = 1:length(light)
-            [~, I] = ar.selectStimResponse('Light', light{iLi}, 'Duration', duration);
-            groups{iExp, iLi} = ar.groupByStimCondition(I, {'light', 'duration', 'ml', 'dv'});
-            stimStats{iExp, iLi} = ar.summarizeStimResponse(groups{iExp, iLi}, 'peak');
-        end
-    end
-    
-    % Find all unique group hashes
-    h = cellfun(@(g) [g.groupHash], groups, 'UniformOutput', false);
-    uniqueHashes = unique(cat(2, h{:}));
-    nGroups = length(uniqueHashes);
-    for iExp = 1:length(exp.ar)
-        nUnits = size(stimStats{iExp, 1}, 1);
-        stimStatsPadded{iExp} = NaN(nUnits, nGroups, length(light));
-        for iLi = 1:length(light)
-            for iGrp = 1:length(uniqueHashes)
-                sel = [groups{iExp, iLi}.groupHash] == uniqueHashes(iGrp);
-                if nnz(sel) > 0
-                    assert(nnz(sel) == 1)
-                    stimStatsPadded{iExp}(:, iGrp, iLi) = stimStats{iExp, iLi}(:, sel);
-                end
-            end
-        end
-    end
-    
-    for iLi = 1:length(light)
-        pooledGroups{iLi} = AcuteRecording.poolGroups(groups(:, iLi));
-        for iGrp = 1:length(uniqueHashes)
-            sel = find([pooledGroups{iLi}.groupHash] == uniqueHashes(iGrp));
-            if ~isempty(sel)
-                pooledGroupsPadded(iGrp, iLi) = pooledGroups{iLi}(sel);
-            end
-        end
-    end
-    
-    stimStatsPadded = cat(1, stimStatsPadded{:});
-end
-
 
 function m = max2(x)
     [~, I] = max(abs(x), [], 2);
@@ -258,46 +214,6 @@ function plotMoveVsStim(ax, exp, moveThreshold, stimThreshold, critLight, critDu
     exp.ar.plotStimVsMoveResponse(ax(2), 'Lick', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max');
 end
 
-% function plotMoveVsStim_MultiLight(ax, exp, moveThreshold, stimThreshold, critLight, critDuration)
-%     hues = linspace(0, 1, length(critLight) + 1);
-%     for il = 1:length(critLight)
-%         selection = AcuteRecording.makeSelection('Light', critLight{il}, 'Duration', critDuration);
-%         exp.ar.plotStimVsMoveResponse(ax(1), 'Press', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max', 'Hue', hues(il));
-%         exp.ar.plotStimVsMoveResponse(ax(2), 'Lick', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max', 'Hue', hues(il));
-%     end
-% end
-
-function unifyAxesLims(ax, varargin)
-    p = inputParser();
-    p.addRequired('ax');
-    p.addOptional('drawXY', false, @islogical)
-    p.addOptional('drawDiag', false, @islogical)
-    p.parse(ax, varargin{:})
-    ax = p.Results.ax;
-    drawXY = p.Results.drawXY;
-    drawDiag = p.Results.drawDiag;
-
-    xlims = vertcat(ax.XLim);
-    ylims = vertcat(ax.YLim);
-    xrange = [min(xlims(:, 1)), max(xlims(:, 2))];
-    yrange = [min(ylims(:, 1)), max(ylims(:, 2))];
-    set(ax, 'XLim', xrange)
-    set(ax, 'YLim', yrange)
-    set(ax, 'XLimMode', 'manual')
-    set(ax, 'YLimMode', 'manual')
-
-    for i = 1:length(ax)
-        hold(ax(i), 'on')
-        if drawXY
-            plot(ax(i), xrange, [0, 0], 'k:')
-            plot(ax(i), [0, 0],yrange, 'k:')
-        end
-        if drawDiag
-            plot(ax(i), xrange, xrange, 'k:')
-        end
-        hold(ax(i), 'off')
-    end
-end
 
 
 %% 
@@ -368,11 +284,11 @@ function plotD1(ap, useSignedML)
         % ar(i).importProbeMap(sessionInfo(i).orientation, sessionInfo(i).ml, sessionInfo(i).dv, sessionInfo(i).ap);
         bsr{i} = ar(i).selectStimResponse('Light', crit(i).light, 'Duration', crit(i).duration);
         [stats{i}, conditions{i}] = ar(i).summarize(bsr{i}, 'peak', window);
-        titleText = ar(i).plotStimResponseMap(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25, 'UseSignedML', useSignedML);
-        print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
+        ar(i).plotStimResponseMap(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25, 'UseSignedML', useSignedML);
+        print(sprintf('%s (%.2f AP).png', ar(i).getLabel, ap/1000), '-dpng');
     end
-    titleText = ar.plotStimResponseMap(bsr, [0.25, 1], 0.25, 'peak', window, 0.25, 'HideFlatUnits', true, 'UseSignedML', useSignedML);
-    print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
+    ar.plotStimResponseMap(bsr, [0.25, 1], 0.25, 'peak', window, 0.25, 'HideFlatUnits', true, 'UseSignedML', useSignedML);
+    print(sprintf('%s (%.2f AP).png', ar.getLabel, ap/1000), '-dpng');
 end
 
 function plotA2A(ap, useSignedML)
@@ -402,11 +318,11 @@ function plotA2A(ap, useSignedML)
         % ar(i).importProbeMap(sessionInfo(i).orientation, sessionInfo(i).ml, sessionInfo(i).dv, sessionInfo(i).ap);
         bsr{i} = ar(i).selectStimResponse('Light', crit(i).light, 'Duration', crit(i).duration);
         [stats{i}, conditions{i}] = ar(i).summarize(bsr{i}, 'peak', window);
-        titleText = ar(i).plotStimResponseMap(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25, 'UseSignedML', useSignedML);
-        print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
+        ar(i).plotStimResponseMap(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25, 'UseSignedML', useSignedML);
+        print(sprintf('%s (%.2f AP).png', ar(i).getLabel, ap/1000), '-dpng');
     end
-    titleText = ar.plotStimResponseMap(bsr, [0.25, 1], 0.25, 'peak', window, 0.25, 'HideFlatUnits', true, 'UseSignedML', useSignedML);
-    print(sprintf('%s (%.2f AP).png', titleText, ap/1000), '-dpng');
+    ar.plotStimResponseMap(bsr, [0.25, 1], 0.25, 'peak', window, 0.25, 'HideFlatUnits', true, 'UseSignedML', useSignedML);
+    print(sprintf('%s (%.2f AP).png', ar.getLabel, ap/1000), '-dpng');
 end
 
 function tr = readIntan(fdir)

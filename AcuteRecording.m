@@ -32,6 +32,31 @@ classdef AcuteRecording < handle
             obj.expName = strjoin(expName(1:2), '_');
         end
 
+        function label = getLabel(obj)
+            if length(obj) == 1
+                label = sprintf('%s (%s)', obj.strain, obj.expName);
+                return
+            else
+                nAnimals = length(unique(obj.getAnimalName()));
+                strains = unique({obj.strain});
+                if length(strains) == 1
+                    label = sprintf('%s (%g animals, %g sessions)', strains{1}, nAnimals, length(obj));
+                    return
+                else
+                    label = sprintf('%g strains, %g animals, %g sessions', length(strains), nAnimals, length(obj));
+                end
+            end
+        end
+
+        function animalName = getAnimalName(obj)
+            if length(obj) == 1
+                splitExpName = strsplit(obj.expName, '_');
+                animalName = splitExpName{1};
+            else
+                animalName = arrayfun(@(x) x.getAnimalName(), obj, 'UniformOutput', false);
+            end
+        end
+
         function save(obj, varargin)
             p = inputParser();
             p.addOptional('Prefix', 'ar_', @ischar)
@@ -115,7 +140,7 @@ classdef AcuteRecording < handle
                 stim.pulse(i + 1:i + n) = 1:n;
                 i = i + n;
             end
-            
+
             stim.duration = round((stim.tOff - stim.tOn) .* 1000) ./ 1000;
 
             obj.stim = stim;
@@ -208,6 +233,18 @@ classdef AcuteRecording < handle
             probeMap.map = map;
             
             obj.probeMap = probeMap;
+        end
+
+        function coords = getProbeCoords(obj, channels)
+            map = obj.probeMap;
+            coords = zeros(length(channels), 3);
+            for i = 1:length(channels)
+                I = find(map.channel == channels(i), 1);
+                assert(~isempty(I))
+                coords(i, 1) = map.ml(I);
+                coords(i, 2) = map.dv(I);
+                coords(i, 3) = map.ap(I);
+            end
         end
 
         function varargout = binMoveResponse(obj, tr, moveType, varargin)
@@ -777,7 +814,7 @@ classdef AcuteRecording < handle
             end
         end
 
-        function titleText = plotStimResponseMap(obj, bsr, varargin)
+        function plotStimResponseMap(obj, bsr, varargin)
             p = inputParser();
             p.addRequired('BinnedStimResponse', @(x) isstruct(x) || iscell(x));
             p.addOptional('SRange', [0.25, 3], @(x) isnumeric(x) && length(x)==2);
@@ -819,8 +856,7 @@ classdef AcuteRecording < handle
                     axis(ax(iCond), 'equal')
                 end
                 figure(fig);
-                titleText = sprintf('%s (%s)', obj.expName, obj.strain);
-                suptitle(titleText);
+                suptitle(obj.getLabel());
             elseif length(obj) > 1
                 assert(iscell(bsr) && length(obj) == length(bsr))
                 
@@ -869,18 +905,7 @@ classdef AcuteRecording < handle
                 else
                     strain = 'Multiple Strains';
                 end
-                nUnits = sum(cellfun(@length, bsr));
-                nSessions = length(obj);
-                animalNames = cellfun(@toAnimalName, {obj.expName}, 'UniformOutput', false);
-                nAnimals = length(unique(animalNames));
-                figure(fig);
-                titleText = sprintf('%s (%g animals, %g sessions)', strain, nAnimals, nSessions);
-                suptitle(titleText);
-            end
-
-            function animalName = toAnimalName(expName)
-                animalName = strsplit(expName, '_');
-                animalName = animalName{1};
+                suptitle(obj.getLabel());
             end
         end
 
@@ -948,8 +973,7 @@ classdef AcuteRecording < handle
                         'Highlight', p.Results.Highlight, 'Title', groups(iGrp).label, 'Hue', p.Results.Hue);
                 end
                 figure(fig);
-                titleText = sprintf('%s (%s)', obj.expName, obj.strain);
-                suptitle(titleText);
+                suptitle(obj.getLabel());
             elseif length(obj) > 1               
                 % Get POOLED single-numeric move/stim stats
                 switch lower(moveType)
@@ -991,17 +1015,6 @@ classdef AcuteRecording < handle
                 end
                 
                 % Plot
-                strain = unique({obj.strain});
-                if length(strain) == 1
-                    strain = strain{1};
-                else
-                    strain = 'Multiple Strains';
-                end
-                nSessions = length(obj);
-                animalNames = cellfun(@toAnimalName, {obj.expName}, 'UniformOutput', false);
-                nAnimals = length(unique(animalNames));
-                titleText = sprintf('%s (%g animals, %g sessions)', strain, nAnimals, nSessions);
-
                 if strcmpi(p.Results.MergeGroups, 'off')
                     nCols = max(1, floor(sqrt(nGroups)));
                     nRows = max(4, ceil(nGroups/nCols));
@@ -1045,85 +1058,150 @@ classdef AcuteRecording < handle
                         'Hue', p.Results.Hue);
                 end
                 figure(fig);
-                suptitle(titleText);
-            end
-
-            function animalName = toAnimalName(expName)
-                animalName = strsplit(expName, '_');
-                animalName = animalName{1};
+                suptitle(obj.getLabel());
             end
         end
 
-        function plotStimResponseVsLight(obj, varargin)
+        function [fig, ax] = plotStimResponseVsLight(obj, varargin)
+            function sliderValueChanged(src, ev)
+                src.Value = round(src.Value);
+                for i = 1:nPairs
+                    pnl(i).Visible = false;
+                end
+                pnl(src.Value).Visible = true;
+            end
+
             p = inputParser();
-            if isgraphics(varargin{1})
-                p.addRequired('Ax', @(x) strcmp(varargin{1}.Type, 'axes'));
-            end
-            p.addRequired('Light1', @isnumeric);
-            p.addRequired('Light2', @isnumeric);
-            p.addParameter('Select', struct('light', [], 'duration', 0.01, 'ml', [], 'dv', [], 'fiber', '', 'galvo', []), @isstruct)
-            p.addParameter('GroupBy', {'light', 'duration', 'ml', 'dv'}, @(x) ismember(x, {'light', 'duration', 'ml', 'dv'}))
-            p.addParameter('MergeGroups', 'off', @(x) ismember(lower(x), {'off', 'mean', 'max'})) % Should all condition groups be merged into one by taking the mean or max across groups?
-            p.parse(varargin{:})
-            light1 = p.Results.Light1;
-            light2 = p.Results.Light2;
-            select = p.Results.Select;
-
-            for i = 1:length(obj)
-                [~, I] = obj(i).selectStimResponse('Light', select.light, 'Duration', select.duration, 'MLRank', select.ml, 'DVRank', select.dv, 'Fiber', select.fiber, 'Galvo', select.galvo);
-                if ~isempty(I)
-                    groups{i} = obj(i).groupByStimCondition(I, p.Results.GroupBy);
-                    stimStats{i} = obj(i).summarizeStimResponse(groups{i}, 'peak');
+            if isgraphics(varargin{1}(1))
+                if strcmp(varargin{1}(1).Type, 'axes')
+                    p.addRequired('Ax', @(x) strcmp(varargin{1}(1).Type, 'axes'));
                 else
-                    groups{i} = [];
+                    p.addRequired('Fig');
                 end
             end
-            pooledGroups = AcuteRecording.poolGroups(groups);
-            nGroups = length(pooledGroups);
-            pooledStimStats = cell(1, nGroups);
-            for iGrp = 1:nGroups
-                groupHash = pooledGroups(iGrp).groupHash;
-                for iExp = 1:length(obj)
-                    if ~isstruct(groups{iExp})
-                        continue
-                    end
-                    iGrpInExp = find([groups{iExp}.groupHash] == groupHash);
-                    if ~isempty(iGrpInExp)
-                        pooledStimStats{iGrp} = vertcat(pooledStimStats{iGrp}, stimStats{iExp}(:, iGrpInExp));
+            p.addRequired('Lights', @(x) iscell(x) && length(x) >= 2)
+            p.addRequired('Duration', @(x) isnumeric(x) && length(x) == 1);
+            p.addParameter('MergeGroups', 'off', @(x) ismember(x, {'off', 'max', 'mean'}))
+            p.parse(varargin{:});
+            lights = p.Results.Lights;
+            duration = p.Results.Duration;
+
+            nLights = length(lights);
+            if nLights > 2
+                nPairs = nchoosek(nLights, 2);
+                switch p.Results.MergeGroups
+                    case 'off'
+                        fig = uifigure('Units', 'normalized', 'Position', [0, 0.1, 0.4, 0.8]);
+                    case {'mean', 'max'}
+                        fig = uifigure('Units', 'normalized', 'Position', [0, 0.1, 0.25, 0.4]);
+                end
+
+                iPair = 1;
+                for ix = 1:nLights-1
+                    for iy = ix+1:nLights
+                        pnl(iPair) = uipanel(fig, 'Units', 'normalized', 'Position', [0, 0.1, 1, 0.9], 'Visible', false);
+                        obj.plotStimResponseVsLight(pnl(iPair), lights([ix, iy]), duration, 'MergeGroups', p.Results.MergeGroups);
+                        iPair = iPair + 1;
                     end
                 end
+                slider = uislider(fig, 'Value', 1, 'Limits', [1, nPairs], 'MajorTicks', 1:nPairs, 'MinorTicks', [], 'Position', [100, 50, 150, 3]);
+                slider.ValueChangedFcn = @sliderValueChanged;
+                pnl(1).Visible = true;
+                return
             end
+   
 
-            if strcmpi(p.Results.MergeGroups, 'off')
-                nCols = max(1, floor(sqrt(nGroups)));
-                nRows = max(4, ceil(nGroups/nCols));
-                if isfield(p.Results, 'Ax')
-                    ax = p.Results.Ax;
-                    fig = ax.Parent;
-                else
-                    fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
-                    ax = gobjects(nGroups, 1);
+            % Step 1: Make two versions of stimStats, one for each light level
+            groups = cell(length(obj), nLights);
+            stimStats = cell(length(obj), nLights);
+            for iExp = 1:length(obj)
+                for iLi = 1:nLights
+                    [~, I] = obj(iExp).selectStimResponse('Light', lights{iLi}, 'Duration', duration);
+                    groups{iExp, iLi} = obj(iExp).groupByStimCondition(I, {'light', 'duration', 'ml', 'dv'});
+                    stimStats{iExp, iLi} = obj(iExp).summarizeStimResponse(groups{iExp, iLi}, 'peak');
+                end
+            end
+            
+            % Find all unique group hashes
+            h = cellfun(@(g) [g.groupHash], groups, 'UniformOutput', false);
+            uniqueHashes = unique(cat(2, h{:}));
+            nGroups = length(uniqueHashes);
+            stimStatsPadded = cell(length(obj), 1);
+            for iExp = 1:length(obj)
+                nUnits = size(stimStats{iExp, 1}, 1);
+                stimStatsPadded{iExp} = NaN(nUnits, nGroups, nLights);
+                for iLi = 1:nLights
                     for iGrp = 1:nGroups
-                        [i, j] = ind2sub([nRows, nCols], iGrp);
-                        iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
-                        ax(iGrp) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
+                        sel = [groups{iExp, iLi}.groupHash] == uniqueHashes(iGrp);
+                        if nnz(sel) > 0
+                            assert(nnz(sel) == 1)
+                            stimStatsPadded{iExp}(:, iGrp, iLi) = stimStats{iExp, iLi}(:, sel);
+                        end
                     end
                 end
-                error('Not implemented')
-            else
-                error('Not implemented')
             end
-        end
+            
+            pooledGroups = cell(1, nLights);
+            for iLi = 1:nLights
+                pooledGroups{iLi} = AcuteRecording.poolGroups(groups(:, iLi));
+                for iGrp = 1:nGroups
+                    sel = find([pooledGroups{iLi}.groupHash] == uniqueHashes(iGrp));
+                    if ~isempty(sel)
+                        pooledGroupsPadded(iGrp, iLi) = pooledGroups{iLi}(sel);
+                    end
+                end
+            end
+            
+            % Now we have stimStatsPadded (non existing conditions are padded with NaN) and pooledGroupsPadded. 
+            stimStatsPadded = cat(1, stimStatsPadded{:});
 
-        function coords = getProbeCoords(obj, channels)
-            map = obj.probeMap;
-            coords = zeros(length(channels), 3);
-            for i = 1:length(channels)
-                I = find(map.channel == channels(i), 1);
-                assert(~isempty(I))
-                coords(i, 1) = map.ml(I);
-                coords(i, 2) = map.dv(I);
-                coords(i, 3) = map.ap(I);
+            % Step 2. Plot
+            if nLights == 2
+                switch p.Results.MergeGroups
+                    case 'mean'
+                        stimStatsPadded = squeeze(mean(stimStatsPadded, 2, 'omitnan'));
+                    case 'max'
+                        m = NaN(size(stimStatsPadded, [1 3]));
+                        [~, IMax] = max(abs(stimStatsPadded), [], 2);
+                        for iLi = 1:nLights
+                            m(:, iLi) = diag(stimStatsPadded(:, IMax(:, :, iLi), iLi));
+                        end
+                        stimStatsPadded = m;
+                end
+                switch p.Results.MergeGroups
+                    case 'off'
+                        if isfield(p.Results, 'Ax') && length(p.Results.Ax) == nGroups
+                            ax = p.Results.Ax;
+                            fig = ax(1).Parent;
+                        elseif isfield(p.Results, 'Fig')
+                            [ax, fig] = AcuteRecording.makeSubplots(nGroups, p.Results.Fig);
+                        else
+                            [ax, fig] = AcuteRecording.makeSubplots(nGroups);
+                        end
+                        for iGrp = 1:nGroups
+                            AcuteRecording.plotScatter(ax(iGrp), stimStatsPadded(:, iGrp, 1), stimStatsPadded(:, iGrp, 2), 0.5, 0.5, ...
+                                'XLabel', pooledGroupsPadded(iGrp, 1).label, 'YLabel', pooledGroupsPadded(iGrp, 2).label, ...
+                                'Highlight', 'intersect');
+                        end
+                        % suptitle(obj.getLabel());
+                    case {'mean', 'max'}
+                        if isfield(p.Results, 'Ax')
+                            ax = p.Results.Ax;
+                            fig = ax.Parent;
+                        else
+                            if isfield(p.Results, 'Fig')
+                                fig = p.Results.Fig;
+                            else
+                                fig = figure;
+                            end
+                            ax = axes(figure);
+                        end
+                        xname = sprintf('%s (%s)', AcuteRecording.makeGroupLabel([pooledGroupsPadded(:, 1).light], [pooledGroupsPadded(:, 1).duration]), p.Results.MergeGroups);
+                        yname = sprintf('%s (%s)', AcuteRecording.makeGroupLabel([pooledGroupsPadded(:, 2).light], [pooledGroupsPadded(:, 2).duration]), p.Results.MergeGroups);
+                        AcuteRecording.plotScatter(ax, stimStatsPadded(:, 1), stimStatsPadded(:, 2), 0.5, 0.5, ...
+                                'XLabel', xname, 'YLabel', yname, ...
+                                'Highlight', 'intersect', 'Title', obj.getLabel());
+                end
             end
         end
     end
@@ -1406,14 +1484,14 @@ classdef AcuteRecording < handle
             hSig = scatter(ax, x(sel), y(sel), 15, hsl2rgb([p.Results.Hue, 1, 0.5]), 'filled', 'DisplayName', labelSig);
             hInsig = scatter(ax, x(~sel), y(~sel), 8, hsl2rgb([p.Results.Hue, 0.2, 0.5]), 'DisplayName', labelInsig);
             % axis(ax, 'equal')
-            hY = plot(ax, ax.XLim, [0, 0], 'k--');
-            hX = plot(ax, [0, 0], ax.YLim, 'k--');
+            % hY = plot(ax, ax.XLim, [0, 0], 'k--');
+            % hX = plot(ax, [0, 0], ax.YLim, 'k--');
             title(ax, p.Results.Title)
             xlabel(ax, xname)
             ylabel(ax, yname)
             hold(ax, 'off')
             hLegend = legend(ax, [hSig, hInsig], 'Location', 'northoutside', 'Orientation', 'horizontal', 'AutoUpdate', 'off');
-            varargout = {ax, hSig, hInsig, hX, hY, hLegend};
+            varargout = {ax, hSig, hInsig, hLegend};
         end
 
         function id = calculateConditionID(conditions, base)
@@ -1557,14 +1635,49 @@ classdef AcuteRecording < handle
                 fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
             end
 
+            set(fig, 'Units', 'normalized');
             nCols = max(1, floor(sqrt(nGroups)));
             nRows = max(4, ceil(nGroups/nCols));
-            figure(fig);
             ax = gobjects(nGroups, 1);
+            spc = 0.05;
+            w = (1 - spc*(nCols+1)) / nCols;
+            h = (1 - spc*(nRows+1)) / nRows;
             for iGrp = 1:nGroups
-                [i, j] = ind2sub([nRows, nCols], iGrp);
-                iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
-                ax(iGrp) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
+                [row, col] = ind2sub([nRows, nCols], iGrp);
+                ax(iGrp) = axes(fig, 'Position', [col*spc+(col-1)*w, row*spc+(row-1)*h, w, h]);
+            end
+        end
+
+        function unifyAxesLims(ax)
+            xlims = vertcat(ax.XLim);
+            ylims = vertcat(ax.YLim);
+            xrange = [min(xlims(:, 1)), max(xlims(:, 2))];
+            yrange = [min(ylims(:, 1)), max(ylims(:, 2))];
+            set(ax, 'XLim', xrange)
+            set(ax, 'YLim', yrange)
+            set(ax, 'XLimMode', 'manual')
+            set(ax, 'YLimMode', 'manual')
+        end
+
+        function drawLines(ax, drawXY, drawDiag)
+            if nargin < 2
+                drawXY = true;
+            end
+            if nargin < 3
+                drawDiag = false;
+            end
+            for i = 1:length(ax)
+                hold(ax(i), 'on')
+                xrange = [min(ax(i).XLim), max(ax(i).XLim)];
+                yrange = [min(ax(i).YLim), max(ax(i).YLim)];
+                if drawXY
+                    plot(ax(i), xrange, [0, 0], 'k:')
+                    plot(ax(i), [0, 0], yrange, 'k:')
+                end
+                if drawDiag
+                    plot(ax(i), xrange, xrange, 'k:')
+                end
+                hold(ax(i), 'off')
             end
         end
     end
@@ -1671,6 +1784,5 @@ classdef AcuteRecording < handle
                 label = sprintf('%s (%s %s)', label, mlText, dvText);
             end
         end
-
     end
 end
