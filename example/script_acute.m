@@ -155,16 +155,6 @@ if ~exist('exp_A2A', 'var')
     exp_A2A = readdir('C:\SERVER\Experiment_Galvo_A2ACre\AcuteRecording', 'A2A');
 end
 
-%% TCA
-clear figs_D1 figs_A2A
-w = 1/3;
-h = 1/2;
-for iter = 1:3
-    figs_D1(iter) = figure('Units', 'normalized', 'OuterPosition', [w*(iter-1), h, w, h]);
-    figs_A2A(iter) = figure('Units', 'normalized', 'OuterPosition', [w*(iter-1), 0, w, h]);
-end
-plotTCA(exp_D1.ar([1 2 4 6 7]), figs_D1);
-plotTCA(exp_A2A.ar, figs_A2A);
 %%
 fig(1) = figure('Units', 'Normalized', 'Position', [0, 0, 0.5, 0.5]);
 for i = 1:8
@@ -216,9 +206,20 @@ AcuteRecording.drawLines(ax{3}(2), true, true)
 
 clear ax fig
 
+%% TCA
+close all
+clear figs_D1 figs_A2A
+w = 1/3; h = 0.95/2;
+iters = 9; figs_D1 = gobjects(1, iters); figs_A2A = gobjects(1, iters);
+for iter = 1:9
+    figs_D1(iter) = figure('Units', 'normalized', 'OuterPosition', [w*(iter-1), h+0.05, w, h]);
+    figs_A2A(iter) = figure('Units', 'normalized', 'OuterPosition', [w*(iter-1), 0.05, w, h]);
+end
+plotTCA(figs_D1, exp_D1.ar([1 2 4 6 7]), 0.5, [0 0.2]);
+plotTCA(figs_A2A, exp_A2A.ar, 0.5, [0 0.2]);
 %%
 
-function [data, model] = plotTCA(ars, figs)
+function [data, sel, model] = plotTCA(figs, ars, theta, window)
     for iExp = 1:length(ars)
         ar = ars(iExp);
         % [bsr, ~] = ar.selectStimResponse('Light', 0.5, 'Duration', 0.01);
@@ -228,10 +229,11 @@ function [data, model] = plotTCA(ars, figs)
         stats{iExp} = ar.summarizeStimResponse(groups, 'none');
     end
     data = cat(1, stats{:});
-
-    R = 4;
+    t = ars(1).bsr(1).t;
+    sel = max(max(abs(data(:, t > window(1) & t < window(2), :)), [], 2), [], 3) > theta;
+    R = 8;
     for iter = 1:length(figs)
-        model = cp_als(tensor(data), R);
+        model = cp_als(tensor(data(sel, :, :)), R);
         viz_ktensor(model, ...
             'Figure', figs(iter), ...
             'Plottype', {'bar', 'line', 'bar'}, ...
