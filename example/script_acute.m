@@ -52,6 +52,8 @@ save(sprintf('C:\\SERVER\\%s\\%s\\AcuteRecording\\sessionInfo_%s.mat', animalNam
 ar = AcuteRecording.load(sprintf('C:\\SERVER\\%s\\%s\\AcuteRecording\\ar_%s.mat', animalName, expName, expName));
 
 %% One SNr map per Str site (1 figure)
+ar = exp_A2A.ar(1);
+window = [0, 0.05];
 [bsr, ~] = ar.selectStimResponse('Light', 0.5, 'Duration', 0.01);
 [statsPeak, conditions] = ar.summarize(bsr, 'peak', window);
 statsFirstPeak = ar.summarize(bsr, 'firstPeak', window, 0.25);
@@ -79,6 +81,28 @@ ar.plotStimResponseMap(bsr, [0.25, 3], 0.25, 'peak', window, 0.25);
 
 %% One Str map per SNr unit (WARNING: MANY FIGURES)
 ar.plotStimResponse(bsr, 'CLim', [-.5, .5]);
+
+%% TCA
+clear ars stats
+% ars = exp_D1.ar([1 2 4 6 7]);
+ars = exp_A2A.ar;
+for iExp = 1:length(ars)
+    ar = ars(iExp);
+    % [bsr, ~] = ar.selectStimResponse('Light', 0.5, 'Duration', 0.01);
+
+    [~, I] = ar.selectStimResponse('Light', [0.4, 0.5], 'Duration', 0.01);
+    groups = ar.groupByStimCondition(I, {'light', 'duration', 'ml', 'dv'}); 
+    stats{iExp} = ar.summarizeStimResponse(groups, 'none');
+end
+data = cat(1, stats{:});
+% model = cp_als(tensor(data), 10);
+% viz_ktensor(model)
+for R = 10
+    estFactors = cp_als(tensor(data), R);
+    viz_ktensor(estFactors, ...
+        'Plottype', {'bar', 'line', 'bar'}, ...
+        'Modetitles', {'neurons', 'time', 'striatum site'});
+end
 
 %% Read multiple files, pool stats and plot in same map.
 plotD1(-3280)
@@ -173,6 +197,8 @@ plotMoveVsStim(ax(15:16), exp_D1, 1, 0.5, 8, 0.01);
 
 AcuteRecording.unifyAxesLims(ax(1:8))
 AcuteRecording.unifyAxesLims(ax(9:16))
+AcuteRecording.drawLines(ax(1:8), true, true)
+AcuteRecording.drawLines(ax(9:16), true, true)
 
 %% Compare 0.5mW to 2mW, plot in same figure, different colors
 close all

@@ -637,7 +637,7 @@ classdef AcuteRecording < handle
         function stats = summarizeStimResponse(obj, groups, varargin)
             p = inputParser();
             p.addRequired('Groups', @isstruct)
-            p.addOptional('Method', 'peak', @(x) ismember(x, {'peak', 'mean', 'firstPeak'}))
+            p.addOptional('Method', 'peak', @(x) ismember(x, {'none', 'peak', 'mean', 'firstPeak'}))
             p.addOptional('Window', [0, 0.05], @(x) isnumeric(x) && length(x) == 2)
             p.addOptional('FirstPeakThreshold', 0, @isnumeric)
             p.parse(groups, varargin{:})
@@ -645,12 +645,22 @@ classdef AcuteRecording < handle
 
             nGroups = length(groups);
             nUnits = length(obj.bsr);
-            stats = NaN(nUnits, nGroups);
-            for iUnit = 1:nUnits
-                for iGrp = 1:nGroups
-                    meanNSR = mean(obj.bsr(iUnit).normalizedSpikeRates(groups(iGrp).IPulse, :), 1);
-                    stats(iUnit, iGrp) = AcuteRecording.summarizeMeanSpikeRates(meanNSR, obj.bsr(iUnit).t, p.Results.Method, p.Results.Window, p.Results.FirstPeakThreshold);
-                end
+            switch p.Results.Method
+                case {'peak', 'mean', 'firstPeak'}
+                    stats = NaN(nUnits, nGroups);
+                    for iUnit = 1:nUnits
+                        for iGrp = 1:nGroups
+                            meanNSR = mean(obj.bsr(iUnit).normalizedSpikeRates(groups(iGrp).IPulse, :), 1);
+                            stats(iUnit, iGrp) = AcuteRecording.summarizeMeanSpikeRates(meanNSR, obj.bsr(iUnit).t, p.Results.Method, p.Results.Window, p.Results.FirstPeakThreshold);
+                        end
+                    end
+                case 'none'
+                    stats = NaN(nUnits, length(obj.bsr(1).t), nGroups);
+                    for iUnit = 1:nUnits
+                        for iGrp = 1:nGroups
+                            stats(iUnit, :, iGrp) = mean(obj.bsr(iUnit).normalizedSpikeRates(groups(iGrp).IPulse, :), 1);
+                        end
+                    end
             end
         end
 
@@ -770,7 +780,7 @@ classdef AcuteRecording < handle
                 return
             end
             
-            [conditions, condSR, condNSR, ~] = groupByConditions(obj, bsr);
+            [conditions, condSR, condNSR, ~] = obj.groupByConditions(bsr);
             nConditions = length(conditions);
 
             fig = figure('Units', 'Normalized', 'Position', [0.1, 0, 0.8, AcuteRecording.lerp(0.125, 0.3, nConditions/10)]);
@@ -934,6 +944,15 @@ classdef AcuteRecording < handle
             p.parse(varargin{:});
             moveType = p.Results.MoveType;
             select = p.Results.Select;
+            switch p.Results.Highlight
+                case 'move'
+                    highlight = 'x';
+                case 'stim'
+                    highlight = 'y';
+                otherwise
+                    highlight = p.Results.Highlight;
+            end
+                    
 
             if length(obj) == 1
                 % Get single-numeric move/stim stats
@@ -970,7 +989,7 @@ classdef AcuteRecording < handle
                 for iGrp = 1:nGroups
                     AcuteRecording.plotScatter(ax(iGrp), moveStats, stimStats(:, iGrp), p.Results.MoveThreshold, p.Results.StimThreshold, ...
                         'XLabel', moveType, 'YLabel', 'Stim', ...
-                        'Highlight', p.Results.Highlight, 'Title', groups(iGrp).label, 'Hue', p.Results.Hue);
+                        'Highlight', highlight, 'Title', groups(iGrp).label, 'Hue', p.Results.Hue);
                 end
                 figure(fig);
                 suptitle(obj.getLabel());
@@ -1033,7 +1052,7 @@ classdef AcuteRecording < handle
                     for iGrp = 1:nGroups
                         AcuteRecording.plotScatter(ax(iGrp), pooledMoveStats{iGrp}, pooledStimStats{iGrp}, p.Results.MoveThreshold, p.Results.StimThreshold, ...
                             'XLabel', moveType, 'YLabel', 'Stim', ...
-                            'Highlight', p.Results.Highlight, 'Title', pooledGroups(iGrp).label, 'Hue', p.Results.Hue);
+                            'Highlight', highlight, 'Title', pooledGroups(iGrp).label, 'Hue', p.Results.Hue);
                     end
                 else
                     if isfield(p.Results, 'Ax')
@@ -1054,7 +1073,7 @@ classdef AcuteRecording < handle
                     mergedMoveStats = cat(1, moveStats{:});
                     AcuteRecording.plotScatter(ax, mergedMoveStats, mergedStimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
                         'XLabel', moveType, 'YLabel', 'Stim', ...
-                        'Highlight', p.Results.Highlight, 'Title', AcuteRecording.makeGroupLabel([pooledGroups.light], [pooledGroups.duration]), ...
+                        'Highlight', highlight, 'Title', AcuteRecording.makeGroupLabel([pooledGroups.light], [pooledGroups.duration]), ...
                         'Hue', p.Results.Hue);
                 end
                 figure(fig);
@@ -1183,7 +1202,9 @@ classdef AcuteRecording < handle
                                 'XLabel', pooledGroupsPadded(iGrp, 1).label, 'YLabel', pooledGroupsPadded(iGrp, 2).label, ...
                                 'Highlight', 'intersect');
                         end
-                        % suptitle(obj.getLabel());
+                        try
+                            suptitle(obj.getLabel());
+                        end
                     case {'mean', 'max'}
                         if isfield(p.Results, 'Ax')
                             ax = p.Results.Ax;
@@ -1639,7 +1660,7 @@ classdef AcuteRecording < handle
             nCols = max(1, floor(sqrt(nGroups)));
             nRows = max(4, ceil(nGroups/nCols));
             ax = gobjects(nGroups, 1);
-            spc = 0.05;
+            spc = 0.075;
             w = (1 - spc*(nCols+1)) / nCols;
             h = (1 - spc*(nRows+1)) / nRows;
             for iGrp = 1:nGroups
