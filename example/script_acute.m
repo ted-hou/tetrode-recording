@@ -82,27 +82,6 @@ ar.plotStimResponseMap(bsr, [0.25, 3], 0.25, 'peak', window, 0.25);
 %% One Str map per SNr unit (WARNING: MANY FIGURES)
 ar.plotStimResponse(bsr, 'CLim', [-.5, .5]);
 
-%% TCA
-clear ars stats
-% ars = exp_D1.ar([1 2 4 6 7]);
-ars = exp_A2A.ar;
-for iExp = 1:length(ars)
-    ar = ars(iExp);
-    % [bsr, ~] = ar.selectStimResponse('Light', 0.5, 'Duration', 0.01);
-
-    [~, I] = ar.selectStimResponse('Light', [0.4, 0.5], 'Duration', 0.01);
-    groups = ar.groupByStimCondition(I, {'light', 'duration', 'ml', 'dv'}); 
-    stats{iExp} = ar.summarizeStimResponse(groups, 'none');
-end
-data = cat(1, stats{:});
-% model = cp_als(tensor(data), 10);
-% viz_ktensor(model)
-for R = 10
-    estFactors = cp_als(tensor(data), R);
-    viz_ktensor(estFactors, ...
-        'Plottype', {'bar', 'line', 'bar'}, ...
-        'Modetitles', {'neurons', 'time', 'striatum site'});
-end
 
 %% Read multiple files, pool stats and plot in same map.
 plotD1(-3280)
@@ -166,7 +145,7 @@ end
 clear i expName animalName f S
 
 
-%% Load and Visualize movement response vs stim response
+%% Load
 close all
 % Load data if necessary
 if ~exist('exp_D1', 'var')
@@ -175,6 +154,17 @@ end
 if ~exist('exp_A2A', 'var')
     exp_A2A = readdir('C:\SERVER\Experiment_Galvo_A2ACre\AcuteRecording', 'A2A');
 end
+
+%% TCA
+clear figs_D1 figs_A2A
+w = 1/3;
+h = 1/2;
+for iter = 1:3
+    figs_D1(iter) = figure('Units', 'normalized', 'OuterPosition', [w*(iter-1), h, w, h]);
+    figs_A2A(iter) = figure('Units', 'normalized', 'OuterPosition', [w*(iter-1), 0, w, h]);
+end
+plotTCA(exp_D1.ar([1 2 4 6 7]), figs_D1);
+plotTCA(exp_A2A.ar, figs_A2A);
 %%
 fig(1) = figure('Units', 'Normalized', 'Position', [0, 0, 0.5, 0.5]);
 for i = 1:8
@@ -227,6 +217,27 @@ AcuteRecording.drawLines(ax{3}(2), true, true)
 clear ax fig
 
 %%
+
+function [data, model] = plotTCA(ars, figs)
+    for iExp = 1:length(ars)
+        ar = ars(iExp);
+        % [bsr, ~] = ar.selectStimResponse('Light', 0.5, 'Duration', 0.01);
+    
+        [~, I] = ar.selectStimResponse('Light', [0.4, 0.5], 'Duration', 0.01);
+        groups = ar.groupByStimCondition(I, {'light', 'duration', 'ml', 'dv'}); 
+        stats{iExp} = ar.summarizeStimResponse(groups, 'none');
+    end
+    data = cat(1, stats{:});
+
+    R = 4;
+    for iter = 1:length(figs)
+        model = cp_als(tensor(data), R);
+        viz_ktensor(model, ...
+            'Figure', figs(iter), ...
+            'Plottype', {'bar', 'line', 'bar'}, ...
+            'Modetitles', {'neurons', 'time', 'striatum site'});
+    end
+end
 
 function m = max2(x)
     [~, I] = max(abs(x), [], 2);
