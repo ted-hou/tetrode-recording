@@ -236,6 +236,13 @@ classdef AcuteRecording < handle
         end
 
         function coords = getProbeCoords(obj, channels)
+            if nargin < 2
+                channels = [];
+            end
+            if isempty(channels)
+                channels = [obj.bsr.channel];
+            end
+
             map = obj.probeMap;
             coords = zeros(length(channels), 3);
             for i = 1:length(channels)
@@ -849,7 +856,6 @@ classdef AcuteRecording < handle
             if length(obj) == 1
                 coords = obj.getProbeCoords([bsr.channel]);
                 [stats, conditions] = obj.summarize(bsr, method, window, firstPeakThreshold);
-
                 nConditions = length(conditions);
                 nCols = max(1, floor(sqrt(nConditions)));
                 nRows = max(4, ceil(nConditions / nCols));
@@ -940,7 +946,7 @@ classdef AcuteRecording < handle
             p.addParameter('Select', struct('light', [0.4, 0.5, 2], 'duration', 0.01, 'ml', [], 'dv', [], 'fiber', '', 'galvo', []), @isstruct)
             p.addParameter('GroupBy', {'light', 'duration', 'ml', 'dv'}, @(x) ismember(x, {'light', 'duration', 'ml', 'dv'}))
             p.addParameter('MergeGroups', 'off', @(x) ismember(lower(x), {'off', 'mean', 'max'})) % Should all condition groups be merged into one by taking the mean or max across groups?
-            p.addParameter('Hue', 2/3, @isnumeric);
+            p.addParameter('Hue', 2/3, @(x) isnumeric(x) || ismember(x, {'ml', 'dv'}));
             p.parse(varargin{:});
             moveType = p.Results.MoveType;
             select = p.Results.Select;
@@ -986,10 +992,23 @@ classdef AcuteRecording < handle
                         ax(iGrp) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
                     end
                 end
+                if isnumeric(p.Results.Hue)
+                    hue = p.Results.Hue;
+                else
+                    coords = obj.getProbeCoords();
+                    switch p.Results.Hue
+                        case 'ml'
+                            hue = (abs(coords(:, 1)) - 1) / 1000;
+                        case 'dv'
+                            hue = (abs(coords(:, 2)) - 3800) / 1600;
+                        otherwise
+                            error('Hue must be ''ml'', ''dv'', or a numeric value between 0 and 1.')
+                    end
+                end
                 for iGrp = 1:nGroups
                     AcuteRecording.plotScatter(ax(iGrp), moveStats, stimStats(:, iGrp), p.Results.MoveThreshold, p.Results.StimThreshold, ...
                         'XLabel', moveType, 'YLabel', 'Stim', ...
-                        'Highlight', highlight, 'Title', groups(iGrp).label, 'Hue', p.Results.Hue);
+                        'Highlight', highlight, 'Title', groups(iGrp).label, 'Hue', hue);
                 end
                 figure(fig);
                 suptitle(obj.getLabel());
@@ -1010,6 +1029,7 @@ classdef AcuteRecording < handle
                         groups{i} = obj(i).groupByStimCondition(I, p.Results.GroupBy);
                         stimStats{i} = obj(i).summarizeStimResponse(groups{i}, 'peak');
                         moveStats{i} = obj(i).summarizeMoveResponse(bmr{i}, 'peak', [-1, 0], 'AllowedTrialLength', [1, Inf]);
+                        coords{i} = obj(i).getProbeCoords();
                     else
                         groups{i} = [];
                     end
@@ -1019,6 +1039,7 @@ classdef AcuteRecording < handle
                 nGroups = length(pooledGroups);
                 pooledStimStats = cell(1, nGroups);
                 pooledMoveStats = cell(1, nGroups);
+                pooledCoords = cell(1, nGroups);
                 for iGrp = 1:nGroups
                     groupHash = pooledGroups(iGrp).groupHash;
                     for iExp = 1:length(obj)
@@ -1029,6 +1050,7 @@ classdef AcuteRecording < handle
                         if ~isempty(iGrpInExp)
                             pooledStimStats{iGrp} = vertcat(pooledStimStats{iGrp}, stimStats{iExp}(:, iGrpInExp));
                             pooledMoveStats{iGrp} = vertcat(pooledMoveStats{iGrp}, moveStats{iExp});
+                            pooledCoords{iGrp} = vertcat(pooledCoords{iGrp}, coords{iExp});
                         end
                     end
                 end
@@ -1050,9 +1072,21 @@ classdef AcuteRecording < handle
                         end
                     end
                     for iGrp = 1:nGroups
+                        if isnumeric(p.Results.Hue)
+                            hue = p.Results.Hue;
+                        else
+                            switch p.Results.Hue
+                                case 'ml'
+                                    hue = (abs(pooledCoords{iGrp}(:, 1)) - 1000) / 1000;
+                                case 'dv'
+                                    hue = (abs(pooledCoords{iGrp}(:, 2)) - 3800) / 1600;
+                                otherwise
+                                    error('Hue must be ''ml'', ''dv'', or a numeric value between 0 and 1.')
+                            end
+                        end
                         AcuteRecording.plotScatter(ax(iGrp), pooledMoveStats{iGrp}, pooledStimStats{iGrp}, p.Results.MoveThreshold, p.Results.StimThreshold, ...
                             'XLabel', moveType, 'YLabel', 'Stim', ...
-                            'Highlight', highlight, 'Title', pooledGroups(iGrp).label, 'Hue', p.Results.Hue);
+                            'Highlight', highlight, 'Title', pooledGroups(iGrp).label, 'Hue', hue);
                     end
                 else
                     if isfield(p.Results, 'Ax')
@@ -1061,6 +1095,19 @@ classdef AcuteRecording < handle
                     else
                         fig = figure('Units', 'normalized', 'Position', [0, 0, 0.25, 0.4]);
                         ax = axes(fig, 'Tag', 'scatter');
+                    end
+                    if isnumeric(p.Results.Hue)
+                        hue = p.Results.Hue;
+                    else
+                        mergedCoords = cat(1, coords{:});
+                        switch p.Results.Hue
+                            case 'ml'
+                                hue = (abs(mergedCoords(:, 1)) - 1000) / 1000;
+                            case 'dv'
+                                hue = (abs(mergedCoords(:, 2)) - 3800) / 1600;
+                            otherwise
+                                error('Hue must be ''ml'', ''dv'', or a numeric value between 0 and 1.')
+                        end
                     end
                     if strcmpi(p.Results.MergeGroups, 'mean')
                         mergedStimStats = cellfun(@mean2, stimStats, 'UniformOutput', false);
@@ -1074,7 +1121,7 @@ classdef AcuteRecording < handle
                     AcuteRecording.plotScatter(ax, mergedMoveStats, mergedStimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
                         'XLabel', moveType, 'YLabel', 'Stim', ...
                         'Highlight', highlight, 'Title', AcuteRecording.makeGroupLabel([pooledGroups.light], [pooledGroups.duration]), ...
-                        'Hue', p.Results.Hue);
+                        'Hue', hue);
                 end
                 figure(fig);
                 suptitle(obj.getLabel());
@@ -1502,11 +1549,21 @@ classdef AcuteRecording < handle
             end
             labelInsig = sprintf('N=%g', nnz(~sel));
 
-            hSig = scatter(ax, x(sel), y(sel), 15, hsl2rgb([p.Results.Hue, 1, 0.5]), 'filled', 'DisplayName', labelSig);
-            hInsig = scatter(ax, x(~sel), y(~sel), 8, hsl2rgb([p.Results.Hue, 0.2, 0.5]), 'DisplayName', labelInsig);
-            % axis(ax, 'equal')
-            % hY = plot(ax, ax.XLim, [0, 0], 'k--');
-            % hX = plot(ax, [0, 0], ax.YLim, 'k--');
+            if length(p.Results.Hue) > 1
+                hdata = p.Results.Hue(:);
+                assert(length(hdata) == length(x))
+                % hdata = (hdata - min(hdata))./(max(hdata) - min(hdata) + 1);
+                hsl = [hdata, ones(length(x), 1), 0.5*ones(length(x), 1)];
+                % Lower saturation for insig units.
+                hsl(~sel, 2) = 0.2;
+                colorSig = hsl2rgb(hsl(sel, :));
+                colorInsig = hsl2rgb(hsl(~sel, :));
+            else
+                colorSig = hsl2rgb([p.Results.Hue, 1, 0.5]);
+                colorInsig = hsl2rgb([p.Results.Hue, 0.2, 0.5]);
+            end
+            hSig = scatter(ax, x(sel), y(sel), 15, colorSig, 'filled', 'DisplayName', labelSig);
+            hInsig = scatter(ax, x(~sel), y(~sel), 8, colorInsig, 'DisplayName', labelInsig);
             title(ax, p.Results.Title)
             xlabel(ax, xname)
             ylabel(ax, yname)

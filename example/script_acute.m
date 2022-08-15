@@ -156,6 +156,8 @@ if ~exist('exp_A2A', 'var')
 end
 
 %%
+close all
+clear fig ax
 fig(1) = figure('Units', 'Normalized', 'Position', [0, 0, 0.5, 0.5]);
 for i = 1:8
     figure(fig(1));
@@ -249,8 +251,8 @@ end
 function plotMoveVsStim(ax, exp, moveThreshold, stimThreshold, critLight, critDuration)
     % Visualize movement response data
     selection = AcuteRecording.makeSelection('Light', critLight, 'Duration', critDuration);
-    exp.ar.plotStimVsMoveResponse(ax(1), 'Press', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max');
-    exp.ar.plotStimVsMoveResponse(ax(2), 'Lick', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max');
+    exp.ar.plotStimVsMoveResponse(ax(1), 'Press', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max', 'Hue', 'ml');
+    exp.ar.plotStimVsMoveResponse(ax(2), 'Lick', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max', 'Hue', 'ml');
 end
 
 
