@@ -925,7 +925,7 @@ classdef AcuteRecording < handle
             end
         end
 
-        function fig = plotStimVsMoveResponse(obj, varargin)
+        function [fig, ax] = plotStimVsMoveResponse(obj, varargin)
             function m = mean2(x)
                 m = mean(x, 2);
             end
