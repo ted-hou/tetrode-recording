@@ -250,9 +250,8 @@ end
             
 function plotMoveVsStim(ax, exp, moveThreshold, stimThreshold, critLight, critDuration)
     % Visualize movement response data
-    selection = AcuteRecording.makeSelection('Light', critLight, 'Duration', critDuration);
-    exp.ar.plotStimVsMoveResponse(ax(1), 'Press', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max', 'Hue', 'ml');
-    exp.ar.plotStimVsMoveResponse(ax(2), 'Lick', 'Select', selection, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max', 'Hue', 'ml');
+    exp.ar.plotStimVsMoveResponse(ax(1), 'Press', 'Light', critLight, 'Duration', critDuration, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max', 'Hue', 'ml');
+    exp.ar.plotStimVsMoveResponse(ax(2), 'Lick', 'Light', critLight, 'Duration', critDuration, 'StimThreshold', stimThreshold, 'MoveThreshold', moveThreshold, 'Highlight', 'stim', 'MergeGroups', 'max', 'Hue', 'ml');
 end
 
 

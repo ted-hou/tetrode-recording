@@ -239,6 +239,16 @@ classdef AcuteRecording < handle
             if nargin < 2
                 channels = [];
             end
+
+            if length(obj) > 1
+                coords = cell(length(obj), 1);
+                for i = 1:length(obj)
+                    coords{i} = obj(i).getProbeCoords(channels);
+                end
+                coords = cat(1, coords{:});
+                return
+            end
+            
             if isempty(channels)
                 channels = [obj.bsr.channel];
             end
@@ -975,15 +985,6 @@ classdef AcuteRecording < handle
         end
 
         function [fig, ax] = plotStimVsMoveResponse(obj, varargin)
-            function m = mean2(x)
-                m = mean(x, 2);
-            end
-
-            function m = max2(x)
-                [~, I] = max(abs(x), [], 2);
-                m = diag(x(:, I));
-            end
-            
             p = inputParser();
             if isgraphics(varargin{1})
                 p.addRequired('Ax', @(x) strcmp(varargin{1}.Type, 'axes'));
@@ -992,13 +993,11 @@ classdef AcuteRecording < handle
             p.addParameter('StimThreshold', 0.5, @isnumeric);
             p.addParameter('MoveThreshold', 1, @isnumeric);
             p.addParameter('Highlight', 'stim', @(x) ismember(lower(x), {'move', 'stim', 'union', 'intersect'}))
-            p.addParameter('Select', struct('light', [0.4, 0.5, 2], 'duration', 0.01, 'ml', [], 'dv', [], 'fiber', '', 'galvo', []), @isstruct)
-            p.addParameter('GroupBy', {'light', 'duration', 'ml', 'dv'}, @(x) ismember(x, {'light', 'duration', 'ml', 'dv'}))
+            p.addParameter('Light', [0.4 0.5 2], @isnumeric);
+            p.addParameter('Duration', 0.01, @isnumeric);
             p.addParameter('MergeGroups', 'off', @(x) ismember(lower(x), {'off', 'mean', 'max'})) % Should all condition groups be merged into one by taking the mean or max across groups?
             p.addParameter('Hue', 2/3, @(x) isnumeric(x) || ismember(x, {'ml', 'dv'}));
             p.parse(varargin{:});
-            moveType = p.Results.MoveType;
-            select = p.Results.Select;
             switch p.Results.Highlight
                 case 'move'
                     highlight = 'x';
@@ -1007,173 +1006,61 @@ classdef AcuteRecording < handle
                 otherwise
                     highlight = p.Results.Highlight;
             end
-                    
 
-            if length(obj) == 1
-                % Get single-numeric move/stim stats
-                switch lower(moveType)
-                    case 'press'
-                        bmr = obj.bmrPress;
-                    case 'lick'
-                        bmr = obj.bmrLick;
+            [stimStats, groups] = obj.getStimResponse(p.Results.Light, p.Results.Duration);
+            moveStats = obj.getMoveResponse(p.Results.MoveType);
+
+            % Color by SNr coordinates (ML/DV) or use specific Hue.
+            if isnumeric(p.Results.Hue)
+                hue = p.Results.Hue;
+            else
+                coords = obj.getProbeCoords();
+                switch p.Results.Hue
+                    case 'ml'
+                        hue = (abs(coords(:, 1)) - 1) / 1000;
+                    case 'dv'
+                        hue = (abs(coords(:, 2)) - 3800) / 1600;
                     otherwise
-                        error()
+                        error('Hue must be ''ml'', ''dv'', or a numeric value between 0 and 1.')
                 end
-                [~, I] = obj.selectStimResponse('Light', select.light, 'Duration', select.duration, 'MLRank', select.ml, 'DVRank', select.dv, 'Fiber', select.fiber, 'Galvo', select.galvo);
-                assert(~isempty(I), 'Requested stim condition not found in experiment.');
-                groups = obj.groupByStimCondition(I, p.Results.GroupBy);
-                stimStats = obj.summarizeStimResponse(groups, 'peak');
-                moveStats = obj.summarizeMoveResponse(bmr, 'peak', [-1, 0], 'AllowedTrialLength', [1, Inf]);
+            end
 
-                % Group responses by conditions
+            if strcmp(p.Results.MergeGroups, 'off')
                 nGroups = length(groups);
-                nCols = max(1, floor(sqrt(nGroups)));
-                nRows = max(4, ceil(nGroups/nCols));
+                if isfield(p.Results, 'Ax')
+                    ax = p.Results.Ax;
+                    fig = ax.Parent;
+                    assert(length(ax) >= nGroups, '%g axes provided, insuficcient for %g stim groups.', length(ax), nGroups)
+                else
+                    fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
+                    [ax, fig] = AcuteRecording.makeSubplots(nGroups, fig);
+                end
+                for iGrp = 1:nGroups
+                    AcuteRecording.plotScatter(ax(iGrp), moveStats, stimStats(:, iGrp), p.Results.MoveThreshold, p.Results.StimThreshold, ...
+                        'XLabel', p.Results.MoveType, 'YLabel', 'Stim', 'Highlight', highlight, ...
+                        'Title', groups(iGrp).label, 'Hue', hue);
+                end
+                figure(fig);
+                suptitle(obj.getLabel());
+            else
                 if isfield(p.Results, 'Ax')
                     ax = p.Results.Ax;
                     fig = ax.Parent;
                 else
-                    fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
-                    ax = gobjects(nGroups, 1);
-                    for iGrp = 1:nGroups
-                        [i, j] = ind2sub([nRows, nCols], iGrp);
-                        iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
-                        ax(iGrp) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
-                    end
+                    fig = figure('Units', 'normalized', 'Position', [0, 0, 0.25, 0.4]);
+                    ax = axes(fig, 'Tag', 'scatter');
                 end
-                if isnumeric(p.Results.Hue)
-                    hue = p.Results.Hue;
-                else
-                    coords = obj.getProbeCoords();
-                    switch p.Results.Hue
-                        case 'ml'
-                            hue = (abs(coords(:, 1)) - 1) / 1000;
-                        case 'dv'
-                            hue = (abs(coords(:, 2)) - 3800) / 1600;
-                        otherwise
-                            error('Hue must be ''ml'', ''dv'', or a numeric value between 0 and 1.')
-                    end
+       
+                switch p.Results.MergeGroups
+                    case 'mean'
+                        stimStats = mean(stimStats, 2, 'omitnan');
+                    case 'max'
+                        [~, I] = max(abs(stimStats), [], 2, 'omitnan');
+                        stimStats = diag(stimStats(:, I));
                 end
-                for iGrp = 1:nGroups
-                    AcuteRecording.plotScatter(ax(iGrp), moveStats, stimStats(:, iGrp), p.Results.MoveThreshold, p.Results.StimThreshold, ...
-                        'XLabel', moveType, 'YLabel', 'Stim', ...
-                        'Highlight', highlight, 'Title', groups(iGrp).label, 'Hue', hue);
-                end
-                figure(fig);
-                suptitle(obj.getLabel());
-            elseif length(obj) > 1               
-                % Get POOLED single-numeric move/stim stats
-                switch lower(moveType)
-                    case 'press'
-                        bmr = {obj.bmrPress};
-                    case 'lick'
-                        bmr = {obj.bmrLick};
-                    otherwise
-                        error()
-                end
-
-                for i = 1:length(obj)
-                    [~, I] = obj(i).selectStimResponse('Light', select.light, 'Duration', select.duration, 'MLRank', select.ml, 'DVRank', select.dv, 'Fiber', select.fiber, 'Galvo', select.galvo);
-                    if ~isempty(I)
-                        groups{i} = obj(i).groupByStimCondition(I, p.Results.GroupBy);
-                        stimStats{i} = obj(i).summarizeStimResponse(groups{i}, 'peak');
-                        moveStats{i} = obj(i).summarizeMoveResponse(bmr{i}, 'peak', [-1, 0], 'AllowedTrialLength', [1, Inf]);
-                        coords{i} = obj(i).getProbeCoords();
-                    else
-                        groups{i} = [];
-                    end
-                end
-
-                pooledGroups = AcuteRecording.poolGroups(groups);
-                nGroups = length(pooledGroups);
-                pooledStimStats = cell(1, nGroups);
-                pooledMoveStats = cell(1, nGroups);
-                pooledCoords = cell(1, nGroups);
-                for iGrp = 1:nGroups
-                    groupHash = pooledGroups(iGrp).groupHash;
-                    for iExp = 1:length(obj)
-                        if ~isstruct(groups{iExp})
-                            continue
-                        end
-                        iGrpInExp = find([groups{iExp}.groupHash] == groupHash);
-                        if ~isempty(iGrpInExp)
-                            pooledStimStats{iGrp} = vertcat(pooledStimStats{iGrp}, stimStats{iExp}(:, iGrpInExp));
-                            pooledMoveStats{iGrp} = vertcat(pooledMoveStats{iGrp}, moveStats{iExp});
-                            pooledCoords{iGrp} = vertcat(pooledCoords{iGrp}, coords{iExp});
-                        end
-                    end
-                end
-                
-                % Plot
-                if strcmpi(p.Results.MergeGroups, 'off')
-                    nCols = max(1, floor(sqrt(nGroups)));
-                    nRows = max(4, ceil(nGroups/nCols));
-                    if isfield(p.Results, 'Ax')
-                        ax = p.Results.Ax;
-                        fig = ax.Parent;
-                    else
-                        fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
-                        ax = gobjects(nGroups, 1);
-                        for iGrp = 1:nGroups
-                            [i, j] = ind2sub([nRows, nCols], iGrp);
-                            iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
-                            ax(iGrp) = subplot(nRows, nCols, iSubplot, 'Tag', 'scatter');
-                        end
-                    end
-                    for iGrp = 1:nGroups
-                        if isnumeric(p.Results.Hue)
-                            hue = p.Results.Hue;
-                        else
-                            switch p.Results.Hue
-                                case 'ml'
-                                    hue = (abs(pooledCoords{iGrp}(:, 1)) - 1000) / 1000;
-                                case 'dv'
-                                    hue = (abs(pooledCoords{iGrp}(:, 2)) - 3800) / 1600;
-                                otherwise
-                                    error('Hue must be ''ml'', ''dv'', or a numeric value between 0 and 1.')
-                            end
-                        end
-                        AcuteRecording.plotScatter(ax(iGrp), pooledMoveStats{iGrp}, pooledStimStats{iGrp}, p.Results.MoveThreshold, p.Results.StimThreshold, ...
-                            'XLabel', moveType, 'YLabel', 'Stim', ...
-                            'Highlight', highlight, 'Title', pooledGroups(iGrp).label, 'Hue', hue);
-                    end
-                else
-                    if isfield(p.Results, 'Ax')
-                        ax = p.Results.Ax;
-                        fig = ax.Parent;
-                    else
-                        fig = figure('Units', 'normalized', 'Position', [0, 0, 0.25, 0.4]);
-                        ax = axes(fig, 'Tag', 'scatter');
-                    end
-                    if isnumeric(p.Results.Hue)
-                        hue = p.Results.Hue;
-                    else
-                        mergedCoords = cat(1, coords{:});
-                        switch p.Results.Hue
-                            case 'ml'
-                                hue = (abs(mergedCoords(:, 1)) - 1000) / 1000;
-                            case 'dv'
-                                hue = (abs(mergedCoords(:, 2)) - 3800) / 1600;
-                            otherwise
-                                error('Hue must be ''ml'', ''dv'', or a numeric value between 0 and 1.')
-                        end
-                    end
-                    if strcmpi(p.Results.MergeGroups, 'mean')
-                        mergedStimStats = cellfun(@mean2, stimStats, 'UniformOutput', false);
-                    elseif strcmpi(p.Results.MergeGroups, 'max')
-                        mergedStimStats = cellfun(@max2, stimStats, 'UniformOutput', false);
-                    else
-                        error()
-                    end
-                    mergedStimStats = cat(1, mergedStimStats{:});
-                    mergedMoveStats = cat(1, moveStats{:});
-                    AcuteRecording.plotScatter(ax, mergedMoveStats, mergedStimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
-                        'XLabel', moveType, 'YLabel', 'Stim', ...
-                        'Highlight', highlight, 'Title', AcuteRecording.makeGroupLabel([pooledGroups.light], [pooledGroups.duration]), ...
-                        'Hue', hue);
-                end
-                figure(fig);
-                suptitle(obj.getLabel());
+                AcuteRecording.plotScatter(ax, moveStats, stimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
+                    'XLabel', p.Results.MoveType, 'YLabel', 'Stim', 'Highlight', highlight, ...
+                    'Title', AcuteRecording.makeGroupLabel([groups.light], [groups.duration]), 'Hue', hue);
             end
         end
 

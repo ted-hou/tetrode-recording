@@ -11,9 +11,8 @@ end
 %% Plot move vs stim, color by ml
 clear ax
 close all
-selection = AcuteRecording.makeSelection('Light', [0.4, 0.5], 'Duration', 0.01);
-[~, ax{1}] = exp_D1.ar.plotStimVsMoveResponse('Lick', 'Select', selection, 'StimThreshold', 0.5, 'MoveThreshold', 0.5, 'Highlight', 'move', 'MergeGroups', 'max', 'Hue', 'ml');
-[~, ax{2}] = exp_A2A.ar.plotStimVsMoveResponse('Lick', 'Select', selection, 'StimThreshold', 0.5, 'MoveThreshold', 0.5, 'Highlight', 'move', 'MergeGroups', 'max', 'Hue', 'ml');
+[~, ax{1}] = exp_D1.ar.plotStimVsMoveResponse('Lick', 'Light', [0.4, 0.5], 'Duration', 0.01, 'StimThreshold', 0.5, 'MoveThreshold', 0.5, 'Highlight', 'move', 'MergeGroups', 'max', 'Hue', 'ml');
+[~, ax{2}] = exp_A2A.ar.plotStimVsMoveResponse('Lick', 'Light', [0.4, 0.5], 'Duration', 0.01, 'StimThreshold', 0.5, 'MoveThreshold', 0.5, 'Highlight', 'move', 'MergeGroups', 'max', 'Hue', 'ml');
 AcuteRecording.unifyAxesLims(ax{1})
 AcuteRecording.unifyAxesLims(ax{2})
 AcuteRecording.drawLines(ax{1}, true, true)
