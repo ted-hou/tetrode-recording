@@ -551,6 +551,9 @@ classdef AcuteRecording < handle
                 bsr(i).IPulse = IPulse;
             end
             
+            if isempty(IPulse)
+                warning('Requested conditions not found in experiment.')
+            end
 %             fprintf(1, '%g trials selected with provided criteria.\n', length(IPulse))
         end
 
@@ -770,6 +773,52 @@ classdef AcuteRecording < handle
             end
             
             varargout = {conditions, condSR, condNSR, condId};
+        end
+        
+        function pooledStats = getMoveResponse(obj, moveType)
+            stats = cell(length(obj), 1);
+            for iExp = 1:length(obj)
+                stats{iExp} = obj(iExp).summarizeMoveResponse(moveType, 'peak', [-1, 0], 'AllowedTrialLength', [1, Inf]);
+            end
+            pooledStats = cat(1, stats{:});
+        end
+        
+        function [pooledStats, pooledGroups] = getStimResponse(obj, critLight, critDuration)
+            % Extract groups and grouped stats for each experiment
+            groups = cell(length(obj), 1);
+            stats = cell(length(obj), 1);
+            for iExp = 1:length(obj)
+                [~, I] = obj(iExp).selectStimResponse('Light', critLight, 'Duration', critDuration);
+                if ~isempty(I)
+                    groups{iExp} = obj(iExp).groupByStimCondition(I, {'light', 'duration', 'ml', 'dv'});
+                    stats{iExp} = obj(iExp).summarizeStimResponse(groups{iExp}, 'peak');
+                end
+            end
+            
+            % Find all unique group hashes across experiments and prepare for data merging. 
+            % If a condition is not tested in certain experiments, missing data will be padded with NaNs.
+            h = cellfun(@(g) [g.groupHash], groups(~cellfun(@isempty, groups)), 'UniformOutput', false);
+            uniqueHashes = unique(cat(2, h{:}));
+            nGroups = length(uniqueHashes);
+            pooledStats = cell(length(obj), 1);
+            for iExp = 1:length(obj)
+                nUnits = length(obj(iExp).bsr); % size(stats{iExp}, 1);
+                pooledStats{iExp} = NaN(nUnits, nGroups);
+                for iGrp = 1:nGroups
+                    if isempty(groups{iExp}) || isempty(stats{iExp})
+                        pooledStats{iExp}(:, iGrp) = NaN;
+                    else
+                        sel = [groups{iExp}.groupHash] == uniqueHashes(iGrp);
+                        if any(sel)
+                            assert(nnz(sel) == 1)
+                            pooledStats{iExp}(:, iGrp) = stats{iExp}(:, sel);
+                        end
+                    end
+                end
+            end
+            
+            pooledGroups = AcuteRecording.poolGroups(groups);
+            pooledStats = cat(1, pooledStats{:});
         end
 
         function plotStimResponse(obj, bsr, varargin)
