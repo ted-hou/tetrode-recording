@@ -984,6 +984,59 @@ classdef AcuteRecording < handle
             end
         end
 
+        function [fig, ax] = plotPressVsLickResponse(obj, varargin)
+            p = inputParser();
+            if isgraphics(varargin{1})
+                p.addRequired('Ax', @(x) strcmp(varargin{1}.Type, 'axes'));
+            end
+            p.addParameter('PressThreshold', 1, @isnumeric);
+            p.addParameter('LickThreshold', 1, @isnumeric);
+            p.addParameter('Highlight', 'union', @(x) ismember(lower(x), {'press', 'lick', 'union', 'intersect'}))
+            p.addParameter('Hue', 2/3, @(x) isnumeric(x) || ismember(x, {'ml', 'dv'}));
+            p.parse(varargin{:});
+            switch p.Results.Highlight
+                case 'lick'
+                    highlight = 'x';
+                case 'press'
+                    highlight = 'y';
+                otherwise
+                    highlight = p.Results.Highlight;
+            end
+
+            pressStats = obj.getMoveResponse('Press');
+            lickStats = obj.getMoveResponse('Lick');
+
+            % Color by SNr coordinates (ML/DV) or use specific Hue.
+            if isnumeric(p.Results.Hue)
+                hue = p.Results.Hue;
+                hdr = [];
+            else
+                coords = obj.getProbeCoords();
+                switch p.Results.Hue
+                    case 'ml'
+                        hue = abs(coords(:, 1));
+                        hdr = [1075, 1525];
+                    case 'dv'
+                        hue = abs(coords(:, 2));
+                        hdr = [3800, 4800];
+                    otherwise
+                        error('Hue must be ''ml'', ''dv'', or a numeric value between 0 and 1.')
+                end
+            end
+
+            if isfield(p.Results, 'Ax')
+                ax = p.Results.Ax;
+                fig = ax.Parent;
+            else
+                fig = figure('Units', 'normalized', 'Position', [0, 0, 0.25, 0.4]);
+                ax = axes(fig, 'Tag', 'scatter');
+            end
+   
+            AcuteRecording.plotScatter(ax, lickStats, pressStats, p.Results.LickThreshold, p.Results.PressThreshold, ...
+                'XLabel', 'Lick', 'YLabel', 'Press', 'Highlight', highlight, ...
+                'Title', obj.getLabel(), 'Hue', hue, 'HueDataRange', hdr);
+        end
+
         function [fig, ax] = plotStimVsMoveResponse(obj, varargin)
             p = inputParser();
             if isgraphics(varargin{1})
@@ -1013,13 +1066,16 @@ classdef AcuteRecording < handle
             % Color by SNr coordinates (ML/DV) or use specific Hue.
             if isnumeric(p.Results.Hue)
                 hue = p.Results.Hue;
+                hdr = [];
             else
                 coords = obj.getProbeCoords();
                 switch p.Results.Hue
                     case 'ml'
-                        hue = (abs(coords(:, 1)) - 1) / 1000;
+                        hue = abs(coords(:, 1));
+                        hdr = [1075, 1525];
                     case 'dv'
-                        hue = (abs(coords(:, 2)) - 3800) / 1600;
+                        hue = abs(coords(:, 2));
+                        hdr = [3800, 4800];
                     otherwise
                         error('Hue must be ''ml'', ''dv'', or a numeric value between 0 and 1.')
                 end
@@ -1038,7 +1094,7 @@ classdef AcuteRecording < handle
                 for iGrp = 1:nGroups
                     AcuteRecording.plotScatter(ax(iGrp), moveStats, stimStats(:, iGrp), p.Results.MoveThreshold, p.Results.StimThreshold, ...
                         'XLabel', p.Results.MoveType, 'YLabel', 'Stim', 'Highlight', highlight, ...
-                        'Title', groups(iGrp).label, 'Hue', hue);
+                        'Title', groups(iGrp).label, 'Hue', hue, 'HueDataRange', hdr);
                 end
                 figure(fig);
                 suptitle(obj.getLabel());
@@ -1060,7 +1116,7 @@ classdef AcuteRecording < handle
                 end
                 AcuteRecording.plotScatter(ax, moveStats, stimStats, p.Results.MoveThreshold, p.Results.StimThreshold, ...
                     'XLabel', p.Results.MoveType, 'YLabel', 'Stim', 'Highlight', highlight, ...
-                    'Title', AcuteRecording.makeGroupLabel([groups.light], [groups.duration]), 'Hue', hue);
+                    'Title', AcuteRecording.makeGroupLabel([groups.light], [groups.duration]), 'Hue', hue, 'HueDataRange', hdr);
             end
         end
 
@@ -1438,6 +1494,7 @@ classdef AcuteRecording < handle
             p.addParameter('YLabel', '', @ischar)
             p.addParameter('Highlight', 'intersect', @(x) ismember(lower(x), {'x', 'y', 'union', 'intersect'}))
             p.addParameter('Hue', 2/3, @isnumeric);
+            p.addParameter('HueDataRange', [], @isnumeric);
             p.addParameter('Title', '', @ischar)
             p.addParameter('Verbose', false, @islogical)
             p.parse(varargin{:})
@@ -1488,6 +1545,12 @@ classdef AcuteRecording < handle
             if length(p.Results.Hue) > 1
                 hdata = p.Results.Hue(:);
                 assert(length(hdata) == length(x))
+                if ~isempty(p.Results.HueDataRange)
+                    hdr = p.Results.HueDataRange;
+                    maxHue = 2/3;
+                    hdata = (hdata - hdr(1)) / (hdr(2) - hdr(1));
+                    hdata = hdata * maxHue;
+                end
                 % hdata = (hdata - min(hdata))./(max(hdata) - min(hdata) + 1);
                 hsl = [hdata, ones(length(x), 1), 0.5*ones(length(x), 1)];
                 % Lower saturation for insig units.

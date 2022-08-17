@@ -8,25 +8,25 @@ if ~exist('exp_A2A', 'var')
     exp_A2A.ar = AcuteRecording.load('C:\SERVER\Experiment_Galvo_A2ACre\AcuteRecording');
 end
 
-%% Plot move vs stim, color by ml
-clear ax
-close all
-[~, ax{1}] = exp_D1.ar.plotStimVsMoveResponse('Lick', 'Light', [0.4, 0.5], 'Duration', 0.01, 'StimThreshold', 0.5, 'MoveThreshold', 0.5, 'Highlight', 'move', 'MergeGroups', 'max', 'Hue', 'ml');
-[~, ax{2}] = exp_A2A.ar.plotStimVsMoveResponse('Lick', 'Light', [0.4, 0.5], 'Duration', 0.01, 'StimThreshold', 0.5, 'MoveThreshold', 0.5, 'Highlight', 'move', 'MergeGroups', 'max', 'Hue', 'ml');
-AcuteRecording.unifyAxesLims(ax{1})
-AcuteRecording.unifyAxesLims(ax{2})
-AcuteRecording.drawLines(ax{1}, true, true)
-AcuteRecording.drawLines(ax{2}, true, true)
-clear ax
+%% Extract data
+[exp_D1.sr, exp_D1.groups] = exp_D1.ar.getStimResponse([0.4 0.5], 0.01);
+exp_D1.pr = exp_D1.ar.getMoveResponse('Press');
+exp_D1.lr = exp_D1.ar.getMoveResponse('Lick');
+exp_D1.pos = exp_D1.ar.getProbeCoords();
 
+[exp_A2A.sr, exp_A2A.groups] = exp_A2A.ar.getStimResponse([0.4 0.5], 0.01);
+exp_A2A.pr = exp_A2A.ar.getMoveResponse('Press');
+exp_A2A.lr = exp_A2A.ar.getMoveResponse('Lick');
+exp_A2A.pos = exp_A2A.ar.getProbeCoords();
 
-%% Temp
-obj = exp_D1.ar;
-[stimResp, stimGroups] = obj.getStimResponse([0.4 0.5], 0.01);
-pressResp = obj.getMoveResponse('Press');
-lickResp = obj.getMoveResponse('Lick');
-coords = obj.getProbeCoords();
+ar = [exp_A2A.ar, exp_D1.ar];
+[~, ax(1)] = ar.plotPressVsLickResponse('Hue', 'ml', 'PressThreshold', 0.67, 'LickThreshold', 0.67);
+[~, ax(2)] = ar.plotPressVsLickResponse('Hue', 'dv', 'PressThreshold', 0.67, 'LickThreshold', 0.67);
+AcuteRecording.unifyAxesLims(ax)
+AcuteRecording.drawLines(ax, true, true)
+clear ar ax
 
+%%
 sel = max(abs(stimResp), [], 2, 'omitnan') > 0.5;
 stimResp = stimResp(sel, :);
 coords = coords(sel, :);
