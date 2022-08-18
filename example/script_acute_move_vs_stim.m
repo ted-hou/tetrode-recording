@@ -51,14 +51,14 @@ H1.sel = any(exp_A2A.sr(:, 5:8) >= theta, 2);
 figure, ax(1) = subplot(1, 2, 1); ax(2) = subplot(1, 2, 2);
 histogram(ax(1), exp_A2A.pos(H1.sel, 1), [1000, 1150, 1300, 1450, 1600])
 xlabel(ax(1), 'ML')
-histogram(ax(2), exp_A2A.pos(H1.sel, 2), 10)
+histogram(ax(2), exp_A2A.pos(H1.sel, 2), -4800:100:-3800)
 xlabel(ax(2), 'DV')
 suptitle('lStr-A2A excited units')
 
 figure, ax(1) = subplot(1, 2, 1); ax(2) = subplot(1, 2, 2);
 histogram(ax(1), exp_A2A.pos(:, 1), [1000, 1150, 1300, 1450, 1600])
 xlabel(ax(1), 'ML')
-histogram(ax(2), exp_A2A.pos(:, 2), 10)
+histogram(ax(2), exp_A2A.pos(:, 2), -4800:100:-3800)
 xlabel(ax(2), 'DV')
 suptitle('All units')
 
@@ -133,14 +133,14 @@ H3.sel = any(exp_D1.sr(:, 5:8) >= theta, 2);
 figure, ax(1) = subplot(1, 2, 1); ax(2) = subplot(1, 2, 2);
 histogram(ax(1), exp_D1.pos(H3.sel, 1), [1000, 1150, 1300, 1450, 1600])
 xlabel(ax(1), 'ML')
-histogram(ax(2), exp_D1.pos(H3.sel, 2), 10)
+histogram(ax(2), exp_D1.pos(H3.sel, 2), -4800:100:-3800)
 xlabel(ax(2), 'DV')
 suptitle('lStr-D1 excited units')
 
 figure, ax(1) = subplot(1, 2, 1); ax(2) = subplot(1, 2, 2);
 histogram(ax(1), exp_D1.pos(:, 1), [1000, 1150, 1300, 1450, 1600])
 xlabel(ax(1), 'ML')
-histogram(ax(2), exp_D1.pos(:, 2), 10)
+histogram(ax(2), exp_D1.pos(:, 2), -4800:100:-3800)
 xlabel(ax(2), 'DV')
 suptitle('All units')
 
@@ -213,14 +213,14 @@ H5.selb = H3.sel & exp_D1.pr < 0;
 figure, ax(1) = subplot(1, 2, 1); ax(2) = subplot(1, 2, 2);
 histogram(ax(1), exp_D1.pos(H5.sela, 1), [1000, 1150, 1300, 1450, 1600])
 xlabel(ax(1), 'ML')
-histogram(ax(2), exp_D1.pos(H5.sela, 2), -4800:50:-3800)
+histogram(ax(2), exp_D1.pos(H5.sela, 2), -4800:100:-3800)
 xlabel(ax(2), 'DV')
 suptitle('lStr-D1 excited && press-excited units')
 
 figure, ax(1) = subplot(1, 2, 1); ax(2) = subplot(1, 2, 2);
 histogram(ax(1), exp_D1.pos(H5.selb, 1), [1000, 1150, 1300, 1450, 1600])
 xlabel(ax(1), 'ML')
-histogram(ax(2), exp_D1.pos(H5.selb, 2), -4800:50:-3800)
+histogram(ax(2), exp_D1.pos(H5.selb, 2), -4800:100:-3800)
 xlabel(ax(2), 'DV')
 suptitle('lStr-D1 excited && press-inhibited units')
 
@@ -256,3 +256,83 @@ fprintf(1, '\t\tMedian ML: all=%.3g, subpopulation=%.3g, 95CI=[%.4g, %.4g]\n\n',
     H5.mmlall/1000, H5.mmlb, H5.mmlcib(1)/1000, H5.mmlcib(2)/1000)
 fprintf(1, '\t\tMedian DV: all=%.3g, subpopulation=%.3g, 95CI=[%.4g, %.4g]\n\n', ...
     H5.mdvall/1000, H5.mdvb, H5.mdvcib(1)/1000, H5.mdvcib(2)/1000)
+
+%% H6a: Cells inhibited by lStr A2A (max delta norm spike rate > 0.5) are in lateral SNr.
+theta = 0.5;
+
+clear H6
+close all
+
+H6.sel = any(exp_A2A.sr(:, 5:8) <= -theta, 2);
+figure, ax(1) = subplot(1, 2, 1); ax(2) = subplot(1, 2, 2);
+histogram(ax(1), exp_A2A.pos(H6.sel, 1), [1000, 1150, 1300, 1450, 1600])
+xlabel(ax(1), 'ML')
+histogram(ax(2), exp_A2A.pos(H6.sel, 2), -4800:100:-3800)
+xlabel(ax(2), 'DV')
+suptitle('lStr-A2A inhibited units')
+
+figure, ax(1) = subplot(1, 2, 1); ax(2) = subplot(1, 2, 2);
+histogram(ax(1), exp_A2A.pos(:, 1), [1000, 1150, 1300, 1450, 1600])
+xlabel(ax(1), 'ML')
+histogram(ax(2), exp_A2A.pos(:, 2), -4800:100:-3800)
+xlabel(ax(2), 'DV')
+suptitle('All units')
+
+H6.mml_sel = median(exp_A2A.pos(H6.sel, 1));
+H6.mdv_sel = median(exp_A2A.pos(H6.sel, 2));
+H6.mml_all = median(exp_A2A.pos(:, 1));
+H6.mdv_all = median(exp_A2A.pos(:, 2));
+H6.mml_ci = bootci(nnz(H6.sel), @median, exp_A2A.pos(:, 1));
+H6.mdv_ci = bootci(nnz(H6.sel), @median, exp_A2A.pos(:, 2));
+
+fprintf(1, 'H1a: Cells excited by lStr A2A (max delta norm spike rate > %g) are in LATERAL SNr.\n', theta);
+if H6.mml_sel > H6.mml_ci(2)
+    fprintf('\tPassed!!!\n')
+else
+    fprintf('\tFailed...\n')
+end
+fprintf(1, '\t\tMedian ML: all=%.3g, subpopulation=%.3g, 95CI=[%.4g, %.4g]\n\n', ...
+    H6.mml_all/1000, H6.mml_sel, H6.mml_ci(1)/1000, H6.mml_ci(2)/1000)
+
+fprintf(1, 'H1b: Cells excited by lStr A2A (max delta norm spike rate > %g) are in DORSAL SNr.\n', theta);
+if H6.mdv_sel > H6.mdv_ci(2)
+    fprintf('\tPassed!!!\n')
+else
+    fprintf('\tFailed...\n')
+end
+fprintf(1, '\t\tMedian DV: all=%.3g, subpopulation=%.3g, 95CI=[%.4g, %.4g]\n\n', ...
+    H6.mdv_all/1000, H6.mdv_sel, H6.mdv_ci(1)/1000, H6.mdv_ci(2)/1000)
+
+clear ax 
+
+%%
+H7.pos = vertcat(exp_A2A.pos, exp_D1.pos);
+H7.lr = vertcat(exp_A2A.lr, exp_D1.lr);
+H7.pr = vertcat(exp_A2A.pr, exp_D1.pr);
+
+H7.selv = H7.pos(:, 2) < median(H7.pos(:, 2));
+H7.seld = H7.pos(:, 2) >= median(H7.pos(:, 2));
+H7.selm = abs(H7.pos(:, 1)) < 1300;
+H7.sell = abs(H7.pos(:, 1)) >= 1300;
+
+figure, 
+ax(1) = subplot(2, 2, 1);
+scatter(ax(1), H7.lr(H7.seld & H7.selm), H7.pr(H7.seld & H7.selm), 'filled');
+xlabel(ax(1), 'Lick'), ylabel(ax(1), 'Press'), title(ax(1), 'Dorsal-Medial SNr');
+
+ax(2) = subplot(2, 2, 2);
+scatter(ax(2), H7.lr(H7.seld & H7.sell), H7.pr(H7.seld & H7.sell), 'filled');
+xlabel(ax(2), 'Lick'), ylabel(ax(2), 'Press'), title(ax(2), 'Dorsal-Lateral SNr');
+
+ax(3) = subplot(2, 2, 3);
+scatter(ax(3), H7.lr(H7.selv & H7.selm), H7.pr(H7.selv & H7.selm), 'filled');
+xlabel(ax(3), 'Lick'), ylabel(ax(3), 'Press'), title(ax(3), 'Ventral-Medial SNr');
+
+ax(4) = subplot(2, 2, 4);
+scatter(ax(4), H7.lr(H7.selv & H7.sell), H7.pr(H7.selv & H7.sell), 'filled');
+xlabel(ax(4), 'Lick'), ylabel(ax(4), 'Press'), title(ax(4), 'Ventral-Lateral SNr');
+
+
+
+AcuteRecording.unifyAxesLims(ax);
+AcuteRecording.drawLines(ax, true, true);
