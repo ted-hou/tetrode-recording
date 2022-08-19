@@ -654,31 +654,55 @@ classdef AcuteRecording < handle
             end
         end
 
-        function stats = summarizeStimResponse(obj, groups, varargin)
+        function [stats, t] = summarizeStimResponse(obj, groups, varargin)
             p = inputParser();
             p.addRequired('Groups', @isstruct)
             p.addOptional('Method', 'peak', @(x) ismember(x, {'none', 'peak', 'mean', 'firstPeak'}))
             p.addOptional('Window', [0, 0.05], @(x) isnumeric(x) && length(x) == 2)
             p.addOptional('FirstPeakThreshold', 0, @isnumeric)
+            p.addOptional('Normalized', true, @islogical);
             p.parse(groups, varargin{:})
             groups = p.Results.Groups;
+            normalized = p.Results.Normalized;
 
             nGroups = length(groups);
             nUnits = length(obj.bsr);
             switch p.Results.Method
-                case {'peak', 'mean', 'firstPeak'}
+                case 'mean'
                     stats = NaN(nUnits, nGroups);
                     for iUnit = 1:nUnits
                         for iGrp = 1:nGroups
-                            meanNSR = mean(obj.bsr(iUnit).normalizedSpikeRates(groups(iGrp).IPulse, :), 1);
-                            stats(iUnit, iGrp) = AcuteRecording.summarizeMeanSpikeRates(meanNSR, obj.bsr(iUnit).t, p.Results.Method, p.Results.Window, p.Results.FirstPeakThreshold);
+                            if normalized
+                                msr = mean(obj.bsr(iUnit).normalizedSpikeRates(groups(iGrp).IPulse, :), 1);
+                            else
+                                msr = mean(obj.bsr(iUnit).spikeRates(groups(iGrp).IPulse, :), 1);
+                            end
+                            [stats(iUnit, iGrp), t] = AcuteRecording.summarizeMeanSpikeRates(msr, obj.bsr(iUnit).t, p.Results.Method, p.Results.Window);
+                        end
+                    end
+                case {'peak', 'firstPeak'}
+                    t = NaN(nUnits, nGroups);
+                    stats = NaN(nUnits, nGroups);
+                    for iUnit = 1:nUnits
+                        for iGrp = 1:nGroups
+                            if normalized
+                                msr = mean(obj.bsr(iUnit).normalizedSpikeRates(groups(iGrp).IPulse, :), 1);
+                            else
+                                msr = mean(obj.bsr(iUnit).spikeRates(groups(iGrp).IPulse, :), 1);
+                            end
+                            [stats(iUnit, iGrp), t(iUnit, iGrp)] = AcuteRecording.summarizeMeanSpikeRates(msr, obj.bsr(iUnit).t, p.Results.Method, p.Results.Window, p.Results.FirstPeakThreshold);
                         end
                     end
                 case 'none'
-                    stats = NaN(nUnits, length(obj.bsr(1).t), nGroups);
+                    t = obj.bsr(1).t;
+                    stats = NaN(nUnits, length(t), nGroups);
                     for iUnit = 1:nUnits
                         for iGrp = 1:nGroups
-                            stats(iUnit, :, iGrp) = mean(obj.bsr(iUnit).normalizedSpikeRates(groups(iGrp).IPulse, :), 1);
+                            if normalized
+                                stats(iUnit, :, iGrp) = mean(obj.bsr(iUnit).normalizedSpikeRates(groups(iGrp).IPulse, :), 1);
+                            else
+                                stats(iUnit, :, iGrp) = mean(obj.bsr(iUnit).spikeRates(groups(iGrp).IPulse, :), 1);
+                            end
                         end
                     end
             end
@@ -793,15 +817,25 @@ classdef AcuteRecording < handle
             pooledStats = cat(1, stats{:});
         end
         
-        function [pooledStats, pooledGroups] = getStimResponse(obj, critLight, critDuration)
+        function [pooledStats, pooledTimestamps, pooledGroups] = getStimResponse(obj, light, duration, varargin)
+            p = inputParser();
+            p.addRequired('Light', @isnumeric);
+            p.addRequired('Duration', @isnumeric);
+            p.addOptional('Stat', 'peak', @(x) ismember(lower(x), {'mean', 'peak', 'firstpeak', 'none'}))
+            p.addParameter('StatWindow', [0, 0.05], @isnumeric)
+            p.addParameter('FirstPeakThreshold', 0, @isnumeric)
+            p.addParameter('Normalized', true, @islogical)
+            p.parse(light, duration, varargin{:})
+
             % Extract groups and grouped stats for each experiment
             groups = cell(length(obj), 1);
             stats = cell(length(obj), 1);
+            t = cell(length(obj), 1);
             for iExp = 1:length(obj)
-                [~, I] = obj(iExp).selectStimResponse('Light', critLight, 'Duration', critDuration);
+                [~, I] = obj(iExp).selectStimResponse('Light', p.Results.Light, 'Duration', p.Results.Duration);
                 if ~isempty(I)
                     groups{iExp} = obj(iExp).groupByStimCondition(I, {'light', 'duration', 'ml', 'dv'});
-                    stats{iExp} = obj(iExp).summarizeStimResponse(groups{iExp}, 'peak');
+                    [stats{iExp}, t{iExp}] = obj(iExp).summarizeStimResponse(groups{iExp}, p.Results.Stat, p.Results.StatWindow, p.Results.FirstPeakThreshold, p.Results.Normalized);
                 end
             end
             
@@ -810,18 +844,36 @@ classdef AcuteRecording < handle
             h = cellfun(@(g) [g.groupHash], groups(~cellfun(@isempty, groups)), 'UniformOutput', false);
             uniqueHashes = unique(cat(2, h{:}));
             nGroups = length(uniqueHashes);
+            switch lower(p.Results.Stat)
+                case {'mean', 'peak', 'firstpeak'}
+                    nStats = 1;
+                case 'none'
+                    nStats = length(obj(1).bsr(1).t);
+            end
             pooledStats = cell(length(obj), 1);
+            
+            if ismember(lower(p.Results.Stat), {'peak', 'firstpeak'})
+                pooledTimestamps = cell(length(obj), 1);
+            end
             for iExp = 1:length(obj)
                 nUnits = length(obj(iExp).bsr); % size(stats{iExp}, 1);
-                pooledStats{iExp} = NaN(nUnits, nGroups);
+                pooledStats{iExp} = NaN(nUnits, nStats, nGroups);
+                if ismember(lower(p.Results.Stat), {'peak', 'firstpeak'})
+                    pooledTimestamps{iExp} = NaN(nUnits, nGroups);
+                end
                 for iGrp = 1:nGroups
-                    if isempty(groups{iExp}) || isempty(stats{iExp})
-                        pooledStats{iExp}(:, iGrp) = NaN;
-                    else
+                    if ~isempty(groups{iExp}) && ~isempty(stats{iExp})
                         sel = [groups{iExp}.groupHash] == uniqueHashes(iGrp);
                         if any(sel)
                             assert(nnz(sel) == 1)
-                            pooledStats{iExp}(:, iGrp) = stats{iExp}(:, sel);
+                            if nStats == 1
+                                pooledStats{iExp}(:, :, iGrp) = stats{iExp}(:, sel);
+                            else
+                                pooledStats{iExp}(:, :, iGrp) = stats{iExp}(:, :, sel);
+                            end
+                            if ismember(lower(p.Results.Stat), {'peak', 'firstpeak'})
+                                pooledTimestamps{iExp}(:, iGrp) = t{iExp}(:, sel);
+                            end
                         end
                     end
                 end
@@ -829,63 +881,92 @@ classdef AcuteRecording < handle
             
             pooledGroups = AcuteRecording.poolGroups(groups);
             pooledStats = cat(1, pooledStats{:});
+            if nStats == 1
+                pooledStats = squeeze(pooledStats);
+            end
+            if ismember(lower(p.Results.Stat), {'peak', 'firstpeak'})
+                pooledTimestamps = cat(1, pooledTimestamps{:});
+            else
+                pooledTimestamps = t{1};
+                assert(all(cellfun(@(x) all(abs(x - t{1}) < 1e-4), t)), 'Timestamps not identical.');
+            end
         end
 
-        function plotStimResponse(obj, bsr, varargin)
+        function [figs, axs] = plotStimResponse(obj, light, duration, varargin)
             p = inputParser();
-            p.addRequired('BinnedStimResponse', @isstruct);
-            p.addParameter('Mode', 'both', @(x) ischar(x) && ismember(x, {'heatmap', 'line', 'both'}));
-            p.addParameter('CLim', [], @isnumeric);
-            p.parse(bsr, varargin{:});
-            bsr = p.Results.BinnedStimResponse;
+            p.addRequired('Light', @isnumeric);
+            p.addRequired('Duration', @isnumeric);
+            p.addOptional('Modes', {'line', 'heatmap'}, @(x) all(ismember(lower(x), {'line', 'heatmap', 'staggeredline'})));
+            p.addParameter('HeatmapCLim', [], @isnumeric);
+            p.addParameter('Print', false, @islogical);
+            p.parse(light, duration, varargin{:});
+            light = p.Results.Light;
+            duration = p.Results.Duration;
+            modes = p.Results.Modes;
+            if ~iscell(modes)
+                modes = {modes};
+            end
 
-            if length(bsr) > 1
-                for i = 1:length(bsr)
-                    obj.plotStimResponse(bsr(i), 'Mode', p.Results.Mode, 'CLim', p.Results.CLim);
+            [msr, t, groups] = obj.getStimResponse(light, duration, 'none', 'Normalized', false);
+            [mnsr, ~, ~] = obj.getStimResponse(light, duration, 'none', 'Normalized', true);
+            tRight = t + (t(2) - t(1)) / 2;
+            [nUnits, nTimes, nGroups] = size(msr);
+            bsr = [obj.bsr];
+            channels = [bsr.channel];
+            units = [bsr.unit];
+            expName = {bsr.expName};
+
+            nPlots = length(modes);
+            
+            figs = gobjects(nUnits, 1);
+            axs = gobjects(nUnits, nPlots);
+
+            for iUnit = 1:nUnits
+                label = sprintf('%s Chn%g Unit %g', expName{iUnit}, channels(iUnit), units(iUnit));
+                figs(iUnit) = figure('Units', 'normalized', 'OuterPosition', [0, 0.1, 0.9, 0.3*nPlots], 'Name', label);
+                for iPlot = 1:nPlots
+                    axs(iUnit, iPlot) = subplot(nPlots, 1, iPlot);
+                    ax = axs(iUnit, iPlot);
+                    hold(ax, 'on')
+                    switch(lower(modes{iPlot}))
+                        case 'line'
+                            h = gobjects(nGroups, 1);
+                            for iGrp = 1:nGroups
+                                h(iGrp) = plot(ax, tRight * 1000, msr(iUnit, :, iGrp), 'DisplayName', groups(iGrp).label);
+                            end
+                            xlabel(ax, 'Time (ms)')
+                            ylabel(ax, 'Spike Rate (sp/s)')
+                            legend(ax, flip(h), 'Orientation', 'vertical', 'Location', 'east')
+                        case 'staggeredline'
+                            h = gobjects(nGroups, 1);
+                            offset = range(msr(iUnit, :, :), 'all') / nGroups;
+                            for iGrp = 1:nGroups
+                                h(iGrp) = plot(ax, tRight * 1000, msr(iUnit, :, iGrp) + (iGrp-1)*offset, 'DisplayName', groups(iGrp).label);
+                            end
+                            xlabel(ax, 'Time (ms)')
+                            ylabel(ax, 'Spike Rate (sp/s)')
+                            yticks(ax, [])
+                            legend(ax, flip(h), 'Orientation', 'vertical', 'Location', 'east')
+                        case 'heatmap'
+                            imagesc(ax, t * 1000, 1:nGroups, transpose(squeeze(mnsr(iUnit, :, :))))
+                            colormap(ax, 'jet');
+                            cb = colorbar(ax);
+                            cb.Label.String = 'Normalized \DeltaSpike Rate (a.u.)';
+                            if ~isempty(p.Results.HeatmapCLim)
+                                ax.CLim = p.Results.HeatmapCLim;
+                            end
+                            xlabel('Time (ms)')
+                            ylabel('Condition')
+                            yticks(ax, 1:nGroups);
+                            yticklabels(ax, {groups.label});
+                            axis(ax, 'tight')
+                    end
+                    hold(ax, 'off')
                 end
-                return
-            end
-            
-            [conditions, condSR, condNSR, ~] = obj.groupByConditions(bsr);
-            nConditions = length(conditions);
-
-            fig = figure('Units', 'Normalized', 'Position', [0.1, 0, 0.8, AcuteRecording.lerp(0.125, 0.3, nConditions/10)]);
-            
-            switch p.Results.Mode
-                case 'line'
-                    ax(1) = axes(fig);
-                case 'heatmap'
-                    ax(2) = axes(fig);
-                case 'both'
-                    ax(1) = subplot(2, 1, 1);
-                    ax(2) = subplot(2, 1, 2);
-                    fig.Position(4) = fig.Position(4)*2;
-            end
-            
-            if ismember(p.Results.Mode, {'line', 'both'})
-                hold(ax(1), 'on')
-                for iCond = 1:nConditions
-                    plot(ax(1), bsr.tRight, condSR(iCond, :), 'Color', conditions(iCond).linecolor, 'LineWidth', conditions(iCond).linewidth, 'DisplayName', conditions(iCond).label);
-                end
-                hold(ax(1), 'off')
-                xlabel(ax(1), 'Time (s)')
-                ylabel(ax(1), 'Spike Rate (sp/s)')
-                l = legend(ax(1), 'Location', 'west');
-                l.Position(1) = l.Position(1)-l.Position(3);
-            end
-            if ismember(p.Results.Mode, {'heatmap', 'both'})
-                imagesc(ax(2), bsr.t, 1:nConditions, condNSR, [-max(abs(condNSR(:))), max(abs(condNSR(:)))])
-                colormap(ax(2), 'jet');
-                cb = colorbar(ax(2));
-                cb.Label.String = 'Normalized Spike Rate (a.u.)';
-                xlabel(ax(2), 'Time (s)')
-                yticks(ax(2), 1:nConditions)
-                yticklabels(ax(2), {conditions.label})
-                ylabel(ax(2), 'Stim Condition')
-                title(ax(2), sprintf('%s Chn %g Unit %g', bsr.expName, bsr.channel, bsr.unit), 'Interpreter', 'none')
-
-                if ~isempty(p.Results.CLim)
-                    ax(2).CLim = p.Results.CLim;
+                suptitle(label)
+                if p.Results.Print
+                    print(figs(iUnit), label, '-djpeg')
+                    close(figs(iUnit))
                 end
             end
         end
@@ -1060,7 +1141,7 @@ classdef AcuteRecording < handle
                     highlight = p.Results.Highlight;
             end
 
-            [stimStats, groups] = obj.getStimResponse(p.Results.Light, p.Results.Duration);
+            [stimStats, ~, groups] = obj.getStimResponse(p.Results.Light, p.Results.Duration);
             moveStats = obj.getMoveResponse(p.Results.MoveType);
 
             % Color by SNr coordinates (ML/DV) or use specific Hue.
@@ -1379,7 +1460,7 @@ classdef AcuteRecording < handle
             end
         end
 
-        function [stats, info] = summarizeMeanSpikeRates(msr, t, varargin)
+        function [stats, t, info] = summarizeMeanSpikeRates(msr, t, varargin)
             p = inputParser();
             p.addRequired('MeanSpikeRates', @isnumeric)
             p.addRequired('Timestamps', @isnumeric)
@@ -1394,18 +1475,23 @@ classdef AcuteRecording < handle
             N = size(msr, 1);
             sel = t <= window(2) & t >= window(1);
             msr = msr(:, sel); % Truncate by window
+            t = t(sel);
             switch p.Results.Method
                 case 'mean'
                     stats = mean(msr, 2);
                 case 'peak'
                     [~, I] = max(abs(msr), [], 2);
                     stats = diag(msr(:, I));
+                    T = repmat(t(:)', [size(msr, 1), 1]);
+                    t = diag(T(:, I));
                 case 'firstPeak'
                     stats = NaN(N, 1);
                     for i = 1:N
-                        [peaks, ~] = AcuteRecording.findpeaks(msr(i, :), p.Results.FirstPeakThreshold);
+                        [peaks, ipk] = AcuteRecording.findpeaks(msr(i, :), p.Results.FirstPeakThreshold);
                         stats(i) = peaks(1);
+                        I(i) = ipk(1);
                     end
+                    t = t(I);
                 otherwise
                     error('Not implemented method %s', p.Results.Method)
             end
@@ -1586,11 +1672,6 @@ classdef AcuteRecording < handle
         end
 
         function pg = poolGroups(groups)
-            p = inputParser();
-            p.addRequired('groups', @(x) iscell(x) && length(x) > 1)
-            p.parse(groups);
-            groups = p.Results.groups;
-
             function r = range(x)
                 r = [min(x), max(x)];
                 if r(1) == r(2)
@@ -1598,7 +1679,11 @@ classdef AcuteRecording < handle
                 end
             end
 
-            allGroups = cat(2, groups{:});
+            if iscell(groups)
+                allGroups = cat(2, groups{:});
+            else
+                allGroups = groups;
+            end
             uniqueGroupHashes = unique([allGroups.groupHash]);
             pg(length(uniqueGroupHashes)) = struct('groupHash', [], 'hash', [], 'label', '', 'numTrials', [], 'light', [], 'duration', [], 'mlRank', [], 'dvRank', [], 'fiber', '', 'galvo', []);
 
@@ -1791,11 +1876,13 @@ classdef AcuteRecording < handle
             df3 = df < 0;
             df4 = df >= 0;
             I = find(abs(x) > threshold & ((df1 & circshift(df2, -1)) | (df3 & circshift(df4, -1))));
-            if isempty(I)
-                [~, I] = max(abs(x));
+            if ~isempty(I)
+                peaks = x(I);
+                I = I - 1;
+            else
+                x = x(2:end);
+                [peaks, I] = max(abs(x));
             end
-            peaks = x(I);
-            I = I - 1;
         end
 
         function label = makeGroupLabel(light, duration, varargin)

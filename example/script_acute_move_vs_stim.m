@@ -23,12 +23,12 @@ clear ax i
 
 
 %% Extract data
-[exp_D1.sr, exp_D1.groups] = exp_D1.ar.getStimResponse([0.4 0.5], 0.01);
+[exp_D1.sr, ~, exp_D1.groups] = exp_D1.ar.getStimResponse([0.4 0.5], 0.01);
 exp_D1.pr = exp_D1.ar.getMoveResponse('Press');
 exp_D1.lr = exp_D1.ar.getMoveResponse('Lick');
 exp_D1.pos = exp_D1.ar.getProbeCoords();
 
-[exp_A2A.sr, exp_A2A.groups] = exp_A2A.ar.getStimResponse([0.4 0.5], 0.01);
+[exp_A2A.sr, ~, exp_A2A.groups] = exp_A2A.ar.getStimResponse([0.4 0.5], 0.01);
 exp_A2A.pr = exp_A2A.ar.getMoveResponse('Press');
 exp_A2A.lr = exp_A2A.ar.getMoveResponse('Lick');
 exp_A2A.pos = exp_A2A.ar.getProbeCoords();
