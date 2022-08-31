@@ -3,9 +3,12 @@ load('C:\SERVER\PETH_All_aggregate_20220201.mat')
 %% Make eu objects (SLOW, takes ~60min)
 eu = EphysUnit(PETH, 'cullITI', true, 'extendedWindow', [-1, 2], 'readWaveforms', true);
 
+%% Alternatively, load eu objects from disk (SLOW)
+eu = EphysUnit.load('C:\SERVER\Units');
+
 %% Calculate eta/peth
 [eta, ~, ~] = eu.getPETH('count', 'press', [-0.45, -0.05], 'minTrialDuration', 1, 'normalize', 'iti');
-eta = transpose(nanmean(eta, 2));
+eta = transpose(mean(eta, 2, 'omitnan'));
 
 %% Calculate median spike rate vs. press response magnitude
 stats = [eu.SpikeRateStats];
@@ -30,7 +33,7 @@ xlabel('Median spike rate (sp/s)')
 % Plot distribution of response magnitude for SNr cells
 ax = subplot(1, 3, 2);
 histogram(ax, eta(isValid))
-xlabel('Mean response magnitude (modified z-score')
+xlabel('Mean response magnitude (modified z-score)')
 
 % Plot median spike rate vs response magnitude for SNr cells
 ax = subplot(1, 3, 3);
@@ -44,8 +47,46 @@ ylabel('Mean response magnitude (modified z-score)')
 
 clear ax f h1 h2 h3
 
+%% H1: PressUp cells have a higher baseline firing rate than PressDown cells.
+sigmaThreshold = 1;
+isPressUp = eta >= sigmaThreshold & isValid;
+isPressDown = eta <= -sigmaThreshold & isValid;
+
+f = figure('Units', 'normalized', 'OuterPosition', [0, 0.33, 1, 0.5]);
+ax = gobjects(1, 3);
+ax(1) = subplot(1, 3, 1);
+histogram(ax(1), msr(isPressUp), 'Normalization', 'probability');
+title(ax(1), sprintf('Median spike rates, %g press-activated units', nnz(isPressUp)))
+
+ax(2) = subplot(1, 3, 2);
+histogram(ax(2), msr(isPressDown), 'Normalization', 'probability');
+title(ax(2), sprintf('Median spike rates, %g press-inhibited units', nnz(isPressDown)))
+
+ax(3) = subplot(1, 3, 3);
+nBins = 10;
+[NUp, edgesUp] = histcounts(msr(isPressUp), nBins, 'Normalization', 'probability');
+[NDown, edgesDown] = histcounts(msr(isPressDown), nBins, 'Normalization', 'probability');
+centersUp = 0.5*(edgesUp(2:end) + edgesUp(1:end-1));
+centersDown = 0.5*(edgesDown(2:end) + edgesDown(1:end-1));
+hold(ax(3), 'on')
+plot(ax(3), centersUp, NUp, 'LineWidth', 2, 'Color', 'red', 'DisplayName', sprintf('Response>=%g (N=%g)', sigmaThreshold, nnz(isPressUp)));
+plot(ax(3), centersDown, NDown, 'LineWidth', 2, 'Color', 'blue', 'DisplayName', sprintf('Response<=-%g (N=%g)', sigmaThreshold, nnz(isPressDown)))
+hold(ax(3), 'off')
+legend(ax(3), 'Location', 'northeast');
+
+xlabel(ax, 'Median ITI spike rate (sp/s)')
+ylabel(ax, 'Frequency')
+
+nboot = 100;
+ciUp = bootci(nboot, @median, msr(isPressUp))
+ciDown = bootci(nboot, @median, msr(isPressDown))
+ciAll = bootci(nboot, @median, msr)
+
+clear sigmaThreshold isPressUp isPressDown f ax nBins NUp NDown edgesUp edgesDown centersUp centersDown
+
+
 %% Separate press-units by direction
-sigmaThreshold = 1.2;
+sigmaThreshold = 1;
 etaValid = eta(isValid);
 euPress = eu(isValid);
 isPressUp = etaValid >= sigmaThreshold;
@@ -109,37 +150,43 @@ clear axUp axDown axUpRaw axDownRaw ax
 
 %% Plot single units and save to disk
 for i = 1:length(euPressUp)
-    [Sr.X, Sr.T, Sr.N, Sr.S, Sr.B] = euPressUp(i).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', false);
-    [Sn.X, Sn.T, Sn.N, Sn.S, Sn.B] = euPressUp(i).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', true);
-    
-    fig = figure('Units', 'normalized', 'Position', [0, 0, 0.6, 0.9]);
-    ax(1) = subplot(2, 1, 1);
-    ax(2) = subplot(2, 1, 2);
-    EphysUnit.plotBinnedTrialAverage(ax(1), Sr, [1, 12]);
-    EphysUnit.plotBinnedTrialAverage(ax(2), Sn, [1, 12]);
-    suptitle(euPressUp(1).getName('_'));
-    
-    print(fig, sprintf('C:\\SERVER\\Figures\\Single Units\\PressUp\\%s', euPressUp(i).getName('_')), '-dpng');
-    
-    close(fig)
+    try
+        [Sr.X, Sr.T, Sr.N, Sr.S, Sr.B] = euPressUp(i).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', false);
+        [Sn.X, Sn.T, Sn.N, Sn.S, Sn.B] = euPressUp(i).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', true);
+        
+        fig = figure('Units', 'normalized', 'Position', [0, 0, 0.6, 0.9]);
+        ax(1) = subplot(2, 1, 1);
+        ax(2) = subplot(2, 1, 2);
+        EphysUnit.plotBinnedTrialAverage(ax(1), Sr, [1, 12]);
+        EphysUnit.plotBinnedTrialAverage(ax(2), Sn, [1, 12]);
+        suptitle(euPressUp(1).getName('_'));
+        
+        print(fig, sprintf('C:\\SERVER\\Figures\\Single Units\\PressUp\\%s', euPressUp(i).getName('_')), '-dpng');
+        
+        close(fig)
+    end
     clear Sr Sn
+    close all
 end
 
 for i = 1:length(euPressDown)
-    [Sr.X, Sr.T, Sr.N, Sr.S, Sr.B] = euPressDown(i).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', false);
-    [Sn.X, Sn.T, Sn.N, Sn.S, Sn.B] = euPressDown(i).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', true);
-    
-    fig = figure('Units', 'normalized', 'Position', [0, 0, 0.6, 0.9]);
-    ax(1) = subplot(2, 1, 1);
-    ax(2) = subplot(2, 1, 2);
-    EphysUnit.plotBinnedTrialAverage(ax(1), Sr, [1, 12]);
-    EphysUnit.plotBinnedTrialAverage(ax(2), Sn, [1, 12]);
-    suptitle(euPressDown(1).getName('_'));
-    
-    print(fig, sprintf('C:\\SERVER\\Figures\\Single Units\\PressDown\\%s', euPressDown(i).getName('_')), '-dpng');
-    
-    close(fig)
+    try
+        [Sr.X, Sr.T, Sr.N, Sr.S, Sr.B] = euPressDown(i).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', false);
+        [Sn.X, Sn.T, Sn.N, Sn.S, Sn.B] = euPressDown(i).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', true);
+        
+        fig = figure('Units', 'normalized', 'Position', [0, 0, 0.6, 0.9]);
+        ax(1) = subplot(2, 1, 1);
+        ax(2) = subplot(2, 1, 2);
+        EphysUnit.plotBinnedTrialAverage(ax(1), Sr, [1, 12]);
+        EphysUnit.plotBinnedTrialAverage(ax(2), Sn, [1, 12]);
+        suptitle(euPressDown(1).getName('_'));
+        
+        print(fig, sprintf('C:\\SERVER\\Figures\\Single Units\\PressDown\\%s', euPressDown(i).getName('_')), '-dpng');
+        
+        close(fig)
+    end
     clear Sr Sn
+    close all
 end
 
 clear fig ax Sr Sn i
