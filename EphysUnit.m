@@ -346,6 +346,22 @@ classdef EphysUnit < handle
     % static methods
     methods (Static)
 
+        function obj = load(path)
+            if nargin < 1
+                path = 'C:\SERVER\Units';
+            end
+            assert(isfolder(path));
+            files = dir(sprintf('%s\\*.mat', path));
+            S(length(files)) = struct('eu', []);
+            for i = 1:length(files)
+                tTic = tic();
+                fprintf(1, 'Reading unit %g/%g...', i, length(files));
+                S(i) = load(sprintf('%s\\%s', files(i).folder, files(i).name), 'eu');
+                fprintf(1, 'Done (%.2f s).\n', toc(tTic));
+            end
+            obj = [S.eu];
+        end
+
         function ax = plotBinnedTrialAverage(varargin)
             p = inputParser();
             if isgraphics(varargin{1}, 'axes')
