@@ -923,7 +923,7 @@ classdef AcuteRecording < handle
 
             for iUnit = 1:nUnits
                 label = sprintf('%s Chn%g Unit %g', expName{iUnit}, channels(iUnit), units(iUnit));
-                figs(iUnit) = figure('Units', 'normalized', 'OuterPosition', [0, 0.1, 0.9, 0.3*nPlots], 'Name', label);
+                figs(iUnit) = figure('Units', 'normalized', 'OuterPosition', [0, 0.1, 0.9, 0.9], 'Name', label);
                 for iPlot = 1:nPlots
                     axs(iUnit, iPlot) = subplot(nPlots, 1, iPlot);
                     ax = axs(iUnit, iPlot);

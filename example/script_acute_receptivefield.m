@@ -10,9 +10,9 @@ end
 
 %% Plot basic stim response save to disk
 cd('C:\SERVER\Figures\Acute\A2A\');
-exp_A2A.ar.plotStimResponse([0.4 0.5], 0.01, {'line', 'staggeredline', 'heatmap'}, 'HeatmapCLim', [-1, 1], 'Print', true);
+exp_A2A.ar.plotStimResponse([0.4 0.5 2], [0.01 0.05], {'line', 'heatmap'}, 'HeatmapCLim', [-1, 1], 'Print', true);
 cd('C:\SERVER\Figures\Acute\D1\');
-exp_D1.ar.plotStimResponse([0.4 0.5], 0.01, {'line', 'staggeredline', 'heatmap'}, 'HeatmapCLim', [-1, 1], 'Print', true);
+exp_D1.ar.plotStimResponse([0.4 0.5 2], [0.01 0.05], {'line', 'heatmap'}, 'HeatmapCLim', [-1, 1], 'Print', true);
 
 %% Extract data
 [exp_D1.sr, ~, exp_D1.groups] = exp_D1.ar.getStimResponse([0.4 0.5], 0.01);
