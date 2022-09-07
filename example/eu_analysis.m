@@ -225,12 +225,14 @@ hasLick = arrayfun(@(e) ~isempty(e.Trials.Lick) && nnz(e.Trials.Lick.duration() 
 
 
 %%
+close all
 fprintf(1, 'Average press trial duration = %g sec\n', mean(arrayfun(@(e) mean(e.Trials.Press.duration(), 'omitnan'), eu), 'omitnan'));
 fprintf(1, 'Average lick trial duration = %g sec\n', mean(arrayfun(@(e) mean(e.Trials.Lick.duration(), 'omitnan'), eu), 'omitnan'));
 EphysUnit.plotPETH(PETHPress, xlim=[-3.5,0], clim=[-2, 2], sortWindow=[-3.5, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3); title('Lever-press PETH')
 EphysUnit.plotPETH(PETHLick, xlim=[-3.5,0], clim=[-2, 2], sortWindow=[-3.5, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3); title('Lick PETH')
 
-
+EphysUnit.plotDoublePETH(PETHPressCompare, PETHLickCompare, 'Lever-press', 'Lick', xlim=[-3.5,0], clim=[-2, 2], sortWindow=[-3.5, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3);
+EphysUnit.plotDoublePETH(PETHLickCompare, PETHPressCompare, 'Lick', 'Lever-press', xlim=[-3.5,0], clim=[-2, 2], sortWindow=[-3.5, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3);
 
 %%
 theta = 0:0.1:2;

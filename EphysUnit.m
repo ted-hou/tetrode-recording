@@ -477,19 +477,20 @@ classdef EphysUnit < handle
             obj = [S.eu];
         end
 
-        function ax = plotPETH(varargin)
+        function [ax, order] = plotPETH(varargin)
             p = inputParser();
             if isgraphics(varargin{1}, 'axes')
                 p.addRequired('ax', @(x) isgraphics(x, 'axes'));
             end
             p.addRequired('PETH', @isstruct);
-            p.addParameter('I', [], @isnumeric);
+            p.addParameter('order', [], @isnumeric);
             p.addParameter('clim', [], @isnumeric)
             p.addParameter('xlim', [], @isnumeric)
             p.addParameter('sortWindow', [-2, 0], @(x) isnumeric(x) && length(x) == 2)
             p.addParameter('signWindow', [-.5, 0], @(x) isnumeric(x) && length(x) == 2)
             p.addParameter('sortThreshold', 1, @isnumeric)
             p.addParameter('negativeSortThreshold', [], @isnumeric)
+            p.addParameter('hidecolorbar', false, @islogical)
             p.parse(varargin{:})
             sortWindow = p.Results.sortWindow;
             signWindow = p.Results.signWindow;
@@ -508,16 +509,20 @@ classdef EphysUnit < handle
             t = p.Results.PETH.t;
             N = p.Results.PETH.N;
 
-            % Find first significant response
-            XSort = X(:, t >= sortWindow(1) & t <= sortWindow(2));
-            XEta = X(:, t >= signWindow(1) & t <= signWindow(2));
-            etaSign = sign(mean(XEta, 2, 'omitnan'));
-            assert(size(etaSign, 2) == 1);
-            isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
-            [~, Ilate] = max(isAboveThreshold, [], 2, 'omitnan');
-            [~, I] = sort(Ilate .* etaSign, 'descend');
+            if isempty(p.Results.order)
+                % Sort by first significant response
+                XSort = X(:, t >= sortWindow(1) & t <= sortWindow(2));
+                XEta = X(:, t >= signWindow(1) & t <= signWindow(2));
+                etaSign = sign(mean(XEta, 2, 'omitnan'));
+                assert(size(etaSign, 2) == 1);
+                isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
+                [~, Ilate] = max(isAboveThreshold, [], 2, 'omitnan');
+                [~, order] = sort(Ilate .* etaSign, 'descend');
+            else
+                order = p.Results.order;
+            end
             
-            imagesc(ax, t, 1:length(N), X(I, :))
+            imagesc(ax, t, 1:length(N), X(order, :))
             if ~isempty(p.Results.clim)
                 clim(ax, p.Results.clim);
             end
@@ -527,24 +532,42 @@ classdef EphysUnit < handle
             colormap(ax, 'turbo')
             h = colorbar(ax, 'eastoutside');
             h.Label.String = 'Normalized spike rate (a.u.)';
+            if p.Results.hidecolorbar
+                h.Visible = 'off';
+            end
             xlabel(ax, 'Time relative to movement (s)')
             ylabel(ax, 'Unit')
             title(sprintf('PETH (%g units)', length(N)))
         end
 
-        function ax = plotDoublePETH(PETH1, PETH2, varargin)
+        function [ax, order] = plotDoublePETH(PETH1, PETH2, varargin)
             p = inputParser();
-            p.addRequired('PETH1', @isstruct);
-            p.addRequired('PETH2', @isstruct);
-            p.addParameter('label1', '', @ischar);
-            p.addParameter('label2', '', @ischar);
-            p.parse(PETH1, PETH2, varargin);
-            PETH1 = p.Results.PETH1;
-            PETH2 = p.Results.PETH2;
-            label1 = p.Results.label1;
-            label2 = p.Results.label2;
+            p.addRequired('PETH1', @isstruct)
+            p.addRequired('PETH2', @isstruct)
+            p.addOptional('label1', '', @ischar)
+            p.addOptional('label2', '', @ischar)
+            p.addParameter('clim', [], @isnumeric)
+            p.addParameter('xlim', [], @isnumeric)
+            p.addParameter('sortWindow', [-2, 0], @(x) isnumeric(x) && length(x) == 2)
+            p.addParameter('signWindow', [-.5, 0], @(x) isnumeric(x) && length(x) == 2)
+            p.addParameter('sortThreshold', 1, @isnumeric)
+            p.addParameter('negativeSortThreshold', [], @isnumeric)
+            p.parse(PETH1, PETH2, varargin{:});
+            r = p.Results;
+            PETH1 = r.PETH1;
+            PETH2 = r.PETH2;
+            label1 = r.label1;
+            label2 = r.label2;
 
+            f = figure(Units='normalized', OuterPosition=[0, 0, 0.5, 1], DefaultAxesFontSize=14);
+            ax(1) = axes(f, Position=[0.13, 0.11, 0.3347, 0.815]);
+            ax(2) = axes(f, Position=[0.5703, 0.11, 0.3347, 0.815]);
             
+            [~, order] = EphysUnit.plotPETH(ax(1), PETH1, clim=r.clim, xlim=r.xlim, sortWindow=r.sortWindow, signWindow=r.signWindow, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold, hidecolorbar=true);
+            EphysUnit.plotPETH(ax(2), PETH2, order=order, clim=r.clim, xlim=r.xlim, sortWindow=r.sortWindow, signWindow=r.signWindow, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold);
+
+            title(ax(1), label1);
+            title(ax(2), label2);
         end
 
         function ax = plotBinnedTrialAverage(varargin)
