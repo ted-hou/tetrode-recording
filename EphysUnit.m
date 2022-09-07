@@ -338,7 +338,7 @@ classdef EphysUnit < handle
                             stats = obj(i).SpikeCountStats;
                     end
                     
-                    [xx, tt] = obj(i).getTrialAlignedData(data, window, trialType, 'allowedTrialDuration', [edges(iBin), edges(iBin+1)], 'alignTo', alignTo, 'resolution', resolution);
+                    [xx, tt] = obj(i).getTrialAlignedData(data, window, trialType, allowedTrialDuration=[edges(iBin), edges(iBin+1)], alignTo=alignTo, resolution=resolution, includeITI=false);
 
                     if i == 1 && iBin == 1
                         T = tt;
@@ -353,8 +353,8 @@ classdef EphysUnit < handle
                         xx = EphysUnit.normalize(xx, 'iti', stats);
                     end
                     
-                    mu = mean(xx, 1);
-                    ss = sum((xx - mu).^2, 1);
+                    mu = mean(xx, 1, 'omitnan');
+                    ss = sum((xx - mu).^2, 1, 'omitnan');
                     n = size(xx, 1);
                     
                     [mu, ss, n] = EphysUnit.combinestats(X(iBin, :), S(iBin, :), N(iBin), mu, ss, n);
@@ -411,11 +411,13 @@ classdef EphysUnit < handle
             for i = 1:length(obj)
                 if strcmpi(event, 'stim')
                     alignTo = 'start';
+                    includeITI = true;
                 else
                     alignTo = 'stop';
+                    includeITI = false;
                 end
                 
-                [x, ~] = obj(i).getTrialAlignedData(data, window, event, 'alignTo', alignTo, 'allowedTrialDuration', [minTrialDuration, Inf], 'resolution', resolution);
+                [x, ~] = obj(i).getTrialAlignedData(data, window, event, alignTo=alignTo, allowedTrialDuration=[minTrialDuration, Inf], resolution=resolution, includeITI=includeITI);
                 
                 if isempty(x)
                     warning('EventTriggeredAverage cannot be calculated for Unit %i (%s), likely because trial count is zero.', i, obj(i).getName())
@@ -446,7 +448,7 @@ classdef EphysUnit < handle
                     x = EphysUnit.normalize(x, normalize, stats);
                 else
                     n = size(x, 1);
-                    x = mean(x, 1);
+                    x = mean(x, 1, 'omitnan');
                 end
                 
                 % Write results
@@ -820,6 +822,7 @@ classdef EphysUnit < handle
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
             p.addParameter('resolution', 0.001, @(x) isnumeric(x) && x > 0)
             p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) > x(1))
+            p.addParameter('includeITI', true, @islogical) % Whether to include unaligned ITI data for averaging. When alignTo='stop', pre-trial-start data is discarded. When alignTo='start', post-trial-end data is discarded.
             p.parse(varargin{:})
             if useResampleMethod
                 x = p.Results.x;
@@ -832,6 +835,7 @@ classdef EphysUnit < handle
             alignTo = lower(p.Results.alignTo);
             resolution = p.Results.resolution(1);
             allowedTrialDuration = p.Results.allowedTrialDuration(1:2);
+            includeITI = p.Results.includeITI;
                         
             % Filter out trials with incorrect lengths
             trials = obj.getTrials(trialType);
@@ -850,18 +854,30 @@ classdef EphysUnit < handle
                 case 'start'
                     tAlignedGlobal = tAligned + vertcat(trials.Start);
             end
+
+            function sel = select(tt, iTrial)
+                if includeITI
+                    sel = true(1, length(tt));
+                elseif strcmpi(alignTo, 'stop')
+                    sel = tt >= -trials(iTrial).duration();
+                else % if strcmpi(alignTo, 'start')
+                    sel = tt <= trials(iTrial).duration();
+                end
+            end
             
             % Resample by interpolating data (x, t) at new t
-             if useResampleMethod
-                xAligned = zeros(length(trials), length(tAligned));
+            if useResampleMethod
+                xAligned = NaN(length(trials), length(tAligned));
                 x = double(x);
                 for iTrial = 1:length(trials)
-                    xAligned(iTrial, :) = interp1(t, x, tAlignedGlobal(iTrial, :), 'linear');
+                    [xx, tt] = interp1(t, x, tAlignedGlobal(iTrial, :), 'linear');
+                    sel = select(tt, iTrial);
+                    xAligned(iTrial, sel) = xx(sel);
                 end
             % Recalculate data (count or rate) in new bins.
             else
                 tAligned = (tAligned(1:end-1) + tAligned(2:end)) / 2;
-                xAligned = zeros(length(trials), length(tAligned));
+                xAligned = NaN(length(trials), length(tAligned));
                 switch data
                     case 'rate'
                         kernel = obj.SpikeRateKernel;
@@ -869,18 +885,24 @@ classdef EphysUnit < handle
                         if strcmpi(kernel.type, 'gaussian')
                             sigma = kernel.params.sigma;
                             for iTrial = 1:length(trials)
-                                [xAligned(iTrial, :), ~, ~] = obj.getSpikeRates('gaussian', sigma, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
+                                [xx, ~] = obj.getSpikeRates('gaussian', sigma, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
+                                sel = select(tAligned, iTrial);
+                                xAligned(iTrial, sel) = xx(sel);
                             end
                         else
                             lambda1 = kernel.params.lambda1;
                             lambda2 = kernel.params.lambda2;
                             for iTrial = 1:length(trials)
-                                [xAligned(iTrial, :), ~, ~] = obj.getSpikeRates('gaussian', lambda1, lambda2, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
+                                [xx, ~] = obj.getSpikeRates('gaussian', lambda1, lambda2, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
+                                sel = select(tAligned, iTrial);
+                                xAligned(iTrial, sel) = xx(sel);
                             end
                         end
                     case 'count'
                         for iTrial = 1:length(trials)
-                            [xAligned(iTrial, :), ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :));
+                            [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :));
+                            sel = select(tAligned, iTrial);
+                            xAligned(iTrial, sel) = xx(sel);
                         end
                 end
             end
