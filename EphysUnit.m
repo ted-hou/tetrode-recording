@@ -28,39 +28,137 @@ classdef EphysUnit < handle
             end
 
             p = inputParser();
-            p.addOptional('PETH', struct(), @isstruct);
+            if isstruct(varargin{1})
+                p.addRequired('PETH', @isstruct);
+            else
+                p.addRequired('AR', @(x) isa(x, 'AcuteRecording'));
+            end
             p.addParameter('readWaveforms', false, @islogical);
             p.addParameter('cullITI', false, @islogical);
             p.addParameter('extendedWindow', [-1, 1], @(x) isnumeric(x) && length(x) == 2)
             p.parse(varargin{:});
-            PETH = p.Results.PETH;
             extendedWindow = p.Results.extendedWindow;
+            
+            usePETH = isfield(p.Results, 'PETH');
 
             % Initialize obj array
-            obj(length(PETH)) = EphysUnit();
+            if usePETH
+                PETH = p.Results.PETH;
+                obj(length(PETH)) = EphysUnit();
+                uniqueExpNames = unique({PETH.ExpName});
 
-            % Extract unique expNames
-            uniqueExpNames = unique({PETH.ExpName});
-            i = 1;
-            fprintf(1, 'Reading PETH...\n')
-            for iExp = 1:length(uniqueExpNames)
-                fprintf(1, 'Loading experiment %s (%i of %i)...\n', uniqueExpNames{iExp}, iExp, length(uniqueExpNames))
-                tr = TetrodeRecording.BatchLoadSimple(uniqueExpNames{iExp});
-                inExp = strcmpi({PETH.ExpName}, uniqueExpNames{iExp});
+                i = 1;
+                fprintf(1, 'Reading PETH...\n')
+                for iExp = 1:length(uniqueExpNames)
+                    fprintf(1, 'Loading experiment %s (%i of %i)...\n', uniqueExpNames{iExp}, iExp, length(uniqueExpNames))
+                    tr = TetrodeRecording.BatchLoadSimple(uniqueExpNames{iExp});
+                    inExp = strcmpi({PETH.ExpName}, uniqueExpNames{iExp});
+                    tTic = tic();
+                    fprintf(1, 'Processing %i units...\n', nnz(inExp))
+                    for e = PETH(inExp)
+                         try
+                            obj(i).ExpName = uniqueExpNames{iExp};
+                            obj(i).Channel = e.Channel;
+                            if isempty(tr.SelectedChannels)
+                                obj(i).Electrode = NaN;
+                            else
+                                obj(i).Electrode = tr.SelectedChannels(obj(i).Channel);
+                            end
+                            obj(i).Unit = e.Cluster;
+                            s = tr.Spikes(obj(i).Channel);
+                            inCluster = s.Cluster.Classes == e.Cluster;
+                            obj(i).SpikeTimes = s.Timestamps(inCluster);
+                            if p.Results.readWaveforms
+                                obj(i).Waveforms = int16(s.Waveforms(inCluster, :));
+                                obj(i).WaveformTimestamps = s.WaveformTimestamps;
+                            end
+                            obj(i).EventTimes.Cue = tr.DigitalEvents.CueOn;
+                            obj(i).EventTimes.Press = tr.DigitalEvents.PressOn;
+                            obj(i).EventTimes.Lick = tr.DigitalEvents.LickOn;
+                            obj(i).EventTimes.RewardTimes = tr.DigitalEvents.RewardOn;
+                            if isfield(tr.DigitalEvents, 'StimOn')
+                                obj(i).EventTimes.StimOn = tr.DigitalEvents.StimOn;
+                                obj(i).EventTimes.StimOff = tr.DigitalEvents.StimOff;
+                            else
+                                obj(i).EventTimes.StimOn = [];
+                                obj(i).EventTimes.StimOff = [];
+                            end                                
+    
+                            if p.Results.cullITI
+                                obj(i).ExtendedWindow = extendedWindow;
+                            else
+                                obj(i).ExtendedWindow = [];
+                            end
+                            
+                            % Make trials
+                            obj(i).Trials.Press = obj(i).makeTrials('press');
+                            obj(i).Trials.Lick = obj(i).makeTrials('lick');
+                            obj(i).Trials.Stim = obj(i).makeTrials('stim');
+    
+                            % Calculate spike rates and spike counts
+                            resolution_sc = 0.1;
+                            resolution_sr = 1e-3;
+                            
+                            [sc, tsc] = obj(i).getSpikeCounts(resolution_sc);
+                            [sr, tsr, kernel] = obj(i).getSpikeRates('gaussian', 0.1, resolution_sr, 'kernelWidth', 1);
+                            
+                            % Calculate 
+                            [~, ~, scInTrial] = obj(i).cullITIData(tsc, sc, 'all', 'extendedWindow', extendedWindow);
+                            [~, ~, srInTrial] = obj(i).cullITIData(tsr, sr, 'all', 'extendedWindow', extendedWindow);
+                            
+                            obj(i).SpikeCountStats = struct('median', median(double(sc)), 'mad', mad(double(sc), 1), 'medianITI', median(double(sc(~scInTrial))), 'madITI', mad(double(sc(~scInTrial)), 1), 'resolution', resolution_sc);
+                            obj(i).SpikeRateStats = struct('median', median(sr), 'mad', mad(sr, 1), 'medianITI', median(sr(~srInTrial)), 'madITI', mad(sr(~srInTrial), 1), 'resolution', resolution_sr);
+    
+                            % Cull ITI spikes if told to do so.
+                            if p.Results.cullITI
+                                [obj(i).SpikeTimes, obj(i).Waveforms] = obj(i).cullITIData(obj(i).SpikeTimes, obj(i).Waveforms, 'all', 'extendedWindow', extendedWindow);
+                                obj(i).SpikeCounts = sc(scInTrial);
+                                obj(i).SpikeCountTimestamps = tsc(scInTrial);
+                                obj(i).SpikeRates = sr(srInTrial);
+                                obj(i).SpikeRateTimestamps = tsr(srInTrial);
+                            else
+                                obj(i).SpikeCounts = sc;
+                                obj(i).SpikeCountTimestamps = tsc;
+                                obj(i).SpikeRates = sr;
+                                obj(i).SpikeRateTimestamps = tsr;
+                            end
+                            obj(i).SpikeRateKernel = kernel;
+    
+                            obj(i).save();
+                            
+                            i = i + 1;
+                        catch ME
+                            warning('Error when processing unit %i (%s) - this one will be skipped.', i, e.ExpName)
+                            warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+                            i = i + 1;
+                        end			
+                    end
+                    fprintf(1, 'Done (%.1f sec).\n', toc(tTic))
+                    clear tr
+                end
+                fprintf(1, 'Done.\n')
+            else
+                ar = p.Results.AR;
+                BSR = ar.bsr;
+                obj(length(BSR)) = EphysUnit();
+                expName = ar.expName;
+                fprintf(1, 'Loading experiment %s...\n', expName)
+                tr = TetrodeRecording.BatchLoadSimple(expName, true);
                 tTic = tic();
-                fprintf(1, 'Processing %i units...\n', nnz(inExp))
-                for e = PETH(inExp)
+                fprintf(1, 'Processing %i units...\n', length(BSR))
+                i = 1;
+                for bsr = BSR
                      try
-                        obj(i).ExpName = uniqueExpNames{iExp};
-                        obj(i).Channel = e.Channel;
+                        obj(i).ExpName = expName;
+                        obj(i).Channel = bsr.channel;
                         if isempty(tr.SelectedChannels)
                             obj(i).Electrode = NaN;
                         else
                             obj(i).Electrode = tr.SelectedChannels(obj(i).Channel);
                         end
-                        obj(i).Unit = e.Cluster;
+                        obj(i).Unit = bsr.unit;
                         s = tr.Spikes(obj(i).Channel);
-                        inCluster = s.Cluster.Classes == e.Cluster;
+                        inCluster = s.Cluster.Classes == bsr.unit;
                         obj(i).SpikeTimes = s.Timestamps(inCluster);
                         if p.Results.readWaveforms
                             obj(i).Waveforms = int16(s.Waveforms(inCluster, :));
@@ -122,15 +220,14 @@ classdef EphysUnit < handle
                         
                         i = i + 1;
                     catch ME
-                        warning('Error when processing unit %i (%s) - this one will be skipped.', i, e.ExpName)
+                        warning('Error when processing unit %i (%s) - this one will be skipped.', i, expName)
                         warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
                         i = i + 1;
                     end			
                 end
                 fprintf(1, 'Done (%.1f sec).\n', toc(tTic))
-                clear tr
             end
-            fprintf(1, 'Done.\n')
+
         end
         
         function save(obj, varargin)
@@ -191,6 +288,12 @@ classdef EphysUnit < handle
         end
         
         function [X, T, N, S, B] = getBinnedTrialAverage(obj, data, varargin)
+            % Group trials by length, then calculate average spike rates.
+            %   X = zeros(nBins, nSamples); % nxt matrix, each row = mean spike rate across trials for that bin
+            %   S = zeros(nBins, nSamples); % nxt matrix, each row = variance for that bin
+            %   T = zeros(1, nSamples); % 1xt matrix = shared timestamps for all bins
+            %   N = zeros(nBins, 1); % nx1 matrix, number of trials per bin
+            %   B = zeros(nBins, 2); % nx2 matrix, each row representing bin edges
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
             p.addOptional('edges', 0:2.5:10, @(x) isnumeric(x) && nnz(diff(x) <= 0) == 0)
@@ -269,15 +372,17 @@ classdef EphysUnit < handle
         end
         
         function [X, t, N] = getPETH(obj, data, event, varargin)
-            %GETPETH estimate mean spikerate around an
-            %event
+            %GETPETH estimate mean spikerate around an event
+            %  X - Nxt, Averaged spike rate (raw or normalized)
+            %  t - tx1, common timestamps.
+            %  N - Nx1, number of trials per neuron
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
             p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
             p.addParameter('minTrialDuration', -Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('resolution', [], @(x) isnumeric(x) && length(x)==1 && x>=0)
-            p.addParameter('normalize', 'none', @(x) ischar(x) && ismember(lower(x), {'none', 'iti', 'all'}))
+            p.addParameter('normalize', 'none', @(x) isnumeric(x) || ismember(lower(x), {'none', 'iti', 'all'}))
             p.parse(data, event, varargin{:})
             data = lower(p.Results.data);
             event = p.Results.event;
@@ -305,9 +410,9 @@ classdef EphysUnit < handle
             fprintf(1, 'Processing ETA for %i units...', length(obj))
             for i = 1:length(obj)
                 if strcmpi(event, 'stim')
-                    alignTo = 'stop';
-                else
                     alignTo = 'start';
+                else
+                    alignTo = 'stop';
                 end
                 
                 [x, ~] = obj(i).getTrialAlignedData(data, window, event, 'alignTo', alignTo, 'allowedTrialDuration', [minTrialDuration, Inf], 'resolution', resolution);
@@ -319,19 +424,29 @@ classdef EphysUnit < handle
                     continue
                 end
                 
-                % Average
-                n = size(x, 1);
-                x = mean(x, 1);
-                
                 % Normalize
-                if ~strcmpi(normalize, 'none')
+                if isnumeric(normalize)
+                    inNormWindow = t >= normalize(1) & t <= normalize(2);
+                    stats.mean = mean(x(:, inNormWindow), 'all', 'omitnan');
+                    stats.sd = std(x(:, inNormWindow), 0, 'all', 'omitnan');
+                    % Average
+                    n = size(x, 1);
+                    x = mean(x, 1, 'omitnan');
+                    x = EphysUnit.normalize(x, 'manual', stats);
+                elseif ~strcmpi(normalize, 'none')
                     switch data
                         case 'count'
-                            stats = obj(1).SpikeCountStats;
+                            stats = obj(i).SpikeCountStats;
                         case 'rate'
-                            stats = obj(1).SpikeRateStats;
+                            stats = obj(i).SpikeRateStats;
                     end
+                    % Average
+                    n = size(x, 1);
+                    x = mean(x, 1, 'omitnan');
                     x = EphysUnit.normalize(x, normalize, stats);
+                else
+                    n = size(x, 1);
+                    x = mean(x, 1);
                 end
                 
                 % Write results
@@ -360,6 +475,76 @@ classdef EphysUnit < handle
                 fprintf(1, 'Done (%.2f s).\n', toc(tTic));
             end
             obj = [S.eu];
+        end
+
+        function ax = plotPETH(varargin)
+            p = inputParser();
+            if isgraphics(varargin{1}, 'axes')
+                p.addRequired('ax', @(x) isgraphics(x, 'axes'));
+            end
+            p.addRequired('PETH', @isstruct);
+            p.addParameter('I', [], @isnumeric);
+            p.addParameter('clim', [], @isnumeric)
+            p.addParameter('xlim', [], @isnumeric)
+            p.addParameter('sortWindow', [-2, 0], @(x) isnumeric(x) && length(x) == 2)
+            p.addParameter('signWindow', [-.5, 0], @(x) isnumeric(x) && length(x) == 2)
+            p.addParameter('sortThreshold', 1, @isnumeric)
+            p.addParameter('negativeSortThreshold', [], @isnumeric)
+            p.parse(varargin{:})
+            sortWindow = p.Results.sortWindow;
+            signWindow = p.Results.signWindow;
+            sortThreshold = p.Results.sortThreshold;
+            negativeSortThreshold = p.Results.negativeSortThreshold;
+            if isempty(negativeSortThreshold)
+                negativeSortThreshold = sortThreshold;
+            end
+            if isfield(p.Results, 'ax')
+                ax = p.Results.ax;
+            else
+                f = figure('Units', 'normalized', 'OuterPosition', [0, 0, 0.2, 1], 'DefaultAxesFontSize', 14);
+                ax = axes(f);
+            end
+            X = p.Results.PETH.X;
+            t = p.Results.PETH.t;
+            N = p.Results.PETH.N;
+
+            % Find first significant response
+            XSort = X(:, t >= sortWindow(1) & t <= sortWindow(2));
+            XEta = X(:, t >= signWindow(1) & t <= signWindow(2));
+            etaSign = sign(mean(XEta, 2, 'omitnan'));
+            assert(size(etaSign, 2) == 1);
+            isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
+            [~, Ilate] = max(isAboveThreshold, [], 2, 'omitnan');
+            [~, I] = sort(Ilate .* etaSign, 'descend');
+            
+            imagesc(ax, t, 1:length(N), X(I, :))
+            if ~isempty(p.Results.clim)
+                clim(ax, p.Results.clim);
+            end
+            if ~isempty(p.Results.xlim)
+                xlim(ax, p.Results.xlim);
+            end
+            colormap(ax, 'turbo')
+            h = colorbar(ax, 'eastoutside');
+            h.Label.String = 'Normalized spike rate (a.u.)';
+            xlabel(ax, 'Time relative to movement (s)')
+            ylabel(ax, 'Unit')
+            title(sprintf('PETH (%g units)', length(N)))
+        end
+
+        function ax = plotDoublePETH(PETH1, PETH2, varargin)
+            p = inputParser();
+            p.addRequired('PETH1', @isstruct);
+            p.addRequired('PETH2', @isstruct);
+            p.addParameter('label1', '', @ischar);
+            p.addParameter('label2', '', @ischar);
+            p.parse(PETH1, PETH2, varargin);
+            PETH1 = p.Results.PETH1;
+            PETH2 = p.Results.PETH2;
+            label1 = p.Results.label1;
+            label2 = p.Results.label2;
+
+            
         end
 
         function ax = plotBinnedTrialAverage(varargin)
@@ -628,7 +813,7 @@ classdef EphysUnit < handle
             % Filter out trials with incorrect lengths
             trials = obj.getTrials(trialType);
             durations = trials.duration();
-            trials = trials(durations >= allowedTrialDuration(1) & durations < allowedTrialDuration(2));
+            trials = trials(durations >= allowedTrialDuration(1) & durations <= allowedTrialDuration(2));
             if isempty(trials)
                 xAligned = [];
                 tAligned = [];
@@ -640,11 +825,11 @@ classdef EphysUnit < handle
                 case 'stop'
                     tAlignedGlobal = tAligned + vertcat(trials.Stop);
                 case 'start'
-                    tAlignedGlobal = tAligned + vertcat(trials.Stop);
+                    tAlignedGlobal = tAligned + vertcat(trials.Start);
             end
             
             % Resample by interpolating data (x, t) at new t
-            if useResampleMethod
+             if useResampleMethod
                 xAligned = zeros(length(trials), length(tAligned));
                 x = double(x);
                 for iTrial = 1:length(trials)
@@ -690,6 +875,9 @@ classdef EphysUnit < handle
                 case 'all'
                     m = double(stats.median);
                     s = double(stats.mad) / 0.6745;
+                case 'manual'
+                    m = double(stats.mean);
+                    s = double(stats.sd);
             end
             z = (x - m) ./ s;
         end

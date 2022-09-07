@@ -1,14 +1,14 @@
 load('C:\SERVER\PETH_All_aggregate_20220201.mat')
 
 %% Make eu objects (SLOW, takes ~60min)
-eu = EphysUnit(PETH, 'cullITI', true, 'extendedWindow', [-1, 2], 'readWaveforms', true);
+eu = EphysUnit(PETHPress, 'cullITI', true, 'extendedWindow', [-1, 2], 'readWaveforms', true);
 
 %% Alternatively, load eu objects from disk (SLOW)
 eu = EphysUnit.load('C:\SERVER\Units');
 
 %% Calculate eta/peth
-[eta, ~, ~] = eu.getPETH('count', 'press', [-0.45, -0.05], 'minTrialDuration', 1, 'normalize', 'iti');
-eta = transpose(mean(eta, 2, 'omitnan'));
+[eta, t, ~] = eu.getPETH('count', 'press', [-4, 0], minTrialDuration=2, normalize=[-4, -2]);
+eta = transpose(mean(eta(:, t >= -0.5), 2, 'omitnan'));
 
 %% Calculate median spike rate vs. press response magnitude
 stats = [eu.SpikeRateStats];
@@ -25,7 +25,7 @@ isSNr = msr >= 15;
 isValid = isSNr & ~isnan(eta);
 
 % Plot distribution of median spike rates during ITI
-f = figure('Units', 'normalized', 'OuterPosition', [0, 0.33, 1, 0.5]);
+f = figure('Units', 'normalized', 'OuterPosition', [0, 0.33, 1, 0.5], 'DefaultAxesFontSize', 14);
 ax = subplot(1, 3, 1);
 histogram(ax, msr(isValid))
 xlabel('Median spike rate (sp/s)')
@@ -48,11 +48,11 @@ ylabel('Mean response magnitude (modified z-score)')
 clear ax f h1 h2 h3
 
 %% H1: PressUp cells have a higher baseline firing rate than PressDown cells.
-sigmaThreshold = 1;
+sigmaThreshold = 0.3;
 isPressUp = eta >= sigmaThreshold & isValid;
 isPressDown = eta <= -sigmaThreshold & isValid;
 
-f = figure('Units', 'normalized', 'OuterPosition', [0, 0.33, 1, 0.5]);
+f = figure('Units', 'normalized', 'OuterPosition', [0, 0.33, 1, 0.5], 'DefaultAxesFontSize', 14);
 ax = gobjects(1, 3);
 ax(1) = subplot(1, 3, 1);
 histogram(ax(1), msr(isPressUp), 'Normalization', 'probability');
@@ -86,7 +86,7 @@ clear sigmaThreshold isPressUp isPressDown f ax nBins NUp NDown edgesUp edgesDow
 
 
 %% Separate press-units by direction
-sigmaThreshold = 1;
+sigmaThreshold = 0.3;
 etaValid = eta(isValid);
 euPress = eu(isValid);
 isPressUp = etaValid >= sigmaThreshold;
@@ -190,3 +190,90 @@ for i = 1:length(euPressDown)
 end
 
 clear fig ax Sr Sn i
+
+
+%% Acute recording to EphysUnit
+ar = AcuteRecording.load();
+%%
+for i = 1:length(ar)
+    clear eu
+    try  
+        eu = EphysUnit(ar(i), 'cullITI', true, 'extendedWindow', [-1, 2], 'readWaveforms', true);
+    catch ME
+        warning('Error while processing file %g (%s)', i, ar(i).expName);
+    end
+end
+
+%% 
+stats = [eu.SpikeRateStats];
+msr = [stats.medianITI]; % Median ITI spike rate
+clear stats
+
+% Select SNr cells
+minSpikeRate = 15;
+minTrialLength = 2;
+minNumTrials = 15;
+
+isSNr = msr >= minSpikeRate;
+hasPress = arrayfun(@(e) ~isempty(e.Trials.Press) && nnz(e.Trials.Press.duration() >= minTrialLength) >= minNumTrials, eu);
+hasLick = arrayfun(@(e) ~isempty(e.Trials.Lick) && nnz(e.Trials.Lick.duration() >= minTrialLength) >= minNumTrials, eu);
+
+[PETHPress.X, PETHPress.t, PETHPress.N] = eu(isSNr & hasPress).getPETH('count', 'press', [-6, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
+[PETHLick.X, PETHLick.t, PETHLick.N] = eu(isSNr & hasLick).getPETH('count', 'lick', [-6, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
+[PETHPressCompare.X, PETHPressCompare.t, PETHPressCompare.N] = eu(isSNr & hasPress & hasLick).getPETH('count', 'press', [-6, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
+[PETHLickCompare.X, PETHLickCompare.t, PETHLickCompare.N] = eu(isSNr & hasPress & hasLick).getPETH('count', 'lick', [-6, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
+
+
+%%
+fprintf(1, 'Average press trial duration = %g sec\n', mean(arrayfun(@(e) mean(e.Trials.Press.duration(), 'omitnan'), eu), 'omitnan'));
+fprintf(1, 'Average lick trial duration = %g sec\n', mean(arrayfun(@(e) mean(e.Trials.Lick.duration(), 'omitnan'), eu), 'omitnan'));
+EphysUnit.plotPETH(PETHPress, xlim=[-3.5,0], clim=[-2, 2], sortWindow=[-3.5, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3); title('Lever-press PETH')
+EphysUnit.plotPETH(PETHLick, xlim=[-3.5,0], clim=[-2, 2], sortWindow=[-3.5, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3); title('Lick PETH')
+
+
+
+%%
+theta = 0:0.1:2;
+[eta, nUp, nDown, pUp, pDown] = plotResponseForThresholds(PETHPress, 0:0.1:2, [-0.25, 0]);
+
+
+function [eta, nUp, nDown, pUp, pDown] = plotResponseForThresholds(PETH, theta, window)
+    eta = transpose(mean(PETH.X(:, PETH.t >= window(1) & PETH.t <= window(2)), 2, 'omitnan'));
+    nUp = zeros(length(theta), 1);
+    nDown = zeros(length(theta), 1);
+    for i = 1:length(theta)
+        nUp(i) = nnz(eta >= theta(i));
+        nDown(i) = nnz(eta <= -theta(i));
+    end
+    pUp = nUp ./ (nUp + nDown);
+    pDown = nDown ./ (nUp + nDown);
+    f = figure();
+    ax(1) = subplot(1, 2, 1);
+    xlabel(ax(1), 'Threshold (a.u.)');
+    ylabel(ax(1), 'Number of units')
+    hold(ax(1), 'on')
+    plot(ax(1), theta, nUp, 'r', DisplayName='Up', LineWidth=2);
+    plot(ax(1), theta, nDown, 'b', DisplayName='Down', LineWidth=2);
+    hold(ax(1), 'off')
+    ax(2) = subplot(1, 2, 2);
+    xlabel(ax(2), 'Threshold (a.u.)');
+    ylabel(ax(2), 'Percentage of responsive units')
+    hold(ax(2), 'on')
+    plot(ax(2), theta, pUp, 'r', DisplayName='Up', LineWidth=2);
+    plot(ax(2), theta, pDown, 'b', DisplayName='Down', LineWidth=2);
+    hold(ax(2), 'off')
+    legend(ax(1))
+
+    for i = 1:length(theta)
+        fprintf(1, 'theta=%g, %g up (%.1f%%), %g down (%.1f%%)\n', theta(i), nUp(i), pUp(i), nDown(i), pDown(i));
+    end
+
+    f = figure();
+    ax = axes(f);
+    histogram(ax, eta, Normalization='probability');
+    xlabel(ax, sprintf('Normalized move response [%g, %g]s', window(1), window(2)))
+    ylabel(ax, 'Probability')
+    title(ax, 'Distribution of lever-press response')
+end
+
+%% Lick
