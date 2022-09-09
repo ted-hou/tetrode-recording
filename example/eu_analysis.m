@@ -7,8 +7,8 @@ eu = EphysUnit(PETHPress, 'cullITI', true, 'extendedWindow', [-1, 2], 'readWavef
 eu = EphysUnit.load('C:\SERVER\Units');
 
 %% Calculate eta/peth
-[eta, t, ~] = eu.getPETH('count', 'press', [-4, 0], minTrialDuration=2, normalize=[-4, -2]);
-eta = transpose(mean(eta(:, t >= -0.5), 2, 'omitnan'));
+[etaPress, t, ~] = eu.getPETH('count', 'press', [-4, 0], minTrialDuration=2, normalize=[-4, -2]);
+etaPress = transpose(mean(etaPress(:, t >= -0.2 & t <= 0), 2, 'omitnan'));
 
 %% Calculate median spike rate vs. press response magnitude
 stats = [eu.SpikeRateStats];
@@ -22,7 +22,7 @@ isDA = msr < 15;
 isSNr = msr >= 15;
 
 % SNr with press trials
-isValid = isSNr & ~isnan(eta);
+isValid = isSNr & ~isnan(etaPress);
 
 % Plot distribution of median spike rates during ITI
 f = figure('Units', 'normalized', 'OuterPosition', [0, 0.33, 1, 0.5], 'DefaultAxesFontSize', 14);
@@ -32,14 +32,14 @@ xlabel('Median spike rate (sp/s)')
 
 % Plot distribution of response magnitude for SNr cells
 ax = subplot(1, 3, 2);
-histogram(ax, eta(isValid))
+histogram(ax, etaPress(isValid))
 xlabel('Mean response magnitude (modified z-score)')
 
 % Plot median spike rate vs response magnitude for SNr cells
 ax = subplot(1, 3, 3);
 hold(ax, 'on')
-h1 = scatter(ax, msr(isValid), eta(isValid), '.', 'DisplayName', sprintf('%i units', nnz(isValid)));
-h2 = plot(ax, repmat(median(msr(isValid)), [1, 2]), [min(eta(isValid)), max(eta(isValid))], 'k--', 'DisplayName', sprintf('Median spike rate = %.1f sp/s', median(msr(isValid))));
+h1 = scatter(ax, msr(isValid), etaPress(isValid), '.', 'DisplayName', sprintf('%i units', nnz(isValid)));
+h2 = plot(ax, repmat(median(msr(isValid)), [1, 2]), [min(etaPress(isValid)), max(etaPress(isValid))], 'k--', 'DisplayName', sprintf('Median spike rate = %.1f sp/s', median(msr(isValid))));
 h3 = plot(ax, [min(msr(isValid)), max(msr(isValid))], [0, 0], 'k');
 legend(ax, [h1, h2])
 xlabel('Median spike rate (sp/s)')
@@ -49,8 +49,8 @@ clear ax f h1 h2 h3
 
 %% H1: PressUp cells have a higher baseline firing rate than PressDown cells.
 sigmaThreshold = 0.3;
-isPressUp = eta >= sigmaThreshold & isValid;
-isPressDown = eta <= -sigmaThreshold & isValid;
+isPressUp = etaPress >= sigmaThreshold & isValid;
+isPressDown = etaPress <= -sigmaThreshold & isValid;
 
 f = figure('Units', 'normalized', 'OuterPosition', [0, 0.33, 1, 0.5], 'DefaultAxesFontSize', 14);
 ax = gobjects(1, 3);
@@ -87,7 +87,7 @@ clear sigmaThreshold isPressUp isPressDown f ax nBins NUp NDown edgesUp edgesDow
 
 %% Separate press-units by direction
 sigmaThreshold = 0.3;
-etaValid = eta(isValid);
+etaValid = etaPress(isValid);
 euPress = eu(isValid);
 isPressUp = etaValid >= sigmaThreshold;
 isPressDown = etaValid <= -sigmaThreshold;
@@ -205,6 +205,8 @@ for i = 1:length(ar)
 end
 
 %% 
+clear stats msr minSpikeRate minTrialLength minNumTrials isSNr hasPress hasLick PETHPress PETHLick PETHPressCompare PETHLickCompare
+
 stats = [eu.SpikeRateStats];
 msr = [stats.medianITI]; % Median ITI spike rate
 clear stats
@@ -217,26 +219,169 @@ minNumTrials = 15;
 isSNr = msr >= minSpikeRate;
 hasPress = arrayfun(@(e) ~isempty(e.Trials.Press) && nnz(e.Trials.Press.duration() >= minTrialLength) >= minNumTrials, eu);
 hasLick = arrayfun(@(e) ~isempty(e.Trials.Lick) && nnz(e.Trials.Lick.duration() >= minTrialLength) >= minNumTrials, eu);
+clear msr;
 
+%%
 [PETHPress.X, PETHPress.t, PETHPress.N] = eu(isSNr & hasPress).getPETH('count', 'press', [-6, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
 [PETHLick.X, PETHLick.t, PETHLick.N] = eu(isSNr & hasLick).getPETH('count', 'lick', [-6, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
 [PETHPressCompare.X, PETHPressCompare.t, PETHPressCompare.N] = eu(isSNr & hasPress & hasLick).getPETH('count', 'press', [-6, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
 [PETHLickCompare.X, PETHLickCompare.t, PETHLickCompare.N] = eu(isSNr & hasPress & hasLick).getPETH('count', 'lick', [-6, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
 
 
-%%
+%% Plot PETH heatmaps
 close all
 fprintf(1, 'Average press trial duration = %g sec\n', mean(arrayfun(@(e) mean(e.Trials.Press.duration(), 'omitnan'), eu), 'omitnan'));
 fprintf(1, 'Average lick trial duration = %g sec\n', mean(arrayfun(@(e) mean(e.Trials.Lick.duration(), 'omitnan'), eu), 'omitnan'));
 EphysUnit.plotPETH(PETHPress, xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3); title('Lever-press PETH')
 EphysUnit.plotPETH(PETHLick, xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3); title('Lick PETH')
 
-EphysUnit.plotDoublePETH(PETHPressCompare, PETHLickCompare, 'Lever-press', 'Lick', xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3);
+% Compare lick vs press, sort by same order
+[~, ~, ~, latency] = EphysUnit.plotDoublePETH(PETHPressCompare, PETHLickCompare, 'Lever-press', 'Lick', xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3);
 EphysUnit.plotDoublePETH(PETHLickCompare, PETHPressCompare, 'Lick', 'Lever-press', xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3);
+
+
+%% Compare Lick ETA vs. Press ETA
+close all
+t = PETHPressCompare.t; assert(all(PETHPressCompare.t==PETHLickCompare.t));
+etaPress = mean(PETHPressCompare.X(:, t >= -0.2 & t <= 0), 2, 'omitnan');
+etaLick = mean(PETHLickCompare.X(:, t >= -0.2 & t <= 0), 2, 'omitnan');
+
+[mdl.b, mdl.bint, mdl.r, mdl.rint, mdl.stats] = regress(etaLick, [ones(size(etaPress)), etaPress]);
+
+f = figure(Units='normalized', Position=[0 0 0.7 0.4], DefaultAxesFontSize=14);
+theta = 0.5;
+ax = subplot(1, 2, 1);
+hold(ax, 'on')
+h = scatter(ax, etaPress, etaLick, 10, 'k', 'filled', DisplayName=sprintf('%g Units', length(etaPress)));
+axis(ax, 'equal')
+xl = ax.XLim; yl = ax.YLim;
+h(2) = plot(ax, xl, mdl.b(1) + xl*mdl.b(2), 'r', DisplayName=sprintf('y=%.2g+%.2gx, R^2=%.2g', mdl.b(1), mdl.b(2), mdl.stats(1)));
+plot(ax, xl, [0 0], 'k-')
+plot(ax, [0 0], yl, 'k-')
+plot(ax, xl, theta*[1 1], 'k:')
+plot(ax, theta*[1 1], yl, 'k:')
+plot(ax, xl, theta*[-1 -1], 'k:')
+plot(ax, theta*[-1 -1], yl, 'k:')
+plot(ax, [max(xl(1), yl(1)), min(xl(2), yl(2))], [max(xl(1), yl(1)), min(xl(2), yl(2))], 'k:')
+xlim(ax, xl), ylim(ax, yl)
+hold(ax, 'off')
+xlabel(ax, 'Lever-press ETA (normalized, a.u.)')
+ylabel(ax, 'Lick ETA (normalized, a.u.)')
+title(ax, 'Normalized activity, lever-press vs lick')
+legend(h)
+
+ax = subplot(1, 2, 2);
+hold(ax, 'on');
+N = size(latency, 1);
+h = scatter(ax, -latency(:, 1)+randn(N, 1)*0.025, -latency(:, 2)+randn(N, 1)*0.025, 10, 'k', 'filled');
+xlabel(ax, 'Lever-press activity latency (s)')
+ylabel(ax, 'Lick activity latency (s)')
+title(ax, 'Ramp latency, lever-press vs lick')
+hold(ax, 'off');
+
+
+clear t f ax h theta xl yl
+
+%% Compare press vs lick latency
+[PETHPressCompare.X, PETHPressCompare.t, PETHPressCompare.N] = eu(isSNr & hasPress & hasLick).getPETH('rate', 'press', [-4, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
+[PETHLickCompare.X, PETHLickCompare.t, PETHLickCompare.N] = eu(isSNr & hasPress & hasLick).getPETH('rate', 'lick', [-4, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
+%%
+[~, ~, ~, latency] = EphysUnit.plotDoublePETH(PETHPressCompare, PETHLickCompare, 'Lever-press', 'Lick', xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3);
+
+t = PETHPressCompare.t; assert(all(PETHPressCompare.t==PETHLickCompare.t));
+etaPress = mean(PETHPressCompare.X(:, t >= -0.2 & t <= 0), 2, 'omitnan');
+etaLick = mean(PETHLickCompare.X(:, t >= -0.2 & t <= 0), 2, 'omitnan');
+
+
+[mdl.b, mdl.bint, mdl.r, mdl.rint, mdl.stats] = regress(etaLick, [ones(size(etaPress)), etaPress]);
+
+f = figure(Units='normalized', Position=[0 0 0.7 0.4], DefaultAxesFontSize=14);
+theta = 0.5;
+ax = subplot(1, 2, 1);
+hold(ax, 'on')
+h = scatter(ax, etaPress, etaLick, 10, 'k', 'filled', DisplayName=sprintf('%g Units', length(etaPress)));
+axis(ax, 'equal')
+xl = ax.XLim; yl = ax.YLim;
+h(2) = plot(ax, xl, mdl.b(1) + xl*mdl.b(2), 'r', DisplayName=sprintf('y=%.2g+%.2gx, R^2=%.2g', mdl.b(1), mdl.b(2), mdl.stats(1)));
+plot(ax, xl, [0 0], 'k-')
+plot(ax, [0 0], yl, 'k-')
+plot(ax, xl, theta*[1 1], 'k:')
+plot(ax, theta*[1 1], yl, 'k:')
+plot(ax, xl, theta*[-1 -1], 'k:')
+plot(ax, theta*[-1 -1], yl, 'k:')
+plot(ax, [max(xl(1), yl(1)), min(xl(2), yl(2))], [max(xl(1), yl(1)), min(xl(2), yl(2))], 'k:')
+xlim(ax, xl), ylim(ax, yl)
+hold(ax, 'off')
+xlabel(ax, 'Lever-press ETA (normalized, a.u.)')
+ylabel(ax, 'Lick ETA (normalized, a.u.)')
+title(ax, 'Normalized activity, lever-press vs lick')
+legend(h)
+
+ax = subplot(1, 2, 2);
+hold(ax, 'on');
+N = size(latency, 1);
+h = scatter(ax, -latency(:, 1), -latency(:, 2), 10, 'k', 'filled');
+xlabel(ax, 'Lever-press activity latency (s)')
+ylabel(ax, 'Lick activity latency (s)')
+title(ax, 'Ramp latency, lever-press vs lick')
+hold(ax, 'off');
+
+
+%% Compare Cue-aligned PETH vs. Move-aligned PETH
+[PETHPress_PressAligned.X, PETHPress_PressAligned.t, PETHPress_PressAligned.N, PETHPress_PressAligned.stats] = eu(isSNr & hasPress & hasLick).getPETH('count', 'press', [-4, 1], alignTo='stop', includeITI=false, minTrialDuration=minTrialLength, normalize=[-4, -2]);
+[PETHPress_PressCueAligned.X, PETHPress_PressCueAligned.t, PETHPress_PressCueAligned.N] = eu(isSNr & hasPress & hasLick).getPETH('count', 'press', [-1, 4], alignTo='start', includeITI=false, minTrialDuration=minTrialLength, normalize=stats);
+[PETHPress_LickAligned.X, PETHPress_LickAligned.t, PETHPress_LickAligned.N, PETHPress_LickAligned.stats] = eu(isSNr & hasPress & hasLick).getPETH('count', 'lick', [-4, 1], alignTo='stop', includeITI=false, minTrialDuration=minTrialLength, normalize=[-4, -2]);
+[PETHPress_LickCueAligned.X, PETHPress_LickCueAligned.t, PETHPress_LickCueAligned.N] = eu(isSNr & hasPress & hasLick).getPETH('count', 'lick', [-1, 4], alignTo='start', includeITI=false, minTrialDuration=minTrialLength, normalize=stats);
+
+%% Plot
+close all
+[ax, ~, etaPress, ~] = EphysUnit.plotDoublePETH(PETHPress_PressAligned, PETHPress_PressCueAligned, 'Lever-press-aligned', 'Trial-start-aligned', xlim={[-4, 0], [-1, 3]}, clim=[-2, 2], sortWindow=[-3, 0], signWindow={[-0.2, 0], [-0.8, 0]}, sortThreshold=0.6, negativeSortThreshold=0.3);
+xlabel(ax(2), 'Time relative to trial-start (s)')
+[ax, ~, etaLick, ~] = EphysUnit.plotDoublePETH(PETHPress_LickAligned, PETHPress_LickCueAligned, 'Lick-aligned', 'Trial-start-aligned', xlim={[-4, 0], [-1, 3]}, clim=[-2, 2], sortWindow=[-3, 0], signWindow={[-0.2, 0], [-0.8, 0]}, sortThreshold=0.6, negativeSortThreshold=0.3);
+xlabel(ax(2), 'Time relative to trial-start (s)')
+
+theta = 0.5;
+ax = axes(figure('DefaultAxesFontSize', 14));
+hold(ax, 'on')
+h = scatter(ax, etaPress(:, 1), etaPress(:, 2), 10, 'k', 'filled', DisplayName=sprintf('%g units', size(etaPress, 1)));
+axis(ax, 'equal')
+xl = ax.XLim; yl = ax.YLim;
+plot(ax, xl, [0 0], 'k-')
+plot(ax, [0 0], yl, 'k-')
+plot(ax, xl, theta*[1 1], 'k:')
+plot(ax, theta*[1 1], yl, 'k:')
+plot(ax, xl, theta*[-1 -1], 'k:')
+plot(ax, theta*[-1 -1], yl, 'k:')
+plot(ax, [max(xl(1), yl(1)), min(xl(2), yl(2))], [max(xl(1), yl(1)), min(xl(2), yl(2))], 'k:')
+xlim(ax, xl), ylim(ax, yl)
+hold(ax, 'off')
+xlabel(ax, 'Lever-press-response (normalized, a.u.)');
+ylabel(ax, 'Trial-start-response (normalized, a.u.)');
+legend(ax, h)
+
+ax = axes(figure('DefaultAxesFontSize', 14));
+hold(ax, 'on')
+h = scatter(ax, etaLick(:, 1), etaLick(:, 2), 10, 'k', 'filled', DisplayName=sprintf('%g units', size(etaLick, 1)));
+axis(ax, 'equal')
+xl = ax.XLim; yl = ax.YLim;
+plot(ax, xl, [0 0], 'k-')
+plot(ax, [0 0], yl, 'k-')
+plot(ax, xl, theta*[1 1], 'k:')
+plot(ax, theta*[1 1], yl, 'k:')
+plot(ax, xl, theta*[-1 -1], 'k:')
+plot(ax, theta*[-1 -1], yl, 'k:')
+plot(ax, [max(xl(1), yl(1)), min(xl(2), yl(2))], [max(xl(1), yl(1)), min(xl(2), yl(2))], 'k:')
+xlim(ax, xl), ylim(ax, yl)
+hold(ax, 'off')
+xlabel(ax, 'Lick-response (normalized, a.u.)');
+ylabel(ax, 'Trial-start-response (normalized, a.u.)');
+legend(ax, h)
+
+clear ax theta xl yl h
 
 %%
 theta = 0:0.1:2;
-[eta, nUp, nDown, pUp, pDown] = plotResponseForThresholds(PETHPress, 0:0.1:2, [-0.25, 0]);
+[etaPress, nUp, nDown, pUp, pDown] = plotResponseForThresholds(PETHPress, 0:0.1:2, [-0.25, 0]);
 
 
 function [eta, nUp, nDown, pUp, pDown] = plotResponseForThresholds(PETH, theta, window)

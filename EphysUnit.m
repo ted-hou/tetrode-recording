@@ -371,18 +371,21 @@ classdef EphysUnit < handle
             fprintf(1, 'Done (%.1f sec)!\n', toc(tTic))
         end
         
-        function [X, t, N] = getPETH(obj, data, event, varargin)
+        function varargout = getPETH(obj, data, event, varargin)
             %GETPETH estimate mean spikerate around an event
             %  X - Nxt, Averaged spike rate (raw or normalized)
             %  t - tx1, common timestamps.
             %  N - Nx1, number of trials per neuron
+            %  stats - Nx1 struct('mean', 'sd'), mean spike rate and sd for each neuron
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
             p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
             p.addParameter('minTrialDuration', -Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('resolution', [], @(x) isnumeric(x) && length(x)==1 && x>=0)
-            p.addParameter('normalize', 'none', @(x) isnumeric(x) || ismember(lower(x), {'none', 'iti', 'all'}))
+            p.addParameter('normalize', 'none', @(x) isstruct(x) || isnumeric(x) || ismember(lower(x), {'none', 'iti', 'all'}))
+            p.addParameter('alignTo', 'default', @(x) ismember(x, {'default', 'start', 'stop'}))
+            p.addParameter('includeITI', [], @islogical)
             p.parse(data, event, varargin{:})
             data = lower(p.Results.data);
             event = p.Results.event;
@@ -390,6 +393,8 @@ classdef EphysUnit < handle
             minTrialDuration = p.Results.minTrialDuration;
             resolution = p.Results.resolution;
             normalize = p.Results.normalize;
+            alignTo = p.Results.alignTo;
+            includeITI = p.Results.includeITI;
             
             % Use default resolutions
             if isempty(resolution)
@@ -409,14 +414,21 @@ classdef EphysUnit < handle
             tTic = tic();
             fprintf(1, 'Processing ETA for %i units...', length(obj))
             for i = 1:length(obj)
-                if strcmpi(event, 'stim')
-                    alignTo = 'start';
-                    includeITI = true;
-                else
-                    alignTo = 'stop';
-                    includeITI = false;
+                if strcmpi(alignTo, 'default') 
+                    if strcmpi(event, 'stim')
+                        alignTo = 'start';
+                    else
+                        alignTo = 'stop';
+                    end
                 end
-                
+                if isempty(includeITI)
+                    if strcmpi(event, 'stim')
+                        includeITI = true;
+                    else
+                        includeITI = false;
+                    end
+                end
+
                 [x, ~] = obj(i).getTrialAlignedData(data, window, event, alignTo=alignTo, allowedTrialDuration=[minTrialDuration, Inf], resolution=resolution, includeITI=includeITI);
                 
                 if isempty(x)
@@ -429,12 +441,17 @@ classdef EphysUnit < handle
                 % Normalize
                 if isnumeric(normalize)
                     inNormWindow = t >= normalize(1) & t <= normalize(2);
-                    stats.mean = mean(x(:, inNormWindow), 'all', 'omitnan');
-                    stats.sd = std(x(:, inNormWindow), 0, 'all', 'omitnan');
+                    stats(i).mean = mean(x(:, inNormWindow), 'all', 'omitnan');
+                    stats(i).sd = std(x(:, inNormWindow), 0, 'all', 'omitnan');
                     % Average
                     n = size(x, 1);
                     x = mean(x, 1, 'omitnan');
-                    x = EphysUnit.normalize(x, 'manual', stats);
+                    x = EphysUnit.normalize(x, 'manual', stats(i));
+                elseif isstruct(normalize)
+                    % Average
+                    n = size(x, 1);
+                    x = mean(x, 1, 'omitnan');
+                    x = EphysUnit.normalize(x, 'manual', normalize(i));
                 elseif ~strcmpi(normalize, 'none')
                     switch data
                         case 'count'
@@ -442,6 +459,7 @@ classdef EphysUnit < handle
                         case 'rate'
                             stats = obj(i).SpikeRateStats;
                     end
+
                     % Average
                     n = size(x, 1);
                     x = mean(x, 1, 'omitnan');
@@ -456,8 +474,13 @@ classdef EphysUnit < handle
                 N(i) = n;
             end
             fprintf(1, 'Done (%.1f sec)\n', toc(tTic))
+    
+            if isnumeric(normalize)
+                varargout = {X, t, N, stats};
+            else
+                varargout = {X, t, N};
+            end
         end
-        
     end
     
     % static methods
@@ -479,7 +502,7 @@ classdef EphysUnit < handle
             obj = [S.eu];
         end
 
-        function [ax, order] = plotPETH(varargin)
+        function varargout = plotPETH(varargin)
             p = inputParser();
             if isgraphics(varargin{1}, 'axes')
                 p.addRequired('ax', @(x) isgraphics(x, 'axes'));
@@ -514,14 +537,34 @@ classdef EphysUnit < handle
             if isempty(p.Results.order)
                 % Sort by first significant response
                 XSort = X(:, t >= sortWindow(1) & t <= sortWindow(2));
-                XEta = X(:, t >= signWindow(1) & t <= signWindow(2));
-                etaSign = sign(mean(XEta, 2, 'omitnan'));
+                tSort = t(t >= sortWindow(1) & t <= sortWindow(2));
+                eta = mean(X(:, t >= signWindow(1) & t <= signWindow(2)), 2, 'omitnan');
+                etaSign = sign(eta);
                 assert(size(etaSign, 2) == 1);
                 isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
                 [~, Ilate] = max(isAboveThreshold, [], 2, 'omitnan');
                 [~, order] = sort(Ilate .* etaSign, 'descend');
+                eta = eta(order);
+                latency = tSort(Ilate);
+                latency = latency(order);
+                varargout = {ax, order(:), eta(:), latency(:)};
             else
                 order = p.Results.order;
+                if nargout < 3
+                    varargout = {ax, order};
+                else
+                    XSort = X(:, t >= sortWindow(1) & t <= sortWindow(2));
+                    tSort = t(t >= sortWindow(1) & t <= sortWindow(2));
+                    eta = mean(X(:, t >= signWindow(1) & t <= signWindow(2)), 2, 'omitnan');
+                    etaSign = sign(eta);
+                    assert(size(etaSign, 2) == 1);
+                    isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
+                    [~, Ilate] = max(isAboveThreshold, [], 2, 'omitnan');
+                    eta = eta(order);
+                    latency = tSort(Ilate);
+                    latency = latency(order);
+                    varargout = {ax, order(:), eta(:), latency(:)};
+                end
             end
             
             imagesc(ax, t, 1:length(N), X(order, :))
@@ -542,16 +585,16 @@ classdef EphysUnit < handle
             title(sprintf('PETH (%g units)', length(N)))
         end
 
-        function [ax, order] = plotDoublePETH(PETH1, PETH2, varargin)
+        function [ax, order, eta, latency] = plotDoublePETH(PETH1, PETH2, varargin)
             p = inputParser();
             p.addRequired('PETH1', @isstruct)
             p.addRequired('PETH2', @isstruct)
             p.addOptional('label1', '', @ischar)
             p.addOptional('label2', '', @ischar)
             p.addParameter('clim', [], @isnumeric)
-            p.addParameter('xlim', [], @isnumeric)
+            p.addParameter('xlim', [], @(x) isnumeric(x) || (iscell(x) && all(cellfun(@isnumeric, x))))
             p.addParameter('sortWindow', [-2, 0], @(x) isnumeric(x) && length(x) == 2)
-            p.addParameter('signWindow', [-.5, 0], @(x) isnumeric(x) && length(x) == 2)
+            p.addParameter('signWindow', [-.5, 0], @(x) iscell(x) || isnumeric(x) && length(x) == 2)
             p.addParameter('sortThreshold', 1, @isnumeric)
             p.addParameter('negativeSortThreshold', [], @isnumeric)
             p.parse(PETH1, PETH2, varargin{:});
@@ -565,8 +608,27 @@ classdef EphysUnit < handle
             ax(1) = axes(f, Position=[0.13, 0.11, 0.3347, 0.815]);
             ax(2) = axes(f, Position=[0.5703, 0.11, 0.3347, 0.815]);
             
-            [~, order] = EphysUnit.plotPETH(ax(1), PETH1, clim=r.clim, xlim=r.xlim, sortWindow=r.sortWindow, signWindow=r.signWindow, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold, hidecolorbar=true);
-            EphysUnit.plotPETH(ax(2), PETH2, order=order, clim=r.clim, xlim=r.xlim, sortWindow=r.sortWindow, signWindow=r.signWindow, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold);
+            if iscell(r.xlim)
+                xlim1 = r.xlim{1};
+                xlim2 = r.xlim{2};
+            else
+                xlim1 = r.xlim;
+                xlim2 = r.xlim;
+            end
+
+            if iscell(r.signWindow)
+                signWindow1 = r.signWindow{1};
+                signWindow2 = r.signWindow{2};
+            else
+                signWindow1 = r.signWindow;
+                signWindow2 = r.signWindow;
+            end
+
+            [~, order, eta1, latency1] = EphysUnit.plotPETH(ax(1), PETH1, clim=r.clim, xlim=xlim1, sortWindow=r.sortWindow, signWindow=signWindow1, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold, hidecolorbar=true);
+            [~, ~, eta2, latency2] = EphysUnit.plotPETH(ax(2), PETH2, order=order, clim=r.clim, xlim=xlim2, sortWindow=r.sortWindow, signWindow=signWindow2, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold);
+
+            eta = horzcat(eta1(:), eta2(:));
+            latency = horzcat(latency1(:), latency2(:));
 
             title(ax(1), label1);
             title(ax(2), label2);
