@@ -67,10 +67,14 @@ classdef Trial < handle
             sortedObj = obj(I);
         end
         
-        function b = inTrial(obj, t, varargin)
+        function [B, I] = inTrial(obj, t, varargin)
             %INTRIAL Given a vector of timestamps, returns a logical vector
             %that is TRUE for timestamps that occur in trial.
-            %   b = INTRIAL(t, [-1, 1]) uses an extended the trial window
+            %   B = INTRIAL(t, [-1, 1]) uses an extended the trial window
+            %   [B, I] = INTRIAL(t, _) also returns I, the trial index for
+            %   each timestamp. Trial index correspond to trials sorted by
+            %   start time in ascending order and might not correspond to
+            %   the original trial array.
             p = inputParser();
             p.addRequired('t', @isnumeric);
             p.addOptional('extendedWindow', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
@@ -78,8 +82,9 @@ classdef Trial < handle
             t = p.Results.t;
             extendedWindow = p.Results.extendedWindow;
             
+            I = NaN(size(t));
             if isempty(obj)
-                b = false(size(t));
+                B = false(size(t));
                 return
             end
             
@@ -88,21 +93,27 @@ classdef Trial < handle
             start = horzcat(obj.Start);
             stop = horzcat(obj.Stop);
             edges = reshape([start; stop], [], 1);
-            
+
             % Odd bins are in trial
             [~, ~, bins] = histcounts(t, edges);
-            b = rem(bins, 2) ~= 0;
+            B = rem(bins, 2) ~= 0;
+            I(B) = (bins(B) + 1) / 2;
             
-            % Shift edges left
+            % Shift edges left to include left extendedWindow (this avoids
+            % errors due to non-incrementing edges
             if extendedWindow(1) < 0
                 [~, ~, bins] = histcounts(t, edges + extendedWindow(1));
-                b = b | rem(bins, 2) ~= 0;
+                BNew = rem(bins, 2) ~= 0;
+                I(BNew) = (bins(BNew) + 1) / 2;
+                B = B | BNew;
             end
             
-            % Shift edges right
+            % Shift edges right to include right extendedWindow
             if extendedWindow(2) > 0
                 [~, ~, bins] = histcounts(t, edges + extendedWindow(2));
-                b = b | rem(bins, 2) ~= 0;
+                BNew = rem(bins, 2) ~= 0;
+                I(BNew) = (bins(BNew) + 1) / 2;
+                B = B | BNew;
             end
         end
     end

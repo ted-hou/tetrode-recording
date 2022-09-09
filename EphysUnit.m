@@ -287,6 +287,41 @@ classdef EphysUnit < handle
             end
         end
         
+        function trials = getTrials(obj, trialType, varargin)
+            p = inputParser();
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim'})));
+            p.addOptional('sorted', true, @islogical);
+            p.parse(trialType, varargin{:});
+            trialType = p.Results.trialType;
+            sorted = p.Results.sorted;
+
+            if length(obj) == 1
+                if ~iscell(trialType)
+                    trialType = {trialType};
+                end
+                trials = cell(1, length(trialType));
+                for itt = 1:length(trialType)
+                    switch lower(trialType{itt})
+                        case 'press'
+                            trials{itt} = obj.Trials.Press(:);
+                        case 'lick'
+                            trials{itt} = obj.Trials.Lick(:);
+                        case 'stim'
+                            trials{itt} = obj.Trials.Stim(:);
+                    end
+                end
+                trials = cat(1, trials{:});
+                if sorted
+                    trials = trials.sortby('start', 'ascend');
+                end
+            else
+                trials = cell(length(obj), 1);
+                for i = 1:length(obj)
+                    trials{i} = obj(i).getTrials(trialType, sorted);
+                end
+            end
+        end
+        
         function [X, T, N, S, B] = getBinnedTrialAverage(obj, data, varargin)
             % Group trials by length, then calculate average spike rates.
             %   X = zeros(nBins, nSamples); % nxt matrix, each row = mean spike rate across trials for that bin
@@ -371,8 +406,8 @@ classdef EphysUnit < handle
             fprintf(1, 'Done (%.1f sec)!\n', toc(tTic))
         end
         
-        function varargout = getPETH(obj, data, event, varargin)
-            %GETPETH estimate mean spikerate around an event
+        function eta = getETA(obj, data, event, varargin)
+            %GETETA estimate mean spikerate around an event
             %  X - Nxt, Averaged spike rate (raw or normalized)
             %  t - tx1, common timestamps.
             %  N - Nx1, number of trials per neuron
@@ -476,10 +511,16 @@ classdef EphysUnit < handle
             fprintf(1, 'Done (%.1f sec)\n', toc(tTic))
     
             if isnumeric(normalize)
-                varargout = {X, t, N, stats};
+                eta = struct('X', X, 't', t, 'N', N, 'stats', stats);
             else
-                varargout = {X, t, N};
+                eta = struct('X', X, 't', t, 'N', N);
             end
+        end
+
+        function rd = getRasterData(obj, trialType, varargin)
+            p = inputParser();
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim'})))
+            p.add
         end
     end
     
@@ -502,12 +543,12 @@ classdef EphysUnit < handle
             obj = [S.eu];
         end
 
-        function varargout = plotPETH(varargin)
+        function varargout = plotETA(varargin)
             p = inputParser();
             if isgraphics(varargin{1}, 'axes')
                 p.addRequired('ax', @(x) isgraphics(x, 'axes'));
             end
-            p.addRequired('PETH', @isstruct);
+            p.addRequired('eta', @isstruct);
             p.addParameter('order', [], @isnumeric);
             p.addParameter('clim', [], @isnumeric)
             p.addParameter('xlim', [], @isnumeric)
@@ -530,24 +571,24 @@ classdef EphysUnit < handle
                 f = figure('Units', 'normalized', 'OuterPosition', [0, 0, 0.2, 1], 'DefaultAxesFontSize', 14);
                 ax = axes(f);
             end
-            X = p.Results.PETH.X;
-            t = p.Results.PETH.t;
-            N = p.Results.PETH.N;
+            X = p.Results.eta.X;
+            t = p.Results.eta.t;
+            N = p.Results.eta.N;
 
             if isempty(p.Results.order)
                 % Sort by first significant response
                 XSort = X(:, t >= sortWindow(1) & t <= sortWindow(2));
                 tSort = t(t >= sortWindow(1) & t <= sortWindow(2));
-                eta = mean(X(:, t >= signWindow(1) & t <= signWindow(2)), 2, 'omitnan');
-                etaSign = sign(eta);
+                meta = mean(X(:, t >= signWindow(1) & t <= signWindow(2)), 2, 'omitnan');
+                etaSign = sign(meta);
                 assert(size(etaSign, 2) == 1);
                 isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
                 [~, Ilate] = max(isAboveThreshold, [], 2, 'omitnan');
                 [~, order] = sort(Ilate .* etaSign, 'descend');
-                eta = eta(order);
+                meta = meta(order);
                 latency = tSort(Ilate);
                 latency = latency(order);
-                varargout = {ax, order(:), eta(:), latency(:)};
+                varargout = {ax, order(:), meta(:), latency(:)};
             else
                 order = p.Results.order;
                 if nargout < 3
@@ -555,15 +596,15 @@ classdef EphysUnit < handle
                 else
                     XSort = X(:, t >= sortWindow(1) & t <= sortWindow(2));
                     tSort = t(t >= sortWindow(1) & t <= sortWindow(2));
-                    eta = mean(X(:, t >= signWindow(1) & t <= signWindow(2)), 2, 'omitnan');
-                    etaSign = sign(eta);
+                    meta = mean(X(:, t >= signWindow(1) & t <= signWindow(2)), 2, 'omitnan');
+                    etaSign = sign(meta);
                     assert(size(etaSign, 2) == 1);
                     isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
                     [~, Ilate] = max(isAboveThreshold, [], 2, 'omitnan');
-                    eta = eta(order);
+                    meta = meta(order);
                     latency = tSort(Ilate);
                     latency = latency(order);
-                    varargout = {ax, order(:), eta(:), latency(:)};
+                    varargout = {ax, order(:), meta(:), latency(:)};
                 end
             end
             
@@ -582,13 +623,13 @@ classdef EphysUnit < handle
             end
             xlabel(ax, 'Time relative to movement (s)')
             ylabel(ax, 'Unit')
-            title(sprintf('PETH (%g units)', length(N)))
+            title(sprintf('Event-triggered average (%g units)', length(N)))
         end
 
-        function [ax, order, eta, latency] = plotDoublePETH(PETH1, PETH2, varargin)
+        function [ax, order, meta, latency] = plotDoubleETA(eta1, eta2, varargin)
             p = inputParser();
-            p.addRequired('PETH1', @isstruct)
-            p.addRequired('PETH2', @isstruct)
+            p.addRequired('eta1', @isstruct)
+            p.addRequired('eta2', @isstruct)
             p.addOptional('label1', '', @ischar)
             p.addOptional('label2', '', @ischar)
             p.addParameter('clim', [], @isnumeric)
@@ -597,10 +638,10 @@ classdef EphysUnit < handle
             p.addParameter('signWindow', [-.5, 0], @(x) iscell(x) || isnumeric(x) && length(x) == 2)
             p.addParameter('sortThreshold', 1, @isnumeric)
             p.addParameter('negativeSortThreshold', [], @isnumeric)
-            p.parse(PETH1, PETH2, varargin{:});
+            p.parse(eta1, eta2, varargin{:});
             r = p.Results;
-            PETH1 = r.PETH1;
-            PETH2 = r.PETH2;
+            eta1 = r.eta1;
+            eta2 = r.eta2;
             label1 = r.label1;
             label2 = r.label2;
 
@@ -624,10 +665,10 @@ classdef EphysUnit < handle
                 signWindow2 = r.signWindow;
             end
 
-            [~, order, eta1, latency1] = EphysUnit.plotPETH(ax(1), PETH1, clim=r.clim, xlim=xlim1, sortWindow=r.sortWindow, signWindow=signWindow1, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold, hidecolorbar=true);
-            [~, ~, eta2, latency2] = EphysUnit.plotPETH(ax(2), PETH2, order=order, clim=r.clim, xlim=xlim2, sortWindow=r.sortWindow, signWindow=signWindow2, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold);
+            [~, order, meta1, latency1] = EphysUnit.plotETA(ax(1), eta1, clim=r.clim, xlim=xlim1, sortWindow=r.sortWindow, signWindow=signWindow1, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold, hidecolorbar=true);
+            [~, ~, meta2, latency2] = EphysUnit.plotETA(ax(2), eta2, order=order, clim=r.clim, xlim=xlim2, sortWindow=r.sortWindow, signWindow=signWindow2, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold);
 
-            eta = horzcat(eta1(:), eta2(:));
+            meta = horzcat(meta1(:), meta2(:));
             latency = horzcat(latency1(:), latency2(:));
 
             title(ax(1), label1);
@@ -692,26 +733,6 @@ classdef EphysUnit < handle
             end
         end
 
-        function trials = getTrials(obj, trialType)
-            if length(obj) == 1
-                switch lower(trialType)
-                    case 'press'
-                        trials = obj.Trials.Press;
-                    case 'lick'
-                        trials = obj.Trials.Lick;
-                    case 'stim'
-                        trials = obj.Trials.Stim;
-                    case 'all'
-                        trials = [obj.Trials.Press, obj.Trials.Lick, obj.Trials.Stim];
-                end
-            else
-                trials = cell(length(obj), 1);
-                for i = 1:length(obj)
-                    trials{i} = obj(i).getTrials(trialType);
-                end
-            end
-        end
-        
         function [t, x, inTrial] = cullITIData(obj, t, varargin)
             assert(length(obj) == 1)
             
