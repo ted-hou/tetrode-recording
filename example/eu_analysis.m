@@ -7,8 +7,9 @@ eu = EphysUnit(metaPress, 'cullITI', true, 'extendedWindow', [-1, 2], 'readWavef
 eu = EphysUnit.load('C:\SERVER\Units');
 
 %% Calculate mean eta
-[metaPress, t, ~] = eu.getETA('count', 'press', [-4, 0], minTrialDuration=2, normalize=[-4, -2]);
-metaPress = transpose(mean(metaPress(:, t >= -0.2 & t <= 0), 2, 'omitnan'));
+etaPress = eu.getETA('count', 'press', [-4, 0], minTrialDuration=2, normalize=[-4, -2]);
+metaPress = transpose(mean(etaPress.X(:, etaPress.t >= -0.2 & etaPress.t <= 0), 2, 'omitnan'));
+clear etaPress
 
 %% Calculate median spike rate vs. press response magnitude
 stats = [eu.SpikeRateStats];
@@ -205,6 +206,8 @@ for i = 1:length(ar)
 end
 
 %% 
+clearvars -except eu
+
 stats = [eu.SpikeRateStats];
 msr = [stats.medianITI]; % Median ITI spike rate
 clear stats
@@ -212,16 +215,17 @@ clear stats
 % Select SNr cells
 minSpikeRate = 15;
 minTrialLength = 2;
-minNumTrials = 15;
+minNumTrials = 30;
 
 isSNr = msr >= minSpikeRate;
 hasPress = arrayfun(@(e) ~isempty(e.Trials.Press) && nnz(e.Trials.Press.duration() >= minTrialLength) >= minNumTrials, eu);
 hasLick = arrayfun(@(e) ~isempty(e.Trials.Lick) && nnz(e.Trials.Lick.duration() >= minTrialLength) >= minNumTrials, eu);
+fprintf(1, 'Total units=%g, SNr=%g, press=%g, lick=%g, both=%g\n', length(msr), nnz(isSNr), nnz(isSNr & hasPress), nnz(isSNr & hasLick), nnz(isSNr & hasPress & hasLick))
 clear msr;
 
 %%
-etaPres = eu(isSNr & hasPress).getETA('count', 'press', [-6, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
-metaLick = eu(isSNr & hasLick).getETA('count', 'lick', [-6, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
+etaPress = eu(isSNr & hasPress).getETA('count', 'press', [-6, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
+etaLick = eu(isSNr & hasLick).getETA('count', 'lick', [-6, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
 etaPressCompare = eu(isSNr & hasPress & hasLick).getETA('count', 'press', [-6, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
 etaLickCompare = eu(isSNr & hasPress & hasLick).getETA('count', 'lick', [-6, 1], minTrialDuration=minTrialLength, normalize=[-4, -2]);
 
@@ -230,8 +234,8 @@ etaLickCompare = eu(isSNr & hasPress & hasLick).getETA('count', 'lick', [-6, 1],
 close all
 fprintf(1, 'Average press trial duration = %g sec\n', mean(arrayfun(@(e) mean(e.Trials.Press.duration(), 'omitnan'), eu), 'omitnan'));
 fprintf(1, 'Average lick trial duration = %g sec\n', mean(arrayfun(@(e) mean(e.Trials.Lick.duration(), 'omitnan'), eu), 'omitnan'));
-EphysUnit.plotETA(metaPress, xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3); title('Lever-press ETA')
-EphysUnit.plotETA(metaLick, xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3); title('Lick ETA')
+EphysUnit.plotETA(etaPress, xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3); title('Lever-press ETA')
+EphysUnit.plotETA(etaLick, xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3); title('Lick ETA')
 
 % Compare lick vs press, sort by same order
 [~, ~, ~, latency] = EphysUnit.plotDoubleETA(etaPressCompare, etaLickCompare, 'Lever-press', 'Lick', xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3);
@@ -271,7 +275,7 @@ legend(h)
 ax = subplot(1, 2, 2);
 hold(ax, 'on');
 N = size(latency, 1);
-h = scatter(ax, -latency(:, 1)+randn(N, 1)*0.025, -latency(:, 2)+randn(N, 1)*0.025, 10, 'k', 'filled');
+h = scatter(ax, -latency(:, 1), -latency(:, 2), 10, 'k', 'filled');
 xlabel(ax, 'Lever-press activity latency (s)')
 ylabel(ax, 'Lick activity latency (s)')
 title(ax, 'Ramp latency, lever-press vs lick')
@@ -333,9 +337,9 @@ etaLick_cueAligned = eu(isSNr & hasPress & hasLick).getETA('count', 'lick', [-1,
 
 %% Plot
 close all
-[ax, ~, metaPress, ~] = EphysUnit.plotDoubleETA(etaPress_moveAligned, etaPress_cueAligned, 'Lever-press-aligned', 'Trial-start-aligned', xlim={[-4, 0], [-1, 3]}, clim=[-2, 2], sortWindow=[-3, 0], signWindow={[-0.2, 0], [-0.8, 0]}, sortThreshold=0.6, negativeSortThreshold=0.3);
+[ax, ~, metaPress, ~] = EphysUnit.plotDoubleETA(etaPress_moveAligned, etaPress_cueAligned, 'Lever-press-aligned', 'Trial-start-aligned', xlim={[-4, 0], [-1, 3]}, clim=[-2, 2], sortWindow=[-3, 0], signWindow={[-0.2, 0], [-0.8, 0.1]}, sortThreshold=0.6, negativeSortThreshold=0.3);
 xlabel(ax(2), 'Time relative to trial-start (s)')
-[ax, ~, metaLick, ~] = EphysUnit.plotDoubleETA(etaLick_moveAligned, etaLick_cueAligned, 'Lick-aligned', 'Trial-start-aligned', xlim={[-4, 0], [-1, 3]}, clim=[-2, 2], sortWindow=[-3, 0], signWindow={[-0.2, 0], [-0.8, 0]}, sortThreshold=0.6, negativeSortThreshold=0.3);
+[ax, ~, metaLick, ~] = EphysUnit.plotDoubleETA(etaLick_moveAligned, etaLick_cueAligned, 'Lick-aligned', 'Trial-start-aligned', xlim={[-4, 0], [-1, 3]}, clim=[-2, 2], sortWindow=[-3, 0], signWindow={[-0.2, 0], [-0.8, 0.1]}, sortThreshold=0.6, negativeSortThreshold=0.3);
 xlabel(ax(2), 'Time relative to trial-start (s)')
 
 theta = 0.5;
