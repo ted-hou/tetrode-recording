@@ -577,9 +577,26 @@ classdef EphysUnit < handle
                 rd.I = I;
                 rd.tEvent = tEvent;
                 rd.IEvent = IEvent;
+                rd.duration = trials.duration();
+                if ~strcmpi(trialType, 'stimfirstpulse')
+                    rd.iti = trials.iti();
+                else
+                    % For stimfirstpulse (in train), use the iti between
+                    % first and second pulse in train (rather that iti
+                    % between first pulse in train and first pulse in next
+                    % train
+                    allTrials = obj.getTrials('stim', true);
+                    itiAll = allTrials.iti();
+                    startAll = [allTrials.Start];
+                    startFirst = [trials.Start];
+
+                    [match, index] = ismember(startFirst, startAll);
+                    assert(all(match));
+                    rd.iti = itiAll(index);
+                end
             else
                 tTic = tic();
-                rd(length(obj)) = struct('name', '', 'trialType', '', 'alignTo', '', 't', [], 'I', [], 'tEvent', [], 'IEvent', []);
+                rd(length(obj)) = struct('name', '', 'trialType', '', 'alignTo', '', 't', [], 'I', [], 'tEvent', [], 'IEvent', [], 'duration', [], 'iti', []);
                 fprintf(1, 'Calculating raster data for %g units...\n', length(obj));
                 for i = 1:length(obj)
                     try
@@ -596,7 +613,6 @@ classdef EphysUnit < handle
     
     % static methods
     methods (Static)
-
         function obj = load(varargin)
             p = inputParser();
             p.addOptional('path', 'C:\SERVER\Units', @isfolder);

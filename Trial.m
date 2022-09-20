@@ -165,10 +165,6 @@ classdef Trial < handle
 
     % public static methods
     methods (Static)
-        function getITI()
-            disp(1)
-        end
-
         function varargout = findEdges(start, stop, varargin)
             % TRIAL.FINDEDGES find edges of trials
             %   edges = TRIAL.FINDEDGES(start, stop) finds trial edges from a list of trial start and trial stop event timestamps.

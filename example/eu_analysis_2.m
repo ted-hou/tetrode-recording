@@ -226,7 +226,7 @@ end
 clear rrdd ax fig
 
 %% 4.2 Filter out specific stim durations (10ms, 20ms, 100ms)
-
+histogram(rd(1).iti, rd(1).)
 
 
 %%
