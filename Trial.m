@@ -46,6 +46,12 @@ classdef Trial < handle
             l = [obj.Stop] - [obj.Start];
         end
         
+        function l = iti(obj)
+            start = [obj.Start];
+            stop = [obj.Stop];
+            l = [start(2:end) - stop(1:end-1), Inf];
+        end
+
         % Sort trials by start time
         function sortedObj = sortby(obj, varargin)
             p = inputParser();
@@ -67,14 +73,15 @@ classdef Trial < handle
             sortedObj = obj(I);
         end
         
-        function [B, I] = inTrial(obj, t, varargin)
+        function [B, t, I] = inTrial(obj, t, varargin)
             %INTRIAL Given a vector of timestamps, returns a logical vector
             %that is TRUE for timestamps that occur in trial.
             %   B = INTRIAL(t, [-1, 1]) uses an extended the trial window
-            %   [B, I] = INTRIAL(t, _) also returns I, the trial index for
-            %   each timestamp. Trial index correspond to trials sorted by
-            %   start time in ascending order and might not correspond to
-            %   the original trial array.
+            %   [B, t, I] = INTRIAL(t, _) also returns t, the timestamps in 
+            %   trial, and I the trial index for each timestamp. 
+            %   Trial index correspond to trials sorted by start time in 
+            %   ascending order and might not correspond to the original 
+            %   trial array if it isn't sorted. t is sorted ascending.
             p = inputParser();
             p.addRequired('t', @isnumeric);
             p.addOptional('extendedWindow', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
@@ -82,12 +89,13 @@ classdef Trial < handle
             t = p.Results.t;
             extendedWindow = p.Results.extendedWindow;
             
-            I = NaN(size(t));
             if isempty(obj)
                 B = false(size(t));
+                t = [];
+                I = [];
                 return
             end
-            
+
             obj = obj.sortby('start', 'ascend');
             
             start = horzcat(obj.Start);
@@ -97,29 +105,70 @@ classdef Trial < handle
             % Odd bins are in trial
             [~, ~, bins] = histcounts(t, edges);
             B = rem(bins, 2) ~= 0;
-            I(B) = (bins(B) + 1) / 2;
+            I = (bins(B) + 1) / 2;
             
-            % Shift edges left to include left extendedWindow (this avoids
-            % errors due to non-incrementing edges
+            if extendedWindow(1) == 0 && extendedWindow(2) == 0
+                t = t(B);
+                [t, Isort] = sort(t);
+                I = I(Isort);
+                return
+            end
+
+            Bl = false(size(t));
+            Br = false(size(t));
+            Il = [];
+            Ir = [];
+
+            % Find events in the left (pre-trial) window
             if extendedWindow(1) < 0
-                [~, ~, bins] = histcounts(t, edges + extendedWindow(1));
-                BNew = rem(bins, 2) ~= 0;
-                I(BNew) = (bins(BNew) + 1) / 2;
-                B = B | BNew;
+                edges = reshape([start + extendedWindow(1); start], [], 1);
+                [~, ~, bins] = histcounts(t, edges);
+                Bl = rem(bins, 2) ~= 0;
+                Il = (bins(Bl) + 1) / 2;
             end
-            
-            % Shift edges right to include right extendedWindow
+
+            % Find events in the right (post-trial) window
             if extendedWindow(2) > 0
-                [~, ~, bins] = histcounts(t, edges + extendedWindow(2));
-                BNew = rem(bins, 2) ~= 0;
-                I(BNew) = (bins(BNew) + 1) / 2;
-                B = B | BNew;
+                edges = reshape([stop; stop + extendedWindow(2)], [], 1);
+                [~, ~, bins] = histcounts(t, edges);
+                Br = rem(bins, 2) ~= 0;
+                Ir = (bins(Br) + 1) / 2;
             end
+
+            t = [t(B), t(Bl), t(Br)];
+            I = [I, Il, Ir];
+            [t, Isort] = sort(t);
+            I = I(Isort);
+            B = B | Bl | Br;
+
+
+% 
+%             % Shift edges left to include left extendedWindow (this avoids
+%             % errors due to non-incrementing edges
+%             if extendedWindow(1) < 0
+%                 [~, ~, bins] = histcounts(t, edges + extendedWindow(1));
+%                 BNew = rem(bins, 2) ~= 0;
+%                 I(BNew) = (bins(BNew) + 1) / 2;
+%                 B = B | BNew;
+%             end
+%             
+%             % Shift edges right to include right extendedWindow
+%             if extendedWindow(2) > 0
+%                 [~, ~, bins] = histcounts(t, edges + extendedWindow(2));
+%                 BNew = rem(bins, 2) ~= 0;
+%                 I(BNew) = (bins(BNew) + 1) / 2;
+%                 B = B | BNew;
+%             end
+
         end
     end
 
     % public static methods
     methods (Static)
+        function getITI()
+            disp(1)
+        end
+
         function varargout = findEdges(start, stop, varargin)
             % TRIAL.FINDEDGES find edges of trials
             %   edges = TRIAL.FINDEDGES(start, stop) finds trial edges from a list of trial start and trial stop event timestamps.
@@ -268,9 +317,5 @@ classdef Trial < handle
             
             varargout = {extendedEdges, window, culled};
         end
-    end
-    
-    % private methods
-    methods (Access = {})
     end
 end

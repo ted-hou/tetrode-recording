@@ -9,7 +9,7 @@ classdef EphysUnit < handle
         WaveformTimestamps = []
         ExtendedWindow = []
         EventTimes = struct('Cue', [], 'Press', [], 'Lick', [], 'StimOn', [], 'StimOff', [])
-        Trials = struct('Press', [], 'Lick', [], 'Stim', [])
+        Trials = struct('Press', [], 'Lick', [], 'StimTrain', [], 'Stim', [])
         SpikeCounts = uint16([])
         SpikeCountTimestamps = single([])
         SpikeRates = single([])
@@ -94,6 +94,7 @@ classdef EphysUnit < handle
                             obj(i).Trials.Press = obj(i).makeTrials('press');
                             obj(i).Trials.Lick = obj(i).makeTrials('lick');
                             obj(i).Trials.Stim = obj(i).makeTrials('stim');
+                            obj(i).Trials.StimTrain = obj(i).makeTrials('stimtrain');
     
                             % Calculate spike rates and spike counts
                             resolution_sc = 0.1;
@@ -186,6 +187,7 @@ classdef EphysUnit < handle
                         obj(i).Trials.Press = obj(i).makeTrials('press');
                         obj(i).Trials.Lick = obj(i).makeTrials('lick');
                         obj(i).Trials.Stim = obj(i).makeTrials('stim');
+                        obj(i).Trials.StimTrain = obj(i).makeTrials('stimtrain');
 
                         % Calculate spike rates and spike counts
                         resolution_sc = 0.1;
@@ -289,7 +291,7 @@ classdef EphysUnit < handle
         
         function trials = getTrials(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim'})));
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse'})));
             p.addOptional('sorted', true, @islogical);
             p.parse(trialType, varargin{:});
             trialType = p.Results.trialType;
@@ -308,6 +310,13 @@ classdef EphysUnit < handle
                             trials{itt} = obj.Trials.Lick(:);
                         case 'stim'
                             trials{itt} = obj.Trials.Stim(:);
+                        case 'stimtrain'
+                            trials{itt} = obj.Trials.StimTrain(:);
+                        case 'stimfirstpulse'
+                            trains = obj.Trials.StimTrain(:);
+                            pulses = obj.Trials.Stim(:);
+                            trials{itt} = Trial([trains.Start], [pulses.Stop], 'first');
+                            trials{itt} = trials{itt}(:);
                     end
                 end
                 trials = cat(1, trials{:});
@@ -519,18 +528,84 @@ classdef EphysUnit < handle
 
         function rd = getRasterData(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim'})))
-            p.add
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse'})))
+            p.addOptional('window', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
+            p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
+            p.addParameter('alignTo', 'default', @(x) ismember(x, {'default', 'start', 'stop'}))
+            p.addParameter('sort', true, @islogical);
+            p.parse(trialType, varargin{:})
+            trialType = p.Results.trialType;
+            window = p.Results.window;
+            minTrialDuration = p.Results.minTrialDuration;
+            alignTo = p.Results.alignTo;
+
+            if strcmp(alignTo, 'default')
+                switch trialType
+                    case {'press', 'lick'}
+                        alignTo = 'stop';
+                    case {'stim', 'stimtrain', 'stimfirstpulse'}
+                        alignTo = 'start';
+                end
+            end
+
+            if length(obj) == 1
+                trials = obj.getTrials(trialType, sorted=true);
+                trials = trials(trials.duration() >= minTrialDuration);
+                [~, t, I] = trials.inTrial(obj.SpikeTimes, window);
+                switch alignTo
+                    case 'start'
+                        tRef = [trials.Start];
+                        tEvent = [trials.Stop] - tRef;
+                    case 'stop'
+                        tRef = [trials.Stop];
+                        tEvent = [trials.Start] - tRef;
+                end
+                t = t - tRef(I);
+                IEvent = unique(I);
+                tEvent = tEvent(IEvent);
+
+                if p.Results.sort
+                    [~, ISort] = sort(abs(tEvent), 'ascend');
+                    tEvent = tEvent(ISort);
+                    IEvent = 1:length(ISort);
+                    I = changem(I, 1:length(ISort), ISort);
+                end
+                rd.name = obj.getName('_');
+                rd.trialType = trialType;
+                rd.alignTo = alignTo;
+                rd.t = t;
+                rd.I = I;
+                rd.tEvent = tEvent;
+                rd.IEvent = IEvent;
+            else
+                tTic = tic();
+                rd(length(obj)) = struct('name', '', 'trialType', '', 'alignTo', '', 't', [], 'I', [], 'tEvent', [], 'IEvent', []);
+                fprintf(1, 'Calculating raster data for %g units...\n', length(obj));
+                for i = 1:length(obj)
+                    try
+                        rd(i) = obj(i).getRasterData(trialType, window, minTrialDuration=minTrialDuration, alignTo=alignTo);
+                    catch ME
+                        warning('\tError when processing unit %g', i)
+                        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+                    end
+                end
+                fprintf('Done and it only took %.2f sec. Easy.\n', toc(tTic));
+            end
         end
     end
     
     % static methods
     methods (Static)
 
-        function obj = load(path)
-            if nargin < 1
-                path = 'C:\SERVER\Units';
-            end
+        function obj = load(varargin)
+            p = inputParser();
+            p.addOptional('path', 'C:\SERVER\Units', @isfolder);
+            p.addParameter('waveforms', true, @islogical); % FALSE to cull waveforms after loading to save memory
+            p.addParameter('spikecounts', true, @islogical); % FALSE to cull spikecounts after loading to save memory
+            p.addParameter('spikerates', true, @islogical); % FALSE to cull spikerate after loading to save memory
+            p.parse(varargin{:});
+            path = p.Results.path;
+
             assert(isfolder(path));
             files = dir(sprintf('%s\\*.mat', path));
             S(length(files)) = struct('eu', []);
@@ -538,6 +613,18 @@ classdef EphysUnit < handle
                 tTic = tic();
                 fprintf(1, 'Reading unit %g/%g...', i, length(files));
                 S(i) = load(sprintf('%s\\%s', files(i).folder, files(i).name), 'eu');
+                if ~p.Results.waveforms
+                    S(i).eu.Waveforms = [];
+                    S(i).eu.WaveformTimestamps = [];
+                end
+                if ~p.Results.spikecounts
+                    S(i).eu.SpikeCounts = single([]);
+                    S(i).eu.SpikeCountTimestamps = single([]);
+                end
+                if ~p.Results.spikerates
+                    S(i).eu.SpikeRates = single([]);
+                    S(i).eu.SpikeRateTimestamps = single([]);
+                end
                 fprintf(1, 'Done (%.2f s).\n', toc(tTic));
             end
             obj = [S.eu];
@@ -549,6 +636,7 @@ classdef EphysUnit < handle
                 p.addRequired('ax', @(x) isgraphics(x, 'axes'));
             end
             p.addRequired('eta', @isstruct);
+            p.addOptional('sel', [], @(x) isnumeric(x) || islogical(x))
             p.addParameter('order', [], @isnumeric);
             p.addParameter('clim', [], @isnumeric)
             p.addParameter('xlim', [], @isnumeric)
@@ -574,6 +662,10 @@ classdef EphysUnit < handle
             X = p.Results.eta.X;
             t = p.Results.eta.t;
             N = p.Results.eta.N;
+            if ~isempty(p.Results.sel)
+                X = X(p.Results.sel, :);
+                N = N(p.Results.sel);
+            end
 
             if isempty(p.Results.order)
                 % Sort by first significant response
@@ -630,6 +722,7 @@ classdef EphysUnit < handle
             p = inputParser();
             p.addRequired('eta1', @isstruct)
             p.addRequired('eta2', @isstruct)
+            p.addOptional('sel', [], @(x) isnumeric(x) || islogical(x))
             p.addOptional('label1', '', @ischar)
             p.addOptional('label2', '', @ischar)
             p.addParameter('clim', [], @isnumeric)
@@ -665,8 +758,8 @@ classdef EphysUnit < handle
                 signWindow2 = r.signWindow;
             end
 
-            [~, order, meta1, latency1] = EphysUnit.plotETA(ax(1), eta1, clim=r.clim, xlim=xlim1, sortWindow=r.sortWindow, signWindow=signWindow1, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold, hidecolorbar=true);
-            [~, ~, meta2, latency2] = EphysUnit.plotETA(ax(2), eta2, order=order, clim=r.clim, xlim=xlim2, sortWindow=r.sortWindow, signWindow=signWindow2, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold);
+            [~, order, meta1, latency1] = EphysUnit.plotETA(ax(1), eta1, r.sel, clim=r.clim, xlim=xlim1, sortWindow=r.sortWindow, signWindow=signWindow1, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold, hidecolorbar=true);
+            [~, ~, meta2, latency2] = EphysUnit.plotETA(ax(2), eta2, r.sel, order=order, clim=r.clim, xlim=xlim2, sortWindow=r.sortWindow, signWindow=signWindow2, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold);
 
             meta = horzcat(meta1(:), meta2(:));
             latency = horzcat(latency1(:), latency2(:));
@@ -696,25 +789,81 @@ classdef EphysUnit < handle
             B = p.Results.S.B;
             
             hold(ax, 'on')
-            colors = 'rgbcmkrgbcmkrgbcmkrgbcmkrgbcmkrgbcmk';
+            colors = 'rgcbmkrgcbmkrgcbmkrgcbmkrgcbmkrgcbmk';
             for iBin = 1:length(B)
                 bin = B(iBin, :);
                 t = T + bin(2);
                 high = X(iBin, :) + 0.25*S(iBin, :); 
                 low = X(iBin, :) - 0.25*S(iBin, :);
+                selS = ~isnan(high);
                 h(iBin) = plot(ax, t, X(iBin, :), colors(iBin), 'DisplayName', sprintf('[%.1fs, %.1fs], %i trials', bin(1), bin(2), N(iBin)));
-                patch(ax, [t, flip(t)], [low, flip(high)], colors(iBin), 'FaceAlpha', 0.1, 'EdgeColor', 'none')
-                plot(ax, [bin(2), bin(2)], [0, max(X(iBin, :))], '--', 'Color', h(iBin).Color)
+                patch(ax, [t(selS), flip(t(selS))], [low(selS), flip(high(selS))], colors(iBin), 'FaceAlpha', 0.1, 'EdgeColor', 'none')
+                yl = ax.YLim;
+                plot(ax, [bin(2), bin(2)], yl, '--', 'Color', h(iBin).Color)
+                ylim(ax, yl);
             end
             hold(ax, 'off')
             xlim(ax, p.Results.xlim)
             legend(ax, h)
         end
         
+        function ax = plotRaster(varargin)
+            p = inputParser();
+            if isgraphics(varargin{1}, 'axes')
+                p.addRequired('ax', @(x) isgraphics(x, 'axes'));
+            end
+            p.addRequired('rd', @isstruct);
+            p.addParameter('xlim', [-6, 1], @(x) isnumeric(x) && length(x) == 2 && x(2) > x(1));
+            p.addParameter('stim', false, @islogical)
+            p.parse(varargin{:})
+            rd = p.Results.rd;
+            stim = p.Results.stim;
+
+            assert(length(rd) == 1);
+
+            if isfield(p.Results, 'ax')
+                ax = p.Results.ax;
+            else
+                ax = axes(figure(Units='normalized', Position=[0.1, 0.1, 0.67, 0.5]));
+            end
+
+            switch rd.alignTo
+                case 'start'
+                    eventName = rd.trialType;
+                    refName = 'Trial start';
+                case 'stop'
+                    eventName = 'Trial start';
+                    refName = rd.trialType;
+            end
+
+            hold(ax, 'on')
+            if ~stim
+                h = gobjects(2, 1);
+                h(1) = scatter(ax, rd.t, rd.I, 5, 'k', 'filled', DisplayName='Spikes');
+                h(2) = scatter(ax, rd.tEvent, rd.IEvent, 15, 'r', 'filled', DisplayName=eventName);
+            else
+                h = gobjects(3, 1);
+                h(1) = scatter(ax, rd.t, rd.I, 5, 'k', 'filled', DisplayName='Spikes');
+                h(2) = plot(ax, [0, 0], [min(rd.IEvent), max(rd.IEvent)], 'b', DisplayName='Opto On');
+                h(3) = scatter(ax, rd.tEvent, rd.IEvent, 5, 'b', 'filled', DisplayName='Opto Off');
+            end
+
+            if stim
+            end
+            hold(ax, 'off')
+            ax.YAxis.Direction = 'reverse';
+            xlim(ax, p.Results.xlim);
+            ylim(ax, [min(rd.I) - 1, max(rd.I) + 1]);
+            xlabel(ax, sprintf('Time relative to %s (s)', refName))
+            ylabel(ax, 'Trial')
+            title(ax, sprintf('Spike raster (%s)', rd.name), Interpreter="none");
+            legend(ax, h, Location='northwest');
+        end
+
     end
 
     % private methods
-    methods (Access = {})
+    methods %(Access = {})
         function trials = makeTrials(obj, trialType)
             if length(obj) == 1
                 switch lower(trialType)
@@ -723,7 +872,11 @@ classdef EphysUnit < handle
                     case 'lick'
                         trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Lick, 'first', obj.EventTimes.Press);
                     case 'stim'
-                        trials = Trial(obj.EventTimes.StimOn, obj.EventTimes.StimOff);
+                        trials = Trial(obj.EventTimes.StimOn, obj.EventTimes.StimOff, 'first');
+                    case 'stimtrain'
+                        cueToTrainOn = Trial(obj.EventTimes.Cue, obj.EventTimes.StimOn, 'first');
+                        cueToTrainOff = Trial(obj.EventTimes.Cue, obj.EventTimes.StimOff, 'last');
+                        trials = Trial([cueToTrainOn.Stop], [cueToTrainOff.Stop]);
                 end
             else
                 trials = cell(length(obj), 1);
@@ -755,11 +908,11 @@ classdef EphysUnit < handle
                 case 'lick'
                     inTrial = obj.getTrials('lick').inTrial(t, extendedWindow);
                 case 'stim'
-                    inTrial = obj.getTrials('stim').inTrial(t, extendedWindow);
+                    inTrial = obj.getTrials('stimtrain').inTrial(t, extendedWindow);
                 case 'all'
                     inTrialPress = obj.getTrials('press').inTrial(t, extendedWindow);
                     inTrialLick = obj.getTrials('lick').inTrial(t, extendedWindow);
-                    inTrialStim = obj.getTrials('stim').inTrial(t, extendedWindow);
+                    inTrialStim = obj.getTrials('stimtrain').inTrial(t, extendedWindow);
                     inTrial = inTrialPress | inTrialLick | inTrialStim;
             end
             
@@ -802,7 +955,7 @@ classdef EphysUnit < handle
             else
                 binWidth = [];
                 edges = p.Results.edges;
-            end        
+            end
             
             spikes = obj.SpikeTimes;
             if isempty(edges)

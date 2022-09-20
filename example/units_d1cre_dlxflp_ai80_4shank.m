@@ -191,6 +191,7 @@ for iTr = 1:length(expNamesUnique)
 end
 
 load('C:\SERVER\PETH_TripleCross_4shank.mat')
+%%
 
 [~, ~, I] = TetrodeRecording.HeatMap(PETH, 'Normalization', 'zscore', 'Sorting', 'latency', 'MinNumTrials', 40, 'MinSpikeRate', 15, 'Window', [-4, 0], 'NormalizationBaselineWindow', [-4, -2], 'LatencyThreshold', 0.75);
 PETH = PETH(sort(I));

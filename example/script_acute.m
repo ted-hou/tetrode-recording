@@ -169,7 +169,7 @@ for i = 9:16
     ax(i) = subplot(4, 2, i - 8, 'Tag', 'scatter');
 end
 plotMoveVsStim(ax(1:2), exp_A2A, 1, 0.5, [0.05, 0.1], 0.01);
-plotMoveVsStim(ax(3:4), exp_A2A, 1, 0.5, [0.4, 0.5], 0.01);
+plotMoveVsStim(ax(3:4), exp_A2A, 1, 0.5, [0.4, 0.5], 0.01);  
 plotMoveVsStim(ax(5:6), exp_A2A, 1, 0.5, 2, 0.01);
 plotMoveVsStim(ax(7:8), exp_A2A, 1, 0.5, 8, 0.01);
 plotMoveVsStim(ax(9:10), exp_D1, 1, 0.5, [0.05, 0.1], 0.01);

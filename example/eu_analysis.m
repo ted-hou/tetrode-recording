@@ -1,15 +1,23 @@
-load('C:\SERVER\PETH_All_aggregate_20220201.mat')
-
 %% Make eu objects (SLOW, takes ~60min)
-eu = EphysUnit(metaPress, 'cullITI', true, 'extendedWindow', [-1, 2], 'readWaveforms', true);
+load('C:\SERVER\PETH_All_aggregate_20220201.mat')
+ar = AcuteRecording.load();
 
-%% Alternatively, load eu objects from disk (SLOW)
-eu = EphysUnit.load('C:\SERVER\Units');
+eu = EphysUnit(PETH, 'cullITI', true, 'extendedWindow', [-1, 2], 'readWaveforms', true);
+for i = 1:length(ar)
+    clear eu
+    try  
+        eu = EphysUnit(ar(i), 'cullITI', true, 'extendedWindow', [-1, 2], 'readWaveforms', true);
+    catch ME
+        warning('Error while processing file %g (%s)', i, ar(i).expName);
+    end
+end
+
+%% Alternatively, load eu objects from disk (SLOW, ~20min)
+eu = EphysUnit.load('C:\SERVER\Units', waveforms=false, spikecounts=true, spikerates=true);
 
 %% Calculate mean eta
 etaPress = eu.getETA('count', 'press', [-4, 0], minTrialDuration=2, normalize=[-4, -2]);
 metaPress = transpose(mean(etaPress.X(:, etaPress.t >= -0.2 & etaPress.t <= 0), 2, 'omitnan'));
-clear etaPress
 
 %% Calculate median spike rate vs. press response magnitude
 stats = [eu.SpikeRateStats];
@@ -87,20 +95,48 @@ clear sigmaThreshold isPressUp isPressDown f ax nBins NUp NDown edgesUp edgesDow
 
 
 %% Separate press-units by direction
+etaPress = eu.getETA('count', 'press', [-4, 0], minTrialDuration=2, normalize=[-4, -2]);
+metaPress = transpose(mean(etaPress.X(:, etaPress.t >= -0.2 & etaPress.t <= 0), 2, 'omitnan'));
+
 sigmaThreshold = 0.3;
-etaValid = metaPress(isValid);
-euPress = eu(isValid);
-isPressUp = etaValid >= sigmaThreshold;
-isPressDown = etaValid <= -sigmaThreshold;
+minTrialLength = 2;
+minNumTrials = 30;
+
+hasPress = arrayfun(@(e) ~isempty(e.Trials.Press) && nnz(e.Trials.Press.duration() >= minTrialLength) >= minNumTrials, eu);
+
+isPressUp = isSNr & ~isnan(metaPress) & hasPress & metaPress >= sigmaThreshold;
+isPressDown = isSNr & ~isnan(metaPress) & hasPress & metaPress <= -sigmaThreshold;
 isResponsive = isPressUp | isPressDown;
-fprintf(1, 'With a zscore threshold of %.2f, found %i (%.f%%) press-up and %i(%.f%%) press-down units, %i non-responsive (%i total).\n', sigmaThreshold, sum(isPressUp), sum(isPressUp)/sum(isResponsive)*100, sum(isPressDown), sum(isPressDown)/sum(isResponsive)*100, sum(~isResponsive), sum(isValid))
+
+fprintf(1, 'With a zscore threshold of %.2f, found %i (%.f%%) press-up and %i(%.f%%) press-down units, %i non-responsive (%i total).\n', sigmaThreshold, sum(isPressUp), sum(isPressUp)/sum(isResponsive)*100, sum(isPressDown), sum(isPressDown)/sum(isResponsive)*100, sum(~isResponsive), sum(isSNr & ~isnan(metaPress) & hasPress))
 
 %% Calculate binned average
-edges = 0:1:10;
-[PressUp.X, PressUp.T, PressUp.N, PressUp.S, PressUp.B] = euPress(isPressUp).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', true);
-[PressDown.X, PressDown.T, PressDown.N, PressDown.S, PressDown.B] = euPress(isPressDown).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', true);
-[PressUpRaw.X, PressUpRaw.T, PressUpRaw.N, PressUpRaw.S, PressUpRaw.B] = euPress(isPressUp).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', false);
-[PressDownRaw.X, PressDownRaw.T, PressDownRaw.N, PressDownRaw.S, PressDownRaw.B] = euPress(isPressDown).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', false);
+edges = 2:2:10;
+[PressUp.X, PressUp.T, PressUp.N, PressUp.S, PressUp.B] = eu(isPressUp).getBinnedTrialAverage('rate', edges, 'press', 'window', [-10, 1], 'normalize', true);
+[PressDown.X, PressDown.T, PressDown.N, PressDown.S, PressDown.B] = eu(isPressDown).getBinnedTrialAverage('rate', edges, 'press', 'window', [-10, 1], 'normalize', true);
+[PressUpRaw.X, PressUpRaw.T, PressUpRaw.N, PressUpRaw.S, PressUpRaw.B] = eu(isPressUp).getBinnedTrialAverage('rate', edges, 'press', 'window', [-10, 1], 'normalize', false);
+[PressDownRaw.X, PressDownRaw.T, PressDownRaw.N, PressDownRaw.S, PressDownRaw.B] = eu(isPressDown).getBinnedTrialAverage('rate', edges, 'press', 'window', [-10, 1], 'normalize', false);
+
+%% Lick 
+sigmaThreshold = 0.3;
+minTrialLength = 2;
+minNumTrials = 30;
+
+hasLick = arrayfun(@(e) ~isempty(e.Trials.Lick) && nnz(e.Trials.Lick.duration() >= minTrialLength) >= minNumTrials, eu);
+etaLick = eu.getETA('count', 'press', [-4, 0], minTrialDuration=2, normalize=[-4, -2]);
+metaLick = transpose(mean(etaLick.X(:, etaLick.t >= -0.2 & etaLick.t <= 0), 2, 'omitnan'));
+
+isLickUp = isSNr & ~isnan(metaLick) & hasLick & metaLick >= sigmaThreshold;
+isLickDown = isSNr & ~isnan(metaLick) & hasLick & metaLick <= -sigmaThreshold;
+isResponsive = isLickUp | isLickDown;
+fprintf(1, 'With a zscore threshold of %.2f, found %i (%.f%%) press-up and %i(%.f%%) press-down units, %i non-responsive (%i total).\n', sigmaThreshold, sum(isLickUp), sum(isLickUp)/sum(isResponsive)*100, sum(isLickDown), sum(isLickDown)/sum(isResponsive)*100, sum(~isResponsive), sum(isSNr & ~isnan(metaPress) & hasLick))
+
+%% Calculate binned average
+edges = 2:2:10;
+[LickUp.X, LickUp.T, LickUp.N, LickUp.S, LickUp.B] = eu(isLickUp).getBinnedTrialAverage('rate', edges, 'lick', 'window', [-10, 1], 'normalize', true);
+[LickDown.X, LickDown.T, LickDown.N, LickDown.S, LickDown.B] = eu(isLickDown).getBinnedTrialAverage('rate', edges, 'lick', 'window', [-10, 1], 'normalize', true);
+[LickUpRaw.X, LickUpRaw.T, LickUpRaw.N, LickUpRaw.S, LickUpRaw.B] = eu(isLickUp).getBinnedTrialAverage('rate', edges, 'lick', 'window', [-10, 1], 'normalize', false);
+[LickDownRaw.X, LickDownRaw.T, LickDownRaw.N, LickDownRaw.S, LickDownRaw.B] = eu(isLickDown).getBinnedTrialAverage('rate', edges, 'lick', 'window', [-10, 1], 'normalize', false);
 
 %% Plot binned average
 figure();
@@ -120,29 +156,18 @@ ylabel([axUp, axDown], 'Spike rate (modified z-score)')
 ylabel([axUpRaw, axDownRaw], 'Spike rate (sp/s)')
 clear axUp axDown axUpRaw axDownRaw ax
 
-%% Calculate binned average using randomly partitioned partial data set
-IUp = randperm(nnz(isPressUp), 25);
-IDown = randperm(nnz(isPressDown), 25);
-euPressUp = euPress(isPressUp);
-euPressDown = euPress(isPressDown);
-
-[PressUp.X, PressUp.T, PressUp.N, PressUp.S, PressUp.B] = euPressUp(IUp).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', true);
-[PressDown.X, PressDown.T, PressDown.N, PressDown.S, PressDown.B] = euPressDown(IDown).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', true);
-[PressUpRaw.X, PressUpRaw.T, PressUpRaw.N, PressUpRaw.S, PressUpRaw.B] = euPressUp(IUp).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', false);
-[PressDownRaw.X, PressDownRaw.T, PressDownRaw.N, PressDownRaw.S, PressDownRaw.B] = euPressDown(IDown).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', false);
-
 figure();
 axUp = subplot(2, 2, 1);
 axUpRaw = subplot(2, 2, 3);
 axDown = subplot(2, 2, 2);
 axDownRaw = subplot(2, 2, 4);
 ax = [axUp, axUpRaw, axDown, axDownRaw];
-EphysUnit.plotBinnedTrialAverage(ax(1), PressUp, [1,12]);
-EphysUnit.plotBinnedTrialAverage(ax(2), PressUpRaw, [1,12]);
-EphysUnit.plotBinnedTrialAverage(ax(3), PressDown, [1,12]);
-EphysUnit.plotBinnedTrialAverage(ax(4), PressDownRaw, [1,12]);
-title([axUp, axUpRaw], sprintf('Press Up (%i units)', nnz(isPressUp)))
-title([axDown, axDownRaw], sprintf('Press Down (%i units)', nnz(isPressDown)))
+EphysUnit.plotBinnedTrialAverage(ax(1), LickUp, [1,12]);
+EphysUnit.plotBinnedTrialAverage(ax(2), LickUpRaw, [1,12]);
+EphysUnit.plotBinnedTrialAverage(ax(3), LickDown, [1,12]);
+EphysUnit.plotBinnedTrialAverage(ax(4), LickDownRaw, [1,12]);
+title([axUp, axUpRaw], sprintf('Lick Up (%i units)', nnz(isLickUp)))
+title([axDown, axDownRaw], sprintf('Lick Down (%i units)', nnz(isLickDown)))
 xlabel(ax, 'Time from cue (s)')
 ylabel([axUp, axDown], 'Spike rate (modified z-score)')
 ylabel([axUpRaw, axDownRaw], 'Spike rate (sp/s)')
@@ -150,60 +175,18 @@ clear axUp axDown axUpRaw axDownRaw ax
 
 
 %% Plot single units and save to disk
-for i = 1:length(euPressUp)
-    try
-        [Sr.X, Sr.T, Sr.N, Sr.S, Sr.B] = euPressUp(i).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', false);
-        [Sn.X, Sn.T, Sn.N, Sn.S, Sn.B] = euPressUp(i).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', true);
-        
-        fig = figure('Units', 'normalized', 'Position', [0, 0, 0.6, 0.9]);
-        ax(1) = subplot(2, 1, 1);
-        ax(2) = subplot(2, 1, 2);
-        EphysUnit.plotBinnedTrialAverage(ax(1), Sr, [1, 12]);
-        EphysUnit.plotBinnedTrialAverage(ax(2), Sn, [1, 12]);
-        suptitle(euPressUp(1).getName('_'));
-        
-        print(fig, sprintf('C:\\SERVER\\Figures\\Single Units\\PressUp\\%s', euPressUp(i).getName('_')), '-dpng');
-        
-        close(fig)
-    end
-    clear Sr Sn
-    close all
-end
+plotBinnedTrialAveragedForSingleUnits(eu(isLickUp), 'lick', 'LickUp', edges)
+plotBinnedTrialAveragedForSingleUnits(eu(isLickDown), 'lick', 'LickDown', edges)
+plotBinnedTrialAveragedForSingleUnits(eu(isPressUp), 'press', 'PressUp', edges)
+plotBinnedTrialAveragedForSingleUnits(eu(isPressDown), 'press', 'PressDown', edges)
 
-for i = 1:length(euPressDown)
-    try
-        [Sr.X, Sr.T, Sr.N, Sr.S, Sr.B] = euPressDown(i).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', false);
-        [Sn.X, Sn.T, Sn.N, Sn.S, Sn.B] = euPressDown(i).getBinnedTrialAverage('rate', 1:1.5:10, 'press', 'window', [-10, 1], 'normalize', true);
-        
-        fig = figure('Units', 'normalized', 'Position', [0, 0, 0.6, 0.9]);
-        ax(1) = subplot(2, 1, 1);
-        ax(2) = subplot(2, 1, 2);
-        EphysUnit.plotBinnedTrialAverage(ax(1), Sr, [1, 12]);
-        EphysUnit.plotBinnedTrialAverage(ax(2), Sn, [1, 12]);
-        suptitle(euPressDown(1).getName('_'));
-        
-        print(fig, sprintf('C:\\SERVER\\Figures\\Single Units\\PressDown\\%s', euPressDown(i).getName('_')), '-dpng');
-        
-        close(fig)
-    end
-    clear Sr Sn
-    close all
-end
-
-clear fig ax Sr Sn i
+%% Plot single unit rasters and save to disk
+plotRasterForSingleUnits(eu(isLickUp), 'lick', 'Raster_LickUp')
+plotRasterForSingleUnits(eu(isLickDown), 'lick', 'Raster_LickDown')
+plotRasterForSingleUnits(eu(isPressUp), 'press', 'Raster_PressUp')
+plotRasterForSingleUnits(eu(isPressDown), 'press', 'Raster_PressDown')
 
 
-%% Acute recording to EphysUnit
-ar = AcuteRecording.load();
-%%
-for i = 1:length(ar)
-    clear eu
-    try  
-        eu = EphysUnit(ar(i), 'cullITI', true, 'extendedWindow', [-1, 2], 'readWaveforms', true);
-    catch ME
-        warning('Error while processing file %g (%s)', i, ar(i).expName);
-    end
-end
 
 %% 
 clearvars -except eu
@@ -385,6 +368,57 @@ clear ax theta xl yl h
 theta = 0:0.1:2;
 [metaPress, nUp, nDown, pUp, pDown] = plotResponseForThresholds(etaPress, 0:0.1:2, [-0.25, 0]);
 
+%% Validate whether it is safe to remove overlapping spikes. Sometimes we get ISI=0, in most cases these are the same waveforms detected twice (two threshold crossings) and then re-aligned to peak so they are overlapping.
+result = testOverlappingSpikes(eu);
+fprintf(1, '%g out of %g safe to delete.\n', nnz([result.safeToDelete]), length(result));
+
+%%
+plotOverlappingSpikes(eu);
+
+%%
+function plotBinnedTrialAveragedForSingleUnits(eu, moveType, category, edges)
+    if ~isfolder(sprintf('C:\\SERVER\\Figures\\Single Units\\%s', category))
+        mkdir(sprintf('C:\\SERVER\\Figures\\Single Units\\%s', category))
+    end
+    for e = eu
+        try
+            [Sr.X, Sr.T, Sr.N, Sr.S, Sr.B] = e.getBinnedTrialAverage('rate', edges, moveType, 'window', [-10, 1], 'normalize', false);
+            [Sn.X, Sn.T, Sn.N, Sn.S, Sn.B] = e.getBinnedTrialAverage('rate', edges, moveType, 'window', [-10, 1], 'normalize', true);
+            
+            fig = figure('Units', 'normalized', 'Position', [0, 0, 0.6, 0.9]);
+            ax(1) = subplot(2, 1, 1);
+            ax(2) = subplot(2, 1, 2);
+            EphysUnit.plotBinnedTrialAverage(ax(1), Sr, [1, 12]);
+            EphysUnit.plotBinnedTrialAverage(ax(2), Sn, [1, 12]);
+            suptitle(e.getName('_'));
+            
+            print(fig, sprintf('C:\\SERVER\\Figures\\Single Units\\%s\\%s', category, e.getName('_')), '-dpng');
+            
+            close(fig)
+        catch ME
+            fprintf(1, 'Error while processing %s.\n', e.getName('_'));
+        end
+        close all
+    end
+end
+
+function plotRasterForSingleUnits(eu, moveType, category)
+    if ~isfolder(sprintf('C:\\SERVER\\Figures\\Single Units\\%s', category))
+        mkdir(sprintf('C:\\SERVER\\Figures\\Single Units\\%s', category))
+    end
+    for e = eu
+        try
+            rd = e.getRasterData(moveType, window=[0, 0]);
+            ax = EphysUnit.plotRaster(rd, xlim=[-4, 0]);
+            fig = ax.Parent;
+            print(fig, sprintf('C:\\SERVER\\Figures\\Single Units\\%s\\%s', category, e.getName('_')), '-dpng');            
+            close(fig)
+        catch ME
+            fprintf(1, 'Error while processing %s.\n', e.getName('_'));
+        end
+        close all
+    end
+end
 
 function [meta, nUp, nDown, pUp, pDown] = plotResponseForThresholds(eta, theta, window)
     meta = transpose(mean(eta.X(:, eta.t >= window(1) & eta.t <= window(2)), 2, 'omitnan'));
@@ -425,4 +459,36 @@ function [meta, nUp, nDown, pUp, pDown] = plotResponseForThresholds(eta, theta, 
     title(ax, 'Distribution of lever-press response')
 end
 
-%% Lick
+function result = testOverlappingSpikes(eu)
+    N = length(eu);
+    result(N) = struct('nTotal', NaN, 'nOverlap', NaN, 'nIdentical', NaN, 'safeToDelete', false);
+    for i = 1:length(eu)
+        df = [Inf, diff(eu(i).SpikeTimes)];
+        isOverlap = df == 0;
+        wf = eu(i).Waveforms(isOverlap, :);
+        result(i).nOverlap = nnz(isOverlap);
+        result(i).nTotal = length(eu(i).SpikeTimes);
+        if all(diff(wf, 1) == 0, 'all')
+            result(i).safeToDelete = true;
+            result(i).nIdentical = nnz(isOverlap);
+        else
+            result(i).safeToDelete = false;
+            result(i).nIdentical = nnz(all(diff(wf, 1) == 0, 2));
+        end
+    end
+end
+
+function plotOverlappingSpikes(eu)
+    N = length(eu);
+    for i = 1:N
+        df = [Inf, diff(eu(i).SpikeTimes)];
+        isOverlap = df == 0;
+        wf = eu(i).Waveforms(isOverlap, :);
+        t = eu(i).WaveformTimestamps;
+        nOverlap = nnz(isOverlap);
+        nTotal = length(eu(i).SpikeTimes);
+        ax = axes(figure);
+        plot(ax, t, wf);
+        title(ax, sprintf('%g/%g', nOverlap, nTotal))
+    end
+end
