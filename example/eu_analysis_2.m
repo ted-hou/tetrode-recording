@@ -208,25 +208,87 @@ plotRasterForSingleUnits(eu(cat.isLickDown), 'lick', 'Raster_LickDown')
 plotRasterForSingleUnits(eu(cat.isPressUp), 'press', 'Raster_PressUp')
 plotRasterForSingleUnits(eu(cat.isPressDown), 'press', 'Raster_PressDown')
 
+%% 3.5 Single unit double rasters
+plotDoubleRasterForSingleUnits(eu(cat.isPressDown & cat.isLickUp), 'DoubleRaster_PressDownLickUp')
+plotDoubleRasterForSingleUnits(eu(cat.isPressUp & cat.isLickDown), 'DoubleRaster_PressUpLickDown')
+plotDoubleRasterForSingleUnits(eu(cat.isPressDown & cat.isLickDown), 'DoubleRaster_PressDownLickDown')
+plotDoubleRasterForSingleUnits(eu(cat.isPressUp & cat.isLickUp), 'DoubleRaster_PressUpLickUp')
+
 %% 4. Stim response
 %
 %% 4.1 Single unit raster for stim responses (first pulse in each train)
-clear hasStim rd
-hasStim = arrayfun(@(eu) ~isempty(eu.getTrials('stim')), eu);
-rd(hasStim) = eu(hasStim).getRasterData('stimfirstpulse', window=[-0.5, 0.5], sort=false);
+clear rdStim
+cat.hasStim = arrayfun(@(eu) ~isempty(eu.getTrials('stim')), eu);
+rdStim(cat.hasStim) = eu(cat.hasStim).getRasterData('stimfirstpulse', window=[-0.5, 0.5], sort=false);
+
+%% 4.1.1 Filter out specific stim durations (try 10ms, then the smallest above 10ms)
+p.minStimDuration = 1e-2;
+p.errStimDuration = 1e-3;
+p.allowAltStimDuration = true;
+
+rdStimFiltered = rdStim;
+
+for i = 1:length(rdStim)
+    if isempty(rdStim(i).t)
+        continue
+    end
+
+    roundedDuration = round(rdStim(i).duration ./ p.errStimDuration) * p.errStimDuration;
+    isMinDur = roundedDuration == p.minStimDuration;
+    if any(isMinDur)
+        sel = ismember(rdStim(i).I, find(isMinDur));
+        rdStimFiltered(i).t = rdStim(i).t(sel);
+        newI = rdStim(i).I(sel); newI = changem(newI, 1:length(unique(newI)), unique(newI));
+        rdStimFiltered(i).I = newI;
+        rdStimFiltered(i).duration = roundedDuration(isMinDur);
+        rdStimFiltered(i).iti = rdStim(i).iti(isMinDur);
+        fprintf('%g: found %g trials with length %g.\n', i, nnz(isMinDur), p.minStimDuration);
+    else
+        isAboveMinDur = roundedDuration > p.minStimDuration;
+        if p.allowAltStimDuration && any(isAboveMinDur)
+            altMinDur = min(roundedDuration(isAboveMinDur));
+            isAltMinDur = roundedDuration == altMinDur;
+            sel = ismember(rdStim(i).I, find(isAltMinDur));
+            rdStimFiltered(i).t = rdStim(i).t(sel);
+            newI = rdStim(i).I(sel); newI = changem(newI, 1:length(unique(newI)), unique(newI));
+            rdStimFiltered(i).I = newI;
+            rdStimFiltered(i).duration = roundedDuration(isAltMinDur);
+            rdStimFiltered(i).iti = rdStim(i).iti(isAltMinDur);
+            fprintf('%g: could not find requested duration, found %g trials with length %g instead.\n', i, nnz(isAltMinDur), altMinDur);
+        else
+            fprintf('%g: could not find requested duration.', i)
+            rdStimFiltered(i).t = [];
+            rdStimFiltered(i).I = [];
+            rdStimFiltered(i).duration = [];
+            rdStimFiltered(i).iti = [];
+        end
+    end
+end
+
+cat.hasStim = arrayfun(@(rd) ~isempty(rd.t), rdStimFiltered);
+fprintf(1, '%g units with requested stim duration.\n', nnz(cat.hasStim))
+
+clear i roundedDuration isMinDur isAboveMinDur altMinDur isAltMinDur sel
+
+%% 4.1.2 Save single unit opto rasters to disk
 if ~isfolder('C:\SERVER\Figures\Single Units\Raster_Stim')
     mkdir('C:\SERVER\Figures\Single Units\Raster_Stim')
 end
-for rrdd = rd(hasStim)
-    ax = EphysUnit.plotRaster(rrdd, xlim=[-0.2, 0.5], stim=true);
-    fig = ax.Parent;
-    print(fig, sprintf('C:\\SERVER\\Figures\\Single Units\\Raster_Stim\\%s', rrdd.name), '-dpng');
-    close(fig)
+for rrdd = rdStimFiltered(hasStim)
+    try
+        nTrials = length(rrdd.duration);
+        fig = figure(Units='normalized', Position=[0, 0, 0.4, max(0.2, min(nTrials*0.004, 0.8))]);
+        ax = axes(fig);
+        EphysUnit.plotRaster(ax, rrdd, xlim=[-0.2, unique(rrdd.duration) + min(rrdd.iti)]);
+        print(fig, sprintf('C:\\SERVER\\Figures\\Single Units\\Raster_Stim\\%s', rrdd.name), '-dpng');
+        close(fig)
+    catch
+            fprintf(1, 'Error while processing %s.\n', rrdd.name);
+    end
 end
-clear rrdd ax fig
+clear rrdd ax fig nTrials
 
-%% 4.2 Filter out specific stim durations (10ms, 20ms, 100ms)
-histogram(rd(1).iti, rd(1).)
+%% 4.2 Stim ETA (PSTH) as heatmap
 
 
 %%
@@ -236,7 +298,7 @@ function plotRasterForSingleUnits(eu, moveType, category)
     end
     for e = eu
         try
-            rd = e.getRasterData(moveType, window=[0, 0]);
+            rd = e.getRasterData(moveType, window=[0, 0], sort=true);
             ax = EphysUnit.plotRaster(rd, xlim=[-4, 0]);
             fig = ax.Parent;
             print(fig, sprintf('C:\\SERVER\\Figures\\Single Units\\%s\\%s', category, e.getName('_')), '-dpng');            
@@ -245,5 +307,66 @@ function plotRasterForSingleUnits(eu, moveType, category)
             fprintf(1, 'Error while processing %s.\n', e.getName('_'));
         end
         close all
+    end
+end
+
+function plotDoubleRasterForSingleUnits(eu, category)
+    if ~isfolder(sprintf('C:\\SERVER\\Figures\\Single Units\\%s', category))
+        mkdir(sprintf('C:\\SERVER\\Figures\\Single Units\\%s', category))
+    end
+    for e = eu
+        try
+            rdpress = e.getRasterData('press', window=[0, 2], sort=true);
+            rdlick = e.getRasterData('lick', window=[0, 2], sort=true);
+            ax = plotDoubleRaster(rdpress, rdlick, xlim=[-4, 2], iti=false);
+            fig = ax(1).Parent;
+            print(fig, sprintf('C:\\SERVER\\Figures\\Single Units\\%s\\%s', category, e.getName('_')), '-dpng');            
+            close(fig)
+        catch ME
+            fprintf(1, 'Error while processing %s.\n', e.getName('_'));
+        end
+        close all
+    end
+end
+
+%% TODO: Embed in EphysUnit as static method
+function ax = plotDoubleRaster(rd1, rd2, varargin)
+    p = inputParser();
+    p.addRequired('rd1', @isstruct)
+    p.addRequired('rd2', @isstruct)
+    p.addOptional('label1', '', @ischar)
+    p.addOptional('label2', '', @ischar)
+    p.addParameter('xlim', [-6, 1], @(x) isnumeric(x) && length(x) == 2 && x(2) > x(1));
+    p.addParameter('iti', false, @islogical);
+    p.parse(rd1, rd2, varargin{:});
+    r = p.Results;
+    rd(1) = r.rd1;
+    rd(2) = r.rd2;
+    label{1} = r.label1;
+    label{2} = r.label2;
+
+
+    f = figure(Units='normalized', OuterPosition=[0, 0, 0.5, 1], DefaultAxesFontSize=14);
+    nTrials(1) = length(rd(1).duration);
+    nTrials(2) = length(rd(2).duration);
+    ax(1) = axes(f, OuterPosition=[0, nTrials(2)/sum(nTrials), 1, nTrials(1)/sum(nTrials)]);
+    ax(2) = axes(f, OuterPosition=[0, 0, 1, nTrials(2)/sum(nTrials)]);
+
+    for i = 1:2
+        EphysUnit.plotRaster(ax(i), rd(i), xlim=r.xlim, iti=r.iti);
+        if ~isempty(label{i})
+            title(ax(i), label{i})
+        else
+            switch lower(rd(i).trialType)
+                case 'press'
+                    name = 'Lever-press';
+                case 'lick'
+                    name = 'Lick';
+                case {'stim', 'stimtrain', 'stimfirstpulse'}
+                    name = 'Opto';
+            end
+            title(ax(i), name)
+        end
+        suptitle(rd(1).name);
     end
 end

@@ -555,31 +555,14 @@ classdef EphysUnit < handle
                 switch alignTo
                     case 'start'
                         tRef = [trials.Start];
-                        tEvent = [trials.Stop] - tRef;
                     case 'stop'
                         tRef = [trials.Stop];
-                        tEvent = [trials.Start] - tRef;
                 end
                 t = t - tRef(I);
-                IEvent = unique(I);
-                tEvent = tEvent(IEvent);
+                dur = trials.duration;
 
-                if p.Results.sort
-                    [~, ISort] = sort(abs(tEvent), 'ascend');
-                    tEvent = tEvent(ISort);
-                    IEvent = 1:length(ISort);
-                    I = changem(I, 1:length(ISort), ISort);
-                end
-                rd.name = obj.getName('_');
-                rd.trialType = trialType;
-                rd.alignTo = alignTo;
-                rd.t = t;
-                rd.I = I;
-                rd.tEvent = tEvent;
-                rd.IEvent = IEvent;
-                rd.duration = trials.duration();
                 if ~strcmpi(trialType, 'stimfirstpulse')
-                    rd.iti = trials.iti();
+                    iti = trials.iti();
                 else
                     % For stimfirstpulse (in train), use the iti between
                     % first and second pulse in train (rather that iti
@@ -592,15 +575,28 @@ classdef EphysUnit < handle
 
                     [match, index] = ismember(startFirst, startAll);
                     assert(all(match));
-                    rd.iti = itiAll(index);
+                    iti = itiAll(index);
                 end
+
+                if p.Results.sort
+                    [dur, ISort] = sort(dur, 'ascend');
+                    I = changem(I, 1:length(ISort), ISort);
+                    iti = iti(ISort);
+                end
+                rd.name = obj.getName('_');
+                rd.trialType = trialType;
+                rd.alignTo = alignTo;
+                rd.t = t;
+                rd.I = I;
+                rd.duration = dur;
+                rd.iti = iti;
             else
                 tTic = tic();
-                rd(length(obj)) = struct('name', '', 'trialType', '', 'alignTo', '', 't', [], 'I', [], 'tEvent', [], 'IEvent', [], 'duration', [], 'iti', []);
+                rd(length(obj)) = struct('name', '', 'trialType', '', 'alignTo', '', 't', [], 'I', [], 'duration', [], 'iti', []);
                 fprintf(1, 'Calculating raster data for %g units...\n', length(obj));
                 for i = 1:length(obj)
                     try
-                        rd(i) = obj(i).getRasterData(trialType, window, minTrialDuration=minTrialDuration, alignTo=alignTo);
+                        rd(i) = obj(i).getRasterData(trialType, window, minTrialDuration=minTrialDuration, alignTo=alignTo, sort=p.Results.sort);
                     catch ME
                         warning('\tError when processing unit %g', i)
                         warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
@@ -830,10 +826,10 @@ classdef EphysUnit < handle
             end
             p.addRequired('rd', @isstruct);
             p.addParameter('xlim', [-6, 1], @(x) isnumeric(x) && length(x) == 2 && x(2) > x(1));
-            p.addParameter('stim', false, @islogical)
+            p.addParameter('iti', false, @islogical);
             p.parse(varargin{:})
             rd = p.Results.rd;
-            stim = p.Results.stim;
+            stim = ismember(lower(rd.trialType), {'stim', 'stimtrain', 'stimfirstpulse'});
 
             assert(length(rd) == 1);
 
@@ -846,22 +842,46 @@ classdef EphysUnit < handle
             switch rd.alignTo
                 case 'start'
                     eventName = rd.trialType;
-                    refName = 'Trial start';
+                    if ~stim
+                        refName = 'trial start';
+                    else
+                        refName = 'opto onset';
+                    end
                 case 'stop'
-                    eventName = 'Trial start';
-                    refName = rd.trialType;
+                    if ~stim
+                        eventName = 'trial start';
+                        refName = rd.trialType;
+                    else
+                        eventName = 'opto onset';
+                        refName = 'opto offset';
+                    end
             end
 
             hold(ax, 'on')
+            nTrials = length(unique(rd.I));
+            switch rd.alignTo
+                case 'start'
+                    tEvent = rd.duration;
+                case 'stop'
+                    tEvent = -rd.duration;
+            end
             if ~stim
                 h = gobjects(2, 1);
                 h(1) = scatter(ax, rd.t, rd.I, 5, 'k', 'filled', DisplayName='Spikes');
-                h(2) = scatter(ax, rd.tEvent, rd.IEvent, 15, 'r', 'filled', DisplayName=eventName);
+                h(2) = scatter(ax, tEvent, 1:nTrials, 15, 'r', 'filled', DisplayName=eventName);
             else
                 h = gobjects(3, 1);
                 h(1) = scatter(ax, rd.t, rd.I, 5, 'k', 'filled', DisplayName='Spikes');
-                h(2) = plot(ax, [0, 0], [min(rd.IEvent), max(rd.IEvent)], 'b', DisplayName='Opto On');
-                h(3) = scatter(ax, rd.tEvent, rd.IEvent, 5, 'b', 'filled', DisplayName='Opto Off');
+                h(2) = plot(ax, [0, 0], [0, nTrials+1], 'b', DisplayName='Opto On');
+                uniqueDurations = unique(rd.duration);
+                if length(uniqueDurations) == 1
+                    h(3) = plot(ax, [uniqueDurations, uniqueDurations], [0, nTrials+1], 'r', DisplayName='Opto Off');
+                else
+                    h(3) = scatter(ax, tEvent, 1:nTrials, 5, 'r', 'filled', DisplayName='Opto Off');
+                end
+                if p.Results.iti
+                    h(4) = scatter(ax, tEvent + rd.iti, 1:nTrials, 5, 'g', 'filled', DisplayName='ITI End');
+                end
             end
 
             if stim
@@ -879,7 +899,7 @@ classdef EphysUnit < handle
     end
 
     % private methods
-    methods %(Access = {})
+    methods (Access = {})
         function trials = makeTrials(obj, trialType)
             if length(obj) == 1
                 switch lower(trialType)
