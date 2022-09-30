@@ -13,7 +13,52 @@ for i = 1:length(ar)
 end
 
 %% 1.2 Alternatively, load eu objects from disk (SLOW, ~20min)
-eu = EphysUnit.load('C:\SERVER\Units', waveforms=false, spikecounts=true, spikerates=true);
+eu = EphysUnit.load('C:\SERVER\Units', waveforms=false, spikecounts=false, spikerates=false);
+%% 1.2Alt Or just load lite version, without non-SNr cells, without waveforms, spikecounts or spikerates.
+eu = EphysUnit.load('C:\SERVER\Units\Lite');
+%% 1.3 AnimalInfo
+animalInfo = { ...
+    'daisy1', 'wt', 'F', -3.2, -1.6, 'tetrode'; ...
+    'daisy2', 'wt', 'F', -3.2, +1.6, 'tetrode'; ...
+    'daisy3', 'DAT-Cre', 'F', -3.2, +1.6, 'tetrode'; ...
+    'desmond10', 'wt', 'M', -3.28, -1.8, 'double-bundle'; ... % -0.962 for other bunder
+    'desmond11', 'wt', 'M', -3.28, +1.8, 'double-bundle'; ... % +0.962 for other bunder
+    'daisy4', 'D1-Cre', 'F', -3.28, -1.6, 'bundle'; ...
+    'daisy5', 'D1-Cre', 'F', -3.28, +1.6, 'bundle'; ...
+    'desmond12', 'DAT-Cre', 'M', -3.2, -1.4, 'bundle'; ...
+    'desmond13', 'DAT-Cre', 'M', -3.2, +1.4, 'bundle'; ...
+    'desmond15', 'wt', 'M', -3.40, -1.5, 'bundle'; ...
+    'desmond16', 'wt', 'M', -3.40, +1.5, 'bundle'; ...
+    'desmond17', 'wt', 'M', -3.40, +1.5, 'bundle'; ...
+    'desmond18', 'wt', 'M', -3.40, +1.5, 'bundle'; ...
+    'desmond20', 'A2A-Cre', 'M', -3.28, +1.6, 'bundle'; ...
+    'daisy7', 'A2A-Cre', 'F', -3.28, +1.6, 'bundle'; ...
+    'desmond21', 'D1-Cre;Dlx-Flp;Ai80', 'M', -3.28, -1.6, 'bundle'; ...
+    'desmond22', 'D1-Cre;Dlx-Flp;Ai80', 'M', -3.28, -1.6, 'bundle'; ...
+    'daisy8', 'D1-Cre;Dlx-Flp;Ai80', 'F', -3.28, +1.6, 'bundle'; ...
+    'daisy9', 'D1-Cre;Dlx-Flp;Ai80', 'F', -3.28, +1.3, '4shank-neuronexus'; ... % 1.3 = center of 4 shanks -4.8DV tip 900um? wide
+    'daisy10', 'D1-Cre;Dlx-Flp;Ai80', 'F', -3.28, -1.3, '4shank-neuronexus'; ... % 1.3 = center of 4 shanks -4.8DV tip 900um? wide
+    'daisy12', 'wt', 'F', -3.28, +1.3, '4shank-acute-wide'; ... % 1.3 = center of 4 shanks -4.4DV tip 990um? wide
+    'daisy13', 'wt', 'F', -3.28, -1.3, '4shank-acute-wide'; ... % 1.3 = center of 4 shanks -4.2DV tip 990um? wide
+    'desmond23', 'D1-Cre;Dlx-Flp;Ai80', 'M', -3.28, -1.3, '4shank-acute'; ... % 1.3 = center of 4 shanks, 450um wide
+    'daisy14', 'D1-Cre;Dlx-Flp;Ai80', 'F', -3.28, +1.3, '4shank-acute'; ... % 1.3 = center of 4 shanks
+    'desmond24', 'A2A-Cre', 'M', -3.28, +1.3, '4shank-acute'; ... % 1.3 = center of 4 shanks
+    'desmond25', 'A2A-Cre', 'M', -3.28, -1.3, '4shank-acute'; ... % 1.3 = center of 4 shanks
+    'daisy15', 'A2A-Cre', 'F', -3.28, +1.3, '4shank-acute'; ... % 1.3 = center of 4 shanks
+    'daisy16', 'A2A-Cre', 'F', -3.28, -1.3, '4shank-acute'; ... % 1.3 = center of 4 shanks
+    'desmond26', 'D1-Cre;Dlx-Flp;Ai80', 'M', -3.28, +1.3, '4shank-acute'; ... % 1.3 = center of 4 shanks
+    'desmond27', 'D1-Cre;Dlx-Flp;Ai80', 'M', -3.28, -1.3, '4shank-acute'; ... % 1.3 = center of 4 shanks
+    };
+
+ai(size(animalInfo, 1)) = struct('name', '', 'strain', '', 'sex', '', 'ap', [], 'ml', [], 'probe', '');
+for i = 1:size(animalInfo, 1)
+    ai(i).name = animalInfo{i, 1};
+    ai(i).strain = animalInfo{i, 2};
+    ai(i).sex = animalInfo{i, 3};
+    ai(i).ap = animalInfo{i, 4};
+    ai(i).ml = animalInfo{i, 5};
+    ai(i).probe = animalInfo{i, 6};
+end
 
 %% 2.1 Parameters
 clear p
@@ -27,12 +72,157 @@ p.posRespThreshold = 1;
 p.negRespThreshold = -0.5;
 p.binnedTrialEdges = 2:2:10;
 
-%% 2.2 Cull non-SNr units to save memory (only once)
+p.minStimDuration = 1e-2;
+p.maxStimDuration = 5e-2;
+p.errStimDuration = 1e-3;
+p.allowAltStimDuration = true;
+p.etaWindowStim = [-0.2, 0.5];
+p.metaWindowStim = [0, 0.1];
+
+
+
+%% 2.2.1 Cull non-SNr units to save memory (only once)
 msr = arrayfun(@(stats) stats.medianITI, [eu.SpikeRateStats]);
 isSNr = msr >= p.minSpikeRate;
 eu = eu(isSNr);
 fprintf(1, 'Kept %g out of %g SNr units with spike rate >= %g.\n', nnz(isSNr), length(msr), p.minSpikeRate)
-clearvars -except eu p
+clearvars -except eu p ai
+
+%% 2.2.2 Cull duplicate units by thresholding cross-correlation of binned spike counts
+clearvars -except eu ai p
+[uniqueExpNames, ~, ic] = unique({eu.ExpName});
+nUniqueExps = length(uniqueExpNames);
+r = cell(nUniqueExps, 1);
+lags = cell(nUniqueExps, 1);
+pairIndices = cell(nUniqueExps, 1);
+for iExp = 1:nUniqueExps
+    iEus = find(ic == iExp);
+    tTic = tic();
+    if length(iEus) <= 1
+        fprintf(1, 'Session %g (of %g) has only %g unit, no calculation needed.\n', iExp, nUniqueExps, length(iEus));
+        continue;
+    end
+    fprintf(1, 'Session %g (of %g), calculating %g pair-wise correlations...', iExp, nUniqueExps, nchoosek(length(iEus), 2));
+    [r{iExp}, lags{iExp}, pairIndices{iExp}] = eu(iEus).xcorr('count', resolution=0.005, maxlag=10, normalize=true);
+
+    pairIndices{iExp} = iEus(pairIndices{iExp});
+
+    fprintf(1, 'Done (%.2f sec).\n', toc(tTic))
+end
+
+assert(size(unique(cat(1, lags{:}), 'rows'), 1) == 1)
+lags = unique(cat(1, lags{:}), 'rows');
+pairIndices = cat(1, pairIndices{:});
+r = cat(1, r{:});
+clearvars -except eu ai p lags pairIndices r 
+
+
+%% 2.2.2.1 Plot a distribution of all pairwise correlations, for all experiments
+close all
+ax = axes(figure());
+hold(ax, 'on')
+r0 = r(:, lags==0);
+h(1) = histogram(ax, r(:, lags==0), 0:0.01:1, DisplayName='R(0)', Normalization='probability');
+yrange = ax.YLim;
+h(2) = plot(ax, repmat(mean(r0), [2, 1]), yrange, DisplayName=sprintf('mean=%.2f', mean(r0)), LineWidth=2);
+h(3) = plot(ax, repmat(median(r0), [2, 1]), yrange, DisplayName=sprintf('median=%.2f', median(r0)), LineWidth=2);
+h(4) = plot(ax, repmat(mean(r0)+2*std(r0, 0), [2, 1]), yrange, DisplayName=sprintf('mean+2*std=%.2f', mean(r0)++2*std(r0, 0)), LineWidth=2);
+h(5) = plot(ax, repmat(median(r0)+2*mad(r0, 1)/0.6745, [2, 1]), yrange, DisplayName=sprintf('median+2*mad//0.6745=%.2f', median(r0)++2*mad(r0, 1)/0.6745), LineWidth=2);
+h(6) = plot(ax, repmat(prctile(r0, 95), [2, 1]), yrange, DisplayName=sprintf('95 percentile=%.2f', prctile(r0, 95)), LineWidth=2);
+ax.YLim = yrange;
+hold(ax, 'off')
+legend(ax, h)
+
+clear ax h yrange r0
+
+%%
+rd.press = eu.getRasterData('press');
+rd.lick = eu.getRasterData('lick');
+
+
+%% Choose a threshold and plot double rasters to compare
+clear ax figname fig iPair dirname r0 nPairs i j rrddi rrddj ifig ME
+
+rTheta = 0.40;
+dirname = sprintf('C:\\SERVER\\Figures\\duplicate_detect_xcorr\\rTheta=%.2f', rTheta);
+
+nPairs = size(pairIndices, 1);
+r0 = r(:, lags==0);
+for iPair = find(r0 > rTheta)'
+    assert(numel(iPair) == 1)
+    try
+        i = pairIndices(iPair, 1);
+        j = pairIndices(iPair, 2);
+    
+        if ~isempty(rd.press(i).t) && ~isempty(rd.press(j).t)
+            rrddi = rd.press(i);
+            rrddj = rd.press(j);
+        elseif ~isempty(rd.lick(i).t) && ~isempty(rd.lick(j).t)
+            rrddi = rd.lick(i);
+            rrddj = rd.lick(j);
+        else
+            warning('No lick or press raster data found for units %s and %s', eu(i).getName(), eu(j).getName())
+            continue
+        end
+    
+        figname{1} = sprintf('r=%.2f (%g=%g+%g)', r0(iPair), iPair, i, j);
+        figname{2} = sprintf('r=%.2f (%g=%g+%g) (i=%g)', r0(iPair), iPair, i, j, i);
+        figname{3} = sprintf('r=%.2f (%g=%g+%g) (j=%g)', r0(iPair), iPair, i, j, j);
+
+        % Plot double raster
+        ax = plotDoubleRaster(rrddi, rrddj, ...
+            sprintf('%g_%s', i, eu(i).getName('_')), ...
+            sprintf('%g_%s', j, eu(j).getName('_')));
+        fig(1) = ax(1).Parent;
+        suptitle(figname{1})
+
+        % Plot single figures
+        ax = EphysUnit.plotRaster(rrddi);
+        fig(2) = ax.Parent;
+        ax = EphysUnit.plotRaster(rrddj);
+        fig(3) = ax.Parent;
+
+        if ~isfolder(dirname)
+            mkdir(dirname);
+        end
+        
+        for ifig = 1:3
+            print(fig(ifig), sprintf('%s\\%s.jpg', dirname, figname{ifig}), '-djpeg');
+        end
+    catch ME
+        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+    end
+    close all
+end
+
+clear ax figname fig iPair dirname r0 nPairs i j rrddi rrddj ifig ME
+
+% Observations:
+% With 5ms binning:
+% rTheta > 0.8: definitely duplicate units
+% rTheta in [0.6, 0.8] could be multiunits, or one channel (singleunit) is 
+% a subset of another (multiunit), consider keeping the one with lower 
+% firing rate? Might need to check waveforms and ISI first to verify this.
+
+%% Filter out duplicate units with high correlation. 
+% Keep the one with the lower unit index. This ensures when there are more
+% than 2 duplicates, all duplicates are removed. 
+rTheta = 0.7;
+duplicatePairs = pairIndices(r(:, lags==0) > rTheta, :);
+
+isDuplicate = false(length(eu), 1);
+for iPair = 1:size(duplicatePairs, 1)
+    isDuplicate(duplicatePairs(iPair, 2)) = true;
+end
+disp(find(isDuplicate))
+
+eu = eu(~isDuplicate);
+
+fprintf(1, 'Removed %g putative duplicate units with R(0) > %.2f.\n', nnz(isDuplicate), rTheta);
+
+clearvars -except eu p ai
+
+
 
 %% 2.3.1  Basic summaries
 % Baseline (median) spike rates
@@ -45,7 +235,7 @@ eta.lick = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=2, normalize
 meta.lick = transpose(mean(eta.lick.X(:, eta.lick.t >= p.metaWindow(1) & eta.lick.t <= p.metaWindow(2)), 2, 'omitnan'));
 
 %% 2.3.2 Basic summaries (fast)
-clearvars -except eu p msr eta meta
+clearvars -except eu p msr eta meta ai
 
 % hasPress/hasLick
 cat.hasPress = arrayfun(@(e) nnz(e.getTrials('press').duration() >= p.minTrialDuration) >= p.minNumTrials, eu);
@@ -58,6 +248,14 @@ cat.isPressResponsive = cat.isPressUp | cat.isPressDown;
 cat.isLickUp =          cat.hasLick & meta.lick >= p.posRespThreshold;
 cat.isLickDown =        cat.hasLick & meta.lick <= p.negRespThreshold;
 cat.isLickResponsive =  cat.isLickUp | cat.isLickDown;
+
+% animal info
+cat.isWT = arrayfun(@(eu) strcmpi(getAnimalInfo(eu, ai, 'strain'), 'wt'), eu);
+cat.isD1 = arrayfun(@(eu) strcmpi(getAnimalInfo(eu, ai, 'strain'), 'd1-cre'), eu);
+cat.isA2A = arrayfun(@(eu) strcmpi(getAnimalInfo(eu, ai, 'strain'), 'a2a-cre'), eu);
+cat.isAi80 = arrayfun(@(eu) strcmpi(getAnimalInfo(eu, ai, 'strain'), 'd1-cre;dlx-flp;ai80'), eu);
+cat.isDAT = arrayfun(@(eu) strcmpi(getAnimalInfo(eu, ai, 'strain'), 'dat-cre'), eu);
+cat.isAcute = ismember(eu.getAnimalName, {'daisy14', 'daisy15', 'daisy16', 'desmond23', 'desmond24', 'desmond25', 'desmond26', 'desmond27'});
 
 fprintf(1, ['%g total SNr units (baseline spike rate > %g):\n' ...
     '\t%g with press trials;\n' ...
@@ -222,10 +420,6 @@ cat.hasStim = arrayfun(@(eu) ~isempty(eu.getTrials('stim')), eu);
 rdStim(cat.hasStim) = eu(cat.hasStim).getRasterData('stimfirstpulse', window=[-0.5, 0.5], sort=false);
 
 %% 4.1.1 Filter out specific stim durations (try 10ms, then the smallest above 10ms)
-p.minStimDuration = 1e-2;
-p.errStimDuration = 1e-3;
-p.allowAltStimDuration = true;
-
 rdStimFiltered = rdStim;
 
 for i = 1:length(rdStim)
@@ -288,7 +482,56 @@ for rrdd = rdStimFiltered(hasStim)
 end
 clear rrdd ax fig nTrials
 
-%% 4.2 Stim ETA (PSTH) as heatmap
+%% 4.2.1 Stim ETA (PSTH) as heatmap
+eta.stim = eu.getETA('count', 'stimfirstpulse', [-0.5, 0.5], ...
+    resolution=1e-2, ...
+    minTrialDuration=0.01, maxTrialDuration=0.1, ...
+    findSingleTrialDuration='min', normalize=[-0.5, 0], includeInvalid=false);
+meta.stim = transpose(mean(eta.stim.X(:, eta.stim.t >= 0 & eta.stim.t <= 0.1), 2, 'omitnan'));
+
+%% 4.2.2 Plot heatmap
+close all
+cat.hasStim = ~all(isnan(eta.stim.X), 2)';
+
+sel = cat.hasStim & cat.isA2A;
+dmin = min(eta.stim.D(sel));
+dmax = max(eta.stim.D(sel));
+if dmin==dmax
+    text = sprintf('iSPN stim (%g ms)', 1000*dmin);
+else
+    text = sprintf('iSPN stim (%g-%g ms)', 1000*dmin, 1000*dmax);
+end
+ax = EphysUnit.plotETA(eta.stim, sel, xlim=[-0.2, 0.1], clim=[-1.5, 1.5], sortWindow=[0, 0.1], signWindow=[0, 0.1], sortThreshold=0.3, negativeSortThreshold=0.2, event='opto onset'); title(ax, text)
+
+sel = cat.hasStim & cat.isAi80;
+dmin = min(eta.stim.D(sel));
+dmax = max(eta.stim.D(sel));
+if dmin==dmax
+    text = sprintf('dSPN stim (%g ms)', 1000*dmin);
+else
+    text = sprintf('dSPN stim (%g-%g ms)', 1000*dmin, 1000*dmax);
+end
+ax = EphysUnit.plotETA(eta.stim, sel, xlim=[-0.2, 0.1], clim=[-1.5, 1.5], sortWindow=[0, 0.1], signWindow=[0, 0.1], sortThreshold=0.3, negativeSortThreshold=0.2, event='opto onset'); title(ax, text)
+
+sel = cat.hasStim & cat.isD1;
+dmin = min(eta.stim.D(sel));
+dmax = max(eta.stim.D(sel));
+if dmin==dmax
+    text = sprintf('D1-Cre stim (%g ms)', 1000*dmin);
+else
+    text = sprintf('D1-Cre stim (%g-%g ms)', 1000*dmin, 1000*dmax);
+end
+ax = EphysUnit.plotETA(eta.stim, sel, xlim=[-0.2, 0.1], clim=[-1.5, 1.5], sortWindow=[0, 0.1], signWindow=[0, 0.1], sortThreshold=0.3, negativeSortThreshold=0.2, event='opto onset'); title(ax, text)
+
+clear sel dmin dmax ax text
+
+%% Find acute units for video analysis
+unitNames = eu(cat.isAcute).getName()';
+expNames = cellfun(@(x) strsplit(x, ' '), unitNames, UniformOutput=false);
+expNames = unique(cellfun(@(x) x{1}, expNames, UniformOutput=false));
+
+fprintf(1, 'Found %g sessions for video analysis:\n', length(expNames));
+cellfun(@(x) fprintf(1, '\t%s\n', x), expNames);
 
 
 %%
@@ -370,3 +613,10 @@ function ax = plotDoubleRaster(rd1, rd2, varargin)
         suptitle(rd(1).name);
     end
 end
+
+function info = getAnimalInfo(eu, ai, field)
+    i = find(strcmpi({ai.name}, eu.getAnimalName()));
+    assert(length(i) == 1, eu.getAnimalName())
+    info = ai(i).(field);
+end
+

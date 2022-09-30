@@ -382,7 +382,7 @@ classdef EphysUnit < handle
                             stats = obj(i).SpikeCountStats;
                     end
                     
-                    [xx, tt] = obj(i).getTrialAlignedData(data, window, trialType, allowedTrialDuration=[edges(iBin), edges(iBin+1)], alignTo=alignTo, resolution=resolution, includeITI=false);
+                    [xx, tt] = obj(i).getTrialAlignedData(data, window, trialType, allowedTrialDuration=[edges(iBin), edges(iBin+1)], alignTo=alignTo, resolution=resolution, includeInvalid=false);
 
                     if i == 1 && iBin == 1
                         T = tt;
@@ -423,22 +423,26 @@ classdef EphysUnit < handle
             %  stats - Nx1 struct('mean', 'sd'), mean spike rate and sd for each neuron
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
-            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim'}))
+            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
-            p.addParameter('minTrialDuration', -Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
+            p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
+            p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
+            p.addParameter('findSingleTrialDuration', 'off', @(x) ismember(x, {'off', 'min', 'max'}))
             p.addParameter('resolution', [], @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('normalize', 'none', @(x) isstruct(x) || isnumeric(x) || ismember(lower(x), {'none', 'iti', 'all'}))
             p.addParameter('alignTo', 'default', @(x) ismember(x, {'default', 'start', 'stop'}))
-            p.addParameter('includeITI', [], @islogical)
+            p.addParameter('includeInvalid', [], @islogical)
             p.parse(data, event, varargin{:})
             data = lower(p.Results.data);
             event = p.Results.event;
             window = p.Results.window;
             minTrialDuration = p.Results.minTrialDuration;
+            maxTrialDuration = p.Results.maxTrialDuration;
+            findSingleTrialDuration = p.Results.findSingleTrialDuration;
             resolution = p.Results.resolution;
             normalize = p.Results.normalize;
             alignTo = p.Results.alignTo;
-            includeITI = p.Results.includeITI;
+            includeInvalid = p.Results.includeInvalid;
             
             % Use default resolutions
             if isempty(resolution)
@@ -454,29 +458,30 @@ classdef EphysUnit < handle
             t = (edges(1:end-1) + edges(2:end)) / 2;
             X = zeros(length(obj), length(t));
             N = zeros(length(obj), 1);
+            D = zeros(length(obj), 1);
 
             tTic = tic();
             fprintf(1, 'Processing ETA for %i units...', length(obj))
             for i = 1:length(obj)
                 if strcmpi(alignTo, 'default') 
-                    if strcmpi(event, 'stim')
+                    if ismember(lower(event), {'stim', 'stimtrain', 'stimfirstpulse'})
                         alignTo = 'start';
                     else
                         alignTo = 'stop';
                     end
                 end
-                if isempty(includeITI)
-                    if strcmpi(event, 'stim')
-                        includeITI = true;
+                if isempty(includeInvalid)
+                    if strcmpi(event, 'stimtrain')
+                        includeInvalid = true;
                     else
-                        includeITI = false;
+                        includeInvalid = false;
                     end
                 end
 
-                [x, ~] = obj(i).getTrialAlignedData(data, window, event, alignTo=alignTo, allowedTrialDuration=[minTrialDuration, Inf], resolution=resolution, includeITI=includeITI);
+                [x, ~, d] = obj(i).getTrialAlignedData(data, window, event, alignTo=alignTo, allowedTrialDuration=[minTrialDuration, maxTrialDuration], findSingleTrialDuration=findSingleTrialDuration, resolution=resolution, includeInvalid=includeInvalid);
                 
                 if isempty(x)
-                    warning('EventTriggeredAverage cannot be calculated for Unit %i (%s), likely because trial count is zero.', i, obj(i).getName())
+                    % warning('EventTriggeredAverage cannot be calculated for Unit %i (%s), likely because trial count is zero.', i, obj(i).getName())
                     X(i, :) = NaN;
                     N(i) = 0;
                     continue
@@ -516,13 +521,17 @@ classdef EphysUnit < handle
                 % Write results
                 X(i, :) = x;
                 N(i) = n;
+                D(i) = d;
             end
             fprintf(1, 'Done (%.1f sec)\n', toc(tTic))
     
             if isnumeric(normalize)
-                eta = struct('X', X, 't', t, 'N', N, 'stats', stats);
+                eta = struct('X', X, 't', t, 'N', N, 'D', D, 'stats', stats);
             else
-                eta = struct('X', X, 't', t, 'N', N);
+                eta = struct('X', X, 't', t, 'N', N, 'D', D);
+            end
+
+            if ~strcmpi(findSingleTrialDuration, 'off')
             end
         end
 
@@ -605,26 +614,101 @@ classdef EphysUnit < handle
                 fprintf('Done and it only took %.2f sec. Easy.\n', toc(tTic));
             end
         end
+
+        function [r, lags, pairedIndices] = xcorr(obj, data, varargin)
+            %% [r, lags] = obj.XCORR(_), returns full cross correlation as a function of lag, for all pairs of objects in obj array.
+            p = inputParser();
+            p.addOptional('data', 'rate', @(x) ismember(x, {'count', 'rate'}));
+            p.addParameter('resolution', 0.001, @isnumeric);
+            p.addParameter('normalize', true, @islogical)
+            p.addParameter('maxlag', NaN, @isnumeric);
+            p.parse(data, varargin{:});
+            data = p.Results.data;
+            resolution = p.Results.resolution;
+            maxlag = p.Results.maxlag;
+
+            edges = min(arrayfun(@(obj) obj.SpikeTimes(1), obj)):resolution:max(arrayfun(@(obj) obj.SpikeTimes(end), obj));
+
+            assert(length(obj) > 1)
+            
+
+            % Calculate spike rates/counts for all objects in array (saves
+            % time when there are thousands of pairs)
+            X = zeros(length(obj), length(edges) - 1);
+            for i = 1:length(obj)
+                switch data
+                    case 'count'
+                        X(i, :) = obj(i).getSpikeCounts(edges);
+                    case 'rate'
+                        kernel = obj(i).SpikeRateKernel;
+                        width = kernel.params.width;
+                        if strcmpi(kernel.type, 'gaussian')
+                            sigma = kernel.params.sigma;
+                            X(i, :) = obj(i).getSpikeRates('gaussian', sigma, edges, kernelWidth=width);
+                        else
+                            lambda1 = kernel.params.lambda1;
+                            lambda2 = kernel.params.lambda2;
+                            X(i, :) = obj(i).getSpikeRates('exponential', lambda1, lambda2, edges, kernelWidth=width);
+                        end
+                end
+            end
+
+            % Optionally normalize (zscore) data before calculating
+            % xcorr, this helps get rid of the triagle shape in r vs.
+            % lag plots (due to zero padding for missing data?, so centering on zero hides this?).
+            if p.Results.normalize
+                X = normalize(X, 2, 'zscore', 'std');
+                scaleopt = 'normalized';
+            else
+                scaleopt = 'none';
+            end
+
+            % Calculate pair-wise xcorr for all units in obj array.
+            pairedIndices = nchoosek(1:length(obj), 2);
+            nPairs = size(pairedIndices, 1);
+            r = cell(nPairs, 1);
+            lags = cell(nPairs, 1);
+            for iPair = 1:nPairs
+                i = pairedIndices(iPair, 1);
+                j = pairedIndices(iPair, 2);
+    
+                if isinf(maxlag) || isnan(maxlag)
+                    [r{iPair}, lags{iPair}] = xcorr(X(i, :), X(j, :), scaleopt);
+                else
+                    [r{iPair}, lags{iPair}] = xcorr(X(i, :), X(j, :), maxlag/resolution, scaleopt);
+                end
+            end
+
+            r = cat(1, r{:});
+            lags = cat(1, lags{:});
+        end
     end
     
     % static methods
     methods (Static)
         function obj = load(varargin)
             p = inputParser();
-            p.addOptional('path', 'C:\SERVER\Units', @isfolder);
+            if ischar(varargin{1})
+                p.addOptional('path', 'C:\SERVER\Units', @isfolder);
+            elseif iscell(varargin{1})
+                p.addOptional('files', {}, @iscell);
+            end
             p.addParameter('waveforms', true, @islogical); % FALSE to cull waveforms after loading to save memory
             p.addParameter('spikecounts', true, @islogical); % FALSE to cull spikecounts after loading to save memory
             p.addParameter('spikerates', true, @islogical); % FALSE to cull spikerate after loading to save memory
             p.parse(varargin{:});
-            path = p.Results.path;
 
-            assert(isfolder(path));
-            files = dir(sprintf('%s\\*.mat', path));
+            if isfield(p.Results, 'path')
+                files = dir(sprintf('%s\\*.mat', p.Results.path));
+                files = arrayfun(@(x) sprintf('%s\\%s', x.folder, x.name), files, UniformOutput=false);
+            elseif isfield(p.Results, 'files')
+                files = p.Results.files;
+            end
             S(length(files)) = struct('eu', []);
             for i = 1:length(files)
                 tTic = tic();
                 fprintf(1, 'Reading unit %g/%g...', i, length(files));
-                S(i) = load(sprintf('%s\\%s', files(i).folder, files(i).name), 'eu');
+                S(i) = load(files{i}, 'eu');
                 if ~p.Results.waveforms
                     S(i).eu.Waveforms = [];
                     S(i).eu.WaveformTimestamps = [];
@@ -649,6 +733,7 @@ classdef EphysUnit < handle
             end
             p.addRequired('eta', @isstruct);
             p.addOptional('sel', [], @(x) isnumeric(x) || islogical(x))
+            p.addParameter('event', 'event', @ischar);
             p.addParameter('order', [], @isnumeric);
             p.addParameter('clim', [], @isnumeric)
             p.addParameter('xlim', [], @isnumeric)
@@ -725,7 +810,7 @@ classdef EphysUnit < handle
             if p.Results.hidecolorbar
                 h.Visible = 'off';
             end
-            xlabel(ax, 'Time relative to movement (s)')
+            xlabel(ax, sprintf('Time relative to %s (s)', p.Results.event))
             ylabel(ax, 'Unit')
             title(sprintf('Event-triggered average (%g units)', length(N)))
         end
@@ -1078,7 +1163,7 @@ classdef EphysUnit < handle
             t = single(t);
         end
 
-        function [xAligned, tAligned] = getTrialAlignedData(obj, varargin)
+        function [xAligned, tAligned, requestedDuration] = getTrialAlignedData(obj, varargin)
             assert(length(obj) == 1)
             p = inputParser();
             if isnumeric(varargin{1}) && isnumeric(varargin{2})
@@ -1090,11 +1175,13 @@ classdef EphysUnit < handle
                 useResampleMethod = false;
             end
             p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
-            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim'}))
+            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse'}))
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
             p.addParameter('resolution', 0.001, @(x) isnumeric(x) && x > 0)
-            p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) > x(1))
-            p.addParameter('includeITI', true, @islogical) % Whether to include unaligned ITI data for averaging. When alignTo='stop', pre-trial-start data is discarded. When alignTo='start', post-trial-end data is discarded.
+            p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) >= x(1))
+            p.addParameter('findSingleTrialDuration', 'off', @(x) ismember(x, {'off', 'min', 'max'})) % Used for opto, 'min' finds the shortest trial duration allowed by 'allowedTrialDuration', and only averages those trials.
+            p.addParameter('trialDurationError', 1e-3, @isnumeric) % Used for opto, error allowed when finding identical trial durations.
+            p.addParameter('includeInvalid', true, @islogical) % Whether to include unaligned ITI data for averaging. When alignTo='stop', pre-trial-start data is discarded. When alignTo='start', post-trial-end data is discarded. When 'stim', data after next opto-onset is discarded
             p.parse(varargin{:})
             if useResampleMethod
                 x = p.Results.x;
@@ -1107,12 +1194,62 @@ classdef EphysUnit < handle
             alignTo = lower(p.Results.alignTo);
             resolution = p.Results.resolution(1);
             allowedTrialDuration = p.Results.allowedTrialDuration(1:2);
-            includeITI = p.Results.includeITI;
+            includeInvalid = p.Results.includeInvalid;
+            err = p.Results.trialDurationError;
                         
             % Filter out trials with incorrect lengths
             trials = obj.getTrials(trialType);
-            durations = trials.duration();
-            trials = trials(durations >= allowedTrialDuration(1) & durations <= allowedTrialDuration(2));
+            if isempty(trials)
+                xAligned = [];
+                tAligned = [];
+                requestedDuration = [];
+                return
+            end
+            if ~strcmpi(trialType, 'stimfirstpulse')
+                iti = trials.iti();
+            else
+                % For stimfirstpulse (in train), use the iti between
+                % first and second pulse in train (rather that iti
+                % between first pulse in train and first pulse in next
+                % train
+                allTrials = obj.getTrials('stim', true);
+                itiAll = allTrials.iti();
+                startAll = [allTrials.Start];
+                startFirst = [trials.Start];
+
+                [match, index] = ismember(startFirst, startAll);
+
+                if ~all(match)
+                    warning('Not all stim pulses match stim trains. %s\n%s\n\t%s', num2str(index), num2str(match), num2str(startFirst(~match)))
+                    warning('%g trials excluded', nnz(~match))
+                    trials = trials(match);
+                    index = index(match);
+                end
+                iti = itiAll(index);
+            end
+
+            durations = round(trials.duration()./err)*err;
+            seltrials = durations >= allowedTrialDuration(1) & durations <= allowedTrialDuration(2);
+            trials = trials(seltrials);
+            durations = durations(seltrials);
+            switch p.Results.findSingleTrialDuration
+                case 'min'
+                    requestedDuration = allowedTrialDuration(1);
+                    if ~any(durations == requestedDuration) && any(durations > requestedDuration)
+                        requestedDuration = min(durations(durations > requestedDuration));
+                    end
+                    trials = trials(durations == requestedDuration);
+                    iti = iti(durations == requestedDuration);
+                case 'max'
+                    requestedDuration = allowedTrialDuration(2);
+                    if ~any(durations == requestedDuration) && any(durations < requestedDuration)
+                        requestedDuration = max(durations(durations < requestedDuration));
+                    end
+                    trials = trials(durations == requestedDuration);
+                    iti = iti(durations == requestedDuration);
+                otherwise
+                    requestedDuration = NaN;
+            end
             if isempty(trials)
                 xAligned = [];
                 tAligned = [];
@@ -1128,11 +1265,14 @@ classdef EphysUnit < handle
             end
 
             function sel = select(tt, iTrial)
-                if includeITI
+                if includeInvalid
                     sel = true(1, length(tt));
                 elseif strcmpi(alignTo, 'stop')
                     sel = tt >= -trials(iTrial).duration();
-                else % if strcmpi(alignTo, 'start')
+                % stim pulse: discard after next stim pulse onset
+                elseif ismember(trialType, {'stim', 'stimfirstpulse'})
+                    sel = tt <= trials(iTrial).duration() + iti(iTrial);
+                else % discard after trial end
                     sel = tt <= trials(iTrial).duration();
                 end
             end
@@ -1165,7 +1305,7 @@ classdef EphysUnit < handle
                             lambda1 = kernel.params.lambda1;
                             lambda2 = kernel.params.lambda2;
                             for iTrial = 1:length(trials)
-                                [xx, ~] = obj.getSpikeRates('gaussian', lambda1, lambda2, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
+                                [xx, ~] = obj.getSpikeRates('exponential', lambda1, lambda2, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
                                 sel = select(tAligned, iTrial);
                                 xAligned(iTrial, sel) = xx(sel);
                             end

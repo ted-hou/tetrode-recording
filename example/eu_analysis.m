@@ -313,10 +313,10 @@ hold(ax, 'off');
 
 
 %% Compare Cue-aligned ETA vs. Move-aligned ETA
-etaPress_moveAligned = eu(isSNr & hasPress & hasLick).getETA('count', 'press', [-4, 1], alignTo='stop', includeITI=false, minTrialDuration=minTrialLength, normalize=[-4, -2]);
-etaPress_cueAligned = eu(isSNr & hasPress & hasLick).getETA('count', 'press', [-1, 4], alignTo='start', includeITI=false, minTrialDuration=minTrialLength, normalize=etaPress_moveAligned.stats);
-etaLick_moveAligned = eu(isSNr & hasPress & hasLick).getETA('count', 'lick', [-4, 1], alignTo='stop', includeITI=false, minTrialDuration=minTrialLength, normalize=[-4, -2]);
-etaLick_cueAligned = eu(isSNr & hasPress & hasLick).getETA('count', 'lick', [-1, 4], alignTo='start', includeITI=false, minTrialDuration=minTrialLength, normalize=etaLick_moveAligned.stats);
+etaPress_moveAligned = eu(isSNr & hasPress & hasLick).getETA('count', 'press', [-4, 1], alignTo='stop', includeInvalid=false, minTrialDuration=minTrialLength, normalize=[-4, -2]);
+etaPress_cueAligned = eu(isSNr & hasPress & hasLick).getETA('count', 'press', [-1, 4], alignTo='start', includeInvalid=false, minTrialDuration=minTrialLength, normalize=etaPress_moveAligned.stats);
+etaLick_moveAligned = eu(isSNr & hasPress & hasLick).getETA('count', 'lick', [-4, 1], alignTo='stop', includeInvalid=false, minTrialDuration=minTrialLength, normalize=[-4, -2]);
+etaLick_cueAligned = eu(isSNr & hasPress & hasLick).getETA('count', 'lick', [-1, 4], alignTo='start', includeInvalid=false, minTrialDuration=minTrialLength, normalize=etaLick_moveAligned.stats);
 
 %% Plot
 close all
