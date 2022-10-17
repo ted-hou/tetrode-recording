@@ -85,12 +85,11 @@ ar.plotStimResponse(bsr, 'CLim', [-.5, .5]);
 
 %% Read multiple files, pool stats and plot in same map.
 plotD1(-3280)
-plotD1(-3280+350) 
+% plotD1(-3280+350) 
 % plotD1([])
 % 
-%%
 plotA2A(-3280)
-plotA2A([])
+% plotA2A([])
 
 %% Analyze movement responses 
 % (Step 1. Load Data)
@@ -208,6 +207,15 @@ AcuteRecording.drawLines(ax{3}(2), true, true)
 
 clear ax fig
 
+%% Read multiple files, pool stats and plot in same map.
+close all
+plotD1(-3280)
+% plotD1(-3280+350) 
+% plotD1([])
+% 
+plotA2A(-3280)
+% plotA2A([])
+
 %% TCA
 close all
 clear figs_D1 figs_A2A
@@ -324,8 +332,8 @@ function plotD1(ap, useSignedML)
         % ar(i).importProbeMap(sessionInfo(i).orientation, sessionInfo(i).ml, sessionInfo(i).dv, sessionInfo(i).ap);
         bsr{i} = ar(i).selectStimResponse('Light', crit(i).light, 'Duration', crit(i).duration);
         [stats{i}, conditions{i}] = ar(i).summarize(bsr{i}, 'peak', window);
-        ar(i).plotStimResponseMap(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25, 'UseSignedML', useSignedML);
-        print(sprintf('%s (%.2f AP).png', ar(i).getLabel, ap/1000), '-dpng');
+        % ar(i).plotStimResponseMap(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25, 'UseSignedML', useSignedML);
+        % print(sprintf('%s (%.2f AP).png', ar(i).getLabel, ap/1000), '-dpng');
     end
     ar.plotStimResponseMap(bsr, [0.25, 1], 0.25, 'peak', window, 0.25, 'HideFlatUnits', true, 'UseSignedML', useSignedML);
     print(sprintf('%s (%.2f AP).png', ar.getLabel, ap/1000), '-dpng');
@@ -358,11 +366,11 @@ function plotA2A(ap, useSignedML)
         % ar(i).importProbeMap(sessionInfo(i).orientation, sessionInfo(i).ml, sessionInfo(i).dv, sessionInfo(i).ap);
         bsr{i} = ar(i).selectStimResponse('Light', crit(i).light, 'Duration', crit(i).duration);
         [stats{i}, conditions{i}] = ar(i).summarize(bsr{i}, 'peak', window);
-        ar(i).plotStimResponseMap(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25, 'UseSignedML', useSignedML);
-        print(sprintf('%s (%.2f AP).png', ar(i).getLabel, ap/1000), '-dpng');
+%         ar(i).plotStimResponseMap(bsr{i}, [0.25, 1], 0.25, 'peak', window, 0.25, 'UseSignedML', useSignedML);
+%         print(sprintf('%s (%.2f AP).png', ar(i).getLabel, ap/1000), '-dpng');
     end
     ar.plotStimResponseMap(bsr, [0.25, 1], 0.25, 'peak', window, 0.25, 'HideFlatUnits', true, 'UseSignedML', useSignedML);
-    print(sprintf('%s (%.2f AP).png', ar.getLabel, ap/1000), '-dpng');
+%     print(sprintf('%s (%.2f AP).png', ar.getLabel, ap/1000), '-dpng');
 end
 
 function tr = readIntan(fdir)

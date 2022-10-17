@@ -60,7 +60,7 @@ classdef AcuteRecording < handle
         function save(obj, varargin)
             p = inputParser();
             p.addOptional('Prefix', 'ar_', @ischar)
-            p.addOptional('Path', obj.path, @ischar)
+            p.addOptional('Path', '', @ischar)
             p.parse(varargin{:})
             folder = sprintf('%s\\AcuteRecording', p.Results.Path);
             if ~isdir(folder)
@@ -563,6 +563,8 @@ classdef AcuteRecording < handle
             
             if isempty(IPulse)
                 warning('Requested conditions not found in experiment.')
+                unique(obj.stim.light)
+%                 groups = obj.groupByConditions(bsr(1));
             end
 %             fprintf(1, '%g trials selected with provided criteria.\n', length(IPulse))
         end
@@ -1041,7 +1043,7 @@ classdef AcuteRecording < handle
                 % Plot
                 nCols = max(1, floor(sqrt(nConditions)));
                 nRows = max(4, ceil(nConditions / nCols));
-                fig = figure('Units', 'normalized', 'Position', [0, 0, 0.4, 1]);
+                fig = figure('Units', 'normalized', 'Position', [0, 0, 0.2, 0.8], 'DefaultAxesFontSize', 12);
                 ax = gobjects(nConditions, 1);
                 methodLabel = method;
                 methodLabel(1) = upper(method(1));
@@ -1050,9 +1052,33 @@ classdef AcuteRecording < handle
                     iSubplot = sub2ind([nCols, nRows], j, nRows + 1 - i);
                     ax(iCond) = subplot(nRows, nCols, iSubplot);
                     h = AcuteRecording.plotMap(ax(iCond), pooledCoords{iCond}, pooledStats{iCond}, srange, threshold, pooledChannels{iCond}, methodLabel, 'UseSignedML', p.Results.UseSignedML, 'HideFlatUnits', p.Results.HideFlatUnits);
-                    title(ax(iCond), pooledConditions(iCond).label)
-                    axis(ax(iCond), 'equal')
-%                     xlim(ax(iCond), [0.9, 1.7])
+                    switch pooledConditions(iCond).mlRank
+                        case 1
+                            mlText = 'mStr';
+                        case 2
+                            mlText = 'lStr';
+                    end
+                    switch pooledConditions(iCond).dvRank
+                        case 4
+                            dvText = '-2.15';
+                        case 3
+                            dvText = '-2.81';
+                        case 2
+                            dvText = '-3.48';
+                        case 1
+                            dvText = '-4.15';
+                    end
+                    if pooledConditions(iCond).mlRank == 2 && pooledConditions(iCond).dvRank > 1
+                        xlabel(ax(iCond), "");
+                        ylabel(ax(iCond), "");
+                    end
+                    if pooledConditions(iCond).dvRank > 1
+                        xlabel(ax(iCond), "");
+                    end
+                    title(ax(iCond), sprintf('%s %s', mlText, dvText))
+                    axis(ax(iCond), 'image')
+                    xlim(ax(iCond), [0.9, 1.7])
+                    ylim(ax(iCond), [-4.8, -3.7])
                 end
                 
                 strain = unique({obj.strain});

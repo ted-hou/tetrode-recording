@@ -1,3 +1,27 @@
+
+%% Cull AR duplicate/multiunits from AR. Use eu as reference
+ar = AcuteRecording.load();
+SEL = cell(1, length(ar));
+for iAr = 1:length(ar)
+    bsr = ar(iAr).bsr;
+    found = false(1, length(bsr));
+    for iBsr = 1:length(bsr)
+        expName = bsr(iBsr).expName;
+        channel = bsr(iBsr).channel;
+        unit = bsr(iBsr).unit;
+        found(iBsr) = any(strcmpi(expName, {eu.ExpName}) & [eu.Channel] == channel & [eu.Unit] == unit);
+    end
+    ar(iAr).bsr = bsr(found);
+    ar(iAr).bmrPress = ar(iAr).bmrPress(found);
+    ar(iAr).bmrLick = ar(iAr).bmrLick(found);
+    ar(iAr).stats = ar(iAr).stats(found, :);
+    ar(iAr).statsPress = ar(iAr).statsPress(found, :);
+    ar(iAr).statsLick = ar(iAr).statsLick(found, :);
+    SEL{iAr} = found;
+end
+clear found
+
+
 %% Load
 clear
 % Load data if necessary

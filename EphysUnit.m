@@ -8,8 +8,8 @@ classdef EphysUnit < handle
         Waveforms = []
         WaveformTimestamps = []
         ExtendedWindow = []
-        EventTimes = struct('Cue', [], 'Press', [], 'Lick', [], 'StimOn', [], 'StimOff', [])
-        Trials = struct('Press', [], 'Lick', [], 'StimTrain', [], 'Stim', [])
+        EventTimes = struct('Cue', [], 'Press', [], 'Lick', [], 'StimOn', [], 'StimOff', [], 'LightOn', [], 'LightOff', [])
+        Trials = struct('Press', [], 'Lick', [], 'StimTrain', [], 'Stim', [], 'Light', [])
         SpikeCounts = uint16([])
         SpikeCountTimestamps = single([])
         SpikeRates = single([])
@@ -36,6 +36,8 @@ classdef EphysUnit < handle
             p.addParameter('readWaveforms', false, @islogical);
             p.addParameter('cullITI', false, @islogical);
             p.addParameter('extendedWindow', [-1, 1], @(x) isnumeric(x) && length(x) == 2)
+            p.addParameter('savepath', '', @ischar)
+            p.addParameter('whitelist', {}, @iscell) % If a list of unit names are provided, only these are created as EU objs.
             p.parse(varargin{:});
             extendedWindow = p.Results.extendedWindow;
             
@@ -54,7 +56,7 @@ classdef EphysUnit < handle
                     tr = TetrodeRecording.BatchLoadSimple(uniqueExpNames{iExp});
                     inExp = strcmpi({PETH.ExpName}, uniqueExpNames{iExp});
                     tTic = tic();
-                    fprintf(1, 'Processing %i units...\n', nnz(inExp))
+%                     fprintf(1, 'Processing %i units...\n', nnz(inExp))
                     for e = PETH(inExp)
                          try
                             obj(i).ExpName = uniqueExpNames{iExp};
@@ -82,7 +84,14 @@ classdef EphysUnit < handle
                             else
                                 obj(i).EventTimes.StimOn = [];
                                 obj(i).EventTimes.StimOff = [];
-                            end                                
+                            end
+                            if isfield(tr.DigitalEvents, 'LampOn')
+                                obj(i).EventTimes.LightOn = tr.DigitalEvents.LampOn;
+                                obj(i).EventTimes.LightOff = tr.DigitalEvents.LampOff;
+                            else
+                                obj(i).EventTimes.LightOn = [];
+                                obj(i).EventTimes.LightOff = [];
+                            end
     
                             if p.Results.cullITI
                                 obj(i).ExtendedWindow = extendedWindow;
@@ -95,6 +104,7 @@ classdef EphysUnit < handle
                             obj(i).Trials.Lick = obj(i).makeTrials('lick');
                             obj(i).Trials.Stim = obj(i).makeTrials('stim');
                             obj(i).Trials.StimTrain = obj(i).makeTrials('stimtrain');
+                            obj(i).Trials.Light = obj(i).makeTrials('light');
     
                             % Calculate spike rates and spike counts
                             resolution_sc = 0.1;
@@ -124,9 +134,11 @@ classdef EphysUnit < handle
                                 obj(i).SpikeRateTimestamps = tsr;
                             end
                             obj(i).SpikeRateKernel = kernel;
-    
-                            obj(i).save();
-                            
+        
+                            if ~isempty(p.Results.savepath)
+                                obj(i).save(p.Results.savepath);
+                            end
+                        
                             i = i + 1;
                         catch ME
                             warning('Error when processing unit %i (%s) - this one will be skipped.', i, e.ExpName)
@@ -134,7 +146,7 @@ classdef EphysUnit < handle
                             i = i + 1;
                         end			
                     end
-                    fprintf(1, 'Done (%.1f sec).\n', toc(tTic))
+%                     fprintf(1, 'Done (%.1f sec).\n', toc(tTic))
                     clear tr
                 end
                 fprintf(1, 'Done.\n')
@@ -158,6 +170,13 @@ classdef EphysUnit < handle
                             obj(i).Electrode = tr.SelectedChannels(obj(i).Channel);
                         end
                         obj(i).Unit = bsr.unit;
+
+                        if ~isempty(p.Results.whitelist) && ~ismember(obj(i).getName('_'), p.Results.whitelist)
+                            fprintf(1, 'Unit %g (%s) not found in whitelist, will not be processed/saved.\n', i, obj(i).getName('_'))
+                            i = i + 1;
+                            continue
+                        end
+
                         s = tr.Spikes(obj(i).Channel);
                         inCluster = s.Cluster.Classes == bsr.unit;
                         obj(i).SpikeTimes = s.Timestamps(inCluster);
@@ -175,7 +194,14 @@ classdef EphysUnit < handle
                         else
                             obj(i).EventTimes.StimOn = [];
                             obj(i).EventTimes.StimOff = [];
-                        end                                
+                        end
+                        if isfield(tr.DigitalEvents, 'LampOn')
+                            obj(i).EventTimes.LightOn = tr.DigitalEvents.LampOn;
+                            obj(i).EventTimes.LightOff = tr.DigitalEvents.LampOff;
+                        else
+                            obj(i).EventTimes.LightOn = [];
+                            obj(i).EventTimes.LightOff = [];
+                        end
 
                         if p.Results.cullITI
                             obj(i).ExtendedWindow = extendedWindow;
@@ -188,6 +214,7 @@ classdef EphysUnit < handle
                         obj(i).Trials.Lick = obj(i).makeTrials('lick');
                         obj(i).Trials.Stim = obj(i).makeTrials('stim');
                         obj(i).Trials.StimTrain = obj(i).makeTrials('stimtrain');
+                        obj(i).Trials.Light = obj(i).makeTrials('light');
 
                         % Calculate spike rates and spike counts
                         resolution_sc = 0.1;
@@ -218,7 +245,9 @@ classdef EphysUnit < handle
                         end
                         obj(i).SpikeRateKernel = kernel;
 
-                        obj(i).save();
+                        if ~isempty(p.Results.savepath)
+                            obj(i).save(p.Results.savepath);
+                        end
                         
                         i = i + 1;
                     catch ME
@@ -274,7 +303,7 @@ classdef EphysUnit < handle
 
 		function name = getName(obj, varargin)
             p = inputParser();
-            addOptional(p, 'sep', ' ', @ischar);
+            addOptional(p, 'sep', '_', @ischar);
             parse(p, varargin{:});
             sep = p.Results.sep;
             
@@ -291,7 +320,7 @@ classdef EphysUnit < handle
         
         function trials = getTrials(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse'})));
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick'})));
             p.addOptional('sorted', true, @islogical);
             p.parse(trialType, varargin{:});
             trialType = p.Results.trialType;
@@ -317,6 +346,10 @@ classdef EphysUnit < handle
                             pulses = obj.Trials.Stim(:);
                             trials{itt} = Trial([trains.Start], [pulses.Stop], 'first');
                             trials{itt} = trials{itt}(:);
+                        case 'light'
+                            trials{itt} = obj.Trials.Light(:);
+                        case 'anylick'
+                            trials{itt} = Trial(obj.EventTimes.Lick-0.001, obj.EventTimes.Lick);
                     end
                 end
                 trials = cat(1, trials{:});
@@ -346,6 +379,7 @@ classdef EphysUnit < handle
             p.addParameter('window', [], @(x) isnumeric(x) && ismember(length(x), [0, 2]))
             p.addParameter('resolution', 0.001, @(x) isnumeric(x) && x > 0)
             p.addParameter('normalize', false, @islogical)
+            p.addParameter('correction', [], @isnumeric)
             p.parse(data, varargin{:})
             data = lower(p.Results.data);
             edges = p.Results.edges;
@@ -382,7 +416,7 @@ classdef EphysUnit < handle
                             stats = obj(i).SpikeCountStats;
                     end
                     
-                    [xx, tt] = obj(i).getTrialAlignedData(data, window, trialType, allowedTrialDuration=[edges(iBin), edges(iBin+1)], alignTo=alignTo, resolution=resolution, includeInvalid=false);
+                    [xx, tt] = obj(i).getTrialAlignedData(data, window, trialType, allowedTrialDuration=[edges(iBin), edges(iBin+1)], alignTo=alignTo, resolution=resolution, includeInvalid=false, correction = p.Results.correction);
 
                     if i == 1 && iBin == 1
                         T = tt;
@@ -423,7 +457,7 @@ classdef EphysUnit < handle
             %  stats - Nx1 struct('mean', 'sd'), mean spike rate and sd for each neuron
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
-            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse'}))
+            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -432,6 +466,8 @@ classdef EphysUnit < handle
             p.addParameter('normalize', 'none', @(x) isstruct(x) || isnumeric(x) || ismember(lower(x), {'none', 'iti', 'all'}))
             p.addParameter('alignTo', 'default', @(x) ismember(x, {'default', 'start', 'stop'}))
             p.addParameter('includeInvalid', [], @islogical)
+            p.addParameter('correction', [], @isnumeric)
+            p.addParameter('trials', [], @(x) isempty(x) || isa(x, 'Trial'))
             p.parse(data, event, varargin{:})
             data = lower(p.Results.data);
             event = p.Results.event;
@@ -443,6 +479,7 @@ classdef EphysUnit < handle
             normalize = p.Results.normalize;
             alignTo = p.Results.alignTo;
             includeInvalid = p.Results.includeInvalid;
+            correction = p.Results.correction;
             
             % Use default resolutions
             if isempty(resolution)
@@ -471,14 +508,15 @@ classdef EphysUnit < handle
                     end
                 end
                 if isempty(includeInvalid)
-                    if strcmpi(event, 'stimtrain')
+                    if ismember(event, {'stimtrain', 'anylick'})
                         includeInvalid = true;
                     else
                         includeInvalid = false;
                     end
                 end
 
-                [x, ~, d] = obj(i).getTrialAlignedData(data, window, event, alignTo=alignTo, allowedTrialDuration=[minTrialDuration, maxTrialDuration], findSingleTrialDuration=findSingleTrialDuration, resolution=resolution, includeInvalid=includeInvalid);
+                [x, ~, d] = obj(i).getTrialAlignedData(data, window, event, trials=p.Results.trials, alignTo=alignTo, allowedTrialDuration=[minTrialDuration, maxTrialDuration], ...
+                    findSingleTrialDuration=findSingleTrialDuration, resolution=resolution, includeInvalid=includeInvalid, correction=correction);
                 
                 if isempty(x)
                     % warning('EventTriggeredAverage cannot be calculated for Unit %i (%s), likely because trial count is zero.', i, obj(i).getName())
@@ -522,6 +560,7 @@ classdef EphysUnit < handle
                 X(i, :) = x;
                 N(i) = n;
                 D(i) = d;
+                fprintf(1, ' %g', i)
             end
             fprintf(1, 'Done (%.1f sec)\n', toc(tTic))
     
@@ -540,12 +579,17 @@ classdef EphysUnit < handle
             p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse'})))
             p.addOptional('window', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
+            p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
+            p.addParameter('durErr', 1e-3, @isnumeric)
             p.addParameter('alignTo', 'default', @(x) ismember(x, {'default', 'start', 'stop'}))
             p.addParameter('sort', true, @islogical);
+            p.addParameter('trials', [], @(x) isa(x, 'Trial'))
             p.parse(trialType, varargin{:})
             trialType = p.Results.trialType;
             window = p.Results.window;
             minTrialDuration = p.Results.minTrialDuration;
+            maxTrialDuration = p.Results.maxTrialDuration;
+            durErr = p.Results.durErr;
             alignTo = p.Results.alignTo;
 
             if strcmp(alignTo, 'default')
@@ -558,8 +602,13 @@ classdef EphysUnit < handle
             end
 
             if length(obj) == 1
-                trials = obj.getTrials(trialType, sorted=true);
-                trials = trials(trials.duration() >= minTrialDuration);
+                if isempty(p.Results.trials)
+                    trials = obj.getTrials(trialType, sorted=true);
+                else
+                    trials = p.Results.trials;
+                end
+                dur = round(trials.duration ./ durErr) * durErr;
+                trials = trials(dur >= minTrialDuration & dur <= maxTrialDuration);
                 [~, t, I] = trials.inTrial(obj.SpikeTimes, window);
                 switch alignTo
                     case 'start'
@@ -568,7 +617,7 @@ classdef EphysUnit < handle
                         tRef = [trials.Stop];
                 end
                 t = t - tRef(I);
-                dur = trials.duration;
+                dur = round(trials.duration ./ durErr) * durErr;
 
                 if ~strcmpi(trialType, 'stimfirstpulse')
                     iti = trials.iti();
@@ -605,7 +654,9 @@ classdef EphysUnit < handle
                 fprintf(1, 'Calculating raster data for %g units...\n', length(obj));
                 for i = 1:length(obj)
                     try
-                        rd(i) = obj(i).getRasterData(trialType, window, minTrialDuration=minTrialDuration, alignTo=alignTo, sort=p.Results.sort);
+                        rd(i) = obj(i).getRasterData(trialType, window, ...
+                            minTrialDuration=minTrialDuration, alignTo=alignTo, sort=p.Results.sort, ...
+                            maxTrialDuration=maxTrialDuration, durErr=durErr);
                     catch ME
                         warning('\tError when processing unit %g', i)
                         warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
@@ -742,6 +793,7 @@ classdef EphysUnit < handle
             p.addParameter('sortThreshold', 1, @isnumeric)
             p.addParameter('negativeSortThreshold', [], @isnumeric)
             p.addParameter('hidecolorbar', false, @islogical)
+            p.addParameter('timeUnit', 's', @(x) ismember('s', 'ms'))
             p.parse(varargin{:})
             sortWindow = p.Results.sortWindow;
             signWindow = p.Results.signWindow;
@@ -753,7 +805,7 @@ classdef EphysUnit < handle
             if isfield(p.Results, 'ax')
                 ax = p.Results.ax;
             else
-                f = figure('Units', 'normalized', 'OuterPosition', [0, 0, 0.2, 1], 'DefaultAxesFontSize', 14);
+                f = figure('Units', 'normalized', 'OuterPosition', [0, 0, 0.3, 1], 'DefaultAxesFontSize', 12);
                 ax = axes(f);
             end
             X = p.Results.eta.X;
@@ -773,7 +825,7 @@ classdef EphysUnit < handle
                 assert(size(etaSign, 2) == 1);
                 isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
                 [~, Ilate] = max(isAboveThreshold, [], 2, 'omitnan');
-                [~, order] = sort(Ilate .* etaSign, 'descend');
+                [~, order] = sort(Ilate .* etaSign + 0.1*abs(meta), 'descend');
                 meta = meta(order);
                 latency = tSort(Ilate);
                 latency = latency(order);
@@ -797,7 +849,13 @@ classdef EphysUnit < handle
                 end
             end
             
-            imagesc(ax, t, 1:length(N), X(order, :))
+            switch p.Results.timeUnit
+                case 's'
+                    timescale = 1;
+                case 'ms'
+                    timescale = 1000;
+            end
+            imagesc(ax, t.*timescale, 1:length(N), X(order, :))
             if ~isempty(p.Results.clim)
                 clim(ax, p.Results.clim);
             end
@@ -810,7 +868,7 @@ classdef EphysUnit < handle
             if p.Results.hidecolorbar
                 h.Visible = 'off';
             end
-            xlabel(ax, sprintf('Time relative to %s (s)', p.Results.event))
+            xlabel(ax, sprintf('Time from %s (%s)', p.Results.event, p.Results.timeUnit))
             ylabel(ax, 'Unit')
             title(sprintf('Event-triggered average (%g units)', length(N)))
         end
@@ -872,6 +930,8 @@ classdef EphysUnit < handle
             end
             p.addRequired('S', @isstruct)
             p.addOptional('xlim', [0, 11], @(x) isnumeric(x) && length(x) == 2 && x(2) > x(1))
+            p.addParameter('nsigmas', 1, @isnumeric)
+            p.addParameter('sem', false, @islogical)
             p.parse(varargin{:})
             if isfield(p.Results, 'ax')
                 ax = p.Results.ax;
@@ -885,23 +945,29 @@ classdef EphysUnit < handle
             S = p.Results.S.S;
             B = p.Results.S.B;
             
+            if p.Results.sem
+                S = S./sqrt(N);
+            end
+
             hold(ax, 'on')
             colors = 'rgcbmkrgcbmkrgcbmkrgcbmkrgcbmkrgcbmk';
             for iBin = 1:length(B)
                 bin = B(iBin, :);
-                t = T + bin(2);
-                high = X(iBin, :) + 0.25*S(iBin, :); 
-                low = X(iBin, :) - 0.25*S(iBin, :);
-                selS = ~isnan(high);
-                h(iBin) = plot(ax, t, X(iBin, :), colors(iBin), 'DisplayName', sprintf('[%.1fs, %.1fs], %i trials', bin(1), bin(2), N(iBin)));
-                patch(ax, [t(selS), flip(t(selS))], [low(selS), flip(high(selS))], colors(iBin), 'FaceAlpha', 0.1, 'EdgeColor', 'none')
-                yl = ax.YLim;
-                plot(ax, [bin(2), bin(2)], yl, '--', 'Color', h(iBin).Color)
-                ylim(ax, yl);
+                t = T;% + bin(2);
+                h(iBin) = plot(ax, t, X(iBin, :), colors(iBin), 'LineWidth', 2, 'DisplayName', sprintf('[%.1fs, %.1fs], %i trials', bin(1), bin(2), N(iBin)));
+                if p.Results.nsigmas > 0
+                    high = X(iBin, :) + p.Results.nsigmas*S(iBin, :); 
+                    low = X(iBin, :) - p.Results.nsigmas*S(iBin, :);
+                    selS = ~isnan(high);
+                    patch(ax, [t(selS), flip(t(selS))], [low(selS), flip(high(selS))], colors(iBin), 'FaceAlpha', 0.1, 'EdgeColor', 'none')
+                end
+                %yl = ax.YLim;
+                % plot(ax, [bin(2), bin(2)], yl, '--', 'Color', h(iBin).Color)
+                %ylim(ax, yl);
             end
             hold(ax, 'off')
             xlim(ax, p.Results.xlim)
-            legend(ax, h)
+            legend(ax, h, Location='west')
         end
         
         function ax = plotRaster(varargin)
@@ -912,16 +978,20 @@ classdef EphysUnit < handle
             p.addRequired('rd', @isstruct);
             p.addParameter('xlim', [-6, 1], @(x) isnumeric(x) && length(x) == 2 && x(2) > x(1));
             p.addParameter('iti', false, @islogical);
+            p.addParameter('timeUnit', 's', @(x) ismember(x, {'s', 'ms'}))
+            p.addParameter('maxTrials', Inf, @isnumeric)
             p.parse(varargin{:})
             rd = p.Results.rd;
             stim = ismember(lower(rd.trialType), {'stim', 'stimtrain', 'stimfirstpulse'});
+            timeUnit = p.Results.timeUnit;
+            maxTrials = p.Results.maxTrials;
 
             assert(length(rd) == 1);
 
             if isfield(p.Results, 'ax')
                 ax = p.Results.ax;
             else
-                ax = axes(figure(Units='normalized', Position=[0.1, 0.1, 0.67, 0.5]));
+                ax = axes(figure(Units='normalized', Position=[0.1, 0.1, 0.67, 0.5], DefaultAxesFontSize=18));
             end
 
             switch rd.alignTo
@@ -950,22 +1020,29 @@ classdef EphysUnit < handle
                 case 'stop'
                     tEvent = -rd.duration;
             end
-            if ~stim
-                h = gobjects(2, 1);
-                h(1) = scatter(ax, rd.t, rd.I, 5, 'k', 'filled', DisplayName='Spikes');
-                h(2) = scatter(ax, tEvent, 1:nTrials, 15, 'r', 'filled', DisplayName=eventName);
+            if strcmpi(timeUnit, 'ms')
+                timescale = 1000;
             else
-                h = gobjects(3, 1);
-                h(1) = scatter(ax, rd.t, rd.I, 5, 'k', 'filled', DisplayName='Spikes');
-                h(2) = plot(ax, [0, 0], [0, nTrials+1], 'b', DisplayName='Opto On');
+                timescale = 1;
+            end
+            if ~stim
+                ax.Parent.Position(4) = 0.5*nTrials/200;
+                h = gobjects(2, 1);
+                h(1) = scatter(ax, rd.t .* timescale, rd.I, 5, 'k', 'filled', DisplayName='spikes');
+                h(2) = scatter(ax, tEvent .* timescale, 1:nTrials, 15, 'r', 'filled', DisplayName=eventName);
+            else
+                h = gobjects(2, 1);
+                h(1) = scatter(ax, rd.t * timescale, rd.I, 5, 'k', 'filled', DisplayName='spikes');
                 uniqueDurations = unique(rd.duration);
                 if length(uniqueDurations) == 1
-                    h(3) = plot(ax, [uniqueDurations, uniqueDurations], [0, nTrials+1], 'r', DisplayName='Opto Off');
+                    h(2) = patch(ax, [0, uniqueDurations, uniqueDurations, 0].*timescale, [0, 0, nTrials+1, nTrials+1], 'b', FaceAlpha=0.25, EdgeAlpha=0, DisplayName='opto');
+%                     h(3) = plot(ax, [uniqueDurations, uniqueDurations] .* timescale, [0, nTrials+1], 'r', DisplayName='opto off');
                 else
-                    h(3) = scatter(ax, tEvent, 1:nTrials, 5, 'r', 'filled', DisplayName='Opto Off');
+                    h(2) = plot(ax, [0, 0], [0, nTrials+1], 'b', DisplayName='opto on');
+                    h(3) = scatter(ax, tEvent .* timescale, 1:nTrials, 5, 'r', 'filled', DisplayName='opto off');
                 end
                 if p.Results.iti
-                    h(4) = scatter(ax, tEvent + rd.iti, 1:nTrials, 5, 'g', 'filled', DisplayName='ITI End');
+                    h(4) = scatter(ax, (tEvent + rd.iti) .* timescale, 1:nTrials, 5, 'g', 'filled', DisplayName='ITI end');
                 end
             end
 
@@ -974,8 +1051,12 @@ classdef EphysUnit < handle
             hold(ax, 'off')
             ax.YAxis.Direction = 'reverse';
             xlim(ax, p.Results.xlim);
-            ylim(ax, [min(rd.I) - 1, max(rd.I) + 1]);
-            xlabel(ax, sprintf('Time relative to %s (s)', refName))
+            if nTrials <= maxTrials
+                ylim(ax, [min(rd.I) - 1, max(rd.I) + 1]);
+            else
+                ylim(ax, [min(rd.I) - 1, maxTrials + 1]);
+            end
+            xlabel(ax, sprintf('Time from %s (%s)', refName, timeUnit))
             ylabel(ax, 'Trial')
             title(ax, sprintf('Spike raster (%s)', rd.name), Interpreter="none");
             legend(ax, h, Location='northwest');
@@ -984,7 +1065,7 @@ classdef EphysUnit < handle
     end
 
     % private methods
-    methods (Access = {})
+    methods % (Access = {})
         function trials = makeTrials(obj, trialType)
             if length(obj) == 1
                 switch lower(trialType)
@@ -998,6 +1079,9 @@ classdef EphysUnit < handle
                         cueToTrainOn = Trial(obj.EventTimes.Cue, obj.EventTimes.StimOn, 'first');
                         cueToTrainOff = Trial(obj.EventTimes.Cue, obj.EventTimes.StimOff, 'last');
                         trials = Trial([cueToTrainOn.Stop], [cueToTrainOff.Stop]);
+                    case 'light'
+                        trials = Trial(obj.EventTimes.LightOn, obj.EventTimes.LightOff, 'first');
+
                 end
             else
                 trials = cell(length(obj), 1);
@@ -1116,7 +1200,7 @@ classdef EphysUnit < handle
                 resolution = p.Results.edgesOrResolution;
                 edges = [];
             else
-                edges = p.Results.edgesOrResolution;
+                edges = p.Results.edgesOrResolution(:)';
                 assert(all(diff(edges) > 0), '''edges'' must be monotonic increasing.')
                 assert(all(single(diff(edges)) == single(edges(2) - edges(1))), '''edges'' must have equal distance between neighboring elements.')
                 resolution = edges(2) - edges(1);
@@ -1175,13 +1259,15 @@ classdef EphysUnit < handle
                 useResampleMethod = false;
             end
             p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
-            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse'}))
+            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick'}))
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
             p.addParameter('resolution', 0.001, @(x) isnumeric(x) && x > 0)
             p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) >= x(1))
             p.addParameter('findSingleTrialDuration', 'off', @(x) ismember(x, {'off', 'min', 'max'})) % Used for opto, 'min' finds the shortest trial duration allowed by 'allowedTrialDuration', and only averages those trials.
             p.addParameter('trialDurationError', 1e-3, @isnumeric) % Used for opto, error allowed when finding identical trial durations.
             p.addParameter('includeInvalid', true, @islogical) % Whether to include unaligned ITI data for averaging. When alignTo='stop', pre-trial-start data is discarded. When alignTo='start', post-trial-end data is discarded. When 'stim', data after next opto-onset is discarded
+            p.addParameter('correction', [], @isnumeric)
+            p.addParameter('trials', [], @(x) isempty(x) || isa(x, 'Trial'))
             p.parse(varargin{:})
             if useResampleMethod
                 x = p.Results.x;
@@ -1196,14 +1282,22 @@ classdef EphysUnit < handle
             allowedTrialDuration = p.Results.allowedTrialDuration(1:2);
             includeInvalid = p.Results.includeInvalid;
             err = p.Results.trialDurationError;
+            correction = p.Results.correction;
                         
             % Filter out trials with incorrect lengths
-            trials = obj.getTrials(trialType);
+            if isempty(p.Results.trials)
+                trials = obj.getTrials(trialType);
+            else
+                trials = p.Results.trials;
+            end
             if isempty(trials)
                 xAligned = [];
                 tAligned = [];
                 requestedDuration = [];
                 return
+            end
+            if ~isempty(correction)
+                trials = Trial([trials.Start], [trials.Stop] + correction);
             end
             if ~strcmpi(trialType, 'stimfirstpulse')
                 iti = trials.iti();
