@@ -1,4 +1,40 @@
 
+%% Apply time correction to eu only once
+% for iExp = 1:length(exp)
+%     trials = exp(iExp).eu(1).getTrials('press');
+%     newTrials = Trial([trials.Start], [trials.Stop] + sto.press{iExp});
+%     for iEu = 1:length(exp(iExp).eu)
+%         exp(iExp).eu(iEu).Trials.PressCorrected = newTrials;
+%         exp(iExp).eu(iEu).Trials.PressOriginal = trials;
+%         exp(iExp).eu(iEu).Trials.Press = newTrials;
+%     end
+% end
+% eu = [exp.eu];
+% eu = eu(:)';
+% disp('CORRECTION APPLIED');
+% corrApplied = true;
+% 
+% %% 
+% % Lick/Press responses
+% eta.pressCorrected = eu.getETA('count', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm);
+% meta.pressCorrected = transpose(mean(eta.pressCorrected.X(:, eta.pressCorrected.t >= p.metaWindow(1) & eta.pressCorrected.t <= p.metaWindow(2)), 2, 'omitnan'));
+% eta.lickCorrected = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=2, normalize=p.etaNorm);
+% meta.lickCorrected = transpose(mean(eta.lickCorrected.X(:, eta.lickCorrected.t >= p.metaWindow(1) & eta.lickCorrected.t <= p.metaWindow(2)), 2, 'omitnan'));
+% 
+% eta.pressRawCorrected = eu.getETA('count', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize='none');
+% meta.pressRawCorrected = transpose(mean(eta.pressRawCorrected.X(:, eta.pressRawCorrected.t >= p.metaWindow(1) & eta.pressRawCorrected.t <= p.metaWindow(2)), 2, 'omitnan'));
+% 
+% %% Reverse apply previous step
+% for iExp = 1:length(exp)
+%     for iEu = 1:length(exp(iExp).eu)
+%         exp(iExp).eu(iEu).Trials.Press = exp(iExp).eu(iEu).Trials.PressOriginal;
+%     end
+% end
+% eu = [exp.eu];
+% eu = eu(:)';
+% disp('CORRECTION Removed');
+% corrApplied = false;
+
 
 %% 4.1 Single unit raster for stim responses (first pulse in each train)
 % clear rdStim
@@ -247,3 +283,11 @@ for iAr = 1:length(ar)
     SEL{iAr} = found;
 end
 clear found
+
+%% Find acute units for video analysis
+unitNames = eu(c.isAcute).getName()';
+expNames = cellfun(@(x) strsplit(x, ' '), unitNames, UniformOutput=false);
+expNames = unique(cellfun(@(x) x{1}, expNames, UniformOutput=false));
+
+fprintf(1, 'Found %g sessions for video analysis:\n', length(expNames));
+cellfun(@(x) fprintf(1, '\t%s\n', x), expNames);
