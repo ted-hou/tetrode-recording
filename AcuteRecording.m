@@ -535,10 +535,10 @@ classdef AcuteRecording < handle
             
             sel = true(size(obj.stim.tOn));
             if ~isempty(crit.light)
-                sel = sel & ismember(obj.stim.light, crit.light);
+                sel = sel & ismember(round(1000*obj.stim.light), round(1000*crit.light));
             end
             if ~isempty(crit.duration)
-                sel = sel & ismember(obj.stim.duration, crit.duration);
+                sel = sel & ismember(round(1000*obj.stim.duration), round(1000*crit.duration));
             end
             if ~isempty(crit.mlRank)
                 sel = sel & ismember(obj.stim.mlRank, crit.mlRank);
@@ -561,11 +561,11 @@ classdef AcuteRecording < handle
                 bsr(i).IPulse = IPulse;
             end
             
-            if isempty(IPulse)
-                warning('Requested conditions not found in experiment.')
-                unique(obj.stim.light)
-%                 groups = obj.groupByConditions(bsr(1));
-            end
+%             if isempty(IPulse) && length(crit.light) > 1
+%                 warning('Requested conditions not found in experiment.')
+%                 selCond = [obj.conditions.mlRank] == crit.mlRank & [obj.conditions.dvRank] == crit.dvRank;
+%                 availableConditions = {obj.conditions(selCond).label}'
+%             end
 %             fprintf(1, '%g trials selected with provided criteria.\n', length(IPulse))
         end
 
@@ -901,6 +901,8 @@ classdef AcuteRecording < handle
             p.addOptional('Modes', {'line', 'heatmap'}, @(x) all(ismember(lower(x), {'line', 'heatmap', 'staggeredline'})));
             p.addParameter('HeatmapCLim', [], @isnumeric);
             p.addParameter('Print', false, @islogical);
+            p.addParameter('Position', [0, 0.1, 0.9, 0.9], @isnumeric)
+            p.addParameter('Units', [], @isnumeric)
             p.parse(light, duration, varargin{:});
             light = p.Results.Light;
             duration = p.Results.Duration;
@@ -908,6 +910,7 @@ classdef AcuteRecording < handle
             if ~iscell(modes)
                 modes = {modes};
             end
+            units = p.Results.Units;
 
             [msr, t, groups] = obj.getStimResponse(light, duration, 'none', 'Normalized', false);
             [mnsr, ~, ~] = obj.getStimResponse(light, duration, 'none', 'Normalized', true);
@@ -915,7 +918,7 @@ classdef AcuteRecording < handle
             [nUnits, nTimes, nGroups] = size(msr);
             bsr = [obj.bsr];
             channels = [bsr.channel];
-            units = [bsr.unit];
+            channelUnits = [bsr.unit];
             expName = {bsr.expName};
 
             nPlots = length(modes);
@@ -923,9 +926,14 @@ classdef AcuteRecording < handle
             figs = gobjects(nUnits, 1);
             axs = gobjects(nUnits, nPlots);
 
-            for iUnit = 1:nUnits
-                label = sprintf('%s Chn%g Unit %g', expName{iUnit}, channels(iUnit), units(iUnit));
-                figs(iUnit) = figure('Units', 'normalized', 'OuterPosition', [0, 0.1, 0.9, 0.9], 'Name', label);
+            if isempty(units)
+                units = 1:nUnits;
+            else
+                units = units(:)';
+            end
+            for iUnit = units
+                label = sprintf('%s Chn%g Unit %g', expName{iUnit}, channels(iUnit), channelUnits(iUnit));
+                figs(iUnit) = figure('Units', 'normalized', 'OuterPosition', p.Results.Position, 'Name', label, 'DefaultAxesFontSize', 10);
                 for iPlot = 1:nPlots
                     axs(iUnit, iPlot) = subplot(nPlots, 1, iPlot);
                     ax = axs(iUnit, iPlot);
@@ -952,8 +960,9 @@ classdef AcuteRecording < handle
                         case 'heatmap'
                             imagesc(ax, t * 1000, 1:nGroups, transpose(squeeze(mnsr(iUnit, :, :))))
                             colormap(ax, 'jet');
-                            cb = colorbar(ax);
+                            cb = colorbar(ax, Location='southoutside');
                             cb.Label.String = 'Normalized \DeltaSpike Rate (a.u.)';
+                            cb.Label.FontSize = 10;
                             if ~isempty(p.Results.HeatmapCLim)
                                 ax.CLim = p.Results.HeatmapCLim;
                             end
@@ -965,7 +974,7 @@ classdef AcuteRecording < handle
                     end
                     hold(ax, 'off')
                 end
-                suptitle(label)
+%                 suptitle(label)
                 if p.Results.Print
                     print(figs(iUnit), label, '-djpeg')
                     close(figs(iUnit))

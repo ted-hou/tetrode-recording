@@ -287,7 +287,7 @@ ax(2).Legend.Visible = false;
 
 
 %% 4.2 ISI analysis to find latencies
-clear isi rdStim
+clear isi rdStim rdStimSpatial
 
 if ~exist('ar')
     ar = AcuteRecording.load('C:\SERVER\Acute\AcuteRecording');
@@ -299,8 +299,10 @@ c.exclude = ...
     (strcmpi('desmond26_20220531', {eu.ExpName})  & [eu.Channel] == 13 & [eu.Unit] == 1) | ...
     (strcmpi('daisy16_20220502', {eu.ExpName})  & [eu.Channel] == 76 & [eu.Unit] == 1);% No spikes in DLS stim
 
-xl = [-.2, .1]; % Extend left by an extra 100ms to get accurate ISI curves. 
+xl = [-.2, .2]; % Extend left by an extra 100ms to get accurate ISI curves. 
 
+rdStim(length(eu)) = struct('name', [], 'trialType', [], 'alignTo', [], 't', [], 'I', [], 'duration', [], 'iti', []);
+rdStimSpatial(2, 4, length(eu)) = struct('name', [], 'trialType', [], 'alignTo', [], 't', [], 'I', [], 'duration', [], 'iti', []);
 for iEu = find(c.hasAnyStimTrials & (c.isAi80 | c.isA2A) & ~c.exclude)
     % Attempt to select specific galvo trials to simplify conditions
     iAr = find(strcmpi(eu(iEu).ExpName, {ar.expName}));
@@ -311,12 +313,22 @@ for iEu = find(c.hasAnyStimTrials & (c.isAi80 | c.isA2A) & ~c.exclude)
         iBsr = find([ar(iAr).bsr.channel] == eu(iEu).Channel & [ar(iAr).bsr.unit] == eu(iEu).Unit);
         [~, IPulse] = ar(iAr).selectStimResponse(Light=2, Duration=0.01, MLRank=2, DVRank=3);
         trials = Trial(ar(iAr).stim.tOn(IPulse), ar(iAr).stim.tOff(IPulse));
-        rdStim(iEu) = eu(iEu).getRasterData('stim', window=xl, ...
-            minTrialDuration=0.01, maxTrialDuration=0.01, sort=false, alignTo='start', trials=trials);
+        rdStim(iEu) = eu(iEu).getRasterData('stim', window=xl, sort=false, alignTo='start', trials=trials, minTrialDuration=0.01, maxTrialDuration=0.01);
+
+        for iML = 1:2
+            for iDV = 1:4
+                [~, IPulse] = ar(iAr).selectStimResponse(Light=[0.28, 0.4, 0.5], Duration=0.01, MLRank=iML, DVRank=iDV);
+                trials = Trial(ar(iAr).stim.tOn(IPulse), ar(iAr).stim.tOff(IPulse));
+%                 fprintf(1, '%d trials at ML=%d, DV=%d.\n', length(trials), iML, iDV)
+                rdStimSpatial(iML, iDV, iEu) = eu(iEu).getRasterData('stim', window=xl, sort=false, alignTo='start', trials=trials, minTrialDuration=0.01, maxTrialDuration=0.01);
+            end
+        end
     end
 end
 
 c.hasStim = arrayfun(@(rd) ~isempty(rd.I), rdStim);
+c.hasStimSpatial = false(2, 4, length(eu));
+c.hasStimSpatial = arrayfun(@(rd) ~isempty(rd.I), rdStimSpatial);
 
 % D1 version (100ms pulses, 100ms ITI)
 xlD1 = [-.2, .1]; % Extend left by an extra 100ms to get accurate ISI curves. 
@@ -335,7 +347,7 @@ warning('off')
 close all
 clear isi sel
 sel = c.hasStim;
-isi(sel) = getISILatencies(rdStim(sel), xlim=[-100, 100], peakThreshold=0.75, posMultiplier=1, minProminence=2, onsetThreshold=0.25, ...
+isi(sel) = getISILatencies(rdStim(sel), xlim=[-200, 200], peakThreshold=0.75, posMultiplier=1, minProminence=2, onsetThreshold=0.25, ...
     showPlots=false, savePlots=false, maxTrials=Inf);
 c.isStimUp = false(1, length(eu));
 c.isStimDown = false(1, length(eu));
@@ -346,7 +358,29 @@ for iEu = 1:length(isi)
     end
 end
 c.hasStimResponse = c.isStimUp | c.isStimDown;
-clear iEu sel
+
+% BUTTS
+clear isiSpatial
+isiSpatial(2, 4, length(eu)) = struct('t', [], 'isi', [], 'isi0', [], 'onsetLatency', [], 'peakLatency', [], ...
+    'peak', [], 'baseline', [], 'baselineSD', [], 'width', []);
+c.isStimUpSpatial = false(2, 4, length(eu));
+c.isStimDownSpatial = false(2, 4, length(eu));
+for iML = 1:2
+    for iDV = 1:4
+        sel = c.hasStimSpatial(iML, iDV, :);
+        isiSpatial(iML, iDV, sel) = getISILatencies(rdStimSpatial(iML, iDV, sel), xlim=[-200, 200], peakThreshold=1, posMultiplier=1, minProminence=2, onsetThreshold=0.25, ...
+            showPlots=false, savePlots=false, maxTrials=Inf);
+        for iEu = 1:length(eu)
+            if ~isempty(isiSpatial(iML, iDV, iEu).peak) && ~isnan(isiSpatial(iML, iDV, iEu).peak)
+                c.isStimUpSpatial(iML, iDV, iEu) = isiSpatial(iML, iDV, iEu).peak < isiSpatial(iML, iDV, iEu).baseline & isiSpatial(iML, iDV, iEu).baseline <= 1000/15;
+                c.isStimDownSpatial(iML, iDV, iEu) = isiSpatial(iML, iDV, iEu).peak > isiSpatial(iML, iDV, iEu).baseline & isiSpatial(iML, iDV, iEu).baseline <= 1000/15;
+            end
+        end
+    end
+end
+c.hasStimResponseSpatial = c.isStimUpSpatial | c.isStimDownSpatial;
+
+clear iEu sel iML iDV
 
 fprintf(1, '%d A2A units, %d up, %d down.\n', nnz(c.hasStim & c.isA2A), nnz(c.hasStim & c.isA2A & c.isStimUp), nnz(c.hasStim & c.isA2A & c.isStimDown))
 fprintf(1, '%d Ai80 units, %d up, %d down.\n', nnz(c.hasStim & c.isAi80), nnz(c.hasStim & c.isAi80 & c.isStimUp), nnz(c.hasStim & c.isAi80 & c.isStimDown))
@@ -373,6 +407,12 @@ xlabel(sprintf('p=%.5f', pp))
 close all
 sel = c.hasStimResponse;
 getISILatencies(rdStim(sel), xlim=[-100, 100], peakThreshold=0.75, posMultiplier=1, minProminence=2, onsetThreshold=0.25, ...
+    showPlots=true, savePlots=true, maxTrials=Inf);
+
+%% Plot and save ISI analysis for manual checking
+close all
+sel = squeeze(c.isStimDownSpatial(2, 1, :))' & c.isAi80;
+getISILatencies(rdStimSpatial(2, 1, sel), xlim=[-100, 100], peakThreshold=0.75, posMultiplier=1, minProminence=2, onsetThreshold=0.25, ...
     showPlots=true, savePlots=true, maxTrials=Inf);
 
 %% Example plots, ISI analysis for 2 example units
@@ -403,7 +443,7 @@ getISILatencies(rdStim(selEu), xlim=[-100, 100], peakThreshold=0.75, posMultipli
 % clear selUnits i
 
 %% Calculate ETAs
-p.binWidthStim = 0.005;
+p.binWidthStim = 0.01;
 
 eta.stim = eu.getETA('count', 'stim', [-0.5, 0.5], ...
     resolution=p.binWidthStim, ...
@@ -414,6 +454,11 @@ eta.stimD1 = eu.getETA('count', 'stimfirstpulse', [-0.5, 0.5], ...
     resolution=p.binWidthStim, ...
     minTrialDuration=0.01, maxTrialDuration=0.101, ...
     findSingleTrialDuration='max', normalize=[-0.2, 0], includeInvalid=false);
+
+if isfield(eta, 'stimSpatial')
+    eta = rmfield(eta, 'stimSpatial');
+end
+
 % For acute recording, pick DLS at 2.8DV
 for iEu = 1:length(eu)
     iAr = find(strcmpi(eu(iEu).ExpName, {ar.expName}));
@@ -423,15 +468,33 @@ for iEu = 1:length(eu)
         trials = Trial(ar(iAr).stim.tOn(IPulse), ar(iAr).stim.tOff(IPulse));
         tempEta = eu(iEu).getETA('count', 'stim', [-0.5, 0.5], ...
             trials=trials, resolution=p.binWidthStim, ...
-            minTrialDuration=0.01, maxTrialDuration=0.01, ...
-            findSingleTrialDuration='min', normalize=[-0.2, 0], includeInvalid=false);
+            minTrialDuration=0.01, maxTrialDuration=0.01, findSingleTrialDuration='min', ...
+            normalize=[-0.2, 0], includeInvalid=false);
         eta.stim.X(iEu, :) = tempEta.X;
         eta.stim.N(iEu) = tempEta.N;
         eta.stim.D(iEu) = tempEta.D;
         eta.stim.stats(iEu) = tempEta.stats;
         clear tempEta
+
+        for iML = 1:2
+            for iDV = 1:4
+                [~, IPulse] = ar(iAr).selectStimResponse(Light=[0.28, 0.4, 0.5], Duration=0.01, MLRank=iML, DVRank=iDV);
+                trials = Trial(ar(iAr).stim.tOn(IPulse), ar(iAr).stim.tOff(IPulse));
+                tempEta = eu(iEu).getETA('count', 'stim', [-0.5, 0.5], ...
+                    trials=trials, resolution=p.binWidthStim, ...
+                    minTrialDuration=0.01, maxTrialDuration=0.01, findSingleTrialDuration='min', ...
+                    normalize=[-0.2, 0], includeInvalid=false);
+                eta.stimSpatial(iML, iDV).X(iEu, :) = tempEta.X;
+                eta.stimSpatial(iML, iDV).N(iEu) = tempEta.N;
+                eta.stimSpatial(iML, iDV).D(iEu) = tempEta.D;
+                eta.stimSpatial(iML, iDV).stats(iEu) = tempEta.stats;
+                eta.stimSpatial(iML, iDV).t = tempEta.t;
+                clear tempEta
+            end
+        end
     end
 end
+
 
 %% Summarize and plot stim ETAs, latencies
 close all
@@ -537,11 +600,859 @@ p2 = ranksum(latencies{2}, latencies{5}, tail='right')
 p3 = ranksum(latencies{3}, latencies{6}, tail='right')
 
 
+%% Additional threshold with METAs, on top of ISI peaks
+% meta.stimSpatial = NaN(2, 4, length(eu));
+% for iML = 1:2
+%     for iDV = 1:4
+%         t = eta.stimSpatial(iML, iDV).t;
+%         meta.stimSpatial(iML, iDV, :) = transpose(mean(eta.stimSpatial(iML, iDV).X(:, t >= 0.01 & t <= 0.03), 2, 'omitnan'));
+%     end
+% end
+% clear t
+% histogram(meta.stimSpatial(1, 1, c.isAi80), 50)
+
+% Max eta from onset to peak (peak/onset time determined by ISI)
+peta.stimSpatial = NaN(2, 4, length(eu));
+for iML = 1:2
+    for iDV = 1:4
+        t = eta.stimSpatial(iML, iDV).t;
+        for iEu = find(c.hasStimResponseSpatial(iML, iDV, :))'
+            peta.stimSpatial(iML, iDV, iEu) = mean(eta.stimSpatial(iML, iDV).X(iEu, t >= 0.01 & t <= 0.03), 2, 'omitnan');
+%             tOnset = round(isiSpatial(iML, iDV, iEu).onsetLatency / 10) / 100;
+%             tPeak = round(isiSpatial(iML, iDV, iEu).peakLatency / 10) / 100;
+%             thisETA = eta.stimSpatial(iML, iDV).X(iEu, t >= tOnset & t <= tPeak);
+%             [~, iMax] = max(abs(thisETA), [], 2, 'omitnan');
+%             peta.stimSpatial(iML, iDV, iEu) = thisETA(iMax);
+%             thisETA = eta.stimSpatial(iML, iDV).X(iEu, t >= tOnset & t <= tPeak);
+        end
+    end
+end
+clear thisEta iMax tOnset tPeak iML iDV t
+sel = squeeze(c.hasStimSpatial(1, 1, :))' & c.isAi80;
+histogram(peta.stimSpatial(1, 1, sel), 50)
+% scatter(squeeze(peta.stimSpatial(1, 1, sel)), squeeze([isiSpatial(1, 1, sel).peak]))
+c.isStimUpSpatialPETA = peta.stimSpatial >= 0.2;
+c.isStimDownSpatialPETA = peta.stimSpatial <= -0.2;
+c.hasStimResponseSpatialPETA = c.isStimUpSpatialPETA | c.isStimDownSpatialPETA;
+
+%% Plot latency Str/SNr map
+close all
+SEL = {c.isAi80; c.isA2A; c.isAi80; c.isA2A};
+STATS = {'latency'; 'latency'; 'response'; 'response'};
+TITLE = {'dSPN-stim latency', 'iSPN-stim latency', 'dSPN-stim response', 'iSPN-stim response'};
+
+for iFig = 1:length(SEL)
+    fig = figure(Units='normalized', Position=[0, 0, 0.2, 0.8], DefaultAxesFontSize=12);
+    for iML = 1:2
+        for iDV = 1:4
+            if iML == 1
+                switch iDV
+                    case 1
+                        i = 7;
+                    case 2
+                        i = 5;
+                    case 3
+                        i = 3;
+                    case 4
+                        i = 1;
+                end
+            elseif iML == 2
+                switch iDV
+                    case 1
+                        i = 8;
+                    case 2
+                        i = 6;
+                    case 3
+                        i = 4;
+                    case 4
+                        i = 2;
+                end
+            end
+            switch iML
+                case 1
+                    mlText = 'mStr';
+                case 2
+                    mlText = 'lStr';
+            end
+            switch iDV
+                case 4
+                    dvText = '-2.15';
+                case 3
+                    dvText = '-2.81';
+                case 2
+                    dvText = '-3.48';
+                case 1
+                    dvText = '-4.15';
+            end 
+            ax = subplot(4, 2, i);
+            sel = squeeze(c.hasStimResponseSpatial(iML, iDV, :))' & SEL{iFig};
+            coords = euPos(sel, :);
+
+            switch STATS{iFig}
+                case 'latency'
+                    latencies = [isiSpatial(iML, iDV, sel).onsetLatency];
+                    directions = ones(1, length(eu));
+                    directions(c.isStimDownSpatial(iML, iDV, :)) = -1;
+                    directions = directions(sel);
+                    stats = directions .* latencies;
+                    srange = [5, 50];
+                    sthreshold = 0;
+                case 'response'
+%                     responses = (1000./[isiSpatial(iML, iDV, sel).peak] - 1000./[isiSpatial(iML, iDV, sel).isi0]) ./ (1000./[isiSpatial(iML, iDV, sel).baselineSD]);
+%                     stats = responses;
+%                     stats(responses < 0) = stats(responses < 0) * 5;
+                    responses = squeeze(peta.stimSpatial(iML, iDV, sel));
+                    stats = responses;
+                    stats(responses < 0) = stats(responses < 0) * 5;
+                    srange = [0.2, 2];
+                    sthreshold = 0;
+            end
+
+            h = AcuteRecording.plotMap(ax, coords, stats, srange, sthreshold, UseSignedML=false);
+%             if iML == 2 && iDV > 1
+%                 xlabel(ax, "");
+%                 ylabel(ax, "");
+%             end
+            if iML > 1
+                ylabel(ax, "");
+            end
+            if iDV > 1
+                xlabel(ax, "");
+            else
+                xlabel(ax, 'ML');
+            end
+            title(ax, sprintf('%s %s', mlText, dvText))
+            axis(ax, 'image')
+            xlim(ax, [0.9, 1.7])
+            ylim(ax, [-4.8, -3.7])
+        end
+    end
+    suptitle(TITLE(iFig))
+end
+
+MOVETYPE = {'press', 'lick', 'lickosci'};
+SEL = {c.isPressResponsive; c.isLickResponsive; c.isLick};
+STATS = {meta.press, meta.lick, meta.anyLickNorm};
+TITLE = {'Lever-press', 'Lick', 'Osci Lick'};
+
+fig = figure(Units='normalized', Position=[0, 0, 0.3, 0.2], DefaultAxesFontSize=12);
+for iMove = 1:length(MOVETYPE)
+    ax = subplot(1, length(MOVETYPE), iMove);
+    sel = SEL{iMove};
+    coords = euPos(sel, :);
+    stats = STATS{iMove}(sel);
+    AcuteRecording.plotMap(ax, coords, stats, [0 3], 0, UseSignedML=false);
+    title(ax, TITLE{iMove})
+    axis(ax, 'image')
+    xlim(ax, [0.9, 1.7])
+    ylim(ax, [-4.8, -3.7])
+    if iMove > 1
+        ylabel(ax, "");
+    end
+    xlabel(ax, 'ML');
+end
+
+%% Summarize and plot stim ETAs, latencies (For 8 acute sites)
+close all
+clc
+p1 = NaN(2, 4);
+p2 = NaN(2, 4);
+for iML = 1:2
+    for iDV = 1:4
+        fprintf(1, 'ML = %d, DV = %d:\n', iML, iDV)
+        N = nnz(squeeze(c.hasStimResponseSpatialPETA(iML, iDV, :)) & c.isA2A');
+        fprintf(1, '\tOut of %g tested units, %g are responsive.\n\t\t%g (%.2f%%) were excited by A2A, %g(%.2f%%) were inhibited by A2A.\n', ...
+            nnz(squeeze(c.hasStimSpatial(iML, iDV, :)) & c.isA2A'), N, ...
+            nnz(squeeze(c.isStimUpSpatialPETA(iML, iDV, :)) & c.isA2A'), nnz(squeeze(c.isStimUpSpatialPETA(iML, iDV, :)) & c.isA2A') / N * 100, ...
+            nnz(squeeze(c.isStimDownSpatialPETA(iML, iDV, :)) & c.isA2A'), nnz(squeeze(c.isStimDownSpatialPETA(iML, iDV, :)) & c.isA2A') / N * 100);
+        
+        N = nnz(squeeze(c.hasStimResponseSpatialPETA(iML, iDV, :)) & c.isAi80');
+        fprintf(1, '\tOut of %g tested units, %g are responsive.\n\t\t%g (%.2f%%) were excited by Ai80, %g(%.2f%%) were inhibited by Ai80.\n', ...
+            nnz(squeeze(c.hasStimSpatial(iML, iDV, :)) & c.isAi80'), N, ...
+            nnz(squeeze(c.isStimUpSpatialPETA(iML, iDV, :)) & c.isAi80'), nnz(squeeze(c.isStimUpSpatialPETA(iML, iDV, :)) & c.isAi80') / N * 100, ...
+            nnz(squeeze(c.isStimDownSpatialPETA(iML, iDV, :)) & c.isAi80'), nnz(squeeze(c.isStimDownSpatialPETA(iML, iDV, :)) & c.isAi80') / N * 100);
+        fprintf(1, '\n')
+
+        clear N
+
+        fig = figure(Position=[100, 100, 400, 400]);
+        AX_ALL = gobjects(1, 6);
+        AX_ALL(1) = axes(fig, OuterPosition=[0.0, 0.5, 0.5, 0.5]);
+        AX_ALL(2) = axes(fig, OuterPosition=[0.5, 0.5, 0.5, 0.5]);
+        AX_ALL(3) = axes(fig, OuterPosition=[0.0, 0.25, 0.5, 0.25]);
+        AX_ALL(4) = axes(fig, OuterPosition=[0.5, 0.25, 0.5, 0.25]);
+        AX_ALL(5) = axes(fig, OuterPosition=[0.0, 0, 0.5, 0.25]);
+        AX_ALL(6) = axes(fig, OuterPosition=[0.5, 0.0, 0.5, 0.25]);
+        
+        % 4.2.2 Plot stim heatmap
+        SEL = { ...
+            squeeze(c.hasStimResponseSpatialPETA(iML, iDV, :)) & c.isA2A'; ...
+            squeeze(c.hasStimResponseSpatialPETA(iML, iDV, :)) & c.isAi80'};
+        ETA = {eta.stimSpatial(iML, iDV), eta.stimSpatial(iML, iDV)};
+        NAME = {'iSPN', 'dSPN'};
+        AX = AX_ALL(1:2);
+        
+        for i = 1:length(SEL)
+            sel = SEL{i};
+        
+            dmin = min(ETA{i}.D(sel));
+            dmax = max(ETA{i}.D(sel));
+            if dmin==dmax
+                text = sprintf('%s stim (%g ms)', NAME{i}, 1000*dmin);
+            else
+                text = sprintf('%s stim (%g-%g ms)', NAME{i}, 1000*dmin, 1000*dmax);
+            end
+            
+            latencies = [isiSpatial(iML, iDV, sel).onsetLatency];
+            responses = [isiSpatial(iML, iDV, sel).peak] - [isiSpatial(iML, iDV, sel).isi0];
+            responseSigns = sign(responses);
+            peakLatencies = [isiSpatial(iML, iDV, sel).peakLatency];
+            [~, ISort] = sort(responseSigns.*(latencies.*1e4 + peakLatencies*1e3 + abs(responses)), 'ascend');
+            
+            ax = AX(i);
+            axETA = EphysUnit.plotETA(ax, ETA{i}, sel, xlim=[-100, 100], clim=[-1, 1], ...
+                timeUnit='ms', order=ISort, ...
+                event='opto onset'); 
+            colorbar(axETA, 'off')
+            title(ax, text)
+            ax.FontSize = 10;
+            hold(ax, 'on')
+            if dmin==dmax
+                yl = ax.YLim;
+                patch(ax, [0, dmin, dmin, 0].*1000, [yl(1), yl(1), yl(2), yl(2)], 'b', FaceAlpha=0.1, EdgeAlpha=0)
+            end
+            hold(ax, 'off')
+            title(ax, text)
+%             ax.Parent.OuterPosition(3) = 0.2;
+%             ax.Parent.OuterPosition(4) = 0.5;
+        end
+        
+        SEL = { ...
+            squeeze(c.isStimUpSpatialPETA(iML, iDV, :)) & c.isA2A'; ...
+            squeeze(c.isStimUpSpatialPETA(iML, iDV, :)) & c.isAi80'; ...
+            squeeze(c.isStimDownSpatialPETA(iML, iDV, :)) & c.isA2A'; ...
+            squeeze(c.isStimDownSpatialPETA(iML, iDV, :)) & c.isAi80'; ...
+            };
+        NAME = { ...
+            'iSPN-excited';
+            'dSPN-excited';
+            'iSPN-inhibited';
+            'dSPN-inhibited';
+            };
+        COLOR = {'red', 'red', 'default', 'default'};
+        AX = AX_ALL(3:6);
+        
+%         figure(DefaultAxesFontSize=12, Units='normalized', OuterPosition=[0, 0, 0.55/3*2, 0.35])
+        
+        latencies = cell(length(SEL), 1);
+        for i = 1:length(SEL)
+            ax = AX(i);
+            latencies{i} = [isiSpatial(iML, iDV, SEL{i}).onsetLatency];
+            histogram(ax, latencies{i}, 1:4:100, DisplayName=sprintf('N=%g', length(latencies{i})), FaceColor=COLOR{i})
+            title(ax, sprintf('%s, median=%.0fms', NAME{i}, median(latencies{i})))
+            legend(ax)
+            ylabel(ax, 'Count')
+        
+            if i > 2
+                xlabel(ax, 'SNr response latency (ms)')
+            end
+            if i == 1 || i == 3
+                ylabel(ax, 'Count')
+            end
+        end
+
+        set(AX_ALL, FontSize=9)
+
+        p1(iML, iDV) = ranksum(latencies{1}, latencies{3}, tail='left');
+        p2(iML, iDV) = ranksum(latencies{2}, latencies{4}, tail='right');
+        
+    end
+end
+
+%% 4.3 Bargraph showing unit counts grouped by movement selectivity, then dSPN on/off.
+close all
+
+% SEL1 x SEL2 makes a matrix of press/lick selectivity
+SEL1 = { ...
+    c.isPressUp; ...
+    c.hasPress & ~c.isPressResponsive; ...
+    c.isPressDown; ...
+    };
+
+SEL2 = { ...
+    c.isLickDown; ...
+    c.hasLick & ~c.isLickResponsive; ...
+    c.isLickUp; ...
+%     c.isLick; ...
+    };
+       
+CATNAMES1 = {'Press ON', 'Press NONE', 'Press OFF'};
+CATNAMES2 = {'Lick OFF', 'Lick NONE', 'Lick ON'};%, 'Lick OSCI'};
+
+fig = figure(InnerPosition=[0, 0, 600, 1080]);
+for iML = 1:2
+    for iDV = 1:4
+        switch iML
+            case 1
+                mlText = 'mStr';
+            case 2
+                mlText = 'lStr';
+        end
+        switch iDV
+            case 4
+                dvText = '-2.15';
+            case 3
+                dvText = '-2.81';
+            case 2
+                dvText = '-3.48';
+            case 1
+                dvText = '-4.15';
+        end 
+
+        % iRow = 4*(iML-1) + iDV;
+        iRow = 4*(iML-1) + (5-iDV);
+
+        n = zeros(length(SEL1), length(SEL2));
+        N = struct('ispnOn', n, 'ispnOff', n, 'dspnOn', n, 'dspnOff', n);
+        N.base = zeros(3, 4);
+        for i = 1:length(SEL1)
+            for j = 1:length(SEL2)
+                N.total(i, j) = 1 + nnz(SEL1{i} & SEL2{j});
+                N.ispnOn(i, j) = 1 + nnz(SEL1{i} & SEL2{j} & c.isA2A & squeeze(c.isStimUpSpatial(iML, iDV, :))');
+                N.ispnOff(i, j) = 1 + nnz(SEL1{i} & SEL2{j} & c.isA2A & squeeze(c.isStimDownSpatial(iML, iDV, :))');
+                N.dspnOn(i, j) = 1 + nnz(SEL1{i} & SEL2{j} & c.isAi80 & squeeze(c.isStimUpSpatial(iML, iDV, :))');
+                N.dspnOff(i, j) = 1 + nnz(SEL1{i} & SEL2{j} & c.isAi80 & squeeze(c.isStimDownSpatial(iML, iDV, :))');
+            end
+        end
+        VARNAMES = {'ispnOff', 'ispnOn', 'dspnOff', 'dspnOn'};
+        NAMES = {'iSPN-inhibited', 'iSPN-excited', 'dSPN-inhibited', 'dSPN-excited'};
+        w = 250; h = 250;
+        for i = 1:length(VARNAMES)
+            n = N.(VARNAMES{i});
+            n = round(n ./ sum(n, 'all') * 1000)./10;    
+            n0 = N.total;
+            n0 = round(n0 ./ sum(n0, 'all') * 1000)./10;
+            n = n - n0;
+            ax = subplot(8, length(VARNAMES), length(VARNAMES)*(iRow-1) + i);
+            imagesc(ax, n);
+            clear text
+            for ii = 1:length(SEL1)
+                for jj = 1:length(SEL2)
+                    text(ii, jj, sprintf('%.0f', N.(VARNAMES{i})(ii, jj)), FontSize=9, VerticalAlignment='middle', HorizontalAlignment='center')
+                end
+            end
+            xticks(ax, 1:3);
+            yticks(ax, 1:3);
+            xticklabels(ax, CATNAMES2);
+            yticklabels(ax, CATNAMES1);
+            title(NAMES{i});
+            axis(ax, 'image')
+            if i > 1
+                yticks(ax, [])
+            end
+            if iRow < 8
+                xticks(ax, [])
+            end
+            ngrades = 100;
+            colormap(hsl2rgb([[0.7*ones(ngrades, 1); 0*ones(ngrades, 1)], ones(ngrades*2, 1), [linspace(0.5, 1, ngrades)'; linspace(1, 0.5, ngrades)']]))
+            clim([-30, 30])
+
+            if i == length(VARNAMES)
+                textPos = ax.Position;
+                textPos(3) = 0.075;
+                textPos(1) = ax.Position(1) + ax.Position(3);
+                annotation(fig, 'textbox', textPos, String=sprintf('%s\n%s', mlText, dvText), ...
+                    HorizontalAlignment='center', VerticalAlignment='middle', LineStyle='none', FontSize=11);
+            end
+%             colorbar()
+        end
+        clear ax i n
+    end
+end
+
+%% 6.1 Scatter press vs lick, color by stim response 
+SEL = { ...
+    c.hasPress & c.hasLick & c.isA2A, c.hasPress & c.hasLick & c.isAi80; ...
+    c.hasPress & c.hasLick & c.isA2A, c.hasPress & c.hasLick & c.isAi80; ...
+    };
+XDATA = { ...
+    meta.lickRaw*10, meta.lickRaw*10; ...
+    meta.lickRaw*10 - msr, meta.lickRaw*10 - msr; ...
+    };
+YDATA = { ...
+    meta.pressRaw*10, meta.pressRaw*10; ...
+    meta.pressRaw*10 - msr, meta.pressRaw*10 - msr; ...
+    };
+XNAME = { ...
+    'Absolute lick response (sp/s)', 'Absolute lick response (sp/s)'; ...
+    'Relative lick response (\Deltasp/s)', 'Relative lick response (\Deltasp/s)'; ...
+    };
+YNAME = { ...
+    'Absolute press response (sp/s)', 'Absolute press response (sp/s)'; ...
+    'Relative press response (\Deltasp/s)', 'Relative press response (\Deltasp/s)'; ...
+    };
+TITLE = { ...
+    'iSPN-stim', 'dSPN-stim'; ...
+    '', ''; ...
+    };
+AXIS = { ...
+    msr, msr; ...
+    zeros(size(msr)), zeros(size(msr)); ...
+    };
+
+% Same as above but as scatter
+fig = figure(Position=[200 200 600 600]);
+nrows = size(XDATA, 1);
+ncols = size(XDATA, 2);
+for i = 1:nrows
+    for j = 1:ncols
+        iAx = ncols*(i-1) + j;
+        ax = subplot(nrows, ncols, iAx);
+        hold(ax, 'on')
+        
+        x = XDATA{i, j};
+        y = YDATA{i, j};
+        s = abs(r.stim);% ./ max(abs(r.stim));
+        s(r.stim<0) = s(r.stim<0) * 3;
+
+        selUp = SEL{i, j} & c.isStimUp;
+        selDown = SEL{i, j} & c.isStimDown;
+        selFlat = SEL{i, j} & c.hasStim & ~c.isStimUp & ~c.isStimDown;
+
+        h = gobjects(1, 2);
+        h(1) = bubblechart(x(selUp), y(selUp), s(selUp), 'red', MarkerFaceAlpha=0.5, DisplayName='stim-excited');
+        h(2) = bubblechart(x(selDown), y(selDown), s(selDown), 'blue', MarkerFaceAlpha=0.5, DisplayName='stim-suppressed');
+        bubblesize(ax, [1 10])
+        bubblelim(ax, [5, 100])
+        bubblelegend(ax, '\Deltasp/s')
+        
+        xl = ax.XLim;
+        yl = ax.YLim;
+        
+        plot(ax, xl, mean(AXIS{i, j}(sel))*ones(1, 2), 'k:')
+        plot(ax, mean(AXIS{i, j}(sel))*ones(1, 2), yl, 'k:')
+        
+        xlabel(ax, XNAME{i, j})
+        ylabel(ax, YNAME{i, j})
+
+        xlim(ax, xl);
+        ylim(ax, yl);
+
+        title(ax, TITLE{i, j})
+        if i > 1 && j > 1
+            legend(ax, h, Orientation='horizontal')
+        end
+    end
+end
+
+%% 6.2 (8 sites) Scatter press vs lick, color by stim response 
+SEL = { ...
+    c.hasPress & c.hasLick & c.isA2A, c.hasPress & c.hasLick & c.isAi80; ...
+    c.hasPress & c.isA2A, c.hasPress & c.isAi80; ...
+    c.hasLick & c.isLick & c.isA2A, c.hasLick & c.isLick & c.isAi80; ...
+    c.hasPress & c.isLick & c.isA2A, c.hasPress & c.isLick & c.isAi80; ...
+    };
+XDATA = { ...
+    meta.lickRaw*10 - msr; ...
+    msr; ...
+    meta.lickRaw*10 - msr; ...
+    meta.pressRaw*10 - msr; ...
+    };
+YDATA = { ...
+    meta.pressRaw*10 - msr; ...
+    meta.pressRaw*10 - msr; ...
+    meta.anyLickNorm; ...
+    meta.anyLickNorm; ...
+    };
+XNAME = { ...
+    'lick resp (\Deltasp/s)'; ...
+    'baseline (sp/s)'; ...
+    'lick resp (\Deltasp/s)'; ...
+    'press resp (\Deltasp/s)'; ...
+    };
+YNAME = { ...
+    'press resp (\Deltasp/s)'; ...
+    'press resp (\Deltasp/s)'; ...
+    'osci lick (a.u.)'; ...
+    'osci lick (a.u.)'; ...
+    };
+TITLE = { ...
+    'iSPN-stim', 'dSPN-stim'; ...
+    'iSPN-stim', 'dSPN-stim'; ...
+    'iSPN-stim', 'dSPN-stim'; ...
+    'iSPN-stim', 'dSPN-stim'; ...
+    };
+XAXIS = { ...
+    zeros(size(msr)); ...
+    zeros(size(msr)); ...
+    zeros(size(msr)); ...
+    zeros(size(msr)); ...
+    };
+YAXIS = { ...
+    zeros(size(msr)); ...
+    msr; ...
+    zeros(size(msr)); ...
+    zeros(size(msr)); ...
+    };
+EQUAL_AXES = [true; false; false; false];
+XAXIS_MARGIN = [10; 10; 10; 10];
+YAXIS_MARGIN = [10; 10; 0; 0];
+YLIM = {[]; []; [-2, 2]; [-2, 2]};
+BUBBLELIM = {[2, 50]; [2, 50]; [2, 25]; [2, 25]};
+
+close all
+
+for iFig = 1:size(SEL, 1)
+    w = 200; h = 200;
+    fig = figure(Position=[0, 0, w*4, h*4]);
+    axAll = gobjects(4, 4);
+    for iML = 1:2
+        for iDV = 1:4
+            switch iML
+                case 1
+                    mlText = 'mStr';
+                case 2
+                    mlText = 'lStr';
+            end
+            switch iDV
+                case 4
+                    dvText = '-2.15';
+                case 3
+                    dvText = '-2.81';
+                case 2
+                    dvText = '-3.48';
+                case 1
+                    dvText = '-4.15';
+            end 
+            
+            % Same as above but as scatter
+            for iStim = 1:2
+                iRow = (4-iDV) + 1;
+                iCol = (iStim-1)*2 + iML;
+                iAx = (iRow-1)*4 + iCol;
+                %iCol = 2*(iML-1) + iStim;
+                % iAx = 4*(4-iDV) + 2*(iML-1) + iStim;
+                ax = subplot(4, 4, iAx);
+                axAll(iRow, iCol) = ax;
+                hold(ax, 'on')
+                
+                x = XDATA{iFig};
+                y = YDATA{iFig};
+
+                stimSel = squeeze(c.hasStimResponseSpatial(iML, iDV, :))';
+                baselineSR = NaN(1, length(eu));
+                peakSR = baselineSR;
+                baselineSR(stimSel) = 1000./[isiSpatial(iML, iDV, stimSel).isi0];
+                peakSR(stimSel) = 1000./[isiSpatial(iML, iDV, stimSel).peak];
+                stimResponse = peakSR - baselineSR;
+                s = abs(stimResponse);% ./ max(abs(stimResponse));
+%                 s(stimResponse<0) = s(stimResponse<0) * 3;
+        
+                selUp = SEL{iFig, iStim} & squeeze(c.isStimUpSpatial(iML, iDV, :))';
+                selDown = SEL{iFig, iStim} & squeeze(c.isStimDownSpatial(iML, iDV, :))';
+        
+                h = gobjects(1, 2);
+                h(1) = bubblechart(x(selUp), y(selUp), s(selUp), 'red', MarkerFaceAlpha=0.5, DisplayName='stim-excited');
+                h(2) = bubblechart(x(selDown), y(selDown), s(selDown), 'blue', MarkerFaceAlpha=0.5, DisplayName='stim-suppressed');
+                bubblesize([1 7.5])
+                bubblelim(ax, BUBBLELIM{iFig})
+
+                if iRow == 4
+                    xlabel(ax, XNAME{iFig})
+                end
+                if iCol == 1
+                    ylabel(ax, YNAME{iFig})
+                end
+        
+                if ~isempty(TITLE{iFig})
+                    title(ax, sprintf('%s\n%s %s', TITLE{iFig, iStim}, mlText, dvText))
+                end
+                if iAx == 1
+                    legend(ax, h, Orientation='vertical', AutoUpdate=false)
+                    bubblelegend(ax, 'stim resp (\Deltasp/s)')
+                end
+                if ismember(iAx, [14, 16]) && iFig == 3
+                    xl = ax.XLim;
+                    text(ax, 0.5*xl(1), 0.5, num2str(nnz(c.isM(selDown) & c.hasPress(selDown))))
+                    text(ax, 0.5*xl(2), 0.5, num2str(nnz(c.isL(selDown) & c.hasPress(selDown))))
+                    text(ax, 0.5*xl(1), 0, num2str(nnz(c.isPressUp(selUp))))
+                    text(ax, 0.5*xl(2), 0, num2str(nnz(c.isPressDown(selUp))))
+                end
+            end
+        end
+    end
+
+    % Unify xlims
+    xl = [min([ax.XLim]) - XAXIS_MARGIN(iFig), max([ax.XLim]) + XAXIS_MARGIN(iFig)];
+    if isempty(YLIM{iFig})
+        yl = [min([ax.YLim]) - YAXIS_MARGIN(iFig), max([ax.YLim]) + YAXIS_MARGIN(iFig)];
+    else
+        yl = YLIM{iFig};
+    end
+    if EQUAL_AXES(iFig)
+        xl = [min([xl, yl]), max([xl, yl])];
+        yl = xl;
+    end
+    for iML = 1:2
+        for iDV = 1:4
+            for iStim = 1:2
+                iRow = (4-iDV) + 1;
+                iCol = 2*(iML-1) + iStim;
+                ax = axAll(iRow, iCol);
+                plot(ax, xl, mean(XAXIS{iFig}(sel))*ones(1, 2), 'k:')
+                plot(ax, mean(YAXIS{iFig}(sel))*ones(1, 2), yl, 'k:')
+                xlim(ax, xl)
+                ylim(ax, yl)
+            end
+        end
+    end
+end
+
+
+        
+%% 4.3 Stim response analysis by ISI analysis, instead of ETA
+naans = NaN(length(eu), 1);
+stimResp = table(naans, naans, naans, naans, naans, ...
+    VariableNames={'baseline', 'baselineSD', 'peak', 'latency', 'peakLatency'});
+clear naans
+
+
+stimResp.baseline(c.hasStim) = [isi(c.hasStim).baseline];
+stimResp.baselineSD(c.hasStim) = [isi(c.hasStim).baselineSD];
+stimResp.peak(c.hasStim) = [isi(c.hasStim).peak];
+stimResp.latency(c.hasStim) = [isi(c.hasStim).onsetLatency];
+stimResp.peakLatency(c.hasStim) = [isi(c.hasStim).peakLatency];
+stimResp.baselineSR = 1000./stimResp.baseline;
+stimResp.peakSR = 1000./stimResp.peak;
+
+% Pretend this is meta
+r.stim = stimResp.peakSR - stimResp.baselineSR;
+r.press = meta.pressRaw*10 - msr;
+r.lick = meta.lickRaw*10 - msr;
+
+close all
+% 4.3.1 Plot 
+wPlot = 350;
+hPlot = 175;
+figure(Units='pixels', Position=[200, 100, wPlot*2, hPlot*2]);
+
+YNAME = { ...
+    'Lick response (\Deltasp/s)'; ...
+    ''; ... % 'Lick response (\Deltasp/s)'; ...
+    'Press response (\Deltasp/s)'; ...
+    ''; ... % 'Press response (\Deltasp/s)'; ...
+    };
+
+XNAME = { ...
+    ''; ... % 'iSPN response (\Deltasp/s)'; ...
+    ''; ... % 'dSPN response (\Deltasp/s)'; ...
+    'DLS iSPN response (\Deltasp/s)'; ...
+    'DLS dSPN response (\Deltasp/s)'; ...
+    };
+
+DATA = { ...
+    r.stim, r.lick; ...
+    r.stim, r.lick; ...
+    r.stim, r.press; ...
+    r.stim, r.press; ...
+    };
+
+SEL = { ...
+    c.hasPos & c.hasStimResponse & c.isLickResponsive & c.isA2A & c.hasLick; ...
+    c.hasPos & c.hasStimResponse & c.isLickResponsive & c.isAi80 & c.hasLick; ...
+    c.hasPos & c.hasStimResponse & c.isPressResponsive & c.isA2A & c.hasPress; ...
+    c.hasPos & c.hasStimResponse & c.isPressResponsive & c.isAi80 & c.hasPress; ...
+    };
+
+LEGEND_LOC = {'northeast'; 'northeast'; 'northeast'; 'northeast'};
+
+ax = gobjects(4, 1);
+h = gobjects(4, 2);
+for i = 1:4
+    ax(i) = subplot(2, 2, i);
+    hold(ax(i), 'on')
+    sel = SEL{i};
+    hold(ax(i), 'on');
+    x = DATA{i, 2}(sel);
+    y = DATA{i, 1}(sel);
+    h(i, 1) = scatter(x, y, sz, 'filled', 'k', ...
+        DisplayName=sprintf('N=%g', nnz(sel)));
+    xlabel(ax(i), XNAME{i})
+    ylabel(ax(i), YNAME{i})
+end
+
+xl = [min(horzcat(ax.XLim)), max(horzcat(ax.XLim))];
+yl = [min(horzcat(ax.YLim)), max(horzcat(ax.YLim))];
+
+for i = 1:4
+    sel = SEL{i};
+    x = DATA{i, 2}(sel);
+    y = DATA{i, 1}(sel);
+    mdl = fitlm(x, y);
+    h(i, 2) = plot(ax(i), xl, mdl.predict(xl'), 'k--', LineWidth=1, DisplayName=sprintf('R^2=%.2f', mdl.Rsquared.Ordinary));
+    legend(ax(i), h(i, :), Location=LEGEND_LOC{i}, AutoUpdate='off')
+    plot(ax(i), xl, [0, 0], 'k:')
+    plot(ax(i), [0, 0], yl, 'k:')
+    hold(ax(i), 'off')
+end
+xlim(ax, xl)
+ylim(ax, yl)
+
+
+%% 4.3.2 Stim vs Move by SNr location
+sz = 25;
+
+xEdges = [0 1300 2600];
+yEdges = [0 4300 10000];
+xPos = abs(euPos(:, 1))';
+yPos = abs(euPos(:, 2))';
+c.isM = xPos <= xEdges(2);
+c.isL = xPos > xEdges(2);
+c.isD = yPos <= yEdges(2);
+c.isV = yPos > yEdges(2);
+
+YNAME = { ...
+%     'Lick response (\Deltasp/s)'; ...
+    'Lick response (\Deltasp/s)'; ...
+    'Lick response (\Deltasp/s)'; ...
+    'Lever-press response (\Deltasp/s)'; ...
+    'Lever-press response (\Deltasp/s)'; ...
+    };
+
+XNAME = { ...
+%     'Lever-press response (\Deltasp/s)'; ...
+    'iSPN-stim response (\Deltasp/s)'; ...
+    'dSPN-stim response (\Deltasp/s)'; ...
+    'iSPN-stim response (\Deltasp/s)'; ...
+    'dSPN-stim response (\Deltasp/s)'; ...
+    };
+
+DATA = { ...
+%     r.press, r.lick; ...
+    r.lick, r.stim; ...
+    r.lick, r.stim; ...
+    r.press, r.stim; ...
+    r.press, r.stim; ...
+    };
+
+SEL = { ...
+%     c.hasPos & c.hasPress & c.hasLick; ...
+    c.hasPos & c.hasStimResponse & c.isLickResponsive & c.isA2A & c.hasLick; ...
+    c.hasPos & c.hasStimResponse & c.isLickResponsive & c.isAi80 & c.hasLick; ...
+    c.hasPos & c.hasStimResponse & c.isPressResponsive & c.isA2A & c.hasPress; ...
+    c.hasPos & c.hasStimResponse & c.isPressResponsive & c.isAi80 & c.hasPress; ...
+    };
+
+for iFig = 1:length(TITLE)
+    fig = figure(Units='pixels', Position=[200, 200, wPlot*2, hPlot*2], DefaultAxesFontSize=10);
+    ax = gobjects(4, 1);
+    h = gobjects(4, 2);
+    for i = 1:4
+        ax(i) = subplot(2, 2, i);
+        hold(ax(i), 'on');
+        switch i
+            case 1
+                sel = SEL{iFig} & c.isD & c.isM;
+                title('DM')
+            case 2
+                sel = SEL{iFig} & c.isD & c.isL;
+                title('DL')
+            case 3
+                sel = SEL{iFig} & c.isV & c.isM;
+                title('VM')
+            case 4
+                sel = SEL{iFig} & c.isV & c.isL;
+                title('VL')
+        end
+        x = DATA{iFig, 2}(sel);
+        y = DATA{iFig, 1}(sel);
+        h(i, 1) = scatter(x, y, sz, 'filled', 'k', ...
+            DisplayName=sprintf('N=%g', nnz(sel)));
+    end
+
+    xl = [min(horzcat(ax.XLim)), max(horzcat(ax.XLim))];
+    yl = [min(horzcat(ax.YLim)), max(horzcat(ax.YLim))];
+    for i = 1:4
+        switch i
+            case 1
+                sel = SEL{iFig} & c.isD & c.isM;
+                title('DM')
+            case 2
+                sel = SEL{iFig} & c.isD & c.isL;
+                title('DL')
+            case 3
+                sel = SEL{iFig} & c.isV & c.isM;
+                title('VM')
+            case 4
+                sel = SEL{iFig} & c.isV & c.isL;
+                title('VL')
+        end
+        if any(sel)
+            x = DATA{iFig, 2}(sel);
+            y = DATA{iFig, 1}(sel);
+            mdl = fitlm(x, y);
+            h(i, 2) = plot(ax(i), xl, mdl.predict(xl'), 'k--', LineWidth=1, DisplayName=sprintf('R^2=%.2f', mdl.Rsquared.Ordinary));
+            legend(ax(i), h(i, :), Location='best', AutoUpdate='off')
+        end
+        plot(ax(i), xl, [0, 0], 'k:')
+        plot(ax(i), [0, 0], yl, 'k:')
+    end
+    xlim(ax, xl);
+    ylim(ax, yl);
+
+    annotation(fig, 'textbox', [0.1, 0.02, 0.9, 0.05], String=XNAME{iFig}, ...
+        HorizontalAlignment='center', LineStyle='none', FontSize=12);
+
+%     annotation(fig, 'textbox', [0.075, 0.1, 1, 0.05], String=YNAME{iFig}, ...
+%         HorizontalAlignment='center', LineStyle='none', FontSize=12, Rotation=90);
+
+    annotation(fig, 'textbox', [0.075,0.05,0.45,0.05], String=YNAME{iFig}, ...
+        HorizontalAlignment='center', LineStyle='none', FontSize=12, Rotation=90);
+   
+end
+
 %% TODO: Embed in EphysUnit as static method
 function info = getAnimalInfo(eu, ai, field)
     i = find(strcmpi({ai.name}, eu.getAnimalName()));
     assert(length(i) == 1, eu.getAnimalName())
     info = ai(i).(field);
+end
+
+function ax = plotRasterAndISI(rd, isi, xl)
+    figure(Position=[200, 200, 300, 600], DefaultAxesFontSize=11);
+    ax(1) = subplot(2, 1, 1);
+    ax(2) = subplot(2, 1, 2);
+    hold(ax(2), 'on')
+    EphysUnit.plotRaster(ax(1), rd, xlim=xl, timeUnit='ms');
+
+    t = isi.t;
+    x = isi.isi;
+    isiBaseline = isi.baseline;
+    isiStd = isi.baselineSD;
+
+    h(1) = plot(ax(2), t, x, 'k', LineWidth=2, DisplayName='ISI');
+    xlim(xl)
+    h(2) = patch(ax(2), [xl, flip(xl)], [isiBaseline + isiStd, isiBaseline + isiStd, isiBaseline - isiStd, isiBaseline - isiStd], 'k', FaceAlpha=0.2, DisplayName='std');
+    h(3) = plot(ax(2), xl, [isiBaseline, isiBaseline], 'k:', LineWidth=2, DisplayName='baseline');
+    if ~isempty(isi.peak) && ~isnan(isi.peak)
+        tPeak = isi.peakLatency;
+        xPeak = isi.peak;
+        tOnset = isi.onsetLatency;
+        xOnset = x(t==tOnset);
+        h(end+1) = scatter(ax(2), tPeak, xPeak, 100, 'g', 'filled', DisplayName='peak');
+        h(end+1) = scatter(tOnset, xOnset, 100, 'yellow', 'filled', DisplayName='onset');
+        text(tPeak, xPeak, sprintf('%.0fms', tPeak))
+        text(tOnset, xOnset, sprintf('%.0fms', tOnset));
+    end
+    plot(ax(2), [0, 0], ax(2).YLim, 'k:')
+    title('ISI (Time to next spike)')
+    ylabel('ISI (ms)')
+    yl = ax(2).YLim;
+    plot(ax(2), [0, 0], ax(2).YLim, 'k:')
+    ax(2).YLim = yl;
+    xlabel('Time from opto onset (ms)')
+    legend(ax(2), h, Location='best', FontSize=9)
+        
 end
 
 function ax = plotDoubleRaster(rd1, rd2, varargin)
@@ -609,7 +1520,7 @@ function [isiStruct, ax] = getISILatencies(rd, varargin)
     posMultiplier = p.Results.posMultiplier;
             
 
-    isiStruct(length(rd), 1) = struct('t', [], 'isi', [], 'isi0', [], 'onsetLatency', [], 'peakLatency', [], 'peak', [], 'baseline', [], 'baselineSD', [], 'peakWidth', []);
+    isiStruct(length(rd), 1) = struct('t', [], 'isi', [], 'isi0', [], 'onsetLatency', [], 'peakLatency', [], 'peak', [], 'baseline', [], 'baselineSD', [], 'width', []);
 
     for iUnit = 1:length(rd)
         spikeTimes = rd(iUnit).t .* 1000;

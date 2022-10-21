@@ -498,7 +498,9 @@ classdef EphysUnit < handle
             D = zeros(length(obj), 1);
 
             tTic = tic();
-            fprintf(1, 'Processing ETA for %i units...', length(obj))
+            if length(obj) > 1
+                fprintf(1, 'Processing ETA for %i units...', length(obj))
+            end
             for i = 1:length(obj)
                 if strcmpi(alignTo, 'default') 
                     if ismember(lower(event), {'stim', 'stimtrain', 'stimfirstpulse'})
@@ -560,9 +562,11 @@ classdef EphysUnit < handle
                 X(i, :) = x;
                 N(i) = n;
                 D(i) = d;
-                fprintf(1, ' %g', i)
+%                 fprintf(1, ' %g', i)
             end
-            fprintf(1, 'Done (%.1f sec)\n', toc(tTic))
+            if length(obj) > 1
+                fprintf(1, 'Done (%.1f sec)\n', toc(tTic))
+            end
     
             if isnumeric(normalize)
                 eta = struct('X', X, 't', t, 'N', N, 'D', D, 'stats', stats);

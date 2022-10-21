@@ -14,6 +14,34 @@ exp_A2A.ar.plotStimResponse([0.4 0.5 2], [0.01 0.05], {'line', 'heatmap'}, 'Heat
 cd('C:\SERVER\Figures\Acute\D1\');
 exp_D1.ar.plotStimResponse([0.4 0.5 2], [0.01 0.05], {'line', 'heatmap'}, 'HeatmapCLim', [-1, 1], 'Print', true);
 
+%% Plot basic stim response save to disk
+cd('C:\SERVER\Figures\Acute\A2A\');
+exp_A2A.ar.plotStimResponse([0.4 0.5 2], [0.01 0.05], {'heatmap'}, HeatmapCLim=[-1, 1], Print=false, Position=[0 0 0.75 0.5]);
+cd('C:\SERVER\Figures\Acute\D1\');
+exp_D1.ar.plotStimResponse([0.4 0.5 2], [0.01 0.05], {'heatmap'}, HeatmapCLim=[-1, 1], Print=false, Position=[0 0 0.75 0.5]);
+
+%% Find 2 example units to plot
+clear selUnit
+selUnit(1).expName = 'daisy15_20220511';
+selUnit(1).channel = 31;
+selUnit(1).unit    = 1;
+
+selUnit(2).expName = 'desmond23_20220504';
+selUnit(2).channel = 67;
+selUnit(2).unit    = 1;
+
+if ~exist('ar')
+    ar = AcuteRecording.load('C:\SERVER\Acute\AcuteRecording');
+end
+
+for iUnit = 1:length(selUnit)
+    iAr = find(strcmpi(selUnit(iUnit).expName, {ar.expName}));
+    bsr = ar(iAr).bsr;
+    iBsr = find([bsr.channel] == selUnit(iUnit).channel & [bsr.unit] == selUnit(iUnit).unit);
+    ar(iAr).plotStimResponse([0.4 0.5 2], [0.01 0.05], {'heatmap'}, Units=iBsr, ...
+        HeatmapCLim=[-1, 1], Print=false, Position=[0 0 0.7 0.7]);
+end
+
 %% Extract data
 [exp_D1.sr, ~, exp_D1.groups] = exp_D1.ar.getStimResponse([0.4 0.5], 0.01);
 exp_D1.pr = exp_D1.ar.getMoveResponse('Press');

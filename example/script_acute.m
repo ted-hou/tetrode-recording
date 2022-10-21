@@ -210,11 +210,12 @@ clear ax fig
 %% Read multiple files, pool stats and plot in same map.
 close all
 plotD1(-3280)
+plotA2A(-3280)
 % plotD1(-3280+350) 
 % plotD1([])
-% 
-plotA2A(-3280)
 % plotA2A([])
+
+%% Plot latencies by location
 
 %% TCA
 close all
