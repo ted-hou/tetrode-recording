@@ -1548,10 +1548,12 @@ classdef AcuteRecording < handle
             p.addOptional('threshold', 0.25, @isnumeric)
             p.addOptional('channels', [], @isnumeric)
             p.addOptional('method', 'Stat', @ischar)
-            p.addParameter('SLim', [9, 72], @isnumeric)
+            p.addParameter('SLim', [1 10], @isnumeric) % [9 72]
             p.addParameter('ARange', [0.25, 1], @isnumeric)
             p.addParameter('HideFlatUnits', false, @islogical)
             p.addParameter('UseSignedML', false, @islogical);
+            p.addParameter('BubbleSize', [1 10], @(x) isnumeric(x) && length(x) == 2)
+            p.addParameter('MarkerAlpha', 0.5, @isnumeric)
             p.parse(varargin{:})
             
             coords = p.Results.coords;
@@ -1580,7 +1582,11 @@ classdef AcuteRecording < handle
             if ~p.Results.UseSignedML
                 ml = abs(ml);
             end
-            h = scatter3(ax, ml, dv, ap, S, C, 'filled', 'MarkerFaceAlpha', 'flat', 'AlphaData', A, 'AlphaDataMapping', 'direct');
+%             h = scatter3(ax, ml, dv, ap, S, C, 'filled', 'MarkerFaceAlpha', 'flat', 'AlphaData', A, 'AlphaDataMapping', 'direct');
+            h = bubblechart3(ax, ml, dv, ap, S, C, MarkerFaceAlpha=p.Results.MarkerAlpha);
+            bubblesize(ax, p.Results.BubbleSize)
+            bubblelim(ax, srange)
+%             bubblelegend(ax, '\Deltasp/s')
             view(ax, 0, 90)
             if p.Results.UseSignedML
                 mlLabel = 'ML';

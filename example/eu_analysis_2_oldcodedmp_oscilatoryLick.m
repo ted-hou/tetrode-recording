@@ -5,7 +5,6 @@ eta.anyLick = eu.getETA('count', 'anylick', [-0.25, 0.25], resolution=0.01, norm
 eta.anyLickRaw = eu.getETA('count', 'anylick', [-0.25, 0.25], resolution=0.01, normalize='none');
 
 close all
-
 t = eta.anyLickRaw.t; 
 x = eta.anyLickRaw.X'*100;
 x = normalize(x, 1, 'zscore', 'robust');

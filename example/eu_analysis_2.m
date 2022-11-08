@@ -141,7 +141,7 @@ eta.lickRaw = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=p.minTria
 meta.lickRaw = transpose(mean(eta.lickRaw.X(:, eta.lickRaw.t >= p.metaWindowLickVsPress(1) & eta.lickRaw.t <= p.metaWindowLickVsPress(2)), 2, 'omitnan'));
 
 
-% 2.3.2 Basic summaries (fast)
+%% 2.3.2 Basic summaries (fast)
 % hasPress/hasLick
 c.hasPress = arrayfun(@(e) nnz(e.getTrials('press').duration() >= p.minTrialDuration) >= p.minNumTrials, eu);
 c.hasLick = arrayfun(@(e) nnz(e.getTrials('lick').duration() >= p.minTrialDuration) >= p.minNumTrials, eu);
@@ -195,8 +195,109 @@ fprintf(1, ['%g units with press AND lick trials:\n' ...
     nnz(c.isPressDown & c.isLickUp), 100*nnz(c.isPressDown & c.isLickUp)/nTotal)   
 clear nTotal
 
-%% 4. Stim response
-%
+%% 2. Oscilatory lick analysis
+
+eta.anyLick = eu.getETA('count', 'anylick', [-0.25, 0.25], resolution=0.01, normalize='iti');
+eta.anyLickRaw = eu.getETA('count', 'anylick', [-0.25, 0.25], resolution=0.01, normalize='none');
+
+close all
+t = eta.anyLickRaw.t; 
+x = eta.anyLickRaw.X'*100;
+x = normalize(x, 1, 'zscore', 'robust');
+eta.anyLickNorm = eta.anyLickRaw;
+eta.anyLickNorm.X = x';
+
+ax = axes();
+hold(ax, 'on')
+clear P8 P6 P10
+for i = 1:size(x, 2)
+    Y = fft(x(:, i));
+    Fs = 100;            % Sampling frequency                    
+    T = 1/Fs;             % Sampling period       
+    L = length(t);             % Length of signal
+    t = (0:L-1)*T;        % Time vector
+    
+    P2 = abs(Y/L);
+    P1 = P2(1:L/2+1);
+    P1(2:end-1) = 2*P1(2:end-1);
+    f = Fs*(0:(L/2))/L;
+    plot(ax, f,P1) 
+    title('Single-Sided Amplitude Spectrum of X(t)')
+    xlabel('f (Hz)')
+    ylabel('|P1(f)|')
+    P8(i) = P1(f==8);
+    P6(i) = P1(f==6);
+    P10(i) = P1(f==10);
+    P16(i) = P1(f==16);
+    P14(i) = P1(f==14);
+    P18(i) = P1(f==18);
+end
+
+theta = 0.5;
+relTheta = 0;
+isLick = P8 > P6 + relTheta & P8 > P10 + relTheta & P16 > P14 + relTheta & P16 > P18 + relTheta & P8 > theta;
+c.isLick = isLick;
+nnz(isLick)
+figure()
+ax = subplot(1, 2, 1);
+plot(t, x(:, isLick))
+title(sprintf('N = %g (%.1f%%)', nnz(isLick), 100*nnz(isLick)/length(eu)))
+
+ax = subplot(1, 2, 2); hold(ax, 'on')
+Fs = 100;            % Sampling frequency                    
+T = 1/Fs;             % Sampling period       
+L = length(t);             % Length of signal
+t = (0:L-1)*T;        % Time vector
+f = Fs*(0:(L/2))/L;
+
+P = zeros(26, nnz(isLick));
+for i = find(isLick)
+    Y = fft(x(:, i));
+    P2 = abs(Y/L);
+    P1 = P2(1:L/2+1);
+    P1(2:end-1) = 2*P1(2:end-1);
+    P(:, i) = P1;
+end
+plot(f, P1)
+title('Single-Sided Amplitude Spectrum of X(t)')
+xlabel('f (Hz)')
+ylabel('|P1(f)|')
+
+signWindow = [-0.13, -0.01];
+sortWindow = [-0.13, -0.01];
+plotWindow = [-0.25, 0.25];
+EphysUnit.plotETA(eta.anyLickNorm, [], xlim=plotWindow, clim=[-2 2], sortWindow=sortWindow, signWindow=signWindow, sortThreshold=0.5, negativeSortThreshold=Inf); title('Lick ETA')
+ax = EphysUnit.plotETA(eta.anyLickNorm, isLick, xlim=plotWindow, clim=[-2 2], sortWindow=sortWindow, signWindow=signWindow, sortThreshold=0.5, negativeSortThreshold=Inf); title('Lick ETA')
+ax.Parent.Position(3) = 0.25;
+ax.Parent.Position(4) = 0.4;%1*nnz(isLick)/nnz(c.hasLick);
+xlabel(ax, 'Time to lick (s)')
+title(ax, 'Lick ETA (ITI)')
+
+
+% ax = EphysUnit.plotETA(eta.anyLickNorm, c.isLick & c.isLickResponsive, xlim=plotWindow, clim=[-4 4], sortWindow=sortWindow, signWindow=signWindow, sortThreshold=0.5, negativeSortThreshold=Inf); title('Lick ETA')
+% ax.Parent.Position(3) = 0.25;
+% ax.Parent.Position(4) = 1*nnz(c.isLick & c.isLickResponsive)/nnz(c.hasLick);
+% xlabel(ax, 'Time relative to lick (s)')
+% title(ax, 'Lick ETA (ITI)')
+
+[ax, ~, ~, latency] = EphysUnit.plotDoubleETA(eta.anyLickNorm, eta.lick, c.isLick & c.isLickResponsive, 'Lick (ITI)', 'First Lick', xlim=[-4,0], clim=[-2, 2], sortWindow=sortWindow, signWindow=signWindow, sortThreshold=0.5, negativeSortThreshold=Inf); 
+xlabel(ax(1), 'Time to lick (s)'); xlabel(ax(2), 'Time to first lick (s)')
+xlim(ax(1), [-0.25, 0.25])
+ax(1).FontSize=12;
+ax(2).FontSize=12;
+ax(1).Parent.Position(4) = 0.4;%1*nnz(c.isLick & c.isLickResponsive)/nnz(c.isLickResponsive & c.hasPress);
+
+
+%%
+fprintf(1, 'Out of %g units, %g (%.1f%%) has oscilatory lick-related activity.\n', length(eu), nnz(c.isLick), nnz(c.isLick) / length(eu) * 100);
+fprintf(1, 'Out of %g lick-responsive units, %g (%.1f%%) has oscilatory lick-related activity.\n', nnz(c.isLickResponsive), nnz(c.isLick & c.isLickResponsive), nnz(c.isLick & c.isLickResponsive) / nnz(c.isLick) * 100)
+fprintf(1, '\t%g (%.1f%%) are lick activated, %g(%.1f%%) are suppressed.\n', nnz(c.isLick & c.isLickUp), nnz(c.isLick & c.isLickUp) / nnz(c.isLick & c.isLickResponsive) * 100, ...
+        nnz(c.isLick & c.isLickDown), nnz(c.isLick & c.isLickDown) / nnz(c.isLick & c.isLickResponsive) * 100)
+
+
+t = eta.anyLickNorm.t;
+meta.anyLickNorm = transpose(mean(eta.anyLickNorm.X(:, t >= -0.05 & t < 0), 2, 'omitnan'));
+
 
 %% 4.1.1.2 Example stim responses (2dSPN 2iSPN)
 close all
@@ -695,20 +796,24 @@ for iFig = 1:length(SEL)
                     directions(c.isStimDownSpatial(iML, iDV, :)) = -1;
                     directions = directions(sel);
                     stats = directions .* latencies;
-                    srange = [5, 50];
+                    srange = [5, 30];
+                    bsrange = [2, 10];
                     sthreshold = 0;
                 case 'response'
 %                     responses = (1000./[isiSpatial(iML, iDV, sel).peak] - 1000./[isiSpatial(iML, iDV, sel).isi0]) ./ (1000./[isiSpatial(iML, iDV, sel).baselineSD]);
 %                     stats = responses;
 %                     stats(responses < 0) = stats(responses < 0) * 5;
-                    responses = squeeze(peta.stimSpatial(iML, iDV, sel));
+                    % responses = squeeze(peta.stimSpatial(iML, iDV, sel));
+                    responses = 1000./[isiSpatial(iML, iDV, sel).peak] - 1000./[isiSpatial(iML, iDV, sel).baseline];
                     stats = responses;
                     stats(responses < 0) = stats(responses < 0) * 5;
-                    srange = [0.2, 2];
+                    srange = [2.5 75];
+%                     srange = [0, 7.5];
+                    bsrange = [1, 15];
                     sthreshold = 0;
             end
 
-            h = AcuteRecording.plotMap(ax, coords, stats, srange, sthreshold, UseSignedML=false);
+            h = AcuteRecording.plotMap(ax, coords, stats, srange, sthreshold, UseSignedML=false, BubbleSize=bsrange, MarkerAlpha=0.4);
 %             if iML == 2 && iDV > 1
 %                 xlabel(ax, "");
 %                 ylabel(ax, "");
@@ -741,7 +846,7 @@ for iMove = 1:length(MOVETYPE)
     sel = SEL{iMove};
     coords = euPos(sel, :);
     stats = STATS{iMove}(sel);
-    AcuteRecording.plotMap(ax, coords, stats, [0 3], 0, UseSignedML=false);
+    AcuteRecording.plotMap(ax, coords, stats, [0 5], 0, UseSignedML=false, BubbleSize=[1 7.5], MarkerAlpha=0.25);
     title(ax, TITLE{iMove})
     axis(ax, 'image')
     xlim(ax, [0.9, 1.7])
@@ -1055,26 +1160,26 @@ SEL = { ...
 XDATA = { ...
     meta.lickRaw*10 - msr; ...
     msr; ...
-    meta.lickRaw*10 - msr; ...
-    meta.pressRaw*10 - msr; ...
+    meta.anyLickNorm; ...
+    meta.anyLickNorm; ...
     };
 YDATA = { ...
     meta.pressRaw*10 - msr; ...
     meta.pressRaw*10 - msr; ...
-    meta.anyLickNorm; ...
-    meta.anyLickNorm; ...
+    meta.lickRaw*10 - msr; ...
+    meta.pressRaw*10 - msr; ...
     };
 XNAME = { ...
     'lick resp (\Deltasp/s)'; ...
     'baseline (sp/s)'; ...
-    'lick resp (\Deltasp/s)'; ...
-    'press resp (\Deltasp/s)'; ...
+    'osci lick (a.u.)'; ...
+    'osci lick (a.u.)'; ...
     };
 YNAME = { ...
     'press resp (\Deltasp/s)'; ...
     'press resp (\Deltasp/s)'; ...
-    'osci lick (a.u.)'; ...
-    'osci lick (a.u.)'; ...
+    'lick resp (\Deltasp/s)'; ...
+    'press resp (\Deltasp/s)'; ...
     };
 TITLE = { ...
     'iSPN-stim', 'dSPN-stim'; ...
@@ -1095,9 +1200,10 @@ YAXIS = { ...
     zeros(size(msr)); ...
     };
 EQUAL_AXES = [true; false; false; false];
-XAXIS_MARGIN = [10; 10; 10; 10];
-YAXIS_MARGIN = [10; 10; 0; 0];
-YLIM = {[]; []; [-2, 2]; [-2, 2]};
+YAXIS_MARGIN = [10; 10; 10; 10];
+XAXIS_MARGIN = [10; 10; 0; 0];
+XLIM = {[]; []; [-2, 2]; [-2, 2]};
+YLIM = {[]; []; []; []};
 BUBBLELIM = {[2, 50]; [2, 50]; [2, 25]; [2, 25]};
 
 close all
@@ -1173,6 +1279,7 @@ for iFig = 1:size(SEL, 1)
                 end
                 if ismember(iAx, [14, 16]) && iFig == 3
                     xl = ax.XLim;
+                    clear text
                     text(ax, 0.5*xl(1), 0.5, num2str(nnz(c.isM(selDown) & c.hasPress(selDown))))
                     text(ax, 0.5*xl(2), 0.5, num2str(nnz(c.isL(selDown) & c.hasPress(selDown))))
                     text(ax, 0.5*xl(1), 0, num2str(nnz(c.isPressUp(selUp))))
@@ -1183,7 +1290,11 @@ for iFig = 1:size(SEL, 1)
     end
 
     % Unify xlims
-    xl = [min([ax.XLim]) - XAXIS_MARGIN(iFig), max([ax.XLim]) + XAXIS_MARGIN(iFig)];
+    if isempty(XLIM{iFig})
+        xl = [min([ax.XLim]) - XAXIS_MARGIN(iFig), max([ax.XLim]) + XAXIS_MARGIN(iFig)];
+    else
+        xl = XLIM{iFig};
+    end
     if isempty(YLIM{iFig})
         yl = [min([ax.YLim]) - YAXIS_MARGIN(iFig), max([ax.YLim]) + YAXIS_MARGIN(iFig)];
     else
@@ -1209,6 +1320,8 @@ for iFig = 1:size(SEL, 1)
 end
 
 
+%% 6.4 Scatter self-timed press vs self-timed lick, color by osci lick
+
         
 %% 4.3 Stim response analysis by ISI analysis, instead of ETA
 naans = NaN(length(eu), 1);
@@ -1229,6 +1342,8 @@ stimResp.peakSR = 1000./stimResp.peak;
 r.stim = stimResp.peakSR - stimResp.baselineSR;
 r.press = meta.pressRaw*10 - msr;
 r.lick = meta.lickRaw*10 - msr;
+
+sz = 25;
 
 close all
 % 4.3.1 Plot 
@@ -1410,6 +1525,148 @@ for iFig = 1:length(TITLE)
         HorizontalAlignment='center', LineStyle='none', FontSize=12, Rotation=90);
    
 end
+
+
+%% 4.3.2 Press vs Lick by SNr location, color by oscillatory licking
+close all
+
+xEdges = [0 1300 2600];
+yEdges = [0 4300 10000];
+xPos = abs(euPos(:, 1))';
+yPos = abs(euPos(:, 2))';
+c.isM = xPos <= xEdges(2);
+c.isL = xPos > xEdges(2);
+c.isD = yPos <= yEdges(2);
+c.isV = yPos > yEdges(2);
+
+YNAME = { ...
+    'Lick response (\Deltasp/s)'; ...
+    };
+
+XNAME = { ...
+    'Lever-press response (\Deltasp/s)'; ...
+    };
+
+DATA = { ...
+    r.press, r.lick; ...
+    };
+
+SCDATA = { ...
+    meta.anyLickNorm; ...
+    };
+
+SEL = { ...
+    c.hasPos & c.hasPress & c.hasLick & c.isLick; ...
+    };
+
+TITLE = { ...
+    'Self-timed lick vs press, color by osci lick'; ...
+    };
+
+% First combined SNr plot
+fig = figure(Unit='pixels', Position=[200 200 wPlot hPlot], DefaultAxesFontSize=12);
+ax = axes(fig);
+hold(ax, 'on')
+h = gobjects(1, 3);
+
+sel = c.hasPress & c.hasLick & c.isLick;
+x = DATA{1, 2}(sel);
+y = DATA{1, 1}(sel);
+sc = SCDATA{1}(sel); % Size and color
+sz = 25*abs(sc); % Size
+sg = sign(sc); % Sign/color
+h(1, 1) = scatter(ax, x(sg>0), y(sg>0), sz(sg>0), 'red', 'filled', ...
+    DisplayName=sprintf('N=%g', nnz(sg>0)));
+h(1, 2) = scatter(ax, x(sg<0), y(sg<0), sz(sg<0), 'blue', 'filled', ...
+    DisplayName=sprintf('N=%g', nnz(sg<0)));
+
+xl = [min(horzcat(ax.XLim)), max(horzcat(ax.XLim))];
+yl = [min(horzcat(ax.YLim)), max(horzcat(ax.YLim))];
+
+mdl = fitlm(x, y);
+h(1, 3) = plot(ax, xl, mdl.predict(xl'), 'k--', LineWidth=1, DisplayName=sprintf('R^2=%.2f', mdl.Rsquared.Ordinary));
+legend(ax, h, Location='best', AutoUpdate='off')
+plot(ax, xl, [0, 0], 'k:')
+plot(ax, [0, 0], yl, 'k:')
+xlim(ax, xl);
+ylim(ax, yl);
+xlabel(ax, XNAME{1})
+ylabel(ax, YNAME{1})
+
+% Broken down 4 SNr plots
+for iFig = 1:length(TITLE)
+    fig = figure(Units='pixels', Position=[200, 200, wPlot*2, hPlot*2], DefaultAxesFontSize=10);
+    ax = gobjects(4, 1);
+    h = gobjects(4, 3);
+    for i = 1:4
+        ax(i) = subplot(2, 2, i);
+        hold(ax(i), 'on');
+        switch i
+            case 1
+                sel = SEL{iFig} & c.isD & c.isM;
+                title('DM')
+            case 2
+                sel = SEL{iFig} & c.isD & c.isL;
+                title('DL')
+            case 3
+                sel = SEL{iFig} & c.isV & c.isM;
+                title('VM')
+            case 4
+                sel = SEL{iFig} & c.isV & c.isL;
+                title('VL')
+        end
+        x = DATA{iFig, 2}(sel);
+        y = DATA{iFig, 1}(sel);
+        sc = SCDATA{iFig}(sel); % Size and color
+        sz = 25*abs(sc); % Size
+        sg = sign(sc); % Sign/color
+        h(i, 1) = scatter(x(sg>0), y(sg>0), sz(sg>0), 'red', 'filled', ...
+            DisplayName=sprintf('N=%g', nnz(sg>0)));
+        h(i, 2) = scatter(x(sg<0), y(sg<0), sz(sg<0), 'blue', 'filled', ...
+            DisplayName=sprintf('N=%g', nnz(sg<0)));
+    end
+
+    xl = [min(horzcat(ax.XLim)), max(horzcat(ax.XLim))];
+    yl = [min(horzcat(ax.YLim)), max(horzcat(ax.YLim))];
+    for i = 1:4
+        switch i
+            case 1
+                sel = SEL{iFig} & c.isD & c.isM;
+                title('DM')
+            case 2
+                sel = SEL{iFig} & c.isD & c.isL;
+                title('DL')
+            case 3
+                sel = SEL{iFig} & c.isV & c.isM;
+                title('VM')
+            case 4
+                sel = SEL{iFig} & c.isV & c.isL;
+                title('VL')
+        end
+        if any(sel)
+            x = DATA{iFig, 2}(sel);
+            y = DATA{iFig, 1}(sel);
+            mdl = fitlm(x, y);
+            h(i, 3) = plot(ax(i), xl, mdl.predict(xl'), 'k--', LineWidth=1, DisplayName=sprintf('R^2=%.2f', mdl.Rsquared.Ordinary));
+            legend(ax(i), h(i, :), Location='best', AutoUpdate='off')
+        end
+        plot(ax(i), xl, [0, 0], 'k:')
+        plot(ax(i), [0, 0], yl, 'k:')
+    end
+    xlim(ax, xl);
+    ylim(ax, yl);
+
+    annotation(fig, 'textbox', [0.1, 0.02, 0.9, 0.05], String=XNAME{iFig}, ...
+        HorizontalAlignment='center', LineStyle='none', FontSize=12);
+
+%     annotation(fig, 'textbox', [0.075, 0.1, 1, 0.05], String=YNAME{iFig}, ...
+%         HorizontalAlignment='center', LineStyle='none', FontSize=12, Rotation=90);
+
+    annotation(fig, 'textbox', [0.075,0.05,0.45,0.05], String=YNAME{iFig}, ...
+        HorizontalAlignment='center', LineStyle='none', FontSize=12, Rotation=90);
+   
+end
+clear xPos yPos x y mdl h ax fig xl yl sel i iFig sc sz sg
 
 %% TODO: Embed in EphysUnit as static method
 function info = getAnimalInfo(eu, ai, field)

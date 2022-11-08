@@ -191,7 +191,7 @@ classdef CompleteExperiment < handle
                 @(x) all(ismember(x, {'handL', 'handR', 'footL', 'footR', 'nose', 'spine', 'tail', 'tongue', ...
                 'trialStart', 'reward', 'anyPress', 'anyLick', 'firstPress', 'firstLick', ...
                 'firstPressRamp', 'firstLickRamp', 'pressTrialRamp', 'lickTrialRamp'})))
-            p.addParameter('stats', {'xPos', 'yPos', 'xVel', 'yVel'})
+            p.addParameter('stats', {'xPos', 'yPos', 'xVel', 'yVel', 'spd'})
             p.addParameter('likelihoodThreshold', 0.95, @isnumeric); % Observations with lieklihood below this threshold will be discarded (NaN)
             p.addParameter('rampDurations', 0.1:0.2:2, @isnumeric);
             p.addParameter('trialType', {'press', 'lick'})
@@ -271,6 +271,9 @@ classdef CompleteExperiment < handle
                     if ismember('yVel', stats)
                         F.(sprintf('%s_yVel', featureName)) = yVel;
                     end
+                    if ismember('spd', stats)
+                        F.(sprintf('%s_spd', featureName)) = sqrt(xVel.^2 + yVel.^2);
+                    end
                 elseif ismember(featureName, {'nose', 'spine', 'tail'})
                     vtd = {obj.vtdR, obj.vtdL};
                     bodypartName = featureName;
@@ -326,6 +329,9 @@ classdef CompleteExperiment < handle
                     end
                     if ismember('yVel', stats)
                         F.(sprintf('%s_yVel', featureName)) = yVel;
+                    end
+                    if ismember('spd', stats)
+                        F.(sprintf('%s_spd', featureName)) = sqrt(xVel.^2 + yVel.^2);
                     end
                 elseif strcmp(featureName, 'tongue')
                     % Tongue is special because it usually is only visible
