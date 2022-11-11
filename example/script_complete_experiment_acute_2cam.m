@@ -55,7 +55,7 @@ exp = CompleteExperiment(eu);
 exp.alignTimestamps();
 
 %% Get first significant arm movement befor trials
-theta = 2.5;
+theta = 0.5;
 % thetaPrct = 0.1;
 [velocityKernels, ~, ~] = CompleteExperiment.makeConsineKernels(0, width=0.1, overlap=0.5, direction='both');
 
@@ -66,9 +66,9 @@ for iExp = 1:length(exp)
     trueStartTime = NaN(1, length(trials));
     for iTrial = 1:length(trials)
         t = trials(iTrial).Start:1/30:trials(iTrial).Stop;
-        F = exp(iExp).getFeatures(timestamps=t, features={'handL', 'handR'}, stats={'xPos', 'yPos'});
+        F = exp(iExp).getFeatures(timestamps=t, features={sprintf('hand%s', leverSide(iExp))}, stats={'xPos', 'yPos'});
         F = CompleteExperiment.convolveFeatures(F, velocityKernels, kernelNames={'_smooth'}, ...
-            features={'handL', 'handR'}, ...
+            features={sprintf('hand%s', leverSide(iExp))}, ...
             stats={'xPos', 'yPos'}, ...
             mode='replace', normalize='maxabs');
         F.inTrial = [];
@@ -77,7 +77,7 @@ for iExp = 1:length(exp)
         data = flip(table2array(F), 1);
         isAbove = abs(data) >= theta;
 %         isAbove = abs(data) >= abs(data(1, :)) * thetaPrct;
-        isAboveConseq = any(isAbove & [0, 0, 0, 0; diff(isAbove)] == 0, 2);
+        isAboveConseq = any(isAbove & [0, 0; diff(isAbove)] == 0, 2);
         t = flip(t);
         t = t - t(1);
         trueStartIndex = find(~isAboveConseq, 1, 'first') - 1;
@@ -98,15 +98,16 @@ for iExp = 1:length(exp)
     TST{iExp} = trueStartTime;
 end
 %%
-figure(DefaultAxesFontSize=11, Position=[874,685,449,211])
+close all
+figure(DefaultAxesFontSize=11, Position=[200,200,600,300])
 tst = cat(2, TST{:});
 histogram(tst, -2:0.1:0, FaceColor="auto", Normalization='probability')
-xlabel('Movement onset latency (s)')
+xlabel('Time to lever-contact (s)')
 ylabel('Probability')
-legend(sprintf('%g trials, %g animals', nnz(~isnan(tst)), length(exp)))
-title(sprintf('median=%.2f', median(tst, 'omitnan')))
+legend(sprintf('%g trials, %g sessions', nnz(~isnan(tst)), length(exp)), Location='northwest')
+title('Contralateral forepaw movement onset latency')
 
-clearvars -except eu exp TST
+% clearvars -except eu exp TST
     
 %% 1.4 Get video clips around event times to verify stuff
 i = 9;

@@ -826,20 +826,42 @@ classdef EphysUnit < handle
                 tSort = t(t >= sortWindow(1) & t <= sortWindow(2));
                 meta = mean(X(:, t >= signWindow(1) & t <= signWindow(2)), 2, 'omitnan');
                 etaSign = sign(meta);
+%                 etaSign(meta >= -negativeSortThreshold & meta <= 0) = -Inf;
+%                 etaSign(meta <= sortThreshold & meta >= 0) = Inf;
                 assert(size(etaSign, 2) == 1);
                 isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
-                [~, Ilate] = max(isAboveThreshold, [], 2, 'omitnan');
+                [~, iPeak] = max(flip(isAboveThreshold, 2), [], 2);
+                nSignBins = nnz(t >= signWindow(1) & t <= signWindow(2) & t >= sortWindow(1) & t <= sortWindow(2));
+                for i = 1:size(isAboveThreshold, 1)
+                    if iPeak(i) <= nSignBins
+                        isAboveThreshold(i, end-iPeak(i)+1:end) = true;
+                    end
+                end
+                isAboveThresholdConseq = isAboveThreshold & [diff(isAboveThreshold')', zeros(size(X, 1), 1)] == 0;
+                [~, Ilate] = min(flip(isAboveThresholdConseq, 2), [], 2, 'omitnan');
+                Ilate = size(isAboveThresholdConseq, 2) + 2 - Ilate;
+%                 [~, Ilate] = min(~isAboveThresholdConseq, [], 2, 'omitnan');
+                
+                min(Ilate)
+                max(Ilate)
+
+                nonSig = Ilate==size(isAboveThresholdConseq, 2) + 1;
+                Ilate(nonSig) = size(isAboveThresholdConseq, 2);
 %                 [~, order] = sort(Ilate .* etaSign + 0.1*abs(meta), 'descend');
-                [~, order] = sort(Ilate .* etaSign, 'descend');
+                sortVal = Ilate .* etaSign;
+                sortVal(nonSig) = sortVal(nonSig) + meta(nonSig);
+                [~, order] = sort(sortVal, 'ascend');
                 meta = meta(order);
                 latency = tSort(Ilate);
-                latency = latency(order);
+                assert(all(~isnan(latency)))
+%                 latency = latency(order);
                 varargout = {ax, order(:), meta(:), latency(:)};
             else
                 order = p.Results.order;
                 if nargout < 3
                     varargout = {ax, order};
                 else
+                    error('Latency calc not implemented')
                     XSort = X(:, t >= sortWindow(1) & t <= sortWindow(2));
                     tSort = t(t >= sortWindow(1) & t <= sortWindow(2));
                     meta = mean(X(:, t >= signWindow(1) & t <= signWindow(2)), 2, 'omitnan');
