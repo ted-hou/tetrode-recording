@@ -4739,7 +4739,7 @@ classdef TetrodeRecording < handle
 			else
 				files = {};
 				for iFile = 1:length(expNames)
-                    t = tic();
+                    tTic = tic();
 					if (isfile(expNames{iFile}))
 						files{length(files) + 1} = expNames{iFile};
                     else

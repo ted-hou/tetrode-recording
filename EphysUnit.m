@@ -829,7 +829,8 @@ classdef EphysUnit < handle
                 assert(size(etaSign, 2) == 1);
                 isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
                 [~, Ilate] = max(isAboveThreshold, [], 2, 'omitnan');
-                [~, order] = sort(Ilate .* etaSign + 0.1*abs(meta), 'descend');
+%                 [~, order] = sort(Ilate .* etaSign + 0.1*abs(meta), 'descend');
+                [~, order] = sort(Ilate .* etaSign, 'descend');
                 meta = meta(order);
                 latency = tSort(Ilate);
                 latency = latency(order);

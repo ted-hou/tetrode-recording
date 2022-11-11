@@ -195,11 +195,15 @@ classdef CompleteExperiment < handle
             p.addParameter('likelihoodThreshold', 0.95, @isnumeric); % Observations with lieklihood below this threshold will be discarded (NaN)
             p.addParameter('rampDurations', 0.1:0.2:2, @isnumeric);
             p.addParameter('trialType', {'press', 'lick'})
+            p.addParameter('useGlobalNormalization', true, @islogical)
+            p.addParameter('baselineTimestamps', [], @isnumeric);
             p.parse(varargin{:});
             timestamps = p.Results.timestamps;
             features = p.Results.features;
             stats = p.Results.stats;
             likelihoodThreshold = p.Results.likelihoodThreshold;
+            useGlobalNormalization = p.Results.useGlobalNormalization;
+            baselineTimestamps = p.Results.baselineTimestamps;
 
             if isempty(timestamps)
                 lastSpikeTimestamp = max(arrayfun(@(eu) eu.SpikeTimes(end), obj.eu));
@@ -228,30 +232,47 @@ classdef CompleteExperiment < handle
                             bodypartName = 'footIpsi';
                     end
     
-                    xPos = vtd.(sprintf('%s_X', bodypartName));
-                    yPos = vtd.(sprintf('%s_Y', bodypartName));
+                    xPosGlobal = vtd.(sprintf('%s_X', bodypartName));
+                    yPosGlobal = vtd.(sprintf('%s_Y', bodypartName));
 
                     % Remove uncertain estimates (NaN)
                     isUncertain = vtd.(sprintf('%s_Likelihood', bodypartName)) < likelihoodThreshold;
-                    xPos(isUncertain) = NaN;
-                    yPos(isUncertain) = NaN;
+                    xPosGlobal(isUncertain) = NaN;
+                    yPosGlobal(isUncertain) = NaN;
 
                     % Calculate velocity
                     t = vtd.Timestamp;
-                    xVel = [0; diff(xPos)] ./ [1; diff(t)];
-                    yVel = [0; diff(yPos)] ./ [1; diff(t)];
+                    xVelGlobal = [0; diff(xPosGlobal)] ./ [1; diff(t)];
+                    yVelGlobal = [0; diff(yPosGlobal)] ./ [1; diff(t)];
 
                     % Resample data at tquery
-                    xPos = interp1(t, xPos, timestamps, 'linear', NaN);
-                    yPos = interp1(t, yPos, timestamps, 'linear', NaN);
-                    xVel = interp1(t, xVel, timestamps, 'linear', NaN);
-                    yVel = interp1(t, yVel, timestamps, 'linear', NaN);
+                    xPos = interp1(t, xPosGlobal, timestamps, 'linear', NaN);
+                    yPos = interp1(t, yPosGlobal, timestamps, 'linear', NaN);
+                    xVel = interp1(t, xVelGlobal, timestamps, 'linear', NaN);
+                    yVel = interp1(t, yVelGlobal, timestamps, 'linear', NaN);
+
 
                     % Normalize data
-                    xPos = normalize(xPos, 'zscore');
-                    yPos = normalize(yPos, 'zscore');
-                    xVel = normalize(xVel, 'zscore');
-                    yVel = normalize(yVel, 'zscore');
+                    if ~isempty(baselineTimestamps)
+                        xPosBaseline = interp1(t, xPosGlobal, baselineTimestamps, 'linear', NaN);
+                        yPosBaseline = interp1(t, yPosGlobal, baselineTimestamps, 'linear', NaN);
+                        xVelBaseline = interp1(t, xVelGlobal, baselineTimestamps, 'linear', NaN);
+                        yVelBaseline = interp1(t, yVelGlobal, baselineTimestamps, 'linear', NaN);
+                        xPos = (xPos - mean(xPosBaseline, 'omitnan')) ./ std(xPosBaseline, 0, 'omitnan');
+                        yPos = (yPos - mean(yPosBaseline, 'omitnan')) ./ std(yPosBaseline, 0, 'omitnan');
+                        xVel = (xVel - mean(xVelBaseline, 'omitnan')) ./ std(xVelBaseline, 0, 'omitnan');
+                        yVel = (yVel - mean(yVelBaseline, 'omitnan')) ./ std(yVelBaseline, 0, 'omitnan');
+                    elseif useGlobalNormalization
+                        xPos = (xPos - mean(xPosGlobal, 'omitnan')) ./ std(xPosGlobal, 0, 'omitnan');
+                        yPos = (yPos - mean(yPosGlobal, 'omitnan')) ./ std(yPosGlobal, 0, 'omitnan');
+                        xVel = (xVel - mean(xVelGlobal, 'omitnan')) ./ std(xVelGlobal, 0, 'omitnan');
+                        yVel = (yVel - mean(yVelGlobal, 'omitnan')) ./ std(yVelGlobal, 0, 'omitnan');
+                    else
+                        xPos = normalize(xPos, 'zscore');
+                        yPos = normalize(yPos, 'zscore');
+                        xVel = normalize(xVel, 'zscore');
+                        yVel = normalize(yVel, 'zscore');
+                    end
 
                     % Inverse sign of x data for left camera (so that front of mouse is x positive, up is y positive)
                     if ismember(featureName, {'handL', 'footL'})
@@ -283,6 +304,15 @@ classdef CompleteExperiment < handle
                     xVelBothSides = NaN(length(timestamps), 2);
                     yVelBothSides = NaN(length(timestamps), 2);
 
+                    xPosMU = NaN(1, 2);
+                    yPosMU = NaN(1, 2);
+                    xVelMU = NaN(1, 2);
+                    yVelMU = NaN(1, 2);
+                    xPosSD = NaN(1, 2);
+                    yPosSD = NaN(1, 2);
+                    xVelSD = NaN(1, 2);
+                    yVelSD = NaN(1, 2);
+
                     for iSide = 1:2
                         xPos = vtd{iSide}.(sprintf('%s_X', bodypartName));
                         yPos = vtd{iSide}.(sprintf('%s_Y', bodypartName));
@@ -295,6 +325,15 @@ classdef CompleteExperiment < handle
                         xVel = [0; diff(xPos)] ./ [1; diff(t)];
                         yVel = [0; diff(yPos)] ./ [1; diff(t)];
 
+                        xPosMU(:, iSide) = mean(xPos, 'omitnan');
+                        yPosMU(:, iSide) = mean(yPos, 'omitnan');
+                        xVelMU(:, iSide) = mean(xVel, 'omitnan');
+                        yVelMU(:, iSide) = mean(yVel, 'omitnan');
+                        xPosSD(:, iSide) = std(xPos, 0, 'omitnan');
+                        yPosSD(:, iSide) = std(yPos, 0, 'omitnan');
+                        xVelSD(:, iSide) = std(xVel, 0, 'omitnan');
+                        yVelSD(:, iSide) = std(yVel, 0, 'omitnan');
+
                         % Resample data at tquery
                         xPosBothSides(:, iSide) = interp1(t, xPos, timestamps, 'linear', NaN);
                         yPosBothSides(:, iSide) = interp1(t, yPos, timestamps, 'linear', NaN);
@@ -303,10 +342,26 @@ classdef CompleteExperiment < handle
                     end
 
                     % Normalize data
-                    xPosBothSides = normalize(xPosBothSides, 1, 'zscore');
-                    yPosBothSides = normalize(yPosBothSides, 1, 'zscore');
-                    xVelBothSides = normalize(xVelBothSides, 1, 'zscore');
-                    yVelBothSides = normalize(yVelBothSides, 1, 'zscore');
+                    if ~isempty(baselineTimestamps)
+                        xPosBaseline = interp1(t, xPosGlobal, baselineTimestamps, 'linear', NaN);
+                        yPosBaseline = interp1(t, yPosGlobal, baselineTimestamps, 'linear', NaN);
+                        xVelBaseline = interp1(t, xVelGlobal, baselineTimestamps, 'linear', NaN);
+                        yVelBaseline = interp1(t, yVelGlobal, baselineTimestamps, 'linear', NaN);
+                        xPosBothSides = (xPos - mean(xPosBaseline, 'omitnan')) ./ std(xPosBaseline, 0, 'omitnan');
+                        yPosBothSides = (yPos - mean(yPosBaseline, 'omitnan')) ./ std(yPosBaseline, 0, 'omitnan');
+                        xVelBothSides = (xVel - mean(xVelBaseline, 'omitnan')) ./ std(xVelBaseline, 0, 'omitnan');
+                        yVelBothSides = (yVel - mean(yVelBaseline, 'omitnan')) ./ std(yVelBaseline, 0, 'omitnan');
+                    elseif useGlobalNormalization
+                        xPosBothSides = (xPosBothSides - xPosMU) ./ xPosSD;
+                        yPosBothSides = (yPosBothSides - yPosMU) ./ yPosSD;
+                        xVelBothSides = (xVelBothSides - xVelMU) ./ xVelSD;
+                        yVelBothSides = (yVelBothSides - yVelMU) ./ yVelSD;
+                    else
+                        xPosBothSides = normalize(xPosBothSides, 1, 'zscore');
+                        yPosBothSides = normalize(yPosBothSides, 1, 'zscore');
+                        xVelBothSides = normalize(xVelBothSides, 1, 'zscore');
+                        yVelBothSides = normalize(yVelBothSides, 1, 'zscore');
+                    end
 
                     % Inverse sign of x data for left camera (so that front of mouse is x positive, up is y positive)
                     xPosBothSides(:, 2) = -xPosBothSides(:, 2);

@@ -54,9 +54,10 @@ exp = CompleteExperiment(eu);
 % 1.3 Align video and ephys timestamps
 exp.alignTimestamps();
 
-%% Get first significant arm movemetn befor trials
+%% Get first significant arm movement befor trials
 theta = 2.5;
-[velocityKernels, ~, ~] = CompleteExperiment.makeConsineKernels(0, width=0.2, overlap=0.5, direction='both');
+% thetaPrct = 0.1;
+[velocityKernels, ~, ~] = CompleteExperiment.makeConsineKernels(0, width=0.1, overlap=0.5, direction='both');
 
 TST = cell(1, length(exp));
 for iExp = 1:length(exp)
@@ -73,11 +74,21 @@ for iExp = 1:length(exp)
         F.inTrial = [];
         F.t = [];
         F = normalize(F);
-        data = table2array(F);
-        trueStartIndex = find(all(abs(data) < theta, 2), 1, 'last');
+        data = flip(table2array(F), 1);
+        isAbove = abs(data) >= theta;
+%         isAbove = abs(data) >= abs(data(1, :)) * thetaPrct;
+        isAboveConseq = any(isAbove & [0, 0, 0, 0; diff(isAbove)] == 0, 2);
+        t = flip(t);
+        t = t - t(1);
+        trueStartIndex = find(~isAboveConseq, 1, 'first') - 1;
         if ~isempty(trueStartIndex)
-            trueStartTime(iTrial) = t(trueStartIndex) - t(end);
+            trueStartTime(iTrial) = t(max(trueStartIndex, 1));
         end
+%         close all
+%         plot(t, data, 'r')
+%         hold('on')
+%         plot(t, isAboveConseq, 'g')
+%         plot([trueStartTime(iTrial), trueStartTime(iTrial)], [-4, 4], 'k:')
     %     lclips = exp(i).getVideoClip(trueStartTime, side='l', numFramesBefore=30);
     %     rclips = exp(i).getVideoClip(trueStartTime, side='r', numFramesBefore=30);
     %     implay(lclips, 30)
@@ -87,12 +98,13 @@ for iExp = 1:length(exp)
     TST{iExp} = trueStartTime;
 end
 %%
-figure(DefaultAxesFontSize=14)
+figure(DefaultAxesFontSize=11, Position=[874,685,449,211])
 tst = cat(2, TST{:});
-histogram(-tst, 0:0.05:2, FaceColor="auto", Normalization='probability')
-xlabel('Movement duration (s)')
+histogram(tst, -2:0.1:0, FaceColor="auto", Normalization='probability')
+xlabel('Movement onset latency (s)')
 ylabel('Probability')
-legend(sprintf('%g trials, %g animals', length(tst), length(exp)))
+legend(sprintf('%g trials, %g animals', nnz(~isnan(tst)), length(exp)))
+title(sprintf('median=%.2f', median(tst, 'omitnan')))
 
 clearvars -except eu exp TST
     
@@ -167,7 +179,7 @@ for ibp = 1:length(bodyparts)
     xlabel(ax, xname, Interpreter='none')
     ylabel(ax, yname, Interpreter='none')
 end
-clearvars -except exp iExp iEu bodyparts pTheta
+% clearvars -except exp iExp iEu bodyparts pTheta
 
 
 %% 2.2 Get Features
