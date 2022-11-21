@@ -16,28 +16,29 @@ clear iEu expName chn iAr
 
 %% 2. Plot lick vs press response by position
 close all
+sz = 5;
 
 xEdges = [0 1300 2600];
 yEdges = [0 4300 10000];
 xPos = abs(euPos(:, 1));
 yPos = abs(euPos(:, 2));
 
-aspectRatio = 1.8;
-height = 1000;
+% aspectRatio = 1.8;
+% height = 1000;
 useNormalized = false;
 
 labels = {'DM', 'VM', 'DL', 'VL'};
 
-figure(Units='pixels', Position=[0 0 height*0.5*aspectRatio height], DefaultAxesFontSize=11)
+figure(Units='inches', Position=[0 0 6 6], DefaultAxesFontSize=9)
 
 clear ax
-ax(1) = subplot(4, 2, 1);
-N = histcounts2(yPos(c.hasPos & c.hasLick), xPos(c.hasPos & c.hasLick), yEdges, xEdges);
-bar(N(:))
-ylabel('Number of units')
-title('Sampling bias (lick-trials)')
+% ax(1) = subplot(3, 2, 1);
+% N = histcounts2(yPos(c.hasPos & c.hasLick), xPos(c.hasPos & c.hasLick), yEdges, xEdges);
+% bar(N(:))
+% ylabel('Number of units')
+% title('Sampling bias (lick-trials)')
 
-ax(2) = subplot(4, 2, 2);
+ax(1) = subplot(3, 2, 1);
 sel = c.hasPos & c.isLickDown;
 n1 = histcounts2(yPos(sel), xPos(sel), yEdges, xEdges);
 sel = c.hasPos & c.isLickUp;
@@ -47,28 +48,29 @@ n3 = histcounts2(yPos(sel), xPos(sel), yEdges, xEdges);
 bar([n1(:)./N(:), n2(:)./N(:), n3(:)./N(:)])
 ylabel('Fraction of units')
 title('Lick response')
-legend({'suppressed', 'excited', 'oscillatory'}, FontSize=9, Position=[0.6351, 0.8606, 0.1267, 0.0530])
+legend({'suppressed (pre-move)', 'excited (pre-move)', 'oscillatory (lick)'}, FontSize=8, ...
+    Orientation='horizontal', Position=[0.148341448746023,0.953484610393047,0.739583319208275,0.031249999275638])
 
 xticklabels(ax, labels)
 % ylim(ax(2:end), [0, 0.6]);
 sum(N(:))
 
 % 2. Plot press response by position
-ax(3) = subplot(4, 2, 3);
-N = histcounts2(yPos(c.hasPos & c.hasPress), xPos(c.hasPos & c.hasPress), yEdges, xEdges);
-bar(N(:))
-ylabel('Number of units')
-title('Sampling bias (press-trials)')
+% ax(3) = subplot(3, 2, 3);
+% N = histcounts2(yPos(c.hasPos & c.hasPress), xPos(c.hasPos & c.hasPress), yEdges, xEdges);
+% bar(N(:))
+% ylabel('Number of units')
+% title('Sampling bias (reach-trials)')
 
-ax(4) = subplot(4, 2, 4);
+ax(2) = subplot(3, 2, 2);
 sel = c.hasPos & c.isPressDown;
 n1 = histcounts2(yPos(sel), xPos(sel), yEdges, xEdges);
 sel = c.hasPos & c.isPressUp;
 n2 = histcounts2(yPos(sel), xPos(sel), yEdges, xEdges);
 bar([n1(:)./N(:), n2(:)./N(:)])
 ylabel('Fraction of units')
-title('Lever-press response')
-legend({'suppressed', 'excited'}, FontSize=9, Position=[0.6447, 0.6568, 0.1267, 0.0365])
+title('Reach response')
+% legend({'suppressed (pre-move)', 'excited (pre-move)'}, FontSize=8)
 
 xticklabels(ax, labels)
 % ylim(ax(2:end), [0, 0.6]);
@@ -100,7 +102,7 @@ end
 
 for i = 1:4
     clear h
-    ax(i) = subplot(4, 2, 4+i); hold(ax(i), 'on');
+    ax(i) = subplot(3, 2, 2+i); hold(ax(i), 'on');
 
     switch i
         case 1
@@ -136,7 +138,7 @@ for i = 1:4
         ylabel(ax(i), sprintf('Lick response (%s)', srUnit))
     end
     if ismember(i, [3, 4])
-        xlabel(ax(i), sprintf('Lever-press response (%s)', srUnit))
+        xlabel(ax(i), sprintf('Reach response (%s)', srUnit))
     end
     legend(ax(i), h, Location='southeast')
 end
@@ -144,7 +146,7 @@ end
 % Adjust x y lims
 xlim(ax, xl);
 ylim(ax, yl);
-
+set(ax, FontSize=9)
 
 %% Scatter move response vs stim response sactter by location
 close all

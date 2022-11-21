@@ -20,6 +20,8 @@
 %     end
 % end
 
+p.fontSize = 9;
+
 %% 1. Load data
 %% 1.1. Load acute EU objects (duplicates already removed)
 eu = EphysUnit.load('C:\SERVER\Units\acute_2cam'); 
@@ -55,7 +57,7 @@ exp = CompleteExperiment(eu);
 exp.alignTimestamps();
 
 %% Get first significant arm movement befor trials
-theta = 0.5;
+theta = 1;
 % thetaPrct = 0.1;
 [velocityKernels, ~, ~] = CompleteExperiment.makeConsineKernels(0, width=0.1, overlap=0.5, direction='both');
 
@@ -63,6 +65,7 @@ TST = cell(1, length(exp));
 for iExp = 1:length(exp)
     disp(iExp)
     trials = exp(iExp).eu(1).getTrials('press');
+    trials = trials(trials.duration >= p.minTrialLength);
     trueStartTime = NaN(1, length(trials));
     for iTrial = 1:length(trials)
         t = trials(iTrial).Start:1/30:trials(iTrial).Stop;
@@ -97,6 +100,52 @@ for iExp = 1:length(exp)
     end
     TST{iExp} = trueStartTime;
 end
+
+%%
+theta = 0.25;
+% thetaPrct = 0.1;
+[velocityKernels, ~, ~] = CompleteExperiment.makeConsineKernels(0, width=0.1, overlap=0.5, direction='both');
+
+TST = cell(1, length(exp));
+for iExp = 1:length(exp)
+    disp(iExp)
+    trials = exp(iExp).eu(1).getTrials('press');
+    trials = trials(trials.duration >= p.minTrialLength);
+    trueStartTime = NaN(1, length(trials));
+    for iTrial = 1:length(trials)
+        t = trials(iTrial).Start:1/30:trials(iTrial).Stop;
+        F = exp(iExp).getFeatures(timestamps=t, features={sprintf('hand%s', leverSide(iExp))}, stats={'spd'});
+        F = CompleteExperiment.convolveFeatures(F, velocityKernels, kernelNames={'_smooth'}, ...
+            features={sprintf('hand%s', leverSide(iExp))}, ...
+            stats={'spd'}, ...
+            mode='replace', normalize='maxabs');
+        F.inTrial = [];
+        F.t = [];
+        F = normalize(F);
+        data = flip(table2array(F), 1);
+        isAbove = abs(data) >= theta;
+%         isAbove = abs(data) >= abs(data(1, :)) * thetaPrct;
+        isAboveConseq = any(isAbove & [0; diff(isAbove)] == 0, 2);
+        t = flip(t);
+        t = t - t(1);
+        trueStartIndex = find(~isAboveConseq, 1, 'first') - 1;
+        if ~isempty(trueStartIndex)
+            trueStartTime(iTrial) = t(max(trueStartIndex, 1));
+        end
+%         close all
+%         plot(t, data, 'r')
+%         hold('on')
+%         plot(t, isAboveConseq, 'g')
+%         plot([trueStartTime(iTrial), trueStartTime(iTrial)], [-4, 4], 'k:')
+    %     lclips = exp(i).getVideoClip(trueStartTime, side='l', numFramesBefore=30);
+    %     rclips = exp(i).getVideoClip(trueStartTime, side='r', numFramesBefore=30);
+    %     implay(lclips, 30)
+    %     implay(rclips, 30)
+        % plot(F.t - F.t(end), table2array(F(:, {'handL_xVel', 'handL_yVel', 'handR_xVel', 'handR_yVel'})))
+    end
+    TST{iExp} = trueStartTime;
+end
+
 %%
 close all
 figure(DefaultAxesFontSize=11, Position=[200,200,600,300])
@@ -183,18 +232,22 @@ end
 % clearvars -except exp iExp iEu bodyparts pTheta
 
 
-%% 2.2 Get Features
+%% 2.2 Fit GLMs
 % clearvars -except exp
 MDL = cell(length(exp), 1);
 SRT = cell(length(exp), 1);
 FT = cell(length(exp), 1);
 TT = cell(length(exp), 1);
 NOTNAN = cell(length(exp), 1);
+% MASK = cell(length(exp), 1);
 
 for iExp = 1:length(exp)
     F = exp(iExp).getFeatures(sampleRate=30, trialType={'press'}, stats={'xVel', 'yVel'}, ...
-        features={'handL', 'handR', 'footL', 'footR', 'nose', 'spine' 'trialStart', 'pressTrialRamp', 'firstPressRamp'}, ...
+        features={'handL', 'handR', 'footL', 'footR', 'nose', 'spine', 'trialStart', 'pressTrialRamp', 'firstPressRamp'}, ...
         likelihoodThreshold=0.95);
+%     [~, mask] = exp(iExp).maskFeaturesByTrial(F, NaN, 'press', [-1, 3], ...
+%         features={'handL', 'handR', 'footL', 'footR', 'nose', 'spine'}, ...
+%         stats={'xVel', 'yVel'}, replace=true);
     [velocityKernels, ~, velocityDelays] = CompleteExperiment.makeConsineKernels(4, width=0.1, overlap=0.5, direction='both');
     velocityDelays = round(velocityDelays * 1000);
     F = CompleteExperiment.convolveFeatures(F, velocityKernels, kernelNames=velocityDelays, ...
@@ -208,12 +261,17 @@ for iExp = 1:length(exp)
         features={'trialStart'}, ...
         mode='replace', normalize='none');
 
+    % Mask velocity predictors befor first movement
+
+
     t = F.t;
     inTrial = F.inTrial;
     F.t = [];
     F.inTrial = [];
     Ft = F(inTrial, :);
     tt = t(inTrial);
+%     mask = mask(inTrial);
+
 
     Ft.constant = ones(height(Ft), 1);
 
@@ -225,7 +283,7 @@ for iExp = 1:length(exp)
     names = Ft.Properties.VariableNames;
     cuePredictors = names(contains(names, {'trialStart'}))';
     velocityPredictors = names(contains(names, {'Vel'}))';
-    timingInvariantRampPredictors = names(contains(names, {'firstPressRamp'}))';
+    rampPredictors = names(contains(names, {'firstPressRamp'}))';
     trialProgressPredictors = names(contains(names, 'TrialRamp'))';
 
 
@@ -233,9 +291,9 @@ for iExp = 1:length(exp)
         {'constant'}, ...
         [{'constant'}; cuePredictors], ...
         [{'constant'}; cuePredictors; velocityPredictors], ...
-        [{'constant'}; cuePredictors; velocityPredictors; timingInvariantRampPredictors], ...
-        [{'constant'}; cuePredictors; velocityPredictors; timingInvariantRampPredictors; trialProgressPredictors]};
-    variantNames = {'Constant', '+Cue', '+Velocity', '+TimingInvariantRamp', '+TrialProgress'};
+        [{'constant'}; cuePredictors; velocityPredictors; rampPredictors], ...
+        [{'constant'}; cuePredictors; velocityPredictors; rampPredictors; trialProgressPredictors]};
+    variantNames = {'Constant', '+Cue', '+Velocity', '+Ramp', '+Trial-progress'};
     nVariants = length(variantNames);
     
     % All nan if one nan
@@ -260,10 +318,12 @@ for iExp = 1:length(exp)
         srTrialAligned = [0, eu.getSpikeRates('gaussian', 0.1, t)]'; 
         srt{iEu} = srTrialAligned(inTrial);
     
-        thisF = Ft;
-        thisF.SpikeRate = double(srt{iEu});
-
         for iVariant = 1:nVariants
+            thisF = Ft;
+            thisF.SpikeRate = double(srt{iEu});
+%             if strcmp(variantNames{iVariant}, '+PreMoveVel')
+%                 thisF(mask, :) = [];
+%             end
             mdl{iEu, iVariant} = fitglm(thisF, ResponseVar='SpikeRate', PredictorVars=variantPredictors{iVariant}, Distribution='poisson');
             fprintf(1, '\t\t%s R^2 = %.2f\n', variantNames{iVariant}, mdl{iEu, iVariant}.Rsquared.Ordinary);
         end
@@ -276,21 +336,7 @@ for iExp = 1:length(exp)
     MDL{iExp} = cellfun(@compact, mdl, UniformOutput=false);
     SRT{iExp} = srt;
     NOTNAN{iExp} = notnan;
-    
-%     % Plot R^2 distribution for all units, compare different models.
-%     fig = figure();
-%     ax = axes(fig);
-%     hold(ax, 'on')
-%     for iVariant = 1:nVariants
-%         N = histcounts(cellfun(@(mdl) mdl.Rsquared.Ordinary, mdl(:, iVariant)), 0:0.1:1);
-%         plot(ax, 0.05:0.1:0.95, N, Color=getColor(iVariant, nVariants), LineWidth=2, DisplayName=variantNames{iVariant})
-%     end
-%     xlabel('R^2')
-%     ylabel('Count')
-%     legend(ax);
-%     title(ax, sprintf('Model R^2 (%g units)', size(mdl, 1)))
-%     hold(ax, 'off')
-%     print(fig, sprintf('C:\\SERVER\\Figures\\GLM\\%s', exp(iExp).name), '-dpng');
+%     MASK{iExp} = mask;
 end
 mdl = cat(1, MDL{:});
 srt = cat(1, SRT{:});
@@ -340,13 +386,25 @@ end
 % 
 % end
 
+%% Estimate model performance (R^2)
 
-% 2.3 Plot R^2 distribution for all units, compare different models.
-close all
+R2 = NaN(size(mdl));
+for iEu = 1:size(mdl, 1)
+    X = FT{expIndices(iEu)};
+    y = srt{iEu};
+
+    for iVariant = 1:nVariants
+        yHat = predict(mdl{iEu, iVariant}, X, Simultaneous=true);
+        sel = ~isnan(yHat) & ~isnan(y);
+        R2(iEu, iVariant) = corr(yHat(sel), y(sel)) .^ 2;
+    end
+end
+
+%% 2.3 Plot R^2 distribution for all units, compare different models.
 edges = 0:0.05:1;
 centers = (edges(1:end-1) + edges(2:end))*0.5;
 
-fig = figure(Units='normalized', Position=[0.5, 0, 0.5,0.4], DefaultAxesFontSize=12);
+fig = figure(Units='inches', Position=[0 0 6 2.25], DefaultAxesFontSize=12);
 
 paramNames = {'Ordinary', 'Adjusted', 'AdjGeneralized', 'LLR', 'Deviance'};
 np = length(paramNames);
@@ -354,39 +412,27 @@ np = length(paramNames);
 clear ax
 np = 1;
 for ip = 1:np
-%     ax = subplot(np, 3, 3*(ip-1)+1);
-%     hold(ax, 'on')
-%     for iVariant = 2:nVariants
-%         N = histcounts(cellfun(@(mdl) mdl.Rsquared.(paramNames{ip}), mdl(:, iVariant)), edges);
-%         plot(ax, centers, N, Color=getColor(iVariant-1, nVariants-1), LineWidth=2, DisplayName=variantNames{iVariant})
-%     end
-% %     xlabel(sprintf('R^2 %s', paramNames{ip}))
-%     xlabel('R^2')
-%     ylabel('Count')
-%     legend(ax, Location='northeast');
-%     hold(ax, 'off')
-
     ax = subplot(np, 2, 2*(ip-1)+1);
     hold(ax, 'on')
     for iVariant = 2:nVariants
-        N = histcounts(cellfun(@(mdl) mdl.Rsquared.(paramNames{ip}), mdl(:, iVariant)), edges, Normalization='probability');
-        plot(ax, edges, [0, cumsum(N)], Color=getColor(iVariant-1, nVariants-1), LineWidth=2, DisplayName=variantNames{iVariant})
+        N = histcounts(R2(:, iVariant), edges, Normalization='probability');
+        plot(ax, edges, [0, cumsum(N)], Color=getColor(iVariant-1, nVariants-1), LineWidth=1.5, DisplayName=variantNames{iVariant})
     end
 %     xlabel(sprintf('R^2 %s', paramNames{ip}))
     xlabel('R^2')
     ylabel('Cumulative probability')
     legend(ax, Location='southeast');
     hold(ax, 'off')
+    ax.FontSize = p.fontSize;
 
     ax = subplot(np, 2, 2*(ip-1)+2);
     hold(ax, 'on')
-    R2 = cellfun(@(mdl) mdl.Rsquared.(paramNames{ip}), mdl);
     dR2 = diff(R2, 1, 2);
 
     x = repmat(1:nVariants-1, [size(dR2, 1), 1]);
     x = x(:);
     y = dR2(:);
-    swarmchart(ax, x, y, 3.7, 'filled', 'k')
+    swarmchart(ax, x, y, 1, 'filled', 'k')
     
     boxplot(ax, dR2, Symbol='.', OutlierSize=0.000001, Color='k', Whisker=0)
     
@@ -394,58 +440,45 @@ for ip = 1:np
     xticklabels(ax, variantNames(2:end))
     xtickangle(ax, 315)
     ylabel('\DeltaR^2')
-    ylim(ax, [0, max(y)+0.1])
+    ylim(ax, [0, max(y)+0.01])
     xlim(ax, [0,nVariants])
+    ax.FontSize = p.fontSize;
 end
 
+%% Calculate trial-average fitted vs. observed for all units
+eu = vertcat(exp.eu);
+p.minSpikeRate = 15;
+p.minTrialDuration = 2;
+p.minNumTrials = 30;
+p.etaNorm = [-4, -2];
+p.etaWindow = [-4, 2];
+p.metaWindowPress = [-0.5, -0.2];
+p.metaWindowLick = [-0.3, 0];
+p.posRespThreshold = 1;
+p.negRespThreshold = -0.5;
 
-% 2.4 Plot fitted vs observed
+c.hasPress = arrayfun(@(e) nnz(e.getTrials('press').duration() >= p.minTrialDuration) >= p.minNumTrials, eu)';
+c.hasLick = arrayfun(@(e) nnz(e.getTrials('lick').duration() >= p.minTrialDuration) >= p.minNumTrials, eu)';
+
+% RUN eu_analysis_4_movement %%4
+% to bootstrap significantly movement-modulated units
 
 
-%% 2.4.2 Single units, trial averaged, fitted vs observed
-nVariants = length(variantNames);
-try
-    eu = [exp.eu];
-catch
-    eu = vertcat(exp.eu);
-end
-for iEu = 84%1:length(mdl) %39 84
+% ax = axes(figure()); hold on;
+
+assert(length(eu) > 1)
+msr = cell(length(eu), 1);
+msrHat = cell(length(eu), 1);
+peak = NaN(length(eu), 1);
+tPeak = NaN(length(eu), 1);
+tOnset = NaN(length(eu), 1);
+peakHat = NaN(length(eu), nVariants);
+tPeakHat = NaN(length(eu), nVariants);
+tOnsetHat = NaN(length(eu), nVariants);
+for iEu = 1:length(eu)
     iExp = expIndices(iEu);
     tt = TT{iExp};
     Ft = FT{iExp};
-
-    fig = figure(Units='normalized', OuterPosition=[0, 0, 0.8, 1]);
-
-    ax = subplot(3, 1, 1);
-    hold(ax, 'on')
-    plot((1:length(srt{iEu}))./30, srt{iEu}, 'k:', LineWidth=2, DisplayName='Observed');
-    for iVariant = 2:nVariants
-        yHat = predict(mdl{iEu, iVariant}, FT{expIndices(iEu)});
-        plot((1:length(srt{iEu}))./30, yHat, Color=getColor(iVariant-1, nVariants-1), LineWidth=1.2, DisplayName=sprintf('%s (R^2=%.2f)', variantNames{iVariant}, mdl{iEu, iVariant}.Rsquared.Ordinary));
-    end
-
-    hold(ax, 'off')
-    title(ax, eu(iEu).getName('_'), Interpreter='none');
-    xlabel(ax, 'Time (s)')
-    ylabel(ax, 'Spike rate (sp/s)')
-    xlim(ax, [30, 60])
-    legend(ax, Location='northwest');
-
-    ax = subplot(3, 1, 3);
-    iVariant = nVariants;
-    ax.TickLabelInterpreter = 'none';
-    hold(ax, 'on')
-    x = 2:height(mdl{iEu, iVariant}.Coefficients);
-    errorbar(ax, x, mdl{iEu, iVariant}.Coefficients.Estimate(2:end), mdl{iEu, iVariant}.Coefficients.SE(2:end));
-    plot(ax, [x(1), x(end)], [0, 0], 'k--', LineWidth=1.5)
-    hold(ax, 'off')
-    xticks(ax, x);
-    xticklabels(ax, mdl{iEu, iVariant}.CoefficientNames(x));
-    xlim(ax, [x(1), x(end)])
-    ylabel(ax, 'Coefficient +/- SE')
-    title(ax, sprintf('Coefficients (%s)', variantNames{iVariant}))
-    set(ax, FontSize=9)
-
 
     srtHat = NaN(height(Ft), size(mdl, 2));
     for iVariant = 2:size(mdl, 2)
@@ -471,42 +504,215 @@ for iEu = 84%1:length(mdl) %39 84
         end
     end
 
-
     % Trial aligned mean spike rate
-    msr = mean(srTrialAligned, 1, 'omitnan');
-    msrHat = squeeze(mean(srTrialAlignedHat, 1, 'omitnan'));
-    sd = std(srTrialAligned, 0, 1, 'omitnan');
-    sdHat = squeeze(std(srTrialAlignedHat, 0, 1, 'omitnan'));
     t = (-maxTrialSampleLength + 1:0)*median(diff(tt));
-    
-    ax = subplot(3, 1, 2);
+    selT = t >= -4;
+    t = t(selT);
+    msr{iEu} = mean(srTrialAligned(:, selT), 1, 'omitnan');
+    msrHat{iEu} = squeeze(mean(srTrialAlignedHat(:, selT, :), 1, 'omitnan'));
+
+    % Onset/peak of trial-averaged msr/msrHat
+    [peak(iEu), tPeak(iEu), tOnset(iEu), mu, sd] = getPeakAndOnset(srTrialAligned(:, selT), t);
+    assert(~isnan(peak(iEu)))
+
+    for iVariant = 2:size(mdl, 2)
+        [peakHat(iEu, iVariant), tPeakHat(iEu, iVariant), tOnsetHat(iEu, iVariant)] = ...
+            getPeakAndOnset(srTrialAlignedHat(:, selT, iVariant), t, mu=mu, sd=sd);
+    end
+% 
+%     if ismember(iEu, find(c.isPressResponsive))
+%         cla(ax);
+%         plot(t, msr{iEu}, 'k:');
+%         ylim('auto')
+%         yl = ax.YLim;
+%         plot([tPeak(iEu), tPeak(iEu)], yl, 'k:', LineWidth=1)
+%         plot([tOnset(iEu), tOnset(iEu)], yl, 'k:', LineWidth=2)
+%         for iVariant = 2:nVariants-1
+%             plot(t, msrHat{iEu}(:, iVariant), Color=getColor(iVariant-1, nVariants-1))
+% %             plot([tPeakHat(iEu), tPeakHat(iEu)], yl, Color=getColor(iVariant-1, nVariants-1), LineStyle=':', LineWidth=1)
+%             plot([tOnsetHat(iEu, iVariant), tOnsetHat(iEu, iVariant)], yl, Color=getColor(iVariant-1, nVariants-1), LineStyle=':', LineWidth=2)
+%         end
+%         ylim(yl)
+%     end
+end
+msrObs = cat(3, msr{:});
+msrHat = cat(3, msrHat{:});
+
+clear ax;
+%% Plot fitted vs. observed for 2 example units and population average
+SEL = { ...
+    84, ...
+    39, ...
+    c.isPressDown, ...
+    c.isPressUp, ...
+    };
+TITLE = { ...
+    sprintf('Example unit (R^2=%.2f)', R2(84, end)), ...
+    sprintf('Example unit (R^2=%.2f)', R2(39, end)), ...
+    sprintf('Population average (N=%d)', nnz(SEL{3})), ...
+    sprintf('Population average (N=%d)', nnz(SEL{4})), ...
+    };
+LOCATION = { ...
+    'southwest', ...
+    'northwest', ...
+    'southwest', ...
+    'northwest', ...
+    };
+SHOW_LEGEND = { ...
+    false, ...
+    false, ...
+    true, ...
+    false, ...
+    };
+
+
+fig = figure(Units='inches', Position=[0, 0, 6, 4]);
+for i = 1:length(SEL)
+    ax = subplot(2, 2, i);
     hold(ax, 'on')
     clear h
-    h(1) = plot(ax, t, msr, 'k:', LineWidth=3, DisplayName='Observed');
-    for iVariant = 2:size(mdl, 2)
-        h(iVariant) = plot(ax, t, msrHat(:, iVariant), Color=getColor(iVariant-1, nVariants-1), LineWidth=1.5, DisplayName=sprintf('%s (R^2=%.2f)', variantNames{iVariant}, mdl{iEu, iVariant}.Rsquared.Ordinary));
+    sel = SEL{i}';
+    h(1) = plot(ax, t, mean(msrObs(:, :, sel), 3, 'omitnan'), 'k:', LineWidth=3, DisplayName='Observed');
+    for iVariant = 2:nVariants-1
+        h(iVariant) = plot(ax, t, mean(msrHat(:, iVariant, sel), 3, 'omitnan'), ...
+            Color=getColor(iVariant-1, nVariants-1), LineWidth=1.5, ...
+            DisplayName=variantNames{iVariant});
     end
-%         h(end+1) = patch(ax, [t, flip(t)], [msr + sd, flip(msr - sd)], 'k', FaceAlpha=0.1, EdgeAlpha=0, DisplayName='SD');
-    for iVariant = 2:size(mdl, 2)
-%             patch(ax, [t, flip(t)]', [msrHat(:, iVariant) + sdHat(:, iVariant); flip(msrHat(:, iVariant) - sdHat(:, iVariant))], ...
-%                getColor(iVariant-1, nVariants-1), FaceAlpha=0.1, EdgeAlpha=0, DisplayName=sprintf('%s \\pm SD', variantNames{iVariant}));
+    if SHOW_LEGEND{i}
+        legend(ax, h, Location=LOCATION{i})
     end
-    legend(ax, h, Location='northwest')
     xlim(ax, [-4, 0])
-    xlabel(ax, sprintf('Time relative to %s (s)', 'lever-touch'))
+    xlabel(ax, sprintf('Time to %s (s)', 'lever-contact'))
     ylabel(ax, 'Spike rate (sp/s)')
-    titleText = sprintf('%s (%s)', eu(iEu).getName('_'), 'lever');
-    title(ax, titleText, Interpreter='none')
-
-    if ~isfolder('C:\\SERVER\\Figures\\GLM')
-        mkdir('C:\\SERVER\\Figures\\GLM')
-    end
-    print(fig, sprintf('C:\\SERVER\\Figures\\GLM\\%s', eu(iEu).getName('_')), '-dpng');
-%     close(fig)
-
-    clear h ax
+    title(ax, TITLE{i});
+    ax.FontSize = p.fontSize;
 end
 
-function c = getColor(i, n)
-    c = hsl2rgb([0.88*(i-1)./n, 1, 0.5]);
+%% Plot fitted vs observed ramp onset times and peak SR
+fig = figure(Units='inches', Position=[0, 0, 6, 2.25]);
+SEL = { ...
+    c.isPressResponsive, ...
+    c.isPressResponsive, ...
+    };
+XDATA = { ...
+    peak, ...
+    tOnset, ...
+    };
+
+YDATA = { ...
+    peakHat, ...
+    tOnsetHat, ...
+    };
+SHOW_LEGEND = { ...
+    true, ...
+    false, ...
+    };
+XLIM = { ...
+    'auto', ...
+    [-2, 0], ...
+    };
+UNITS = { ...
+    'sp/s', ...
+    's', ...
+    };
+
+TITLE = {'Peak spike rate', 'Onset time'};
+
+for i = 1:length(SEL)
+    ax = subplot(1, 2, i);
+    hold(ax, 'on')
+    clear h
+    sel = SEL{i}';
+    x = XDATA{i}(sel);
+    y = YDATA{i}(sel, :);
+    h = gobjects(nVariants - 2, 1);
+    for iVariant = 2:nVariants-1
+        h(iVariant - 1) = scatter(ax, x, y(:, iVariant), 5, getColor(iVariant-1, nVariants-1), ...
+            'filled', DisplayName=variantNames{iVariant});
+    end
+    if SHOW_LEGEND{i}
+        legend(ax, h, Location='northwest', AutoUpdate=false)
+    end
+    title(ax, TITLE{i})
+    xlim(ax, XLIM{i})
+    xl = ax.XLim;
+    ylim(ax, xl);
+    plot(ax, xl, xl, 'k:')
+    xlabel(ax, sprintf('Observed (%s)', UNITS{i}));
+    ylabel(ax, sprintf('Predicted (%s)', UNITS{i}));
+    ax.FontSize = p.fontSize;
+end
+
+
+
+%%
+
+%%
+function [peak, tPeak, tOnset, mu, sd] = getPeakAndOnset(X, t, varargin)
+    p = inputParser();
+    p.addParameter('onsetThresholdPos', 0.5, @isnumeric);
+    p.addParameter('onsetThresholdNeg', 0.25, @isnumeric);
+    p.addParameter('signWindow', [-0.5, -0.2], @isnumeric);
+    p.addParameter('peakWindow', [-0.5, 0], @isnumeric);
+    p.addParameter('mu', []);
+    p.addParameter('sd', []);
+    p.addParameter('baselineWindow', [-4, -2], @isnumeric);
+    p.parse(varargin{:})
+    r = p.Results;
+
+    assert(length(t) == size(X, 2));
+
+    % Calculate baseline for normalization
+    if isempty(r.mu) || isempty(r.sd)
+        baseX = X(:, t >= r.baselineWindow(1) & t <= r.baselineWindow(2));
+        mu = mean(baseX, 'all', 'omitnan');
+        sd = std(baseX, 0, 'all', 'omitnan');
+    else
+        mu = r.mu;
+        sd = r.sd;
+    end
+
+    normX = (X - mu) ./ sd; % Normalize spike rate to baseline
+    normX = mean(normX, 1, 'omitnan'); % Then average across trial
+
+    signX = sign(mean(normX(t >= r.signWindow(1) & t <= r.signWindow(2)), 'omitnan'));
+    inPeakWindow = find(t >= r.peakWindow(1) & t <= r.peakWindow(2));
+    [~, peakIndex] = max(normX(inPeakWindow) .* signX, [], 'omitnan');
+    peakIndex = inPeakWindow(peakIndex);
+    peak = mean(X(:, peakIndex), 'omitnan');
+    tPeak = t(peakIndex);
+
+    if signX > 0
+        isAbove = normX(1:peakIndex) >= r.onsetThresholdPos;
+    else
+        isAbove = normX(1:peakIndex) <= -abs(r.onsetThresholdNeg);
+    end
+    isAbove = flip(isAbove);
+    isAboveConseq = isAbove & [0, diff(isAbove)] == 0;
+    onsetIndex = find(~isAboveConseq, 1, 'first') - 1;
+    onsetIndex = peakIndex - onsetIndex + 1;
+    if isempty(onsetIndex)
+        onsetIndex = peakIndex;
+    end
+    onsetIndex = min(onsetIndex, length(normX));
+
+    tOnset = t(onsetIndex);
+    try
+        assert(~isempty(tOnset))
+        assert(~isempty(tPeak))
+    catch
+        disp(1)
+    end
+end
+
+function c = getColor(i, n, maxHue)
+    if nargin < 3
+        if n <= 4
+            c = 'rgbm';
+            c = c(i);
+            return
+        end
+        maxHue = 0.8;
+    end
+    c = hsl2rgb([maxHue*(i-1)./(n-1), 1, 0.5]);
 end

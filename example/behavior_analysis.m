@@ -21,7 +21,7 @@ close all; clear; clc;
 S = load('E:\Data\bs.mat');
 bs = S.bs;
 clear S
-minSessions = 14;
+minSessions = 7;
 minTrials = 30;
 bs = cellfun(@(x) x(x.isvalid()), bs, 'UniformOutput', false);
 nPressTrials = cellfun(@(x) x.countTrials('press'), bs, 'UniformOutput', false);

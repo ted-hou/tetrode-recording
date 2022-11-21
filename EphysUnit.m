@@ -893,7 +893,8 @@ classdef EphysUnit < handle
             h = colorbar(ax, 'eastoutside');
             h.Label.String = 'Normalized spike rate (a.u.)';
             if p.Results.hidecolorbar
-                h.Visible = 'off';
+                delete(h)
+%                 h.Visible = 'off';
             end
             xlabel(ax, sprintf('Time from %s (%s)', p.Results.event, p.Results.timeUnit))
             ylabel(ax, 'Unit')
@@ -940,11 +941,14 @@ classdef EphysUnit < handle
                 signWindow2 = r.signWindow;
             end
 
-            [~, order, meta1, latency1] = EphysUnit.plotETA(ax(1), eta1, r.sel, clim=r.clim, xlim=xlim1, sortWindow=r.sortWindow, signWindow=signWindow1, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold, hidecolorbar=true);
-            [~, ~, meta2, latency2] = EphysUnit.plotETA(ax(2), eta2, r.sel, order=order, clim=r.clim, xlim=xlim2, sortWindow=r.sortWindow, signWindow=signWindow2, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold);
+            [~, order] = EphysUnit.plotETA(ax(1), eta1, r.sel, clim=r.clim, xlim=xlim1, sortWindow=r.sortWindow, signWindow=signWindow1, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold, hidecolorbar=true);
+            [~, ~] = EphysUnit.plotETA(ax(2), eta2, r.sel, order=order, clim=r.clim, xlim=xlim2, sortWindow=r.sortWindow, signWindow=signWindow2, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold);
 
-            meta = horzcat(meta1(:), meta2(:));
-            latency = horzcat(latency1(:), latency2(:));
+%             [~, order, meta1, latency1] = EphysUnit.plotETA(ax(1), eta1, r.sel, clim=r.clim, xlim=xlim1, sortWindow=r.sortWindow, signWindow=signWindow1, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold, hidecolorbar=true);
+%             [~, ~, meta2, latency2] = EphysUnit.plotETA(ax(2), eta2, r.sel, order=order, clim=r.clim, xlim=xlim2, sortWindow=r.sortWindow, signWindow=signWindow2, sortThreshold=r.sortThreshold, negativeSortThreshold=r.negativeSortThreshold);
+
+%             meta = horzcat(meta1(:), meta2(:));
+%             latency = horzcat(latency1(:), latency2(:));
 
             title(ax(1), label1);
             title(ax(2), label2);
@@ -994,7 +998,12 @@ classdef EphysUnit < handle
             end
             hold(ax, 'off')
             xlim(ax, p.Results.xlim)
-            legend(ax, h, Location='west')
+            if X(iBin, end) < X(iBin, 1)
+                legend(ax, h, Location='southwest')
+            else
+                legend(ax, h, Location='northwest')
+            end
+                
         end
         
         function ax = plotRaster(varargin)
@@ -1007,6 +1016,7 @@ classdef EphysUnit < handle
             p.addParameter('iti', false, @islogical);
             p.addParameter('timeUnit', 's', @(x) ismember(x, {'s', 'ms'}))
             p.addParameter('maxTrials', Inf, @isnumeric)
+            p.addParameter('sz', 2.5, @isnumeric)
             p.parse(varargin{:})
             rd = p.Results.rd;
             stim = ismember(lower(rd.trialType), {'stim', 'stimtrain', 'stimfirstpulse'});
@@ -1018,7 +1028,8 @@ classdef EphysUnit < handle
             if isfield(p.Results, 'ax')
                 ax = p.Results.ax;
             else
-                ax = axes(figure(Units='normalized', Position=[0.1, 0.1, 0.67, 0.5], DefaultAxesFontSize=18));
+%                 ax = axes(figure(Units='normalized', Position=[0.1, 0.1, 0.67, 0.5], DefaultAxesFontSize=18));
+                ax = axes(figure(Units='inches', Position=[0, 0, 6.5, 4.5], DefaultAxesFontSize=9));
             end
 
             switch rd.alignTo
@@ -1052,14 +1063,15 @@ classdef EphysUnit < handle
             else
                 timescale = 1;
             end
+            sz = p.Results.sz;
             if ~stim
-                ax.Parent.Position(4) = 0.5*nTrials/200;
+                ax.Parent.Position(4) = ax.Parent.Position(4)*nTrials/300;
                 h = gobjects(2, 1);
-                h(1) = scatter(ax, rd.t .* timescale, rd.I, 5, 'k', 'filled', DisplayName='spikes');
+                h(1) = scatter(ax, rd.t .* timescale, rd.I, sz, 'k', 'filled', DisplayName='spikes');
                 h(2) = scatter(ax, tEvent .* timescale, 1:nTrials, 15, 'r', 'filled', DisplayName=eventName);
             else
                 h = gobjects(2, 1);
-                h(1) = scatter(ax, rd.t * timescale, rd.I, 5, 'k', 'filled', DisplayName='spikes');
+                h(1) = scatter(ax, rd.t * timescale, rd.I, sz, 'k', 'filled', DisplayName='spikes');
                 uniqueDurations = unique(rd.duration);
                 if length(uniqueDurations) == 1
                     h(2) = patch(ax, [0, uniqueDurations, uniqueDurations, 0].*timescale, [0, 0, nTrials+1, nTrials+1], 'b', FaceAlpha=0.25, EdgeAlpha=0, DisplayName='opto');
@@ -1083,10 +1095,16 @@ classdef EphysUnit < handle
             else
                 ylim(ax, [min(rd.I) - 1, maxTrials + 1]);
             end
-            xlabel(ax, sprintf('Time from %s (%s)', refName, timeUnit))
+            switch refName
+                case 'press'
+                    refName = 'touchbar-contact';
+                case 'lick'
+                    refName = 'spout-contact';
+            end
+            xlabel(ax, sprintf('Time to %s (%s)', refName, timeUnit))
             ylabel(ax, 'Trial')
             title(ax, sprintf('Spike raster (%s)', rd.name), Interpreter="none");
-            legend(ax, h, Location='northwest');
+            legend(ax, h, Location='northwest', FontSize=9);
         end
 
     end

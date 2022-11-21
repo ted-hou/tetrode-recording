@@ -49,21 +49,23 @@ legend(ax, sprintf('Press-activated (N=%g)', nnz(c.isPressUp)))
 % clear fig ax h isResp isNonResp xl yl sz
 
 % Distribution of responses (normalization)
-fig = figure(Units='normalized', OuterPosition=[0, 0, 0.2, 1], DefaultAxesFontSize=12);
+% fig = figure(Units='normalized', OuterPosition=[0, 0, 0.2, 1], DefaultAxesFontSize=12);
+fig = figure(Units='inches', Position=[0, 0, 3, 7], DefaultAxesFontSize=p.fontSize);
 ax = subplot(3, 1, 1);
-histogram(ax, msr, 15);
+histogram(ax, msr(c.hasPress), 15);
 xlabel(ax, 'Baseline spike rate (sp/s)'), ylabel(ax, 'Count')
-legend(ax, sprintf('N=%g', length(msr)))
+legend(ax, sprintf('N=%g', length(msr(c.hasPress))))
 
 ax = subplot(3, 1, 2);
 histogram(ax, meta.pressRaw(c.hasPress)./0.1 - msr(c.hasPress))
-xlabel(ax, '\DeltaSpike rate (sp/s)'), ylabel(ax, 'Count')
+xlabel(ax, 'Pre-move response (\Deltasp/s)'), ylabel(ax, 'Count')
 legend(ax, sprintf('N=%g', nnz(c.hasPress)))
 
 ax = subplot(3, 1, 3);
 histogram(ax, meta.press(c.hasPress))
-xlabel(ax, 'Normalized response (a.u.)'), ylabel(ax, 'Count')
+xlabel(ax, 'Normalized pre-move response (a.u.)'), ylabel(ax, 'Count')
 legend(ax, sprintf('N=%g', nnz(c.hasPress)))
+set(fig.Children, FontSize=9);
 
 
 % clear fig ax h isResp isNonResp xl yl sz
@@ -124,11 +126,11 @@ legend(ax, h, Location='northwest')
 
 [bta.pressUpRaw.X, bta.pressUpRaw.T, bta.pressUpRaw.N, bta.pressUpRaw.S, bta.pressUpRaw.B] = eu(c.isPressUp).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'press', 'window', [-10, 1], 'normalize', false);
 [bta.pressDownRaw.X, bta.pressDownRaw.T, bta.pressDownRaw.N, bta.pressDownRaw.S, bta.pressDownRaw.B] = eu(c.isPressDown).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'press', 'window', [-10, 1], 'normalize', false);
-[bta.pressRaw.X, bta.pressRaw.T, bta.pressRaw.N, bta.pressRaw.S, bta.pressRaw.B] = eu(c.hasPress).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'press', 'window', [-10, 1], 'normalize', false);
+% [bta.pressRaw.X, bta.pressRaw.T, bta.pressRaw.N, bta.pressRaw.S, bta.pressRaw.B] = eu(c.hasPress).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'press', 'window', [-10, 1], 'normalize', false);
 
 [bta.lickUpRaw.X, bta.lickUpRaw.T, bta.lickUpRaw.N, bta.lickUpRaw.S, bta.lickUpRaw.B] = eu(c.isLickUp).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'lick', 'window', [-10, 1], 'normalize', false);
 [bta.lickDownRaw.X, bta.lickDownRaw.T, bta.lickDownRaw.N, bta.lickDownRaw.S, bta.lickDownRaw.B] = eu(c.isLickDown).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'lick', 'window', [-10, 1], 'normalize', false);
-[bta.lickRaw.X, bta.lickRaw.T, bta.lickRaw.N, bta.lickRaw.S, bta.lickRaw.B] = eu(c.hasLick).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'lick', 'window', [-10, 1], 'normalize', false);
+% [bta.lickRaw.X, bta.lickRaw.T, bta.lickRaw.N, bta.lickRaw.S, bta.lickRaw.B] = eu(c.hasLick).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'lick', 'window', [-10, 1], 'normalize', false);
 
 
 
@@ -138,36 +140,37 @@ legend(ax, h, Location='northwest')
 % [bta.lickDownRaw.X, bta.lickDownRaw.T, bta.lickDownRaw.N, bta.lickDownRaw.S, bta.lickDownRaw.B] = eu(c.isLickDown).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'lick', 'window', [-10, 1], 'normalize', false);
 
 %% Plot press BTA
-figure(Units='normalized', Position=[0, 0, 0.35, 0.8], DefaultAxesFontSize=14);
+figure(Units='inches', Position=[0, 0, 6.5, 3.5]);
 clear ax
-ax(1) = subplot(3, 1, 1);
-ax(2) = subplot(3, 1, 2);
-ax(3) = subplot(3, 1, 3);
-EphysUnit.plotBinnedTrialAverage(ax(1), bta.pressRaw, [-8, 0], nsigmas=1, sem=true);
-EphysUnit.plotBinnedTrialAverage(ax(2), bta.pressDownRaw, [-8, 0], nsigmas=1, sem=true);
-EphysUnit.plotBinnedTrialAverage(ax(3), bta.pressUpRaw, [-8, 0], nsigmas=1, sem=true);
-title(ax(1), sprintf('Whole-population (%i units)', nnz(c.hasPress)))
-title(ax(2), sprintf('Press-inhibited (%i units)', nnz(c.isPressDown)))
-title(ax(3), sprintf('Press-excited (%i units)', nnz(c.isPressUp)))
-xlabel(ax(3), 'Time relative to lever-touch (s)')
-ylabel(ax, 'Average spike rate (sp/s)')
+ax(1) = subplot(2, 1, 1);
+ax(2) = subplot(2, 1, 2);
+EphysUnit.plotBinnedTrialAverage(ax(1), bta.pressDownRaw, [-8, 0], nsigmas=1, sem=true);
+EphysUnit.plotBinnedTrialAverage(ax(2), bta.pressUpRaw, [-8, 0], nsigmas=1, sem=true);
+title(ax(1), sprintf('Reach-inhibited (populaton-average, N=%i)', nnz(c.isPressDown)))
+title(ax(2), sprintf('Reach-excited (populaton-average, N=%i)', nnz(c.isPressUp)))
+xlabel(ax(2), 'Time to touchbar-contact (s)')
+ylabel(ax, 'Spike rate (sp/s)')
+h = legend(ax(1)); h.Location='southwest';
+set(ax, FontSize=p.fontSize)
 clear ax
 
 %% Specific single units
 
-fig = figure(Units='normalized', Position=[0, 0, 0.35, 0.8*0.67], DefaultAxesFontSize=14);
+figure(Units='inches', Position=[0, 0, 6.5, 3.5]);
 ax(1) = subplot(2, 1, 1);
 ax(2) = subplot(2, 1, 2);
-[Sr.X, Sr.T, Sr.N, Sr.S, Sr.B] = eu(402).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'press', 'window', [-10, 1], 'normalize', false);
+[Sr.X, Sr.T, Sr.N, Sr.S, Sr.B] = eu(402-11).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'press', 'window', [-10, 1], 'normalize', false);
 EphysUnit.plotBinnedTrialAverage(ax(1), Sr, [-8, 0], nsigmas=1, sem=true);
 
-[Sr.X, Sr.T, Sr.N, Sr.S, Sr.B] = eu(491).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'press', 'window', [-10, 1], 'normalize', false);
+[Sr.X, Sr.T, Sr.N, Sr.S, Sr.B] = eu(491-11).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'press', 'window', [-10, 1], 'normalize', false);
 EphysUnit.plotBinnedTrialAverage(ax(2), Sr, [-8, 0], nsigmas=1, sem=true);
 
-title(ax(1), 'Example press-inhibited unit')
-title(ax(2), 'Example press-excited unit')
-xlabel(ax(2), 'Time relative to lever-touch (s)')
-ylabel(ax, 'Average spike rate (sp/s)')
+title(ax(1), 'Reach-inhibited (example unit)')
+title(ax(2), 'Reach-excited (example unit)')
+% xlabel(ax(2), 'Time to lever-contact (s)')
+ylabel(ax, 'Spike rate (sp/s)')
+set(ax, FontSize=p.fontSize);
+clear ax Sr
 
 %% Plot lick BTA
 figure(Units='normalized', Position=[0, 0, 0.35, 0.8], DefaultAxesFontSize=14);
@@ -188,6 +191,13 @@ clear ax
         
 %% Plot single unit BTA (SLOW) save to DISK
 
+plotBinnedTrialAveragedForSingleUnits(eu(c.isPressUp & c.isPressBTADifferent), 'press', 'PressUpDiff', p.binnedTrialEdges)
+plotBinnedTrialAveragedForSingleUnits(eu(c.isPressDown & c.isPressBTADifferent), 'press', 'PressDownDiff', p.binnedTrialEdges)
+% plotBinnedTrialAveragedForSingleUnits(eu(c.isLickUp & c.isPressBTADifferent), 'lick', 'LickUpDiff', p.binnedTrialEdges)
+% plotBinnedTrialAveragedForSingleUnits(eu(c.isLickDown) & c.isPressBTADifferent, 'lick', 'LickDownDiff', p.binnedTrialEdges)
+
+%% Plot single unit BTA (SLOW) save to DISK
+
 plotBinnedTrialAveragedForSingleUnits(eu(c.isPressUp), 'press', 'PressUp', p.binnedTrialEdges)
 plotBinnedTrialAveragedForSingleUnits(eu(c.isPressDown), 'press', 'PressDown', p.binnedTrialEdges)
 plotBinnedTrialAveragedForSingleUnits(eu(c.isLickUp), 'lick', 'LickUp', p.binnedTrialEdges)
@@ -203,14 +213,53 @@ EphysUnit.plotETA(eta.press, c.hasPress, xlim=[-4,0], clim=[-2, 2], sortWindow=[
 %% 3.4 Single units raster and BTAs (plot and save to disk)
 % plotRasterForSingleUnits(eu(cat.isLickUp), 'lick', 'Raster_LickUp')
 % plotRasterForSingleUnits(eu(cat.isLickDown), 'lick', 'Raster_LickDown')
-plotRasterForSingleUnits(eu(c.isPressUp), 'press', 'Raster_PressUp')
-plotRasterForSingleUnits(eu(c.isPressDown), 'press', 'Raster_PressDown')
+unitsNames = { ...
+    'daisy5_20190515_Channel6_Unit1'; ...
+    'desmond13_20190508_Channel2_Unit1'; ...
+    'daisy4_20190417_Channel6_Unit1'; ...
+    'desmond10_20180911_Channel10_Unit1'; ...
+    };
+close all
+for iEu = find(ismember(eu.getName('_'), unitsNames))
+    thisRd = eu(iEu).getRasterData('press', window=[0, 0], sort=true);
+    ax = EphysUnit.plotRaster(thisRd, xlim=[-4, 0]);
+    ax.FontSize=p.fontSize;
+    title(ax, '')
+end
+clear thisRd ax
+% plotRasterForSingleUnits(eu(c.isPressUp), 'press', 'Raster_PressUp')
+% plotRasterForSingleUnits(eu(c.isPressDown), 'press', 'Raster_PressDown')
 
 %% 3.5 Single unit double rasters
 plotDoubleRasterForSingleUnits(eu(c.isPressDown & c.isLickUp), 'DoubleRaster_PressDownLickUp')
 plotDoubleRasterForSingleUnits(eu(c.isPressUp & c.isLickDown), 'DoubleRaster_PressUpLickDown')
 plotDoubleRasterForSingleUnits(eu(c.isPressDown & c.isLickDown), 'DoubleRaster_PressDownLickDown')
 plotDoubleRasterForSingleUnits(eu(c.isPressUp & c.isLickUp), 'DoubleRaster_PressUpLickUp')
+
+%% Double rasters examples (lick vs press)
+unitsNames = { ...
+    'Daisy2_20180420_Channel14_Unit1'; ...
+    'daisy13_20220106_Electrode97_Unit1'; ...
+    'desmond24_20220510_Channel44_Unit1'; ...
+    'daisy8_20210709_Channel7_Unit1'; ...
+    };
+close all
+for iEu = find(ismember(eu.getName('_'), unitsNames))
+    thisRdPress = eu(iEu).getRasterData('press', window=[0, 2], sort=true);
+    thisRdLick = eu(iEu).getRasterData('lick', window=[0, 2], sort=true);
+    ax = plotDoubleRaster(thisRdPress, thisRdLick, 'Reach', 'Lick', xlim=[-3, 2], iti=false);
+    set(ax, FontSize=p.fontSize);
+    set(ax(1).Parent, Units='inches', Position=[0 0 3.5 5.5]);
+    xlabel(ax, '')
+    if iEu > 1
+        ax(1).Legend.Visible=false;
+        ax(2).Legend.Visible=false;
+    else
+        ax(2).Legend.Visible=false;
+    end
+    xlabel(ax(2), 'Time to contact (s)')
+end
+clear thisRd ax
 
 %%
 function plotRasterForSingleUnits(eu, moveType, category)
@@ -272,5 +321,54 @@ function plotBinnedTrialAveragedForSingleUnits(eu, moveType, category, edges)
             fprintf(1, 'Error while processing %s.\n', e.getName('_'));
         end
         close all
+    end
+end
+
+function ax = plotDoubleRaster(rd1, rd2, varargin)
+    p = inputParser();
+    p.addRequired('rd1', @isstruct)
+    p.addRequired('rd2', @isstruct)
+    p.addOptional('label1', '', @ischar)
+    p.addOptional('label2', '', @ischar)
+    p.addParameter('xlim', [-6, 1], @(x) isnumeric(x) && length(x) == 2 && x(2) > x(1));
+    p.addParameter('iti', false, @islogical);
+    p.addParameter('timeUnit', 's', @(x) ismember(x, {'s', 'ms'}))
+    p.addParameter('maxTrials', Inf, @isnumeric)
+    p.parse(rd1, rd2, varargin{:});
+    r = p.Results;
+    rd(1) = r.rd1;
+    rd(2) = r.rd2;
+    label{1} = r.label1;
+    label{2} = r.label2;
+    maxTrials = p.Results.maxTrials;
+
+
+    disp(label)
+
+    f = figure(Units='normalized', Position=[0, 0, 0.5, 1], DefaultAxesFontSize=14);
+    nTrials(1) = min(length(rd(1).duration), maxTrials);
+    nTrials(2) = min(length(rd(2).duration), maxTrials);
+    xmargin = 0.16;
+    ymargin = 0.09;
+    ax(1) = axes(f, Position=[xmargin, 2*ymargin+nTrials(2)/sum(nTrials)*(1-0.09*3), 0.7, nTrials(1)/sum(nTrials)*(1-ymargin*3)]);
+    ax(2) = axes(f, Position=[xmargin, ymargin, 0.7, nTrials(2)/sum(nTrials)*(1-ymargin*3)]);
+
+    for i = 1:2
+        EphysUnit.plotRaster(ax(i), rd(i), xlim=r.xlim, iti=r.iti, ...
+            timeUnit=p.Results.timeUnit, maxTrials=maxTrials, sz=1);
+        if ~isempty(label{i})
+            title(ax(i), label{i})
+        else
+            switch lower(rd(i).trialType)
+                case 'press'
+                    name = 'Lever-press';
+                case 'lick'
+                    name = 'Lick';
+                case {'stim', 'stimtrain', 'stimfirstpulse'}
+                    name = 'Opto';
+            end
+            title(ax(i), name)
+        end
+%         suptitle(rd(1).name);
     end
 end

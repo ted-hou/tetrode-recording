@@ -1,4 +1,6 @@
 %% 1. Load CompleteExperiment data
+p.fontSize = 9;
+
 % AnimalInfo
 animalInfo = { ...
     'daisy1', 'wt', 'F', -3.2, -1.6, 'tetrode'; ...
@@ -90,8 +92,16 @@ clear iEu st isi ISI prcLowISI cat lia locb
 %% 1.1.1 Get trial aligned movement velocity data (slow)
 p.velETAWindow = [-10, 3];
 p.velETABinWidth = 0.025;
-p.minTrialLength = 4;
-p.maxTrialLength = Inf;
+p.minTrialLength = 2;
+p.maxTrialLength = 4;
+
+close all
+
+% p.minTrialLength = 2;
+% p.maxTrialLength = 4;
+% 
+% p.minTrialLength = 2;
+% p.maxTrialLength = Inf;
 
 t = flip(p.velETAWindow(2):-p.velETABinWidth:p.velETAWindow(1));
 f = cell(1, length(exp));
@@ -114,10 +124,10 @@ for iExp = 1:length(exp)
         for iTrial = 1:length(trials)
             if trials(iTrial).duration >= p.minTrialLength && trials(iTrial).duration <= p.maxTrialLength
                 tGlobal = flip(trials(iTrial).Stop + p.velETAWindow(2):-p.velETABinWidth:trials(iTrial).Stop + p.velETAWindow(1));
-                F = exp(iExp).getFeatures(timestamps=tGlobal, features=fnames, stats={'xPos'}, useGlobalNormalization=true);
+                F = exp(iExp).getFeatures(timestamps=tGlobal, features=fnames, stats={'spd'}, useGlobalNormalization=true);
                 F = CompleteExperiment.convolveFeatures(F, kernels, kernelNames={'_smooth'}, ...
                     features=fnames, ...
-                    stats={'xPos'}, ...
+                    stats={'spd'}, ...
                     mode='replace', normalize='none');
 %                 inTrial = F.inTrial;
                 inTrial = F.t >= trials(iTrial).Start;
@@ -185,10 +195,10 @@ end
 
 clear iExp kernels trials trialTypeName trialType iTrial tGlobal inTrial thisData F mu sd n ff
 
-% 1.1.2 Plot average traces
+%% 1.1.2 Plot average traces
 close all
-for iExp = 1:length(fstats)
-    fig = figure(Position=[0+(iExp-1)*300, 50, 300, 900]);
+for iExp = length(fstats)-1:length(fstats)
+    fig = figure(Units='inches', Position=[0+(iExp-1)*3, 0.5, 3, 9], DefaultAxesFontSize=p.fontSize);
     axAll = gobjects(1, 3);
     iTrialType = 0;
     for trialTypeName = {'press', 'lick', 'diff'}
@@ -219,9 +229,9 @@ for iExp = 1:length(fstats)
         end
         switch trialTypeName
             case 'press'
-                xlabel(ax, 'time to lever contact (s)')
+                xlabel(ax, 'time to bar contact (s)')
                 ylabel(ax, 'z-scored speed (a.u.)')
-                trialTypeDispName = 'Press';
+                trialTypeDispName = 'Reach';
             case 'lick'
                 xlabel(ax, 'time to spout contact (s)')
                 ylabel(ax, 'z-scored speed (a.u.)')
@@ -239,12 +249,12 @@ for iExp = 1:length(fstats)
         elseif iExp == length(implantSide) + 1
             leverSideText = 'both';
         elseif iExp == length(implantSide) + 2
-            leverSideText = 'left lever';
+            leverSideText = 'left bar';
         elseif iExp == length(implantSide) + 3
-            leverSideText = 'right lever';
+            leverSideText = 'right bar';
         end
         if strcmp(trialTypeName, 'diff')
-            title(ax, sprintf('Press minus Lick (%s)', leverSideText));
+            title(ax, sprintf('Reach minus Lick (%s)', leverSideText));
         else
             title(ax, sprintf('%s trials (N=%d, %s)', trialTypeDispName, n, leverSideText));
         end
@@ -255,90 +265,12 @@ for iExp = 1:length(fstats)
 %     yl = [0, max(yl(:, 2))];
     set(axAll(1:2), YLim=[0, 15])
     set(axAll(3), YLim=[-2.5, 12.5])
-    set(axAll, XLim=[-3, 3])
+    set(axAll, XLim=[-3, 1])
 end
 clear iTrialType iExp ax fig trialTypeName h iVar axAll n
 
 %% 1.2. For CompleteExperiment data, do GLM (with ITI) and compare weights.
-alpha = 0.05;
-binEdges = 2:2:10;
-nBins = length(binEdges) - 1;
 
-clear bootBTA
-for iEu = find(c.isPressResponsive)
-    assert(length(iEu) == 1)
-    fprintf(1, '%d/%d ', iEu, length(eu))
-    if mod(iEu, 15) == 0
-        fprintf(1, '\n')
-    end
-    [xx, tt] = eu(iEu).getTrialAlignedData('count', [-10, 0], 'press', allowedTrialDuration=[0, Inf], alignTo='stop', resolution=0.1, includeInvalid=false);
-    dd = eu(iEu).getTrials('press').duration;
-    assert(length(dd) == size(xx, 1))
-    
-    selTrials = dd >= binEdges(1) & dd <= binEdges(end);
-    selTime = tt >= -4 & tt <= 0;
-    xx = xx(selTrials, selTime);
-    dd = dd(selTrials);
-    tt = tt(selTime);
-    
-    [N, ~, bins] = histcounts(dd, binEdges);
-    xxMean = NaN(nBins, nnz(selTime));
-%     figure(), hold on
-    for iBin = 1:length(binEdges) - 1
-        xxMean(iBin, :) = mean(xx(bins == iBin, :), 1, 'omitnan');
-%         plot(tt, mean(xx(bins == iBin, :), 1, 'omitnan'), Color=hsl2rgb([0.8*(iBin-1)/(nBins-1), 1, 0.5]))
-    end
-    
-    pairs = nchoosek(1:nBins, 2);
-    nPairs = size(pairs, 1);
-    dist = NaN(nPairs, 1);
-    for iPair = 1:nPairs
-        x1 = xxMean(pairs(iPair, 1), :);
-        x2 = xxMean(pairs(iPair, 2), :);
-        sqrs = (x1 - x2).^2;
-        valid = ~isnan(sqrs);
-        n = nnz(valid);
-        dist(iPair) = sqrt(sum(sqrs, 'omitnan')) ./ n;
-    end
-    
-    nboot = 10000;
-    bsample = zeros(sum(N), nboot);
-    for iboot = 1:nboot
-        bsample(:, iboot) = randperm(sum(N));
-    end
-    
-    bootBinEdges = [0, cumsum(N)];
-    xxMeanBoot = NaN(nBins, nnz(selTime), nboot);
-    for iBin = 1:length(binEdges) - 1
-        xxBoot = NaN(N(iBin), nnz(selTime), nboot);
-        for iboot = 1:nboot
-            selTrialsBoot = bsample(bootBinEdges(iBin)+1:bootBinEdges(iBin+1), iboot);
-            xxMeanBoot(iBin, :, iboot) = mean(xx(selTrialsBoot, :), 1, 'omitnan');
-            xxBoot(:, :, iboot) = xx(selTrialsBoot, :);
-        end
-    end
-    
-    distBoot = NaN(nPairs, nboot);
-    distCI = NaN(nPairs, 2);
-    distH = NaN(nPairs, 1);
-    for iPair = 1:nPairs
-        x1 = xxMeanBoot(pairs(iPair, 1), :, :);
-        x2 = xxMeanBoot(pairs(iPair, 2), :, :);
-        sqrs = (x1 - x2).^2;
-        valid = ~isnan(sqrs);
-        n = sum(valid, 2);
-        distBoot(iPair, :) = sqrt(sum(sqrs, 2, 'omitnan')) ./ n;
-        distCI(iPair, :) = prctile(distBoot(iPair, :), [alpha*50/nPairs, 100-alpha*50/nPairs]); % Bonferoni correction: alpha/nPairs
-        distH(iPair) = dist(iPair) >= distCI(iPair, 2) || dist(iPair) <= distCI(iPair, 1);
-    end
-    bootBTA.h{iEu} = distH;
-    bootBTA.distCI{iEu} = distCI;
-    bootBTA.distObs{iEu} = dist;
-end
-bootBTA.h = cat(2, bootBTA.h{:});
-bootBTA.distObs = cat(2, bootBTA.distObs{:});
-
-clear iEu xx tt dd selTrials selTime N bins xxMean iBin pairs nPairs dist x1 x2 iPair sqrs valid n nboot bsample iboot bootBinEdges xxMeanBoot xxBoot iboot selTrialsBoot distBoot distCI distH
 
 %% 1.2.1 Fit GLMs (very slow)
 p.glmMinTrialLength = 0;
@@ -453,7 +385,7 @@ for iEu = 1:length(mdl)
     xlim(ax, [x(1), x(end)])
     ylabel(ax, 'Coefficient +/- SE')
     title(ax, 'Coefficients')
-    set(ax, FontSize=9)
+    set(ax, FontSize=p.fontSize)
 
     if ~isfolder('C:\\SERVER\\Figures\\GLM_ITI')
         mkdir('C:\\SERVER\\Figures\\GLM_ITI')
@@ -472,7 +404,7 @@ clear iEu iExp thisF fig ax yHat x
 %% 2.1. For all animals (with lick tube servo), compare press trial ETA vs. lick trial ETA traces
 %% 2.2. For all units with osci-lick spiking, compare press trial ETA vs. lick trial ETA traces. NULL: latter is a time shifted version of the former
 close all
-fig = figure(Units='inches', Position=[0 0 6 9], DefaultAxesFontSize=11);
+fig = figure(Units='inches', Position=[0 0 6 9], DefaultAxesFontSize=p.fontSize);
 
 SEL = { ...
         c.hasPress & c.hasLick; ...
@@ -577,45 +509,221 @@ p.etaLatencyThresholdPos = 0.5;
 p.etaLatencyThresholdNeg = 0.25;
 
 close all
-llatency = NaN(size(c.hasPress));
-[ax, ~, ~, llatency(c.hasPress)] = EphysUnit.plotETA(eta.press, c.hasPress, xlim=[-4,0], clim=[-2, 2], ...
+pressLatency = NaN(size(eu));
+lickLatency = NaN(size(eu));
+[ax, ~, ~, pressLatency(c.hasPress)] = EphysUnit.plotETA(eta.press, c.hasPress, xlim=[-4,0], clim=[-2, 2], ...
     sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
     sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg); 
-title('Lever-touch PETH')
-xlabel('Time to lever-contact (s)')
+title('Pre-reach PETH')
+xlabel('Time to touchbar-contact (s)')
 ax.Parent.Position(3) = 0.25;
 
-figure(DefaultAxesFontSize=11, Position=[200,200,600,300])
-histogram(llatency(c.isPressResponsive), -2:0.1:0, Normalization='probability')
+[ax, ~, ~, lickLatency(c.hasLick)] = EphysUnit.plotETA(eta.lick, c.hasLick, xlim=[-4,0], clim=[-2, 2], ...
+    sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg); 
+title('Pre-lick PETH')
+xlabel('Time to spout-contact (s)')
+ax.Parent.Position(3) = 0.25;
+
+p.fontSize = 9;
+figure(DefaultAxesFontSize=p.fontSize, Position=[200,200,600,300])
+histogram(pressLatency(c.isPressResponsive), -2:0.1:0, Normalization='probability')
 title('Neural activity onset latency')
-legend(sprintf('%d units', nnz(~isnan(llatency(c.isPressResponsive & c.hasPress)))), Location='northwest')
-xlabel('Time to lever-contact (s)')
+legend(sprintf('%d units', nnz(~isnan(pressLatency(c.isPressResponsive & c.hasPress)))), Location='northwest')
+xlabel('Time to touchbar-contact (s)')
 ylabel('Probability')
 
-% [~, ~, ~, llatency2] = EphysUnit.plotETA(eta.press, c.isPressResponsive & c.hasPress, xlim=[-4,0], clim=[-2, 2], ...
-%     sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
-%     sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg); 
-% 
-% figure(DefaultAxesFontSize=11, Position=[200,200,600,300])
-% histogram(llatency2, -2:0.1:0, Normalization='probability')
-% title('Neural activity onset latency')
-% legend(sprintf('%d units', nnz(~isnan(llatency2))), Location='northwest')
-% xlabel('Time to lever-contact (s)')
-% ylabel('Probability')
 
 % Test differect between paw/neural onset latency
 
-clear latency
-latency.neural = llatency;
+% clear latency
+latency.press = pressLatency;
+latency.lick = lickLatency;
 latency.contraPaw = tst;
-latency.pRankSum = ranksum(tst, llatency, tail='right');
+latency.pRankSum.pressVsContraPaw = ranksum(tst, pressLatency, tail='right');
+latency.pRankSum.pressVsLick = ranksum(lickLatency, pressLatency, tail='right');
 
-fprintf(1, 'Median neural onset latency = %.1f ms \n', median(latency.neural*1000, 'omitnan'))
+fprintf(1, 'Median pre-press spiking onset latency = %.1f ms \n', median(latency.press*1000, 'omitnan'))
+fprintf(1, 'Median pre-lick spiking onset latency = %.1f ms \n', median(latency.lick*1000, 'omitnan'))
 fprintf(1, 'Median contralateral paw movement onset latency = %.3f ms \n', median(latency.contraPaw*1000, 'omitnan'))
-fprintf(1, 'One-tailed ranksum test p = %g\n', latency.pRankSum)
+fprintf(1, 'Press spiking precedes paw: One-tailed ranksum test p = %g\n', latency.pRankSum.pressVsContraPaw)
+fprintf(1, 'Press spiking precedes lick spiking: One-tailed ranksum test p = %g\n', latency.pRankSum.pressVsLick)
 
-clear llatency ax
+clear pressLatency lickLatency ax
 
+%% 5.2. Make lick vs press rasters: latency (use smoothed spike rate)
+eta.pressSmoothed = eu.getETA('rate', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm);
+eta.lickSmoothed = eu.getETA('rate', 'lick', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm);
+
+%% High resolution latencies from smoothed spike rates
+close all
+pressLatency = NaN(size(eu));
+lickLatency = NaN(size(eu));
+[ax, ~, ~, pressLatency(c.hasPress)] = EphysUnit.plotETA(eta.pressSmoothed, c.hasPress, xlim=[-4,0], clim=[-2, 2], ...
+    sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg); 
+title('Reach PETH')
+xlabel('Time to touchbar-contact (s)')
+ax.Parent.Position(3) = 0.25;
+
+[ax, ~, ~, lickLatency(c.hasLick)] = EphysUnit.plotETA(eta.lickSmoothed, c.hasLick, xlim=[-4,0], clim=[-2, 2], ...
+    sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg); 
+title('Lick PETH')
+xlabel('Time to spout-contact (s)')
+ax.Parent.Position(3) = 0.25;
+
+figure(DefaultAxesFontSize=p.fontSize, Position=[200,200,600,300])
+histogram(pressLatency(c.isPressResponsive), -2:0.1:0, Normalization='probability')
+title('Neural activity onset latency')
+legend(sprintf('%d units', nnz(~isnan(pressLatency(c.isPressResponsive & c.hasPress)))), Location='northwest')
+xlabel('Time to touchbar-contact (s)')
+ylabel('Probability')
+
+
+% Test differect between paw/neural onset latency
+
+latency.pressSmoothed = pressLatency;
+latency.lickSmoothed = lickLatency;
+latency.pRankSum.pressSmoothedVsContraPaw = ranksum(tst, pressLatency, tail='right');
+latency.pRankSum.pressSmoothedVsLickSmoothed = ranksum(lickLatency, pressLatency, tail='right');
+
+fprintf(1, 'Median pre-press spiking onset latency = %.1f ms \n', median(latency.pressSmoothed*1000, 'omitnan'))
+fprintf(1, 'Median pre-lick spiking onset latency = %.1f ms \n', median(latency.lickSmoothed*1000, 'omitnan'))
+fprintf(1, 'Median contralateral paw movement onset latency = %.3f ms \n', median(latency.contraPaw*1000, 'omitnan'))
+fprintf(1, 'Press spiking precedes paw: One-tailed ranksum test p = %g\n', latency.pRankSum.pressSmoothedVsContraPaw)
+fprintf(1, 'Press spiking precedes lick spiking: One-tailed ranksum test p = %g\n', latency.pRankSum.pressSmoothedVsLickSmoothed)
+
+clear pressLatency lickLatency ax
+
+%% Compare press vs. lick
+close all
+clear ax
+fig = figure(Units='inches', Position=[0 0 6.5, 5], DefaultAxesFontSize=p.fontSize);
+ax(1) = axes(fig, Position=[0.135507244803911,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
+ax(2) = axes(fig, Position=[0.416304346253187,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
+ax(3) = axes(fig, Position=[0.697101447702462,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
+[~, order] = EphysUnit.plotETA(ax(1), eta.lick, c.hasPress & c.hasLick, ...
+    clim=[-1.5, 1.5], xlim=[-4, 0], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=true);
+[~, ~] = EphysUnit.plotETA(ax(2), eta.press, c.hasPress & c.hasLick, ...
+    clim=[-1.5, 1.5], xlim=[-4, 0], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=true);
+[~, ~] = EphysUnit.plotETA(ax(3), eta.press, c.hasPress & c.hasLick, order=order, ...
+    clim=[-1.5, 1.5], xlim=[-4, 0], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=false);
+title(ax(1), 'Pre-lick')
+title(ax(2), 'Pre-reach')
+title(ax(3), 'Pre-reach')
+ylabel(ax(2:3), '')
+xlabel(ax(1), 'Time to spout-contact (s)')
+xlabel(ax(2:3), 'Time to touchbar-contact (s)')
+h = colorbar(ax(3)); 
+h.Position = [0.913242151752656,0.109479305740988,0.013611111111111,0.815754339118825];
+h.Label.String = 'z-scored spike rate (a.u.)';
+set(ax, FontSize=p.fontSize)
+
+% Rasters (baseline vs. lick, reach vs. lick amplitude, reach vs. lick
+% latency)
+sz = 5;
+fig = figure(Units='Inches', Position=[0 0 6.5 1.9], DefaultAxesFontSize=p.fontSize);
+ax = subplot(1, 3, 3);
+hold(ax, 'on')
+clear h
+sel = c.hasLick & c.hasPress & c.isLickResponsive;
+x = msr(sel);
+y = meta.lickRaw(sel)*10 - msr(sel);
+h(1) = scatter(ax, x, y, sz, 'black', 'filled', DisplayName=sprintf('%d units', nnz(sel)));
+
+xl = ax.XLim'; yl = ax.YLim';
+mdl = fitlm(x, y);
+fprintf(1, 'Lick vs. baseline: R^2=%.2f, p=%g, N=%g\n', mdl.Rsquared.Ordinary, mdl.Coefficients.pValue(2), nnz(sel));
+% h(2) = plot(ax, xl, mdl.predict(xl), 'k--', LineWidth=1.5, DisplayName=sprintf('R^2 = %.2f', mdl.Rsquared.Ordinary));
+plot(ax, xl, [0, 0], 'k:')
+hold(ax, 'off')
+xlabel(ax, 'Baseline (sp/s)'), ylabel(ax, 'Pre-lick (\Deltasp/s)'), title(ax, 'Baseline')
+% legend(ax, h, Location='southwest', Position=[0.152004581901489,0.222595769821576,0.1346153830393,0.098901096608613])
+set(ax, FontSize=p.fontSize)
+
+ax = subplot(1, 3, 1);
+hold(ax, 'on')
+sel = c.hasPress & c.hasLick & (c.isPressResponsive & c.isLickResponsive);
+x = meta.lickRaw(sel)*10 - msr(sel);
+y = meta.pressRaw(sel)*10 - msr(sel);
+clear h
+h(1) = scatter(ax, x, y, sz, 'black', 'filled', DisplayName=sprintf('%g units', nnz(sel)));
+xl = ax.XLim; yl = ax.YLim;
+ax.XLimMode = 'manual'; ax.YLimMode = 'manual'; 
+mdl = fitlm(x, y);
+fprintf(1, 'Reach vs. Lick (amplitude): R^2=%.2f, p=%g, N=%g\n', mdl.Rsquared.Ordinary, mdl.Coefficients.pValue(2), nnz(sel));
+h(2) = plot(ax, xl', mdl.predict(xl'), 'k--', LineWidth=1.5, DisplayName=sprintf('R^2 = %.2f', mdl.Rsquared.Ordinary));
+
+set(ax, FontSize=p.fontSize)
+
+plot(ax, xl, [0, 0], 'k:')
+plot(ax, [0, 0], yl, 'k:')
+hold(ax, 'off')
+xlabel(ax, 'Pre-lick (\Deltasp/s)'), ylabel(ax, 'Pre-reach (\Deltasp/s)'), title(ax, 'Response amplitude')
+% legend(ax, h, Location='northwest', Position=[0.427645607542515,0.697733905584314,0.157051279806556,0.195054939978725])
+
+sel = c.hasPress & c.hasLick & c.isPressResponsive & c.isLickResponsive;
+ax = subplot(1, 3, 2);
+hold(ax, 'on')
+h = scatter(ax, latency.lickSmoothed(sel), latency.pressSmoothed(sel), sz, 'k', 'filled', ...
+    DisplayName=sprintf('%d units', nnz(sel)));
+lims = [-2.2, 0];
+plot(ax, lims, lims, 'k:')
+plot(ax, lims, [0, 0], 'k:')
+plot(ax, [0, 0], lims, 'k:')
+xlim(ax, lims)
+ylim(ax, lims)
+xlabel('Pre-lick (s)')
+ylabel('Pre-reach (s)')
+mdl = fitlm(latency.lickSmoothed(sel), latency.pressSmoothed(sel));
+fprintf(1, 'Reach vs. Lick (latency): R^2=%.2f, p=%g, N=%g\n', mdl.Rsquared.Ordinary, mdl.Coefficients.pValue(2), nnz(sel));
+y = predict(mdl, lims');
+% h(2) = plot(ax, lims, y, 'k--', LineWidth=1.5, DisplayName=sprintf('R^2=%.2f', mdl.Rsquared.Ordinary));
+hold(ax, 'off')
+title(ax, 'Response onset time')
+% legend(ax, h, Location='southwest', Position=[0.708094321288337,0.777540809880364,0.152243587642144,0.098901096608613])
+
+set(ax, FontSize=p.fontSize)
+
+clear ax fig sel h mdl y lims x xl yl sz
+
+%% 5.2 Compare BTAs
+binEdges = 2:2:10;
+bootBTA = bootstrapBTA(10000, eu, c.isPressResponsive, alpha=0.01, trialType='press', binEdges=binEdges, distWindow=[-2, 0]);
+
+%
+c.isPressBTADifferent = reshape(bootBTA.distH == 1, 1, []);
+fprintf(1, '\n\nOf %d press responsive units, %d showed significantly different responses for different length trials (p<0.01).\n', nnz(c.isPressResponsive), nnz(c.isPressBTADifferent))
+%%
+[btaDiff.pressUpRaw.X, btaDiff.pressUpRaw.T, btaDiff.pressUpRaw.N, btaDiff.pressUpRaw.S, btaDiff.pressUpRaw.B] = eu(c.isPressUp & c.isPressBTADifferent).getBinnedTrialAverage( ...
+    'rate', binEdges, 'press', 'window', [-4, 0], 'normalize', false);
+[btaDiff.pressDownRaw.X, btaDiff.pressDownRaw.T, btaDiff.pressDownRaw.N, btaDiff.pressDownRaw.S, btaDiff.pressDownRaw.B] = eu(c.isPressDown & c.isPressBTADifferent).getBinnedTrialAverage( ...
+    'rate', binEdges, 'press', 'window', [-4, 0], 'normalize', false);
+
+fig = figure('Units', 'normalized', 'Position', [0, 0, 0.6, 0.9]);
+ax(1) = subplot(2, 1, 1);
+ax(2) = subplot(2, 1, 2);
+EphysUnit.plotBinnedTrialAverage(ax(1), btaDiff.pressUpRaw, [-8, 1]);
+EphysUnit.plotBinnedTrialAverage(ax(2), btaDiff.pressDownRaw, [-8, 1]);
+clear fig ax
+
+% Plot single unit BTA (SLOW) save to DISK
+% plotBinnedTrialAveragedForSingleUnits(eu(c.isPressUp & c.isPressBTADifferent), 'press', 'PressUpDiff', binEdges)
+% plotBinnedTrialAveragedForSingleUnits(eu(c.isPressDown & c.isPressBTADifferent), 'press', 'PressDownDiff', binEdges)
+% 
+% plotDoubleRasterForSingleUnits(eu(c.isPressUp & c.isPressBTADifferent), 'press', 'PressUpDiff')
+% plotDoubleRasterForSingleUnits(eu(c.isPressDown & c.isPressBTADifferent), 'press', 'PressDownDiff')
+
+%% 6 Redo behavior plots
+%% 6.1 Training plots for lever-press: show all animals
+% skip missing sessions (instead of discarding whole animal)
+% instead of day 1-14, show day1 -> dayN (best behavior)
+
+%% 6.2 For licking, show comparison between licking and lever-pressing for same animals
 
 %% 6.1 Redo GLM training on [-10, -0.75] window, predict [-10, 0] or [-10, -0.75]
 %% 6.2 Compare predicted vs. fitted ramp onset/peak, show beside \deltaR^2
@@ -794,7 +902,200 @@ function [ax, fig] = plotETAComparison(varargin) % NonHeatmap
             xlim(ax, r.xlim)
         end
         legend(ax, h, Location='northwest')
-        xlabel('Time to lever/spout contact (s)')
+        xlabel('Time to touchbar/spout contact (s)')
         title(sprintf('Average across %d units', N))
     end
+end
+
+function plotBinnedTrialAveragedForSingleUnits(eu, moveType, category, edges)
+    if ~isfolder(sprintf('C:\\SERVER\\Figures\\Single Units\\%s', category))
+        mkdir(sprintf('C:\\SERVER\\Figures\\Single Units\\%s', category))
+    end
+    for e = eu
+        try
+            [Sr.X, Sr.T, Sr.N, Sr.S, Sr.B] = e.getBinnedTrialAverage('rate', edges, moveType, 'window', [-10, 1], 'normalize', false);
+            [Sn.X, Sn.T, Sn.N, Sn.S, Sn.B] = e.getBinnedTrialAverage('rate', edges, moveType, 'window', [-10, 1], 'normalize', true);
+            
+            fig = figure('Units', 'normalized', 'Position', [0, 0, 0.6, 0.9]);
+            ax(1) = subplot(2, 1, 1);
+            ax(2) = subplot(2, 1, 2);
+            EphysUnit.plotBinnedTrialAverage(ax(1), Sr, [-8, 1]);
+            EphysUnit.plotBinnedTrialAverage(ax(2), Sn, [-8, 1]);
+            suptitle(e.getName('_'));
+            
+            print(fig, sprintf('C:\\SERVER\\Figures\\Single Units\\%s\\%s', category, e.getName('_')), '-dpng');
+            
+            close(fig)
+        catch ME
+            fprintf(1, 'Error while processing %s.\n', e.getName('_'));
+        end
+        close all
+    end
+end
+
+function plotDoubleRasterForSingleUnits(eu, moveType, category)
+    if ~isfolder(sprintf('C:\\SERVER\\Figures\\Single Units\\%s', category))
+        mkdir(sprintf('C:\\SERVER\\Figures\\Single Units\\%s', category))
+    end
+    for e = eu
+%         try
+            rdsorted = e.getRasterData(moveType, window=[0, 2], sort=true);
+            rd = e.getRasterData(moveType, window=[0, 2], sort=false);
+            ax = plotDoubleRaster(rdsorted, rd, xlim=[-8, 0], iti=false);
+            fig = ax(1).Parent;
+            print(fig, sprintf('C:\\SERVER\\Figures\\Single Units\\%s\\%s_raster', category, e.getName('_')), '-dpng');            
+            close(fig)
+%         catch ME
+%             fprintf(1, 'Error while processing %s.\n', e.getName('_'));
+%         end
+        close all
+    end
+end
+
+
+function ax = plotDoubleRaster(rd1, rd2, varargin)
+    p = inputParser();
+    p.addRequired('rd1', @isstruct)
+    p.addRequired('rd2', @isstruct)
+    p.addOptional('label1', '', @ischar)
+    p.addOptional('label2', '', @ischar)
+    p.addParameter('xlim', [-6, 1], @(x) isnumeric(x) && length(x) == 2 && x(2) > x(1));
+    p.addParameter('iti', false, @islogical);
+    p.addParameter('timeUnit', 's', @(x) ismember(x, {'s', 'ms'}))
+    p.addParameter('maxTrials', Inf, @isnumeric)
+    p.parse(rd1, rd2, varargin{:});
+    r = p.Results;
+    rd(1) = r.rd1;
+    rd(2) = r.rd2;
+    label{1} = r.label1;
+    label{2} = r.label2;
+    maxTrials = p.Results.maxTrials;
+
+
+    f = figure(Units='normalized', OuterPosition=[0, 0, 1, 1], DefaultAxesFontSize=p.fontSize);
+    nTrials(1) = min(length(rd(1).duration), maxTrials);
+    nTrials(2) = min(length(rd(2).duration), maxTrials);
+    xmargin = 0.16;
+    ymargin = 0.09;
+    ax(1) = axes(f, Position=[xmargin, 2*ymargin+nTrials(2)/sum(nTrials)*(1-0.09*3), 0.7, nTrials(1)/sum(nTrials)*(1-ymargin*3)]);
+    ax(2) = axes(f, Position=[xmargin, ymargin, 0.7, nTrials(2)/sum(nTrials)*(1-ymargin*3)]);
+
+    for i = 1:2
+        EphysUnit.plotRaster(ax(i), rd(i), xlim=r.xlim, iti=r.iti, ...
+            timeUnit=p.Results.timeUnit, maxTrials=maxTrials);
+        if ~isempty(label{i})
+            title(ax(i), label{i})
+        else
+            switch lower(rd(i).trialType)
+                case 'press'
+                    name = 'Lever-press';
+                case 'lick'
+                    name = 'Lick';
+                case {'stim', 'stimtrain', 'stimfirstpulse'}
+                    name = 'Opto';
+            end
+            title(ax(i), name)
+        end
+%         suptitle(rd(1).name);
+    end
+end
+
+function boot = bootstrapBTA(nboot, eu, varargin)
+    p = inputParser();
+    p.addRequired('nboot', @isnumeric)
+    p.addRequired('eu', @(x) isa(x, 'EphysUnit'))
+    p.addOptional('sel', [], @(x) islogical(x) || isnumeric(x))
+    p.addParameter('trialType', 'press', @(x) ismember(x, {'press', 'lick'}))
+    p.addParameter('binEdges', [2, 4, 6, 10]);
+%     p.addParameter('metric', 'dist', @(x) ismember(x, {'dist', 'point'}))
+    p.addParameter('distWindow', [-2, 0], @(x) isnumeric(x) && length(x) == 2)
+%     p.addParameter('pointTimestamp', -1, @isnumeric)
+    p.addParameter('alpha', 0.05, @isnumeric)
+
+    p.parse(nboot, eu, varargin{:})
+    r = p.Results;
+    nboot = r.nboot;
+    eu = r.eu;
+    trialType = r.trialType;
+    binEdges = r.binEdges;
+
+
+    nBins = length(binEdges) - 1;
+    
+    if isempty(r.sel)
+        euIndices = 1:length(eu);
+    elseif islogical(r.sel)
+        euIndices = reshape(find(r.sel), 1, []);
+    else
+        euIndices = reshape(sel, 1, []);
+    end
+
+    ii = 0;
+    boot.distH = NaN(length(eu), 1);
+    boot.distCI = NaN(length(eu), 2);
+    boot.distObs = NaN(length(eu), 1);
+    for iEu = euIndices
+        ii = ii + 1;
+        fprintf(1, '%d/%d ', ii, length(euIndices))
+        if mod(ii, 10) == 0
+            fprintf(1, '\n')
+        end
+        [xx, tt] = eu(iEu).getTrialAlignedData('count', [-10, 0], trialType, allowedTrialDuration=[0, Inf], alignTo='stop', resolution=0.1, includeInvalid=false);
+        dd = eu(iEu).getTrials(trialType).duration;
+        assert(length(dd) == size(xx, 1))
+        
+        selTrials = dd >= binEdges(1) & dd <= binEdges(end);
+        selTime = tt >= r.distWindow(1) & tt <= r.distWindow(2);
+%         [~, selPoint] = min(abs(tt - r.pointTimestamp));
+        xx = xx(selTrials, selTime);
+        dd = dd(selTrials);
+        tt = tt(selTime);
+        
+        [N, ~, bins] = histcounts(dd, binEdges);
+        xxMean = NaN(nBins, nnz(selTime));
+        for iBin = 1:length(binEdges) - 1
+            xxMean(iBin, :) = mean(xx(bins == iBin, :), 1, 'omitnan');
+            
+        end
+        
+        pairs = nchoosek(1:nBins, 2);
+        nPairs = size(pairs, 1);
+        dist = NaN(nPairs, 1);
+        for iPair = 1:nPairs
+            x1 = xxMean(pairs(iPair, 1), :);
+            x2 = xxMean(pairs(iPair, 2), :);
+            sqrs = (x1 - x2).^2;
+            dist(iPair) = mean(sqrs, 'omitnan');
+        end
+        dist = mean(dist);
+        
+        bsample = zeros(sum(N), nboot);
+        for iboot = 1:nboot
+            bsample(:, iboot) = randperm(sum(N));
+        end
+        
+        bootBinEdges = [0, cumsum(N)];
+        xxMeanBoot = NaN(nBins, nnz(selTime), nboot);
+        for iBin = 1:length(binEdges) - 1
+            for iboot = 1:nboot
+                selTrialsBoot = bsample(bootBinEdges(iBin)+1:bootBinEdges(iBin+1), iboot);
+                xxMeanBoot(iBin, :, iboot) = mean(xx(selTrialsBoot, :), 1, 'omitnan');
+            end
+        end
+        
+        distBoot = NaN(nPairs, nboot);
+        for iPair = 1:nPairs
+            x1 = squeeze(xxMeanBoot(pairs(iPair, 1), :, :));
+            x2 = squeeze(xxMeanBoot(pairs(iPair, 2), :, :));
+            sqrs = (x1 - x2).^2;
+            distBoot(iPair, :) = mean(sqrs, 1, 'omitnan');
+        end
+        distBoot = mean(distBoot, 1, 'omitnan');
+        distCI = prctile(distBoot, [50*r.alpha, 100-50*r.alpha]);
+        distH = dist >= distCI(2) || dist <= distCI(1);
+        boot.distH(iEu) = distH;
+        boot.distCI(iEu, 1:2) = distCI;
+        boot.distObs(iEu) = dist;
+    end
+
 end

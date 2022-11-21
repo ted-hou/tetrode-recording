@@ -474,6 +474,51 @@ classdef CompleteExperiment < handle
             end
         end
 
+
+        function [F, mask] = maskFeaturesByTrial(obj, F, maskValue, trialType, window, varargin)
+            p = inputParser();
+            p.addRequired('F', @istable)
+            p.addRequired('maskValue')
+            p.addRequired('trialType', @(x) ismember(x, {'press', 'lick'}))
+            p.addRequired('window', @isnumeric) % [-0.5, 2]
+            p.addParameter('features', {}, @iscell)
+            p.addParameter('stats', {'xVel', 'yVel'}, @iscell)
+            p.addParameter('reference', 'stop', @(x) ismember(x, {'stop', 'start'}))
+            p.addParameter('replace', false, @islogical)
+            p.parse(F, maskValue, trialType, window, varargin{:});
+            r = p.Results;
+            F = r.F;
+            trialType = r.trialType;
+            window = r.window;
+            features = r.features;
+            stats = r.stats;
+
+            if strcmpi(r.reference, 'start')
+                error('NOT IMPLEMENTED: REFUSAL BY THE GRAD STUDENT.')
+            end
+
+            trials = obj.eu(1).getTrials(trialType);
+            start = [trials.Start];
+            stop = [trials.Stop];
+
+            mask = false(size(F.t));
+            for iTrial = 1:length(trials)
+                mask = mask | (F.t >= stop(iTrial) + window(1) & F.t <= stop(iTrial) + window(2));
+            end
+            for iFeat = 1:length(features)
+                featureName = features{iFeat};
+                for iStat = 1:length(stats)
+                    statName = sprintf('%s_%s', featureName, stats{iStat});
+                    x = F.(statName);
+                    x(mask) = r.maskValue;
+                    if r.replace
+                        F.(statName) = x;
+                    else
+                        F.(sprintf('%s_masked', statName)) = x;
+                    end
+                end
+            end
+        end
     end
 
     methods (Static)

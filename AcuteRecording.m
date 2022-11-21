@@ -1597,12 +1597,14 @@ classdef AcuteRecording < handle
             ylabel(ax, 'DV')
             zlabel(ax, 'AP')
             
-            h.DataTipTemplate.DataTipRows(1).Label = mlLabel;
-            h.DataTipTemplate.DataTipRows(2).Label = 'DV';
-            h.DataTipTemplate.DataTipRows(3).Label = 'AP';
-            h.DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('Channel', channels);
-            h.DataTipTemplate.DataTipRows(end+2) = dataTipTextRow(method, stats);
-            h.DataTipTemplate.DataTipRows(end+3) = dataTipTextRow('Index', 1:length(stats));
+            try
+                h.DataTipTemplate.DataTipRows(1).Label = mlLabel;
+                h.DataTipTemplate.DataTipRows(2).Label = 'DV';
+                h.DataTipTemplate.DataTipRows(3).Label = 'AP';
+                h.DataTipTemplate.DataTipRows(end+1) = dataTipTextRow('Channel', channels);
+                h.DataTipTemplate.DataTipRows(end+2) = dataTipTextRow(method, stats);
+                h.DataTipTemplate.DataTipRows(end+3) = dataTipTextRow('Index', 1:length(stats));
+            end
         end
 
         function varargout = plotScatter(varargin)

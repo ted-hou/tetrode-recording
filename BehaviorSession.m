@@ -61,27 +61,45 @@ classdef BehaviorSession < handle
             p = obj.paramData(:, strcmpi(obj.paramNames, paramName));
         end
 
-        function N = countTrials(obj, type)
+        function N = countTrials(obj, type, result)
             if nargin < 2
                 type = '';
+            end
+            if nargin < 3
+                result = '';
             end
             if length(obj) > 1
                 N = NaN(length(obj), 1);
                 for i = 1:length(obj)
-                    N(i) = obj(i).countTrials(type);
+                    N(i) = obj(i).countTrials(type, result);
                 end
                 return
             end
+            if isempty(result) && isempty(type)
+                N = obj.numTrials;
+                return;
+            end
+
+            switch lower(result)
+                case ''
+                    selResult = true(length(obj.numTrials), 1);
+                case 'correct'
+                    selResult = obj.resultData == find(strcmpi(obj.resultNames, 'CORRECT'));
+                case 'early'
+                    selResult = obj.resultData == find(strcmpi(obj.resultNames, 'EARLY_MOVE'));
+                case 'nomove'
+                    selResult = obj.resultData == find(strcmpi(obj.resultNames, 'NO_MOVE'));
+            end
             switch type
                 case ''
-                    N = obj.numTrials;
+                    selType = true(length(obj.numTrials), 1);
                 case 'lick'
-                    N = nnz(obj.getParams('USE_LEVER') == 0);
+                    selType = obj.getParams('USE_LEVER') == 0;
                 case 'press'
-                    N = nnz(obj.getParams('USE_LEVER') == 1);
-                otherwise
-                    N = NaN;
+                    selType = obj.getParams('USE_LEVER') == 1;
             end
+
+            N = nnz(selResult & selType);
         end
 
         function t = getEventTimes(obj, eventName)

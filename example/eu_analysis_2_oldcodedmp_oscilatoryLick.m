@@ -66,7 +66,7 @@ plot(f, P1)
 title('Single-Sided Amplitude Spectrum of X(t)')
 xlabel('f (Hz)')
 ylabel('|P1(f)|')
-
+%%
 signWindow = [-0.13, -0.01];
 sortWindow = [-0.13, -0.01];
 plotWindow = [-0.25, 0.25];
@@ -101,3 +101,31 @@ fprintf(1, '\t%g (%.1f%%) are lick activated, %g(%.1f%%) are suppressed.\n', nnz
 
 t = eta.anyLickNorm.t;
 meta.anyLickNorm = transpose(mean(eta.anyLickNorm.X(:, t >= -0.05 & t < 0), 2, 'omitnan'));
+
+%%
+
+%% Compare press vs. lick
+close all
+clear ax
+fig = figure(Units='inches', Position=[0 0 6.5, 5], DefaultAxesFontSize=p.fontSize);
+ax(1) = axes(fig, Position=[0.135507244803911,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
+ax(2) = axes(fig, Position=[0.416304346253187,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
+ax(3) = axes(fig, Position=[0.697101447702462,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
+[~, order] = EphysUnit.plotETA(ax(1), eta.anyLickNorm, c.hasLick & c.isLick, ...
+    clim=[-2, 2], xlim=[-0.25, 0.25], sortWindow=[-0.13, -0.01], signWindow=[-0.13, -0.01], ...
+    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=true);
+[~, ~] = EphysUnit.plotETA(ax(2), eta.lick, c.hasLick & c.isLick, ...
+    clim=[-2, 2], xlim=[-4, 0], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=true);
+[~, ~] = EphysUnit.plotETA(ax(3), eta.lick, c.hasLick & c.isLick, order=order, ...
+    clim=[-2, 2], xlim=[-4, 0], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=false);
+title(ax(1), 'Osci-lick')
+title(ax(2), 'Pre-lick')
+title(ax(3), 'Pre-lick')
+ylabel(ax(2:3), '')
+xlabel(ax(1:3), 'Time to spout-contact (s)')
+h = colorbar(ax(3)); 
+h.Position = [0.913242151752656,0.109479305740988,0.013611111111111,0.815754339118825];
+h.Label.String = 'z-scored spike rate (a.u.)';
+set(ax, FontSize=p.fontSize)

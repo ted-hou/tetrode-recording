@@ -20,7 +20,7 @@ ar = AcuteRecording.load('C:\SERVER\Acute\AcuteRecording');
 
 % 1.3 AnimalInfo
 animalInfo = { ...
-    'daisy1', 'wt', 'F', -3.2, -1.6, 'tetrode'; ...
+%     'daisy1', 'wt', 'F', -3.2, -1.6, 'tetrode'; ...
     'daisy2', 'wt', 'F', -3.2, +1.6, 'tetrode'; ...
     'daisy3', 'DAT-Cre', 'F', -3.2, +1.6, 'tetrode'; ...
     'desmond10', 'wt', 'M', -3.28, -1.8, 'double-bundle'; ... % -0.962 for other bunder
@@ -772,13 +772,21 @@ c.isStimDownSpatialPETA = peta.stimSpatial <= -0.2;
 c.hasStimResponseSpatialPETA = c.isStimUpSpatialPETA | c.isStimDownSpatialPETA;
 
 %% Plot latency Str/SNr map
-close all
-SEL = {c.isAi80; c.isA2A; c.isAi80; c.isA2A};
-STATS = {'latency'; 'latency'; 'response'; 'response'};
-TITLE = {'dSPN-stim latency', 'iSPN-stim latency', 'dSPN-stim response', 'iSPN-stim response'};
+% expNameWhiteLists = {ar(arrayfun(@(ar) length(ar.bsr), ar) > 31).expName};
+
+% close all
+
+SEL = { ...
+    c.isAi80; ...
+    c.isA2A; ...
+    };
+STATS = {'response'; 'response'};
+TITLE = {'dSPN-stim response', 'iSPN-stim response'};
+EXPECTED_SIGN = [-1; 1;];
+EXPECTED_LATENCY = [12, 12];
 
 for iFig = 1:length(SEL)
-    fig = figure(Units='normalized', Position=[0, 0, 0.2, 0.8], DefaultAxesFontSize=12);
+    fig = figure(Units='inches', Position=[0, 0, 3.25, 7], DefaultAxesFontSize=9);
     for iML = 1:2
         for iDV = 1:4
             if iML == 1
@@ -824,35 +832,31 @@ for iFig = 1:length(SEL)
             sel = squeeze(c.hasStimResponseSpatial(iML, iDV, :))' & SEL{iFig};
             coords = euPos(sel, :);
 
+            latencies = [isiSpatial(iML, iDV, sel).onsetLatency];
+            directions = ones(1, length(eu));
+            directions(c.isStimDownSpatial(iML, iDV, :)) = -1;
+            directions = directions(sel);
+            responses = 1000./[isiSpatial(iML, iDV, sel).peak] - 1000./[isiSpatial(iML, iDV, sel).baseline];
+
             switch STATS{iFig}
                 case 'latency'
-                    latencies = [isiSpatial(iML, iDV, sel).onsetLatency];
-                    directions = ones(1, length(eu));
-                    directions(c.isStimDownSpatial(iML, iDV, :)) = -1;
-                    directions = directions(sel);
                     stats = directions .* latencies;
                     srange = [5, 30];
                     bsrange = [2, 10];
                     sthreshold = 0;
                 case 'response'
-%                     responses = (1000./[isiSpatial(iML, iDV, sel).peak] - 1000./[isiSpatial(iML, iDV, sel).isi0]) ./ (1000./[isiSpatial(iML, iDV, sel).baselineSD]);
-%                     stats = responses;
-%                     stats(responses < 0) = stats(responses < 0) * 5;
-                    % responses = squeeze(peta.stimSpatial(iML, iDV, sel));
-                    responses = 1000./[isiSpatial(iML, iDV, sel).peak] - 1000./[isiSpatial(iML, iDV, sel).baseline];
                     stats = responses;
                     stats(responses < 0) = stats(responses < 0) * 5;
-                    srange = [2.5 75];
+                    srange = [0 30];
 %                     srange = [0, 7.5];
-                    bsrange = [1, 15];
+%                     bsrange = [1, 15];
+                    bsrange = [2, 10];
                     sthreshold = 0;
             end
 
+%             subsel = latencies <= EXPECTED_LATENCY(iFig) & directions == EXPECTED_SIGN(iFig);
+%             h = AcuteRecording.plotMap(ax, coords(subsel, :), stats(subsel), srange, sthreshold, UseSignedML=false, BubbleSize=bsrange, MarkerAlpha=0.4);
             h = AcuteRecording.plotMap(ax, coords, stats, srange, sthreshold, UseSignedML=false, BubbleSize=bsrange, MarkerAlpha=0.4);
-%             if iML == 2 && iDV > 1
-%                 xlabel(ax, "");
-%                 ylabel(ax, "");
-%             end
             if iML > 1
                 ylabel(ax, "");
             end
@@ -867,15 +871,16 @@ for iFig = 1:length(SEL)
             ylim(ax, [-4.8, -3.7])
         end
     end
-    suptitle(TITLE(iFig))
+%     suptitle(TITLE(iFig))
 end
 
+%% Movement response maps in SNr
 MOVETYPE = {'press', 'lick', 'lickosci'};
 SEL = {c.isPressResponsive; c.isLickResponsive; c.isLick};
 STATS = {meta.press, meta.lick, meta.anyLickNorm};
-TITLE = {'Lever-press', 'Lick', 'Osci Lick'};
+TITLE = {'Reach', 'Lick', 'Osci Lick'};
 
-fig = figure(Units='normalized', Position=[0, 0, 0.3, 0.2], DefaultAxesFontSize=12);
+fig = figure(Units='inches', Position=[0, 0, 6.5/4*3, 3], DefaultAxesFontSize=9);
 for iMove = 1:length(MOVETYPE)
     ax = subplot(1, length(MOVETYPE), iMove);
     sel = SEL{iMove};
@@ -890,6 +895,7 @@ for iMove = 1:length(MOVETYPE)
         ylabel(ax, "");
     end
     xlabel(ax, 'ML');
+    set(ax, FontSize=9)
 end
 
 %% Summarize and plot stim ETAs, latencies (For 8 acute sites)
