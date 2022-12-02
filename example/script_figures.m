@@ -1,4 +1,4 @@
-p.fontSize = 9;
+p.fontSize = 13;
 %% 8. Reach PETH
 close all
 
@@ -202,8 +202,10 @@ clear iExp kernels trials trialTypeName trialType iTrial tGlobal inTrial thisDat
 close all
 resultNames = {'incorrect', 'correct'};
 
+p.fontSize=13;
+
 for iExp = 1:length(fstats)
-    fig = figure(Units='inches', Position=[0+(iExp-1)*3, 0.5, 3, 4], DefaultAxesFontSize=p.fontSize);
+    fig = figure(Units='inches', Position=[0+(iExp-1)*4.5, -1, 7.5, 7.5], DefaultAxesFontSize=p.fontSize);
     axAll = gobjects(1, 2);
     iTrialType = 0;
     for trialTypeName = {'press', 'lick'}
@@ -221,17 +223,21 @@ for iExp = 1:length(fstats)
         end
 
         sdNames = {'handContra', 'tongue'};
+        ftNames = {'handContra', 'tongue'};
 
-        h = gobjects(1, length(fnames));
+
+        h = gobjects(1, length(ftNames));
+        ii = 0;
         for iVar = 1:length(fnames)
             col = hsl2rgb([0.8*(iVar-1)/(length(fnames)-1), 1, 0.5]);
+            if ismember(fnames{iVar}, ftNames)
+                ii = ii + 1;
+                h(ii) = plot(ax, t, mu(:, iVar), Color=col, LineWidth=1.5, DisplayName=fnamesDisp{iVar});
+            end
             if ismember(fnames{iVar}, sdNames)
-                h(iVar) = plot(ax, t, mu(:, iVar), Color=col, LineWidth=1.5, DisplayName=fnamesDisp{iVar});
                 sel = ~isnan(mu(:, iVar)+sd(:, iVar));
                 patch(ax, [t(sel)'; flip(t(sel)')], [mu(sel, iVar)-sd(sel, iVar); flip(mu(sel, iVar)+sd(sel, iVar))], 'r', ...
                     LineStyle='none', FaceAlpha=0.075, FaceColor=col)
-            else
-                h(iVar) = plot(ax, t, mu(:, iVar), Color=col, LineWidth=1.5, DisplayName=fnamesDisp{iVar});
             end
         end
         switch trialTypeName
@@ -242,18 +248,20 @@ for iExp = 1:length(fstats)
                 xlabel(ax, 'time to spout contact (s)')
                 trialTypeDispName = 'Lick';
         end
-        if iExp == 1
+%         if iExp == 1
             ylabel(ax, 'z-scored speed (a.u.)')
-        end
+%         end
         plot(ax, [0, 0], [-100, 100], 'k--')
-        if iExp == 1 && iTrialType == 1
+%         if iExp == 1 && iTrialType == 1
+        if iTrialType == 1
             legend(ax, h, Location='northwest')
         end
-        title(ax, sprintf('%s trials (%s, N=%d)', trialTypeDispName, resultNames{iExp}, n));
+%         title(ax, sprintf('%s trials (%s, N=%d)', trialTypeDispName, resultNames{iExp}, n));
+        title(ax, sprintf('%s trials (%s)', trialTypeDispName, resultNames{iExp}));
         hold(ax, 'off')
     end
 
-    set(axAll(1:2), YLim=[0, 15])
+    set(axAll(1:2), YLim=[0, 7.5])
     set(axAll, XLim=[-3, 1])
 end
 clear iTrialType iExp ax fig trialTypeName h iVar axAll n

@@ -1,5 +1,5 @@
-clear
-p.fontSize = 9;
+% clear
+p.fontSize = 13;
 %% Filter out bad animals
 whitelist = ...
 [ ...

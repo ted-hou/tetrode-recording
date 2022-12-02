@@ -933,7 +933,8 @@ classdef AcuteRecording < handle
             end
             for iUnit = units
                 label = sprintf('%s Chn%g Unit %g', expName{iUnit}, channels(iUnit), channelUnits(iUnit));
-                figs(iUnit) = figure('Units', 'normalized', 'OuterPosition', p.Results.Position, 'Name', label, 'DefaultAxesFontSize', 10);
+%                 figs(iUnit) = figure('Units', 'normalized', 'OuterPosition', p.Results.Position, 'Name', label, 'DefaultAxesFontSize', 10);
+                figs(iUnit) = figure('Units', 'inches', 'Position', [0 0 13, 7], 'Name', label, 'DefaultAxesFontSize', 14);
                 for iPlot = 1:nPlots
                     axs(iUnit, iPlot) = subplot(nPlots, 1, iPlot);
                     ax = axs(iUnit, iPlot);
@@ -962,14 +963,18 @@ classdef AcuteRecording < handle
                             colormap(ax, 'jet');
                             cb = colorbar(ax, Location='southoutside');
                             cb.Label.String = 'Normalized \DeltaSpike Rate (a.u.)';
-                            cb.Label.FontSize = 10;
+                            cb.Label.FontSize = 14;
                             if ~isempty(p.Results.HeatmapCLim)
                                 ax.CLim = p.Results.HeatmapCLim;
                             end
                             xlabel('Time (ms)')
                             ylabel('Condition')
                             yticks(ax, 1:nGroups);
-                            yticklabels(ax, {groups.label});
+%                             yticklabels(ax, {groups.label});
+                            sides = 'ML';
+                            labels = arrayfun(@(g) sprintf('%s%d', sides(g.mlRank), g.dvRank), groups, UniformOutput=false);
+%                             yticklabels(ax, {groups.label});
+                            yticklabels(ax, labels);
                             axis(ax, 'tight')
                     end
                     hold(ax, 'off')
@@ -1554,6 +1559,10 @@ classdef AcuteRecording < handle
             p.addParameter('UseSignedML', false, @islogical);
             p.addParameter('BubbleSize', [1 10], @(x) isnumeric(x) && length(x) == 2)
             p.addParameter('MarkerAlpha', 0.5, @isnumeric)
+            p.addParameter('Color', [], @isnumeric)
+            p.addParameter('XJitter', 'density') % 'none' | 'density' | 'rand' | 'randn'
+            p.addParameter('XJitterWidth', 0, @isnumeric)
+            p.addParameter('LineWidth', 0.5, @isnumeric)
             p.parse(varargin{:})
             
             coords = p.Results.coords;
@@ -1564,13 +1573,17 @@ classdef AcuteRecording < handle
             method = p.Results.method;
 
             t = AcuteRecording.inverseLerp(srange(1), srange(2), abs(stats));
-            C = zeros(length(stats), 3);
-            isUp = stats>=threshold;
-            isDown = stats<=-threshold;
-            isFlat = ~(isUp | isDown);
-            C(isUp, 1) = 1;
-            C(isDown, 3) = 1;
-            C(isFlat, :) = 0.5;
+            if isempty(p.Results.Color)
+                C = zeros(length(stats), 3);
+                isUp = stats>=threshold;
+                isDown = stats<=-threshold;
+                isFlat = ~(isUp | isDown);
+                C(isUp, 1) = 1;
+                C(isDown, 3) = 1;
+                C(isFlat, :) = 0.5;
+            else
+                C = repmat(p.Results.Color, [length(stats), 1]);
+            end
             S = AcuteRecording.lerp(p.Results.SLim(1), p.Results.SLim(2), t);
             A = ones(size(S)) * 40;
             if p.Results.HideFlatUnits
@@ -1583,7 +1596,8 @@ classdef AcuteRecording < handle
                 ml = abs(ml);
             end
 %             h = scatter3(ax, ml, dv, ap, S, C, 'filled', 'MarkerFaceAlpha', 'flat', 'AlphaData', A, 'AlphaDataMapping', 'direct');
-            h = bubblechart3(ax, ml, dv, ap, S, C, MarkerFaceAlpha=p.Results.MarkerAlpha);
+            h = bubblechart3(ax, ml, dv, ap, S, C, MarkerFaceAlpha=p.Results.MarkerAlpha, MarkerEdgeAlpha=0.8, ...
+                XJitter=p.Results.XJitter, XJitterWidth=p.Results.XJitterWidth, LineWidth=p.Results.LineWidth);
             bubblesize(ax, p.Results.BubbleSize)
             bubblelim(ax, srange)
 %             bubblelegend(ax, '\Deltasp/s')

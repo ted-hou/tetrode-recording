@@ -1,5 +1,5 @@
 %% Load
-clear
+% clear
 % Load data if necessary
 if ~exist('exp_D1', 'var')
     exp_D1.ar = AcuteRecording.load('C:\SERVER\Experiment_Galvo_D1Cre;DlxFlp;Ai80\AcuteRecording');

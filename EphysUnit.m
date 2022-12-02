@@ -626,18 +626,22 @@ classdef EphysUnit < handle
                 if ~strcmpi(trialType, 'stimfirstpulse')
                     iti = trials.iti();
                 else
-                    % For stimfirstpulse (in train), use the iti between
-                    % first and second pulse in train (rather that iti
-                    % between first pulse in train and first pulse in next
-                    % train
-                    allTrials = obj.getTrials('stim', true);
-                    itiAll = allTrials.iti();
-                    startAll = [allTrials.Start];
-                    startFirst = [trials.Start];
-
-                    [match, index] = ismember(startFirst, startAll);
-                    assert(all(match));
-                    iti = itiAll(index);
+%                     For stimfirstpulse (in train), use the iti between
+%                     first and second pulse in train (rather that iti
+%                     between first pulse in train and first pulse in next
+%                     train
+%                     allTrials = obj.getTrials('stim', true);
+%                     itiAll = allTrials.iti();
+%                     startAll = [allTrials.Start];
+%                     startFirst = [trials.Start];
+% 
+%                     [match, index] = ismember(round(startFirst*1000), round(startAll*1000));
+% %                     assert(all(match));
+%                     if ~(all(match))
+%                         disp(index)
+%                     end
+%                     iti = itiAll(index);
+                    iti = [];
                 end
 
                 if p.Results.sort
@@ -751,6 +755,7 @@ classdef EphysUnit < handle
             p.addParameter('waveforms', true, @islogical); % FALSE to cull waveforms after loading to save memory
             p.addParameter('spikecounts', true, @islogical); % FALSE to cull spikecounts after loading to save memory
             p.addParameter('spikerates', true, @islogical); % FALSE to cull spikerate after loading to save memory
+            p.addParameter('animalNames', {}, @iscell);
             p.parse(varargin{:});
 
             if isfield(p.Results, 'path')
@@ -759,6 +764,10 @@ classdef EphysUnit < handle
             elseif isfield(p.Results, 'files')
                 files = p.Results.files;
             end
+            if ~isempty(p.Results.animalNames)
+                files = files(contains(files, p.Results.animalNames, IgnoreCase=true));
+            end
+
             S(length(files)) = struct('eu', []);
             for i = 1:length(files)
                 tTic = tic();
@@ -963,6 +972,7 @@ classdef EphysUnit < handle
             p.addOptional('xlim', [0, 11], @(x) isnumeric(x) && length(x) == 2 && x(2) > x(1))
             p.addParameter('nsigmas', 1, @isnumeric)
             p.addParameter('sem', false, @islogical)
+            p.addParameter('showTrialNum', false, @islogical)
             p.parse(varargin{:})
             if isfield(p.Results, 'ax')
                 ax = p.Results.ax;
@@ -985,7 +995,11 @@ classdef EphysUnit < handle
             for iBin = 1:length(B)
                 bin = B(iBin, :);
                 t = T;% + bin(2);
-                h(iBin) = plot(ax, t, X(iBin, :), colors(iBin), 'LineWidth', 2, 'DisplayName', sprintf('[%.1fs, %.1fs], %i trials', bin(1), bin(2), N(iBin)));
+                if p.Results.showTrialNum
+                    h(iBin) = plot(ax, t, X(iBin, :), colors(iBin), 'LineWidth', 2, 'DisplayName', sprintf('[%.1fs, %.1fs], %i trials', bin(1), bin(2), N(iBin)));
+                else
+                    h(iBin) = plot(ax, t, X(iBin, :), colors(iBin), 'LineWidth', 2, 'DisplayName', sprintf('[%.1fs, %.1fs]', bin(1), bin(2)));                    
+                end
                 if p.Results.nsigmas > 0
                     high = X(iBin, :) + p.Results.nsigmas*S(iBin, :); 
                     low = X(iBin, :) - p.Results.nsigmas*S(iBin, :);
@@ -1029,7 +1043,7 @@ classdef EphysUnit < handle
                 ax = p.Results.ax;
             else
 %                 ax = axes(figure(Units='normalized', Position=[0.1, 0.1, 0.67, 0.5], DefaultAxesFontSize=18));
-                ax = axes(figure(Units='inches', Position=[0, 0, 6.5, 4.5], DefaultAxesFontSize=9));
+                ax = axes(figure(Units='inches', Position=[0, 0, 6.5, 4], DefaultAxesFontSize=9));
             end
 
             switch rd.alignTo
@@ -1075,7 +1089,6 @@ classdef EphysUnit < handle
                 uniqueDurations = unique(rd.duration);
                 if length(uniqueDurations) == 1
                     h(2) = patch(ax, [0, uniqueDurations, uniqueDurations, 0].*timescale, [0, 0, nTrials+1, nTrials+1], 'b', FaceAlpha=0.25, EdgeAlpha=0, DisplayName='opto');
-%                     h(3) = plot(ax, [uniqueDurations, uniqueDurations] .* timescale, [0, nTrials+1], 'r', DisplayName='opto off');
                 else
                     h(2) = plot(ax, [0, 0], [0, nTrials+1], 'b', DisplayName='opto on');
                     h(3) = scatter(ax, tEvent .* timescale, 1:nTrials, 5, 'r', 'filled', DisplayName='opto off');
@@ -1435,6 +1448,7 @@ classdef EphysUnit < handle
                         width = kernel.params.width;
                         if strcmpi(kernel.type, 'gaussian')
                             sigma = kernel.params.sigma;
+%                             sigma = 0.01;
                             for iTrial = 1:length(trials)
                                 [xx, ~] = obj.getSpikeRates('gaussian', sigma, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
                                 sel = select(tAligned, iTrial);

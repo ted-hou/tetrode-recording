@@ -23,8 +23,8 @@ yEdges = [0 4300 10000];
 xPos = abs(euPos(:, 1));
 yPos = abs(euPos(:, 2));
 
-% aspectRatio = 1.8;
-% height = 1000;
+aspectRatio = 1.8;
+height = 1000;
 useNormalized = false;
 
 labels = {'DM', 'VM', 'DL', 'VL'};
@@ -33,7 +33,7 @@ figure(Units='inches', Position=[0 0 6 6], DefaultAxesFontSize=9)
 
 clear ax
 % ax(1) = subplot(3, 2, 1);
-% N = histcounts2(yPos(c.hasPos & c.hasLick), xPos(c.hasPos & c.hasLick), yEdges, xEdges);
+N = histcounts2(yPos(c.hasPos & c.hasLick), xPos(c.hasPos & c.hasLick), yEdges, xEdges);
 % bar(N(:))
 % ylabel('Number of units')
 % title('Sampling bias (lick-trials)')

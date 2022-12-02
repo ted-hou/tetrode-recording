@@ -224,6 +224,7 @@ for iEu = find(ismember(eu.getName('_'), unitsNames))
     thisRd = eu(iEu).getRasterData('press', window=[0, 0], sort=true);
     ax = EphysUnit.plotRaster(thisRd, xlim=[-4, 0]);
     ax.FontSize=p.fontSize;
+    ax.Legend.FontSize=14;
     title(ax, '')
 end
 clear thisRd ax

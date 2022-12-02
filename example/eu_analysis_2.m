@@ -124,7 +124,7 @@ end
 
 
 
-% 2.3.1  Basic summaries
+%% 2.3.1  Basic summaries
 % Baseline (median) spike rates
 msr = arrayfun(@(stats) stats.medianITI, [eu.SpikeRateStats]);
 
@@ -146,12 +146,12 @@ c.hasPress = arrayfun(@(e) nnz(e.getTrials('press').duration() >= p.minTrialDura
 c.hasLick = arrayfun(@(e) nnz(e.getTrials('lick').duration() >= p.minTrialDuration) >= p.minNumTrials, eu);
 
 % press/lick x Up/Down
-c.isPressUp =         c.hasPress & meta.press >= p.posRespThreshold;
-c.isPressDown =       c.hasPress & meta.press <= p.negRespThreshold;
-c.isPressResponsive = c.isPressUp | c.isPressDown;
-c.isLickUp =          c.hasLick & meta.lick >= p.posRespThreshold;
-c.isLickDown =        c.hasLick & meta.lick <= p.negRespThreshold;
-c.isLickResponsive =  c.isLickUp | c.isLickDown;
+% c.isPressUp =         c.hasPress & meta.press >= p.posRespThreshold;
+% c.isPressDown =       c.hasPress & meta.press <= p.negRespThreshold;
+% c.isPressResponsive = c.isPressUp | c.isPressDown;
+% c.isLickUp =          c.hasLick & meta.lick >= p.posRespThreshold;
+% c.isLickDown =        c.hasLick & meta.lick <= p.negRespThreshold;
+% c.isLickResponsive =  c.isLickUp | c.isLickDown;
 
 % animal info
 c.isWT = arrayfun(@(eu) strcmpi(getAnimalInfo(eu, ai, 'strain'), 'wt'), eu);
@@ -389,11 +389,11 @@ ax(2).Legend.Visible = false;
 clear selUnit
 maxTrials = 50;
 
-selUnit(1).expName = 'daisy15_20220511'; %A2A
+selUnit(1).expName = 'daisy15_20220511';
 selUnit(1).channel = 37;
 selUnit(1).unit = 1;
 
-selUnit(2).expName = 'desmond24_20220510'; %A2A-suppressed, kind of weak
+selUnit(2).expName = 'desmond24_20220510';
 selUnit(2).channel = 52;
 selUnit(2).unit = 1;
 
@@ -547,6 +547,12 @@ getISILatencies(rdStim(sel), xlim=[-100, 100], peakThreshold=0.75, posMultiplier
 
 %% Plot and save ISI analysis for manual checking
 close all
+sel = c.isAcute & c.isAi80 & c.isStimDown;
+getISILatencies(rdStim(sel), xlim=[-100, 100], peakThreshold=0.75, posMultiplier=1, minProminence=2, onsetThreshold=0.25, ...
+    showPlots=true, savePlots=true, maxTrials=Inf);
+
+%% Plot and save ISI analysis for manual checking
+close all
 sel = squeeze(c.isStimDownSpatial(2, 1, :))' & c.isAi80;
 getISILatencies(rdStimSpatial(2, 1, sel), xlim=[-100, 100], peakThreshold=0.75, posMultiplier=1, minProminence=2, onsetThreshold=0.25, ...
     showPlots=true, savePlots=true, maxTrials=Inf);
@@ -574,8 +580,11 @@ end
 I = find(c.hasStim);
 selEu = [selEu, I([isi(c.hasStim).baseline] > 1000/15)];
 
-getISILatencies(rdStim(selEu), xlim=[-100, 100], peakThreshold=0.75, posMultiplier=1, minProminence=2, onsetThreshold=0.25, ...
+[~, ax] = getISILatencies(rdStim(selEu), xlim=[-100, 100], peakThreshold=0.75, posMultiplier=1, minProminence=2, onsetThreshold=0.25, ...
     showPlots=true, savePlots=false, maxTrials=Inf);
+% ax(1).Legend.FontSize=12;
+% ax(2).Legend.FontSize=12;
+
 % clear selUnits i
 
 %% Calculate ETAs
@@ -1743,7 +1752,7 @@ function ax = plotRasterAndISI(rd, isi, xl)
         text(tOnset, xOnset, sprintf('%.0fms', tOnset));
     end
     plot(ax(2), [0, 0], ax(2).YLim, 'k:')
-    title('ISI (Time to next spike)')
+    title('ISI (Time since previous spike)')
     ylabel('ISI (ms)')
     yl = ax(2).YLim;
     plot(ax(2), [0, 0], ax(2).YLim, 'k:')
@@ -1925,7 +1934,7 @@ function [isiStruct, ax] = getISILatencies(rd, varargin)
             isiStruct(iUnit).width = NaN;
 
             if p.Results.showPlots
-                fig = figure(Position=[300 0 300, 600], DefaultAxesFontSize=12);
+                fig = figure(Units='inches', Position=[0 0 3.5 7], DefaultAxesFontSize=14);
                 ax = subplot(2, 1, 1);
                 try
                     EphysUnit.plotRaster(ax, rd(iUnit), xlim=xl, ...
@@ -1933,6 +1942,7 @@ function [isiStruct, ax] = getISILatencies(rd, varargin)
                 catch
                     disp()
                 end
+                ax.Legend.FontSize=12;
             
                 ax = subplot(2, 1, 2);
                 hold on
@@ -1942,13 +1952,14 @@ function [isiStruct, ax] = getISILatencies(rd, varargin)
                 h(2) = patch(ax, [xl, flip(xl)], [isiBaseline + isiStd, isiBaseline + isiStd, isiBaseline - isiStd, isiBaseline - isiStd], 'k', FaceAlpha=0.2);
                 h(3) = plot(ax, xl, [isiBaseline, isiBaseline], 'k:', LineWidth=2, DisplayName='baseline');
                 plot(ax, [0, 0], ax.YLim, 'k:')
-                title('ISI (Time to next spike)')
+                title('ISI (Time since previous spike)')
                 ylabel('ISI (ms)')
                 yl = ax.YLim;
                 plot(ax, [0, 0], ax.YLim, 'k:')
                 ax.YLim = yl;
                 xlabel('Time from opto on (ms)')
-                legend(ax, h, Location='best')
+                legend(ax, h, Location='best', FontSize=12)
+                ax.FontSize=14;
         
                 if p.Results.savePlots
                     if ~isfolder(sprintf('C:\\SERVER\\Figures\\Single Units\\Raster_%s_ISILatency', rd(iUnit).trialType))
@@ -1985,6 +1996,9 @@ function [isiStruct, ax] = getISILatencies(rd, varargin)
                 ax = subplot(2, 1, 1);
                 EphysUnit.plotRaster(ax, rd(iUnit), xlim=xl, ...
                         timeUnit='ms', maxTrials=p.Results.maxTrials);
+                ax.Legend.FontSize = 11;
+                ax.FontSize=13;
+
             
                 ax = subplot(2, 1, 2);
                 hold on
@@ -2009,8 +2023,9 @@ function [isiStruct, ax] = getISILatencies(rd, varargin)
                 text(peakTimes(1), peaks(1) - peakSigns(1) * 0.1 * diff(yl), arrayfun(@(x) sprintf('%.0fms', x), peakTimes(1), UniformOutput=false))
                 h(end+1) = scatter(tOnset, xOnset, 100, 'yellow', 'filled', DisplayName='onset');
                 text(tOnset, xOnset - peakSigns(1) * 0.1 * diff(yl), sprintf('%.0fms', tOnset));
-                legend(ax, h, Location='best', FontSize=9)
-        
+                legend(ax, h, Location='best', FontSize=11)
+                ax.FontSize=13;
+
                 if p.Results.savePlots
                     if ~isfolder(sprintf('C:\\SERVER\\Figures\\Single Units\\Raster_%s_ISILatency', rd(iUnit).trialType))
                         mkdir(sprintf('C:\\SERVER\\Figures\\Single Units\\Raster_%s_ISILatency', rd(iUnit).trialType));
