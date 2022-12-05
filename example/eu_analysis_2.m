@@ -124,7 +124,7 @@ end
 
 
 
-%% 2.3.1  Basic summaries
+% 2.3.1  Basic summaries
 % Baseline (median) spike rates
 msr = arrayfun(@(stats) stats.medianITI, [eu.SpikeRateStats]);
 
