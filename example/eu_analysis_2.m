@@ -69,6 +69,7 @@ p.minTrialDuration = 2;
 p.minNumTrials = 30;
 p.etaNorm = [-4, -2];
 p.etaWindow = [-4, 2];
+p.cueEtaWindow = [-2, 4];
 p.metaWindowPress = [-0.5, -0.2];
 p.metaWindowLick = [-0.3, 0];
 p.posRespThreshold = 1;
@@ -124,7 +125,7 @@ end
 
 
 
-%% 2.3.1  Basic summaries
+% 2.3.1  Basic summaries
 % Baseline (median) spike rates
 msr = arrayfun(@(stats) stats.medianITI, [eu.SpikeRateStats]);
 
@@ -133,6 +134,10 @@ eta.press = eu.getETA('count', 'press', p.etaWindow, minTrialDuration=p.minTrial
 eta.lick = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm);
 eta.pressRaw = eu.getETA('count', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize='none');
 eta.lickRaw = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize='none');
+eta.pressCue = eu.getETA('count', 'press', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize=eta.press.stats, includeInvalid=true);
+eta.lickCue = eu.getETA('count', 'lick', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize=eta.lick.stats, includeInvalid=true);
+eta.pressCueRaw = eu.getETA('count', 'press', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize='none', includeInvalid=true);
+eta.lickCueRaw = eu.getETA('count', 'lick', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize='none', includeInvalid=true);
 
 meta.press = transpose(mean(eta.press.X(:, eta.press.t >= p.metaWindowPress(1) & eta.press.t <= p.metaWindowPress(2)), 2, 'omitnan'));
 meta.lick = transpose(mean(eta.lick.X(:, eta.lick.t >= p.metaWindowLick(1) & eta.lick.t <= p.metaWindowLick(2)), 2, 'omitnan'));
@@ -140,7 +145,7 @@ meta.pressRaw = transpose(mean(eta.pressRaw.X(:, eta.pressRaw.t >= p.metaWindowP
 meta.lickRaw = transpose(mean(eta.lickRaw.X(:, eta.lickRaw.t >= p.metaWindowLick(1) & eta.lickRaw.t <= p.metaWindowLick(2)), 2, 'omitnan'));
 
 
-%% 2.3.2 Basic summaries (fast)
+% 2.3.2 Basic summaries (fast)
 % hasPress/hasLick
 c.hasPress = arrayfun(@(e) nnz(e.getTrials('press').duration() >= p.minTrialDuration) >= p.minNumTrials, eu);
 c.hasLick = arrayfun(@(e) nnz(e.getTrials('lick').duration() >= p.minTrialDuration) >= p.minNumTrials, eu);

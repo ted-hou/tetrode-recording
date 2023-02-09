@@ -440,8 +440,7 @@ clear ax fig i
 
 
 %% 4. Use bootstraping to find significant movement responses
-clear boot
-p.bootAlpha = 0.01;
+p.bootAlpha = 0.05;
 boot.press = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muDiffObs', NaN(length(eu), 1));
 boot.lick = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muDiffObs', NaN(length(eu), 1));
 [boot.press.h(c.hasPress), boot.press.muDiffCI(c.hasPress, :), boot.press.muDiffObs(c.hasPress)] = bootstrapMoveResponse( ...
@@ -452,7 +451,7 @@ boot.lick = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muD
     responseWindow=[-0.3, 0]);
 fprintf(1, '\nAll done\n')
 
-%% Report bootstraped movement response direction
+% Report bootstraped movement response direction
 assert(nnz(isnan(boot.lick.h(c.hasLick))) == 0)
 assert(nnz(isnan(boot.press.h(c.hasPress))) == 0)
 
