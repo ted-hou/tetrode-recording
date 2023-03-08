@@ -2,6 +2,8 @@ classdef PawnalyzerSession < handle
     properties
         expName
         img
+        roi
+        tags = {}
     end
 
     properties (Hidden)
@@ -9,6 +11,7 @@ classdef PawnalyzerSession < handle
     end
 
     properties (Dependent)
+        roiImg
         animalName
         paw
         frameCount
@@ -42,6 +45,52 @@ classdef PawnalyzerSession < handle
             else
                 for i = 1:length(obj)
                     obj(i).save(path);
+                end
+            end
+        end
+
+        function export(obj, varargin)
+            p = inputParser();
+            p.addOptional('path', 'C:\SERVER\PawAnalysis\Data\Export\', @ischar)
+            p.addOptional('imsize', [150 200], @isnumeric)
+            p.parse(varargin{:})
+            path = p.Results.path;
+            imsize = p.Results.imsize;
+
+            if ~isfolder(path)
+                assert(mkdir(path) == 1)
+            end
+
+            if length(obj) == 1
+                X = imresize(obj.roiImg, imsize);
+                y = obj.pawMask;
+                save(sprintf('%s\\%s.mat', path, obj.expName), 'X', 'y', '-v7.3');
+            else
+                for i = 1:length(obj)
+                    obj(i).export(path, imsize);
+                end
+            end
+        end
+
+        function importPawMask(obj, varargin)
+            p = inputParser();
+            p.addOptional('path', 'C:\SERVER\PawAnalysis\Data\Predicted\', @ischar)
+            p.parse(varargin{:})
+            path = p.Results.path;
+
+            if length(obj) > 1
+                for i = 1:length(obj)
+                    obj(i).importPawMask(path);
+                end
+            else
+                filepath = sprintf('%s\\%s.bin', path, obj.expName);
+                if isfile(filepath)
+                    fid = fopen(filepath, 'r');
+                    data = fread(fid, 'uint8');
+                    data = reshape(data, length(data), 1);
+                    obj.pawMask = data;
+                else
+                    warning('File not found: %s', filepath)
                 end
             end
         end
@@ -98,6 +147,29 @@ classdef PawnalyzerSession < handle
             s = sprintf('Total=%d, Left=%d, Right=%d, Both=%d, Neither=%d', ...
                 obj.frameCount, nnz(obj.paw=='L'), nnz(obj.paw=='R'), nnz(obj.paw=='B'), nnz(obj.paw=='N'));
         end
+
+        %% ROI
+        function b = hasROI(obj)
+            b = ~isempty(obj.roi);
+        end
+
+        function img = get.roiImg(obj)
+            if obj.hasROI
+                img = obj.img(obj.roi(2):obj.roi(2)+obj.roi(4), obj.roi(1):obj.roi(1)+obj.roi(3), :, :);
+            else
+                img = obj.img;
+            end
+        end
+
+        function set.roi(obj, value)
+            obj.edited = true;
+            obj.roi = floor(value);
+        end
+
+        %% Tags
+        function addTag(obj, tag)
+            obj.tags = unique([obj.tags, lower(tag)]);
+        end
     end
 
     methods (Static)
@@ -108,6 +180,9 @@ classdef PawnalyzerSession < handle
 
             if isempty(p.Results.folderOrFiles)
                 [files, path] = uigetfile({'*.mat'}, 'Select files', 'C:\SERVER\Pawnalysis\Data', MultiSelect='on');
+                if ~iscell(files)
+                    files = {files};
+                end
                 files = cellfun(@(x) sprintf('%s\\%s', path, x), files, UniformOutput=false);
             elseif ischar(p.Results.folderOrFiles)
                 folder = p.Results.folderOrFiles;
@@ -120,8 +195,10 @@ classdef PawnalyzerSession < handle
                 files = p.Results.folderOrFiles;
             end
             
+            S(length(files)) = struct('obj', []);
             for iFile = 1:length(files)
                 S(iFile) = load(files{iFile}, 'obj');
+                S(iFile).obj.img = S(iFile).obj.img(:, :, 1, :);
             end
             obj = [S.obj];
         end

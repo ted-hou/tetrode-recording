@@ -544,6 +544,54 @@ title(sprintf('Distribution of responses\nMean=%.1f, %.1f, Median=%.1f, %.1f', m
 [~, pp] = ttest2(-responses(responses < 0), responses(responses > 0));
 xlabel(sprintf('p=%.5f', pp))
 
+%%
+fprintf('Ai80:\n')
+for iML = 1:2
+    for iDV = 1:4
+        isUp = reshape(c_0_5.isStimUpSpatial(iML, iDV, :), 1, []);
+        isDown = reshape(c_0_5.isStimDownSpatial(iML, iDV, :), 1, []);
+        isUp2 = reshape(c_2.isStimUpSpatial(iML, iDV, :), 1, []);
+        isDown2 = reshape(c_2.isStimDownSpatial(iML, iDV, :), 1, []);
+        isUp8 = reshape(c_8.isStimUpSpatial(iML, iDV, :), 1, []);
+        isDown8 = reshape(c_8.isStimDownSpatial(iML, iDV, :), 1, []);
+        pDown(iML, iDV) = nnz(isDown & c.isAi80) ./ nnz((isUp | isDown) & c.isAi80);
+        pDown2(iML, iDV) = nnz(isDown2 & c.isAi80) ./ nnz((isUp2 | isDown2) & c.isAi80);
+        pDown8(iML, iDV) = nnz(isDown8 & c.isAi80) ./ nnz((isUp8 | isDown8) & c.isAi80);
+        fprintf('\t(%i, %i), %i (%.2f%%) down at 0.5mW, %i (%.2f%%) down at 2mW, %i (%.2f%%) down at 8mW\n', iML, iDV, ...
+            nnz(isDown & c.isAi80), 100*pDown(iML, iDV), ...
+            nnz(isDown2 & c.isAi80), 100*pDown2(iML, iDV), ...
+            nnz(isDown8 & c.isAi80), 100*pDown8(iML, iDV) ...
+            );
+    end
+end
+% [h pp ci stats] = ttest2(pDown(:), pDown2(:))
+mean([pDown(:), pDown2(:), pDown8(:)])
+
+fprintf('A2A:\n')
+for iML = 1:2
+    for iDV = 1:4
+        isUp = reshape(c_0_5.isStimUpSpatial(iML, iDV, :), 1, []);
+        isDown = reshape(c_0_5.isStimDownSpatial(iML, iDV, :), 1, []);
+        isUp2 = reshape(c_2.isStimUpSpatial(iML, iDV, :), 1, []);
+        isDown2 = reshape(c_2.isStimDownSpatial(iML, iDV, :), 1, []);
+        isUp8 = reshape(c_8.isStimUpSpatial(iML, iDV, :), 1, []);
+        isDown8 = reshape(c_8.isStimDownSpatial(iML, iDV, :), 1, []);
+        pUp(iML, iDV) = nnz(isUp & c.isA2A) ./ nnz((isUp | isDown) & c.isA2A);
+        pUp2(iML, iDV) = nnz(isUp2 & c.isA2A) ./ nnz((isUp2 | isDown2) & c.isA2A);
+        pUp8(iML, iDV) = nnz(isUp8 & c.isA2A) ./ nnz((isUp8 | isDown2) & c.isA2A);
+        fprintf('\t(%i, %i), %i (%.2f%%) up at 0.5mW, %i (%.2f%%) up at 2mW, %i (%.2f%%) up at 8mW\n', iML, iDV, ...
+            nnz(isUp & c.isA2A), 100*pUp(iML, iDV), ...
+            nnz(isUp2 & c.isA2A), 100*pUp2(iML, iDV), ...
+            nnz(isUp8 & c.isA2A), 100*pUp8(iML, iDV) ...
+            );
+    end
+end
+% [h pp ci stats] = ttest2(pUp(:), pUp2(:))
+mean([pUp(:), pUp2(:), pUp8(:)])
+
+clear isUp isDown isUp2 isDown2 iML iDV
+
+
 %% Plot and save ISI analysis for manual checking
 close all
 sel = c.hasStimResponse;

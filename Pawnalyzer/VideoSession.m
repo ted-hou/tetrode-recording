@@ -26,7 +26,7 @@ classdef VideoSession < handle
             obj.animalName = animalName;
             obj.expName = expName;
             
-            eu = obj.loadEphysUnits(1);
+            eu = obj.loadEphysUnits();
             obj.eventTimes = eu.EventTimes;
 
             % Use cue_on at everytrial to align camera and ephys
