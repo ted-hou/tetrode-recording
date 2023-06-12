@@ -106,6 +106,30 @@ for iEu = 1:length(eu)
     end
 end
 
+% 
+% c.posCorrect = true(1, length(eu));
+% c.posUpdated = false(1, length(eu));
+% c.posUpdatedWithSeriousDeviation = false(1, length(eu));
+% for iEu = 1:length(eu)
+%     iAr = find(strcmpi(eu(iEu).ExpName, {ar.expName}));
+%     if ~isempty(iAr)
+%         if strcmpi(ar(iAr).expName, 'daisy14_20220506') || strcmpi(ar(iAr).expName, 'daisy16_20220502')
+%             euPos(iEu, :) = ar(iAr).getProbeCoords(eu(iEu).Channel);
+%             c.posCorrect(iEu) = true;
+%         else
+%             c.posCorrect(iEu) = false;
+%             euPos(iEu, :) = ar(iAr).getProbeCoords(eu(iEu).Channel + 1);
+%             c.posUpdated(iEu) = true;
+%             posDev = sqrt(sum((ar(iAr).getProbeCoords(eu(iEu).Channel) - ar(iAr).getProbeCoords(eu(iEu).Channel + 1)).^2));
+%             if posDev > 60
+%                 c.posUpdatedWithSeriousDeviation(iEu) = true;
+%                 disp(posDev)
+%             end
+%         end
+%         c.hasPos(iEu) = true;
+%     end
+% end
+
 
 
 
@@ -114,15 +138,15 @@ end
 msr = arrayfun(@(stats) stats.medianITI, [eu.SpikeRateStats]);
 
 % Lick/Press responses
-% eta.press = eu.getETA('count', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm);
-% eta.lick = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm);
-% eta.pressRaw = eu.getETA('count', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize='none');
-% eta.lickRaw = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize='none');
-% 
-% meta.press = transpose(mean(eta.press.X(:, eta.press.t >= p.metaWindowPress(1) & eta.press.t <= p.metaWindowPress(2)), 2, 'omitnan'));
-% meta.lick = transpose(mean(eta.lick.X(:, eta.lick.t >= p.metaWindowLick(1) & eta.lick.t <= p.metaWindowLick(2)), 2, 'omitnan'));
-% meta.pressRaw = transpose(mean(eta.pressRaw.X(:, eta.pressRaw.t >= p.metaWindowPress(1) & eta.pressRaw.t <= p.metaWindowPress(2)), 2, 'omitnan'));
-% meta.lickRaw = transpose(mean(eta.lickRaw.X(:, eta.lickRaw.t >= p.metaWindowLick(1) & eta.lickRaw.t <= p.metaWindowLick(2)), 2, 'omitnan'));
+eta.press = eu.getETA('count', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm);
+eta.lick = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm);
+eta.pressRaw = eu.getETA('count', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize='none');
+eta.lickRaw = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize='none');
+
+meta.press = transpose(mean(eta.press.X(:, eta.press.t >= p.metaWindowPress(1) & eta.press.t <= p.metaWindowPress(2)), 2, 'omitnan'));
+meta.lick = transpose(mean(eta.lick.X(:, eta.lick.t >= p.metaWindowLick(1) & eta.lick.t <= p.metaWindowLick(2)), 2, 'omitnan'));
+meta.pressRaw = transpose(mean(eta.pressRaw.X(:, eta.pressRaw.t >= p.metaWindowPress(1) & eta.pressRaw.t <= p.metaWindowPress(2)), 2, 'omitnan'));
+meta.lickRaw = transpose(mean(eta.lickRaw.X(:, eta.lickRaw.t >= p.metaWindowLick(1) & eta.lickRaw.t <= p.metaWindowLick(2)), 2, 'omitnan'));
 
 
 % 2.3.2 Basic summaries (fast)

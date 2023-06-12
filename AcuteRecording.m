@@ -192,26 +192,19 @@ classdef AcuteRecording < handle
             p.addParameter('DVOffset', -200, @isnumeric); % Distance from bregma to surface of brain at SNr.
             p.parse(frontOrBack, varargin{:});
             front = strcmpi(p.Results.FrontOrBack, 'front');
-            back = ~front;
+%             back = ~front;
             ml = p.Results.ML;
             dv = p.Results.DV + p.Results.DVOffset;
             ap = p.Results.AP;
             left = ml < 0;
-            right = ~left;
+%             right = ~left;
             
             load('128DN_bottom.mat', 's');
             % Determine whether to flip the probe x positions/shank number
             % For the probe, when viewed from the front (black epoxy visible), shank=1, x=0 is left-most shank, z=0 is deepest in brain.
             % For our convention, we want to convert to brain coordinates (ml/dv) (shank=1 is medial)
-            flipDir = 1;
-            if right
-                flipDir = flipDir * -1;
-            end
-            if back
-                flipDir = flipDir * -1;
-            end
             
-            if flipDir == -1
+            if front
                 s.shaft = 5 - s.shaft;
                 s.x = 450 - s.x;
             end
@@ -252,6 +245,14 @@ classdef AcuteRecording < handle
             if isempty(channels)
                 channels = [obj.bsr.channel];
             end
+            if strcmpi(obj.expName, 'daisy14_20220506') || strcmpi(obj.expName, 'daisy16_20220502')
+                disp('Good Session, channel count kept');
+                disp(obj.expName)
+            else
+                channels = channels + 1;
+                disp('Bad Session, channel count incremented');
+            end
+                    
 
             map = obj.probeMap;
             coords = zeros(length(channels), 3);
@@ -1561,7 +1562,7 @@ classdef AcuteRecording < handle
             p.addParameter('MarkerAlpha', 0.5, @isnumeric)
             p.addParameter('Color', [], @isnumeric)
             p.addParameter('XJitter', 'density') % 'none' | 'density' | 'rand' | 'randn'
-            p.addParameter('XJitterWidth', 0, @isnumeric)
+            p.addParameter('XJitterWidth', 0.1, @isnumeric)
             p.addParameter('LineWidth', 0.5, @isnumeric)
             p.parse(varargin{:})
             

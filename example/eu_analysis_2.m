@@ -237,7 +237,7 @@ ylabel('Number of units')
 
 %% 2. Oscilatory lick analysis
 
-eta.anyLick = eu.getETA('count', 'anylick', [-0.25, 0.25], resolution=0.01, normalize='iti');
+% eta.anyLick = eu.getETA('count', 'anylick', [-0.25, 0.25], resolution=0.01, normalize='iti');
 eta.anyLickRaw = eu.getETA('count', 'anylick', [-0.25, 0.25], resolution=0.01, normalize='none');
 
 close all

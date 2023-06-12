@@ -646,7 +646,7 @@ for iFig = 1:length(SEL)
                     sthreshold = 0;
             end
 
-%             subsel = latencies <= EXPECTED_LATENCY(iFig) & directions == EXPECTED_SIGN(iFig);
+            subsel = latencies <= EXPECTED_LATENCY(iFig) & directions == EXPECTED_SIGN(iFig);
 %             h = AcuteRecording.plotMap(ax, coords(subsel, :), stats(subsel), srange, sthreshold, UseSignedML=false, BubbleSize=bsrange, MarkerAlpha=0.4);
             h = AcuteRecording.plotMap(ax, coords, stats, srange, sthreshold, UseSignedML=false, BubbleSize=bsrange, MarkerAlpha=0.4);
             if iML > 1

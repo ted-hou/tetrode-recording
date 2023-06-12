@@ -105,6 +105,7 @@ classdef TetrodeRecording < handle
 			addOptional(p, 'ChunkSize', 2, @isnumeric);
 			addParameter(p, 'Duration', [], @isnumeric); % [0, 60] to read 0 - 60 seconds of data. For blackrock only
 			addParameter(p, 'SubstractMean', false, @islogical);
+			addParameter(p, 'SubstractMedian', false, @islogical);
 			addParameter(p, 'RemoveTransient', false, @islogical);
 			addParameter(p, 'DigitalChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}
 			addParameter(p, 'AnalogChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'AccX', 1; 'AccY', 2; 'AccZ', 3;}
@@ -122,6 +123,7 @@ classdef TetrodeRecording < handle
 			chunkSize 		= p.Results.ChunkSize;
 			duration 		= p.Results.Duration;
 			substractMean 	= p.Results.SubstractMean;
+			substractMedian = p.Results.SubstractMedian;
 			removeTransient = p.Results.RemoveTransient;
 			digitalChannels = p.Results.DigitalChannels;
 			analogChannels 	= p.Results.AnalogChannels;
@@ -147,6 +149,9 @@ classdef TetrodeRecording < handle
 % 						obj.GenerateChannelMap('HeadstageType', 'Intan');
 						if substractMean
 							obj.SubstractMean();
+						end
+						if substractMedian
+							obj.SubstractMedian();
 						end
 						if removeTransient
 							obj.RemoveTransient();
@@ -706,7 +711,7 @@ classdef TetrodeRecording < handle
 			iSample.BoardADC = 0;
 			for iFile = 1:length(files)
 				obj.Amplifier.Timestamps(1, iSample.Amplifier + 1:iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2)) = objTemp(iFile).Amplifier.Timestamps;
-                [~, ia, ib] = intersect(1:nChannels, [objTemp(iFile).Amplifier.Channels.NativeOrder]);
+                [~, ia, ib] = intersect(1:nChannels, [objTemp(iFile).Amplifier.Channels.NativeOrder] + 1);
 				obj.Amplifier.Data(ia, iSample.Amplifier + 1:iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2)) = objTemp(iFile).Amplifier.Data(ib, :);
 				obj.BoardDigIn.Timestamps(1, iSample.BoardDigIn + 1:iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2)) = objTemp(iFile).BoardDigIn.Timestamps;
 				obj.BoardDigIn.Data(:, iSample.BoardDigIn + 1:iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2)) = objTemp(iFile).BoardDigIn.Data;
@@ -734,8 +739,13 @@ classdef TetrodeRecording < handle
 
 		% Substract by 32 chn mean
 		function SubstractMean(obj)
-			dataMean = nanmean(obj.Amplifier.Data, 1);
+			dataMean = mean(obj.Amplifier.Data, 1, 'omitnan');
 			obj.Amplifier.Data = obj.Amplifier.Data - dataMean;
+		end
+
+        function SubstractMedian(obj)
+			dataMedian = median(obj.Amplifier.Data, 1, 'omitnan');
+			obj.Amplifier.Data = obj.Amplifier.Data - dataMedian;
 		end
 
 		% Remove lick/press-transient by setting signal to zero
