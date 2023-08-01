@@ -108,31 +108,42 @@ classdef CompleteExperiment < handle
             end
         end
 
-		function clip = getVideoClip(obj, ephysTime, varargin)
+		function [clip, t] = getVideoClip(obj, ephysTime, varargin)
 			p = inputParser;
 			addRequired(p, 'ephysTime', @isnumeric);
-            addOptional(p, 'side', 'l', @(x) ismember(x, {'l', 'r'}))
+            addOptional(p, 'side', 'l', @(x) ismember(x, {'l', 'r', 'f'}))
 			addParameter(p, 'numFramesBefore', 30, @isnumeric);
 			addParameter(p, 'numFramesAfter', 30, @isnumeric);
+            addParameter(p, 'bodyParts', {'handIpsi', 'footIpsi', 'nose', 'spine', 'tail', 'tongue'}, @iscell)
+            addParameter(p, 'vtd', [], @istable)
+            addParameter(p, 'file', '', @isfile)
 			parse(p, ephysTime, varargin{:});
 			ephysTime			= p.Results.ephysTime;
             side                = p.Results.side;
 			numFramesBefore		= p.Results.numFramesBefore;
 			numFramesAfter		= p.Results.numFramesAfter;
+            bodyparts           = p.Results.bodyParts;
+            vtd                 = p.Results.vtd;
 
             assert(length(obj) == 1)
 
-            switch side
-                case 'r'
-                    vtd = obj.vtdR;
-                    file = sprintf('C:\\SERVER\\%s\\%s\\%s_1.mp4', obj.animalName, obj.name, obj.name);
-                case 'l'
-                    vtd = obj.vtdL;
-                    file = sprintf('C:\\SERVER\\%s\\%s\\%s_2.mp4', obj.animalName, obj.name, obj.name);
+            if isempty(p.Results.file)
+                file = sprintf('C:\\SERVER\\%s\\%s\\%s_%i.mp4', obj.animalName, obj.name, obj.name, obj.getCameraIndex(side));
+            else
+                file = p.Results.file;
+            end
+            if isempty(vtd)
+                switch side
+                    case 'r'
+                        vtd = obj.vtdR;
+                    case 'l'
+                        vtd = obj.vtdL;
+                    case 'f'
+                        vtd = obj.vtdF;
+                end
             end
 
             % Collect bodypart trajectories
-            bodyparts = {'handIpsi', 'footIpsi', 'nose', 'spine', 'tail', 'tongue'};
             xPos = cellfun(@(bp) vtd.(sprintf('%s_X', bp)), bodyparts, UniformOutput=false);
             yPos = cellfun(@(bp) vtd.(sprintf('%s_Y', bp)), bodyparts, UniformOutput=false);
             prob = cellfun(@(bp) vtd.(sprintf('%s_Likelihood', bp)), bodyparts, UniformOutput=false);
@@ -144,31 +155,37 @@ classdef CompleteExperiment < handle
 			vidStartTime = v.CurrentTime;
 
 			clip = cell(length(ephysTime), 1);
+            t = zeros(length(ephysTime), numFramesBefore + numFramesAfter + 1);
 
+            firstFrame = vtd.FrameNumber(1);
 			for iClip = 1:length(ephysTime)
 				fprintf('Extracting clip %d of %d...', iClip, length(ephysTime))
 
 				[~, iFrame] = min(abs(vtd.Timestamp - ephysTime(iClip)));
-				v.CurrentTime = (iFrame - 1 - numFramesBefore)/v.FrameRate + vidStartTime;
+% 				v.CurrentTime = (firstFrame + iFrame - 1 - numFramesBefore)/v.FrameRate + vidStartTime;
+				v.CurrentTime = (firstFrame + iFrame - numFramesBefore)/v.FrameRate + vidStartTime;
 
 				clip{iClip} = uint8(zeros(v.Height, v.Width, 3, numFramesBefore + numFramesAfter + 1));
 				for iClipFrame = 1:size(clip{iClip}, 4)
 					thisFrame = readFrame(v);
 					iFrameAbs = iFrame + iClipFrame - numFramesBefore - 1;
+                    t(iClip, iClipFrame) = vtd.Timestamp(iFrameAbs);
 					thisProb = transpose(cellfun(@(x) x(iFrameAbs), prob));
                     sel = thisProb > 0.95;
-                    thisProb = thisProb(sel);
-					thisPos = transpose([cellfun(@(x) x(iFrameAbs), xPos); cellfun(@(x) x(iFrameAbs), yPos)]);
-                    thisPos = thisPos(sel, :);
-                    thisColor = labelColors(sel, :);
-                    thisLabels = bodyparts(sel);
-					thisFrame = insertText(thisFrame, thisPos, thisLabels, TextColor=thisColor, BoxOpacity=0, AnchorPoint='RightTop');
-					thisFrame = insertText(thisFrame, thisPos, round(100*thisProb)/100, TextColor=thisColor, BoxOpacity=0, AnchorPoint='RightBottom');
-					thisFrame = insertMarker(thisFrame, thisPos, Color=thisColor, Size=10);
-					if iClipFrame == numFramesBefore + 1
-						thisFrame = insertShape(thisFrame, 'FilledRectangle', [0, 0, v.Width, v.Height], Color='red', Opacity=0.7);
-					end
-					clip{iClip}(:, :, :, iClipFrame) = thisFrame;
+                    if any(sel)
+                        thisProb = thisProb(sel);
+					    thisPos = transpose([cellfun(@(x) x(iFrameAbs), xPos); cellfun(@(x) x(iFrameAbs), yPos)]);
+                        thisPos = thisPos(sel, :);
+                        thisColor = labelColors(sel, :);
+                        thisLabels = bodyparts(sel);
+					    thisFrame = insertText(thisFrame, thisPos, thisLabels, TextColor=thisColor, BoxOpacity=0, AnchorPoint='RightTop');
+					    thisFrame = insertText(thisFrame, thisPos, round(100*thisProb)/100, TextColor=thisColor, BoxOpacity=0, AnchorPoint='RightBottom');
+					    thisFrame = insertMarker(thisFrame, thisPos, Color=thisColor, Size=10);
+                    end					    
+%                     if iClipFrame == numFramesBefore + 1
+% 					    thisFrame = insertShape(thisFrame, 'FilledRectangle', [0, 0, v.Width, v.Height], Color='red', Opacity=0.7);
+%                     end
+                    clip{iClip}(:, :, :, iClipFrame) = thisFrame;
 				end
 				fprintf('Done!\n')
             end
@@ -519,6 +536,65 @@ classdef CompleteExperiment < handle
                 end
             end
         end
+
+        function vtd = readVideoTrackingData(obj, expName, side)
+            if nargin < 2
+                side = 'both';
+            end
+        
+            smoothingWindow_jointVel = 10;
+        
+            sidenum = obj.getCameraIndex(side);
+            animalName = strsplit(expName, '_');
+            animalName = animalName{1};
+
+            files_vtd = sortrows(struct2table(dir(sprintf('C:\\SERVER\\%s\\%s\\%s_%g*.csv', animalName, expName, expName, sidenum))), 'datenum', 'descend');
+            % Use the newest csv file generated by DeepLabCut if multiple matches
+            % are found
+            if height(files_vtd) > 1
+                fname_vtd = sprintf('%s\\%s', files_vtd.folder{1}, files_vtd.name{1});
+            else
+                fname_vtd = sprintf('%s\\%s', files_vtd.folder, files_vtd.name);
+            end
+            opts = detectImportOptions(fname_vtd, 'NumHeaderLines', 3);
+            opts.VariableNamesLine = 2;
+            
+            
+            t_read = tic();
+            fprintf(1, 'Reading video tracking data from file %s...', fname_vtd);
+            vtd = readtable(fname_vtd, opts);
+            fprintf(1, '\nDone (%s).\n', seconds(toc(t_read)));
+            
+            % Set colnames
+            vtd.Properties.VariableNames{1} = 'FrameNumber';
+            w = length(vtd.Properties.VariableNames);
+            for i = 2:w
+                splitName = strsplit(vtd.Properties.VariableNames{i}, '_');
+                if length(splitName) == 1
+                    vtd.Properties.VariableNames{i} = [splitName{1}, '_X'];
+%                     spos = table2array(smoothdata(vtd(:, i:i+1), 'gaussian', smoothingWindow_jointVel));
+%                     vel = [0, 0; diff(spos, 1)];
+%                     spd = sqrt(sum(vel.^2, 2));
+%                     vtd = addvars(vtd, vel(:, 1), vel(:, 2), spd, 'NewVariableNames', {[splitName{1}, '_VelX'], [splitName{1}, '_VelY'], [splitName{1}, '_Speed']});
+                elseif splitName{2} == '1'
+                    vtd.Properties.VariableNames{i} = [splitName{1}, '_Y'];
+                elseif splitName{2} == '2'
+                    vtd.Properties.VariableNames{i} = [splitName{1}, '_Likelihood'];
+                end
+            end
+        end
+
+
+        function i = getCameraIndex(obj, side)
+            switch lower(side)
+                case {'l', 'left'}
+                    i = 2;
+                case {'r', 'right'}
+                    i = 1;
+                otherwise
+                    error('Unrecognized side string: ''%s''', side)
+            end
+        end
     end
 
     methods (Static)
@@ -685,9 +761,7 @@ classdef CompleteExperiment < handle
                 K(i, :) = interp1(TRaw(i, :), CRaw(i, :), t, 'linear', 0);
             end
         end
-    end
-
-    methods (Access={}, Static)
+        
         function ac = readArduino(expName)
             animalName = strsplit(expName, '_');
             animalName = animalName{1};
@@ -695,60 +769,5 @@ classdef CompleteExperiment < handle
             ac = S.obj;
         end
         
-        function vtd = readVideoTrackingData(expName, side)
-            if nargin < 2
-                side = 'both';
-            end
-        
-            smoothingWindow_jointVel = 10;
-        
-            switch lower(side)
-                case {'l', 'left'}
-                    sidenum = 2;
-                case {'r', 'right'}
-                    sidenum = 1;
-                otherwise
-                    vtd.l = readVideoTrackingData(expName, 'l');
-                    vtd.r = readVideoTrackingData(expName, 'r');
-                    return
-            end
-        
-            files_vtd = sortrows(struct2table(dir(sprintf('C:\\SERVER\\VideoTracking\\videos\\%s_%g*.csv', expName, sidenum))), 'datenum', 'descend');
-            % Use the newest csv file generated by DeepLabCut if multiple matches
-            % are found
-            if height(files_vtd) > 1
-                fname_vtd = sprintf('%s\\%s', files_vtd.folder{1}, files_vtd.name{1});
-            else
-                fname_vtd = sprintf('%s\\%s', files_vtd.folder, files_vtd.name);
-            end
-            opts = detectImportOptions(fname_vtd, 'NumHeaderLines', 3);
-            opts.VariableNamesLine = 2;
-            
-            
-            t_read = tic();
-            fprintf(1, 'Reading video tracking data from file %s...', fname_vtd);
-            vtd = readtable(fname_vtd, opts);
-            fprintf(1, '\nDone (%s).\n', seconds(toc(t_read)));
-            
-            % Set colnames
-            vtd.Properties.VariableNames{1} = 'FrameNumber';
-            w = length(vtd.Properties.VariableNames);
-            for i = 2:w
-                splitName = strsplit(vtd.Properties.VariableNames{i}, '_');
-                if length(splitName) == 1
-                    vtd.Properties.VariableNames{i} = [splitName{1}, '_X'];
-%                     spos = table2array(smoothdata(vtd(:, i:i+1), 'gaussian', smoothingWindow_jointVel));
-%                     vel = [0, 0; diff(spos, 1)];
-%                     spd = sqrt(sum(vel.^2, 2));
-%                     vtd = addvars(vtd, vel(:, 1), vel(:, 2), spd, 'NewVariableNames', {[splitName{1}, '_VelX'], [splitName{1}, '_VelY'], [splitName{1}, '_Speed']});
-                elseif splitName{2} == '1'
-                    vtd.Properties.VariableNames{i} = [splitName{1}, '_Y'];
-                elseif splitName{2} == '2'
-                    vtd.Properties.VariableNames{i} = [splitName{1}, '_Likelihood'];
-                end
-            end
-            clear files_vtd i opts splitName w spos vel spd t_read
-        end
-
     end
 end

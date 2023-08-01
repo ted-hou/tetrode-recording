@@ -23,12 +23,12 @@ TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'N
 % TetrodeRecording.BatchProcess(ptr1, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-.5, .5], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 3, 'ChunkSize', 1);
 % TetrodeRecording.BatchProcess(ptr2, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-.5, .5], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 3, 'ChunkSize', 1);
 
-TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-.5, .5], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 3, ...
+TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 10, 'WaveformWindow', [-.5, .5], 'FeatureMethod', 'WaveletTransform', 'ClusterMethod', 'kmeans', 'Dimension', 10, ...
     'ChunkSize', 5, 'MaxChannelsPerBatch', 32);
-
 
 % Batch load
 tr = TetrodeRecording.BatchLoad();
+tr = TetrodeRecording.BatchLoadSimple();
 tr = TetrodeRecording.BatchLoadSimple('desmond28_20230511', true);
 % Plot Channel
 iTr = 1;
@@ -38,8 +38,13 @@ iTrLastSaved = 0;
 % tr(iTr).PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-5, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', 'auto', 'Clusters', 1);
 % tr(iTr).PlotChannel([], 'RasterXLim', [-5, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200]);
 tr(iTr).PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-8, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', true);
+tr(iTr).PlotAllChannels(plotMethod='mean');
 
 TetrodeRecording.BatchSave(tr(iTrLastSaved+1:iTr), 'Prefix', 'tr_sorted_', 'DiscardData', false); iTrLastSaved = iTr;
+
+%
+tr.ReadDigitalEventsFromArduino({'TRIAL_START', 'LEVER_PRESSED', 'REWARD_ON', 'LEVER_RETRACT_START', 'LEVER_RETRACT_END', 'LEVER_DEPLOY_START', 'LEVER_DEPLOY_END'}, refArduinoEvent='REWARD_ON', refEphysEvent='RewardOn')
+tr(iTr).PlotChannel([], 'Reference', 'TRIAL_START', 'Event', 'PressOn', 'Exclude', '', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-4, 1], 'ExtendedWindow', [-0, 0], 'WaveformYLim', [-200, 200], 'PlotStim', false, 'Bins', 3);
 
 % Batch plot
 for iTr = 1:length(tr)

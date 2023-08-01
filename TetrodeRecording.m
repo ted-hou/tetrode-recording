@@ -54,17 +54,32 @@ classdef TetrodeRecording < handle
 			if isempty(obj.Path)
 				obj.SelectFiles();
 			end
-			obj.ReadFiles(chunkSize, 'Rig', rig, 'Duration', duration, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-0.5, 0.5]);
+			obj.ReadFiles(chunkSize, 'Rig', rig, 'Duration', duration, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 10, 'WaveformWindow', [-0.5, 0.5]);
 			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
 			if ~hideResults
 				obj.PlotAllChannels('plotMethod', 'mean');
 			end
 		end
 
-		function expName = GetExpName(obj)
+        function expName = GetExpName(obj, varargin)
+            p = inputParser();
+            p.addParameter('includeSuffix', true, @islogical)
+            p.parse(varargin{:})
+            r = p.Results;
+
 			expName = strsplit(obj.Path, '\');
 			expName = expName{end - 1};
+
+            if ~r.includeSuffix
+                expName = strsplit(expName, '_');
+                expName = strjoin(expName(1:2), '_');
+            end
 		end
+
+        function animalName = GetAnimalName(obj)
+            animalName = strsplit(obj.GetExpName(includeSuffix=false), '_');
+            animalName = animalName{1};
+        end
 
 		function startTime = GetStartTime(obj)
 			if isempty(obj.StartTime)
@@ -328,7 +343,45 @@ classdef TetrodeRecording < handle
 				[obj.DigitalEvents.([channelName, 'On']), obj.DigitalEvents.([channelName, 'Off'])] = obj.FindEdges(transpose(digitalData(:, iBit)), digitalTimestamps);
 			end
 			obj.NEV = [];
-		end
+        end
+
+        function ReadDigitalEventsFromArduino(obj, events, varargin)
+            p = inputParser();
+            p.addRequired('events', @iscell)
+            p.addParameter('refArduinoEvent', 'CueOn')
+            p.addParameter('refEphysEvent', 'CUE_ON')
+            p.parse(events, varargin{:})
+            r = p.Results;
+            
+            % Try to find the experiment
+            expName = obj.GetExpName(includeSuffix=false);
+            animalName = obj.GetAnimalName();
+            path = sprintf("C:\\SERVER\\%s\\%s\\%s.mat", animalName, expName, expName);
+            assert(isfile(path), 'Cannot find ArduinoConnection experiment file at %s', path)
+            ar = load(path);
+            ar = ar.obj;
+            
+            % Get arduino ref event timestamps (millis)
+            ie = find(strcmpi(ar.EventMarkerNames, r.refArduinoEvent));
+            assert(~isempty(ie), "Cannot find event marker with name ''%s''", r.refArduinoEvent);
+            tArduinoRef = ar.EventMarkersUntrimmed(ar.EventMarkersUntrimmed(:, 1)==ie, 2);
+
+            % Get ephys ref event timestamps
+            tEphysRef = obj.DigitalEvents.(r.refEphysEvent);
+
+            assert(length(tArduinoRef) == length(tEphysRef), 'Number of reference events do not match, Arduino has %i %s events, while ephys has %i %s events.', ...
+                r.refArduinoEvent, length(tArduinoRef), r.refEphysEvent, length(tEphysRef))
+
+            for e = reshape(r.events, 1, [])
+                e = e{1};
+                ie = find(strcmpi(ar.EventMarkerNames, e));
+                assert(~isempty(ie), "Cannot find event marker with name ''%s''", e)
+                tArduino = ar.EventMarkersUntrimmed(ar.EventMarkersUntrimmed(:, 1)==ie, 2); % Arduino millis timestamp
+                tEphys = interp1(tArduinoRef, tEphysRef, tArduino, 'linear', 'extrap');
+                obj.DigitalEvents.(e) = reshape(tEphys, 1, []);
+            end
+            
+        end
 
 		function ReadIntan(obj, files)
 			TetrodeRecording.TTS(['	Loading data:\n'])
@@ -388,7 +441,7 @@ classdef TetrodeRecording < handle
 					'note1', TetrodeRecording.ReadQString(fid), ...
 					'note2', TetrodeRecording.ReadQString(fid), ...
 					'note3', TetrodeRecording.ReadQString(fid) );
-			
+
 				% If data file is from GUI v1.1 or later, see if temperature sensor data
 				% was saved.
 				num_temp_sensor_channels = 0;
@@ -2999,6 +3052,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'PrintMode', false, @islogical);
 			addParameter(p, 'FrameRate', 0, @isnumeric);
 			addParameter(p, 'PlotStim', false, @islogical);
+			addParameter(p, 'PlotPETH', true, @islogical);
 			addParameter(p, 'Fig', []);
 			parse(p, channel, varargin{:});
 			iChannel 			= p.Results.Channel;
@@ -3021,6 +3075,7 @@ classdef TetrodeRecording < handle
 			printMode 			= p.Results.PrintMode;
 			frameRate 			= p.Results.FrameRate;
 			plotStim 			= p.Results.PlotStim;
+            plotPETH            = p.Results.PlotPETH;
 			h.Figure 			= p.Results.Fig;
 
 			allChannels = [obj.Spikes.Channel];
@@ -3310,7 +3365,10 @@ classdef TetrodeRecording < handle
 			hButtonNextChn = uicontrol(h.Figure,...
 				'Style', 'pushbutton',...
 				'String', 'Next Chn',...
-				'Callback', {@(~, ~) obj.PlotChannel(nextChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'PlotStim', plotStim, 'Fig', h.Figure)},...
+				'Callback', {@(~, ~) obj.PlotChannel(nextChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, ...
+                'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, ...
+                'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, ...
+                'FrameRate', frameRate, 'PlotStim', plotStim, 'PlotPETH', plotPETH, 'Fig', h.Figure)},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', [1 - xMargin - 2*buttonWidth, 1 - yMargin, buttonWidth, min(yMargin, buttonHeight)]);
@@ -3443,6 +3501,7 @@ classdef TetrodeRecording < handle
 			waveformYLim	= p.Results.WaveformYLim;
 			frameRate 		= p.Results.FrameRate;
 			plotStim 		= p.Results.PlotStim;
+            plotPETH        = p.Results.PlotPETH;
 
             if ~h.Figure.UserData.PlotRefreshEnabled
                 return
@@ -3475,11 +3534,14 @@ classdef TetrodeRecording < handle
 					'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
 					'SelectedSampleIndex', selectedSampleIndex, 'Sort', true,...
 					'Ax', h.Raster);
-				obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
-					'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
-					'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
-					'SelectedSampleIndex', selectedSampleIndex,...
-					'Ax', h.PETH);
+                if plotPETH
+				    obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
+					    'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
+					    'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
+					    'SelectedSampleIndex', selectedSampleIndex,...
+                        'XLim', rasterXLim, ...
+					    'Ax', h.PETH);
+                end
 			end
 
 			if isgraphics(h.Raster2, 'Axes')
@@ -3487,13 +3549,16 @@ classdef TetrodeRecording < handle
 					obj.Raster(iChannel, reference, event2, exclude2, 'Clusters', clusters,...
 						'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
 						'SelectedSampleIndex', selectedSampleIndex, 'Sort', true,...
-						'Ax', h.Raster2);			
-					obj.PETH(iChannel, reference, event2, exclude2, 'Clusters', clusters,...
-						'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
-						'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
-						'SelectedSampleIndex', selectedSampleIndex,...
-						'LineStyle', '--',...
-						'Ax', h.PETH);
+						'Ax', h.Raster2);		
+                	if plotPETH
+					    obj.PETH(iChannel, reference, event2, exclude2, 'Clusters', clusters,...
+						    'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
+						    'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
+						    'SelectedSampleIndex', selectedSampleIndex,...
+						    'LineStyle', '--',...
+                            'XLim', rasterXLim, ...
+						    'Ax', h.PETH);
+                    end
 				else
 					obj.RasterStim(iChannel, 'Clusters', clusters,...
 						'ExtendedWindow', extendedWindow, 'XLim', [-0.5, 0.5],...
@@ -4846,6 +4911,8 @@ classdef TetrodeRecording < handle
                 fprintf(1, 'Done (%.1f sec).\n', toc(tTic))
             end
             tr = TetrodeRecording.BatchMergeSimple([S.tr]);
+
+            TetrodeRecording.RandomWords();
         end
         
         function tr = BatchMergeSimple(TR)
@@ -5961,11 +6028,11 @@ classdef TetrodeRecording < handle
 			if nargin < 2
 				speak = false;
 			end
-			% if speak
-			% 	txt = strsplit(txt, '\');
-			% 	txt = txt{1};
-			% 	tts(txt);
-			% end
+			if speak
+				txt = strsplit(txt, '\');
+				txt = txt{1};
+% 				tts(txt);
+			end
 		end
 
 		function RandomWords()

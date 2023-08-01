@@ -38,6 +38,7 @@ classdef EphysUnit < handle
             p.addParameter('extendedWindow', [-1, 1], @(x) isnumeric(x) && length(x) == 2)
             p.addParameter('savepath', '', @ischar)
             p.addParameter('whitelist', {}, @iscell) % If a list of unit names are provided, only these are created as EU objs.
+            p.addParameter('tr', [], @(x) isa(x, 'TetrodeRecording'))
             p.parse(varargin{:});
             extendedWindow = p.Results.extendedWindow;
             
@@ -53,7 +54,11 @@ classdef EphysUnit < handle
                 fprintf(1, 'Reading PETH...\n')
                 for iExp = 1:length(uniqueExpNames)
                     fprintf(1, 'Loading experiment %s (%i of %i)...\n', uniqueExpNames{iExp}, iExp, length(uniqueExpNames))
-                    tr = TetrodeRecording.BatchLoadSimple(uniqueExpNames{iExp});
+                    if ~isempty(p.Results.tr)
+                        tr = p.Results.tr;
+                    else
+                        tr = TetrodeRecording.BatchLoadSimple(uniqueExpNames{iExp});
+                    end
                     inExp = strcmpi({PETH.ExpName}, uniqueExpNames{iExp});
                     tTic = tic();
 %                     fprintf(1, 'Processing %i units...\n', nnz(inExp))
@@ -91,6 +96,21 @@ classdef EphysUnit < handle
                             else
                                 obj(i).EventTimes.LightOn = [];
                                 obj(i).EventTimes.LightOff = [];
+                            end
+                            if isfield(tr.DigitalEvents, 'Motor1On')
+                                obj(i).EventTimes.Motor1On = tr.DigitalEvents.Motor1On;
+                                obj(i).EventTimes.Motor1Off = tr.DigitalEvents.Motor1Off;
+                                obj(i).EventTimes.Motor2On = tr.DigitalEvents.Motor2On;
+                                obj(i).EventTimes.Motor2Off = tr.DigitalEvents.Motor2Off;
+                                obj(i).EventTimes.MotorBusyOn = tr.DigitalEvents.MotorBusyOn;
+                                obj(i).EventTimes.MotorBusyOff = tr.DigitalEvents.MotorBusyOff;
+                            else
+                                obj(i).EventTimes.Motor1On = [];
+                                obj(i).EventTimes.Motor1Off = [];
+                                obj(i).EventTimes.Motor2On = [];
+                                obj(i).EventTimes.Motor2Off = [];
+                                obj(i).EventTimes.MotorBusyOn = [];
+                                obj(i).EventTimes.MotorBusyOff = [];
                             end
     
                             if p.Results.cullITI
@@ -152,11 +172,21 @@ classdef EphysUnit < handle
                 fprintf(1, 'Done.\n')
             else
                 ar = p.Results.AR;
-                BSR = ar.bsr;
+                if ~isempty(ar.bsr)
+                    BSR = ar.bsr;
+                elseif ~isempty(ar.bmrPress)
+                    BSR = ar.bmrPress;
+                else
+                    error('Both bsr and bmrPress are empty structs. What (unit list) are you trying to pull here?');
+                end
                 obj(length(BSR)) = EphysUnit();
                 expName = ar.expName;
                 fprintf(1, 'Loading experiment %s...\n', expName)
-                tr = TetrodeRecording.BatchLoadSimple(expName, true);
+                if ~isempty(p.Results.tr)
+                    tr = p.Results.tr;
+                else
+                    tr = TetrodeRecording.BatchLoadSimple(expName, true);
+                end
                 tTic = tic();
                 fprintf(1, 'Processing %i units...\n', length(BSR))
                 i = 1;
@@ -201,6 +231,21 @@ classdef EphysUnit < handle
                         else
                             obj(i).EventTimes.LightOn = [];
                             obj(i).EventTimes.LightOff = [];
+                        end
+                        if isfield(tr.DigitalEvents, 'Motor1On')
+                            obj(i).EventTimes.Motor1On = tr.DigitalEvents.Motor1On;
+                            obj(i).EventTimes.Motor1Off = tr.DigitalEvents.Motor1Off;
+                            obj(i).EventTimes.Motor2On = tr.DigitalEvents.Motor2On;
+                            obj(i).EventTimes.Motor2Off = tr.DigitalEvents.Motor2Off;
+                            obj(i).EventTimes.MotorBusyOn = tr.DigitalEvents.MotorBusyOn;
+                            obj(i).EventTimes.MotorBusyOff = tr.DigitalEvents.MotorBusyOff;
+                        else
+                            obj(i).EventTimes.Motor1On = [];
+                            obj(i).EventTimes.Motor1Off = [];
+                            obj(i).EventTimes.Motor2On = [];
+                            obj(i).EventTimes.Motor2Off = [];
+                            obj(i).EventTimes.MotorBusyOn = [];
+                            obj(i).EventTimes.MotorBusyOff = [];
                         end
 
                         if p.Results.cullITI
@@ -740,6 +785,60 @@ classdef EphysUnit < handle
 
             r = cat(1, r{:});
             lags = cat(1, lags{:});
+        end
+
+        function [pos, mot1, mot2, motBusy] = getMotorState(obj, t)
+            assert(isfield(obj.EventTimes, 'Motor1On'))
+            assert(length(obj.EventTimes.Motor1On) == length(obj.EventTimes.Motor1Off))
+            assert(length(obj.EventTimes.Motor2On) == length(obj.EventTimes.Motor2Off))
+            assert(length(obj.EventTimes.MotorBusyOn) == length(obj.EventTimes.MotorBusyOff))
+            assert(all((obj.EventTimes.Motor1Off - obj.EventTimes.Motor1On) > 0))
+            assert(all((obj.EventTimes.Motor2Off - obj.EventTimes.Motor2On) > 0))
+            assert(all((obj.EventTimes.MotorBusyOff - obj.EventTimes.MotorBusyOn) > 0))
+
+            if length(t) > 1
+                n = length(t);
+                pos = zeros(n, 1);
+                mot1 = false(n, 1);
+                mot2 = false(n, 1);
+                motBusy = false(n, 1);
+                for i = 1:n
+                    [pos(i), mot1(i), mot2(i), motBusy(i)] = obj.getMotorState(t(i));
+                end
+                return
+            end
+
+            mot1 = false;
+            mot2 = false;
+            motBusy = false;
+            for i = 1:length(obj.EventTimes.Motor1On)
+                if t >= obj.EventTimes.Motor1On(i) && t <= obj.EventTimes.Motor1Off(i)
+                    mot1 = true;
+                    break
+                end
+            end
+            for i = 1:length(obj.EventTimes.Motor2On)
+                if t >= obj.EventTimes.Motor2On(i) && t <= obj.EventTimes.Motor2Off(i)
+                    mot2 = true;
+                    break
+                end
+            end
+            for i = 1:length(obj.EventTimes.MotorBusyOn)
+                if t >= obj.EventTimes.MotorBusyOn(i) && t <= obj.EventTimes.MotorBusyOff(i)
+                    motBusy = true;
+                    break
+                end
+            end
+
+            if ~mot1 && ~mot2
+                pos = 1;
+            elseif ~mot1 && mot2
+                pos = 2;
+            elseif mot1 && ~mot2
+                pos = 3;
+            else
+                pos = 4;
+            end
         end
     end
     
