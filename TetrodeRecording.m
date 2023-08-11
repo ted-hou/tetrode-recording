@@ -2581,9 +2581,10 @@ classdef TetrodeRecording < handle
             % Create context menu (common to all channels, mark for delete, reorder, merge)
             cm = uicontextmenu(hFigure);
             m0 = uimenu(cm, 'Text', 'Inspect');
-            m0_1 = uimenu(m0, 'Text', 'Press/Stim', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Stim'});
-            m0_2 = uimenu(m0, 'Text', 'Lick/Stim', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Lick/Stim'});
-            m0_3 = uimenu(m0, 'Text', 'Press/Lick', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Lick'});
+            m0_1 = uimenu(m0, 'Text', 'Press (Spontaneous)', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press (Spontaneous)'});
+            m0_2 = uimenu(m0, 'Text', 'Press/Stim', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Stim'});
+            m0_3 = uimenu(m0, 'Text', 'Lick/Stim', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Lick/Stim'});
+            m0_4 = uimenu(m0, 'Text', 'Press/Lick', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Lick'});
             m1 = uimenu(cm, 'Text', 'Delete Channel', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteChn, 'Separator', true);
             m2 = uimenu(cm, 'Text', 'Delete Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteClusters, 'Separator', true);
             m3 = uimenu(cm, 'Text', 'Merge Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnMergeClusters);
@@ -2714,6 +2715,8 @@ classdef TetrodeRecording < handle
             channel = ax.UserData.Channel;
             
             switch mode
+                case 'Press (Spontaneous)'
+                    obj.PlotChannel(channel, 'Reference', 'TRIAL_START', 'Event', 'PressOn', 'Exclude', '', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-0, 1], 'WaveformYLim', [-200, 200], 'PlotStim', false, 'Bins', 3);
                 case 'Press/Stim'
                     obj.PlotChannel(channel, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', true);
                 case 'Lick/Stim'
@@ -3988,8 +3991,8 @@ classdef TetrodeRecording < handle
 					set(hPETHNew, 'XLim', get(hRasterNew, 'XLim'));
 
 					if copyLegend
-						legend(hRasterNew, 'Location', 'north');
-						legend(hPETHNew, 'Location', 'best');
+						legend(hRasterNew, 'Location', 'north', 'Interpreter', 'none');
+						legend(hPETHNew, 'Location', 'best', 'Interpreter', 'none');
 					end
 
 					% hTitle = suptitle(h.Figure.Name);
