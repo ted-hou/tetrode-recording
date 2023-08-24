@@ -207,7 +207,7 @@ classdef CompleteExperiment < handle
             p.addParameter('features', {'handL', 'handR', 'footL', 'footR'}, ...
                 @(x) all(ismember(x, {'handL', 'handR', 'footL', 'footR', 'nose', 'spine', 'tail', 'tongue', ...
                 'trialStart', 'reward', 'anyPress', 'anyLick', 'firstPress', 'firstLick', ...
-                'firstPressRamp', 'firstLickRamp', 'pressTrialRamp', 'lickTrialRamp'})))
+                'firstPressRamp', 'firstLickRamp', 'pressTrialRamp', 'lickTrialRamp', 'handIpsiCam', 'handContraCam', 'jaw'})))
             p.addParameter('stats', {'xPos', 'yPos', 'xVel', 'yVel', 'spd'})
             p.addParameter('likelihoodThreshold', 0.95, @isnumeric); % Observations with lieklihood below this threshold will be discarded (NaN)
             p.addParameter('rampDurations', 0.1:0.2:2, @isnumeric);
@@ -237,10 +237,10 @@ classdef CompleteExperiment < handle
                     switch featureName
                         case 'handL'
                             vtd = obj.vtdL;
-                            bodypartName = 'handIpsi';
+                            bodypartName = 'handIpsiCam';
                         case 'handR'
                             vtd = obj.vtdR;
-                            bodypartName = 'handIpsi';
+                            bodypartName = 'handIpsiCam';
                         case 'footL'
                             vtd = obj.vtdL;
                             bodypartName = 'footIpsi';
@@ -312,7 +312,7 @@ classdef CompleteExperiment < handle
                     if ismember('spd', stats)
                         F.(sprintf('%s_spd', featureName)) = sqrt(xVel.^2 + yVel.^2);
                     end
-                elseif ismember(featureName, {'nose', 'spine', 'tail'})
+                elseif ismember(featureName, {'nose', 'spine', 'tail', 'jaw'})
                     vtd = {obj.vtdR, obj.vtdL};
                     bodypartName = featureName;
 
