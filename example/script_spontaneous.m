@@ -9,7 +9,7 @@ files = { ...
     '\\research.files.med.harvard.edu\neurobio\NEUROBIOLOGY SHARED\Assad Lab\Lingfeng\Data\desmond31\desmond31_20230804\SpikeSort\tr_sorted_desmond31_20230804_230804_173252.mat' ...
     };
 
-for iTr = 5:length(files)
+for iTr = 1:length(files)
     S = load(files{iTr});
     tr = S.tr;
     channels = [tr.Spikes.Channel];
@@ -27,29 +27,21 @@ for iTr = 5:length(files)
     clear S tr
 end
 
-%% Create EphysUnit objects for acute units. This time do not cull ITI 
-% spikes, also include lampON/Off events as LIGHT trials. Duplicates are
-% not included.
+%% Create EphysUnit objects from TetrodeRecording.
+for iTr = 1:length(files)
+    clear S tr ar eu
+    try
+        S = load(files{iTr});
+        tr = S.tr;
+        ar = AcuteRecording(tr, 'N/A');
+        eu = EphysUnit(ar, savepath='C:\SERVER\Units\acute_spontaneous_reach', ...
+            cullITI=false, readWaveforms=false);
+    catch ME
+        warning('Error while processing file %g (%s)', iTr, files{iTr});
+    end
+end
 
-% clear
-% 
-% whitelist = dir('C:\SERVER\Units\Lite_NonDuplicate\*.mat');
-% whitelist = {whitelist.name}';
-% whitelist = cellfun(@(x) strsplit(x, '.mat'), whitelist, UniformOutput=false);
-% whitelist = cellfun(@(x) x{1}, whitelist, UniformOutput=false);
-% 
-% ar = AcuteRecording.load();
-% for i = 1:length(ar)
-%     clear eu
-%     try  
-%         eu = EphysUnit(ar(i), savepath='C:\SERVER\Units\acute_2cam', whitelist=whitelist, ...
-%             cullITI=false, readWaveforms=false);
-%     catch ME
-%         warning('Error while processing file %g (%s)', i, ar(i).expName);
-%     end
-% end
-
-p.fontSize = 9;
+clear S tr ar eu iTr
 
 %% 1. Load data
 %% 1.1. Load acute EU objects (duplicates already removed)

@@ -23,13 +23,13 @@ TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'N
 % TetrodeRecording.BatchProcess(ptr1, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-.5, .5], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 3, 'ChunkSize', 1);
 % TetrodeRecording.BatchProcess(ptr2, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-.5, .5], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 3, 'ChunkSize', 1);
 
-TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 10, 'WaveformWindow', [-.5, .5], 'FeatureMethod', 'WaveletTransform', 'ClusterMethod', 'kmeans', 'Dimension', 10, ...
+TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 20, 'WaveformWindow', [-1, 1], 'FeatureMethod', 'WaveletTransform', 'ClusterMethod', 'kmeans', 'Dimension', 10, ...
     'ChunkSize', 5, 'MaxChannelsPerBatch', 32);
 
 % Batch load
-tr = TetrodeRecording.BatchLoad();
+% tr = TetrodeRecording.BatchLoad();
 tr = TetrodeRecording.BatchLoadSimple();
-tr = TetrodeRecording.BatchLoadSimple('desmond28_20230511', true);
+% tr = TetrodeRecording.BatchLoadSimple('desmond28_20230511', true);
 % Plot Channel
 iTr = 1;
 iTrLastSaved = 0;
@@ -46,7 +46,7 @@ tr(iTr).PlotChannel([], 'Reference', 'TRIAL_START', 'Event', 'PressOn', 'Exclude
 tr(iTr).PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-8, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', true);
 tr(iTr).PlotAllChannels(plotMethod='mean');
 
-TetrodeRecording.BatchSave(tr(iTrLastSaved+1:iTr), 'Prefix', 'tr_sorted_', 'DiscardData', false); iTrLastSaved = iTr;
+TetrodeRecording.BatchSave(tr(iTrLastSaved+1:iTr), 'Prefix', 'tr_sorted_DA_', 'DiscardData', false); iTrLastSaved = iTr;
 
 % Batch plot
 for iTr = 1:length(tr)

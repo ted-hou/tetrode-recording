@@ -79,7 +79,12 @@ classdef EphysUnit < handle
                                 obj(i).Waveforms = int16(s.Waveforms(inCluster, :));
                                 obj(i).WaveformTimestamps = s.WaveformTimestamps;
                             end
-                            obj(i).EventTimes.Cue = tr.DigitalEvents.CueOn;
+                            % Spontaneous
+                            if isfield(tr.DigitalEvents, 'TRIAL_START')
+                                obj(i).EventTimes.Cue = tr.DigitalEvents.TRIAL_START;
+                            else
+                                obj(i).EventTimes.Cue = tr.DigitalEvents.CueOn;
+                            end
                             obj(i).EventTimes.Press = tr.DigitalEvents.PressOn;
                             obj(i).EventTimes.Lick = tr.DigitalEvents.LickOn;
                             obj(i).EventTimes.RewardTimes = tr.DigitalEvents.RewardOn;
@@ -214,7 +219,12 @@ classdef EphysUnit < handle
                             obj(i).Waveforms = int16(s.Waveforms(inCluster, :));
                             obj(i).WaveformTimestamps = s.WaveformTimestamps;
                         end
-                        obj(i).EventTimes.Cue = tr.DigitalEvents.CueOn;
+                        % Spontaneous
+                        if isfield(tr.DigitalEvents, 'TRIAL_START')
+                            obj(i).EventTimes.Cue = tr.DigitalEvents.TRIAL_START;
+                        else
+                            obj(i).EventTimes.Cue = tr.DigitalEvents.CueOn;
+                        end
                         obj(i).EventTimes.Press = tr.DigitalEvents.PressOn;
                         obj(i).EventTimes.Lick = tr.DigitalEvents.LickOn;
                         obj(i).EventTimes.RewardTimes = tr.DigitalEvents.RewardOn;
@@ -1181,7 +1191,7 @@ classdef EphysUnit < handle
                 ax.Parent.Position(4) = ax.Parent.Position(4)*nTrials/300;
                 h = gobjects(2, 1);
                 h(1) = scatter(ax, rd.t .* timescale, rd.I, sz, 'k', 'filled', DisplayName='spikes');
-                h(2) = scatter(ax, tEvent .* timescale, 1:nTrials, 15, 'r', 'filled', DisplayName=eventName);
+                h(2) = scatter(ax, tEvent .* timescale, 1:length(tEvent), 15, 'r', 'filled', DisplayName=eventName);
             else
                 h = gobjects(2, 1);
                 h(1) = scatter(ax, rd.t * timescale, rd.I, sz, 'k', 'filled', DisplayName='spikes');

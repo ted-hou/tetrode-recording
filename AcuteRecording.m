@@ -18,18 +18,33 @@ classdef AcuteRecording < handle
     end
 
     methods
-        function obj = AcuteRecording(tr, strain)
-            obj.strain = strain;
+        function obj = AcuteRecording(varargin)
+            p = inputParser();
+            if isa(varargin{1}, 'TetrodeRecording')
+                p.addRequired('tr', @(x) isa(x, 'TetrodeRecording'));
+                p.addOptional('strain', 'N/A', @ischar)
+                p.parse(varargin{:})
+                tr = p.Results.tr;
 
-            splitPath = strsplit(tr.Path, '\');
-            path = strjoin(splitPath(1:end-2), '\');
-            if tr.Path(1) == '\'
-                path = ['\', path];
+                obj.strain = p.Results.strain;
+                splitPath = strsplit(tr.Path, '\');
+                path = strjoin(splitPath(1:end-2), '\');
+                if tr.Path(1) == '\'
+                    path = ['\', path];
+                end
+                obj.path = path;
+    
+                expName = strsplit(tr.GetExpName(), '_');
+                obj.expName = strjoin(expName(1:2), '_');
+            else
+                p.addRequired('sessionInfo', @isstruct)
+                p.parse(varargin{:})
+                sessionInfo = p.Results.sessionInfo;
+                obj.expName = sessionInfo.expName;
+                obj.strain = sessionInfo.strain;
+                obj.importProbeMap(sessionInfo.orientation, sessionInfo.ml, sessionInfo.dv, sessionInfo.ap);
             end
-            obj.path = path;
-
-            expName = strsplit(tr.GetExpName(), '_');
-            obj.expName = strjoin(expName(1:2), '_');
+            
         end
 
         function label = getLabel(obj)
@@ -189,7 +204,7 @@ classdef AcuteRecording < handle
             p.addOptional('ML', 1300, @isnumeric); % Center of probe. Negative for left hemisphere.
             p.addOptional('DV', -4600, @isnumeric); % From surface of brain, not bregma. Bregma is usually 200um above surface here.
             p.addOptional('AP', -3280, @isnumeric);
-            p.addParameter('DVOffset', -200, @isnumeric); % Distance from bregma to surface of brain at SNr.
+            p.addParameter('DVOffset', -200, @isnumeric); % Distance from bregma to surface of brain at craniotomy (in um).
             p.parse(frontOrBack, varargin{:});
             front = strcmpi(p.Results.FrontOrBack, 'front');
 %             back = ~front;
@@ -245,12 +260,16 @@ classdef AcuteRecording < handle
             if isempty(channels)
                 channels = [obj.bsr.channel];
             end
-            if strcmpi(obj.expName, 'daisy14_20220506') || strcmpi(obj.expName, 'daisy16_20220502')
-                disp('Good Session, channel count kept');
-                disp(obj.expName)
+            galvoExperiments = {'daisy14', 'daisy15', 'daisy16', 'desmond23', 'desmond24', 'desmond25', 'desmond26', 'desmond27'};
+            if any(cellfun(@(x) contains(obj.expName, x), galvoExperiments))
+                if strcmpi(obj.expName, 'daisy14_20220506') || strcmpi(obj.expName, 'daisy16_20220502')
+                    fprintf('Good Session, channel count kept, %s\n', obj.expName);
+                else
+                    channels = channels + 1;
+                    fprintf('Bad Session, channel count incremented, %s\n', obj.expName);
+                end
             else
-                channels = channels + 1;
-                disp('Bad Session, channel count incremented');
+                fprintf('Def Good Session, channel count kept, %s\n', obj.expName);
             end
                     
 
@@ -268,7 +287,7 @@ classdef AcuteRecording < handle
         function varargout = binMoveResponse(obj, tr, moveType, varargin)
             p = inputParser();
             p.addRequired('TetrodeRecording', @(x) isa(x, 'TetrodeRecording'))
-            p.addRequired('MoveType', @(x) ismember(lower(x), {'press', 'lick'}))
+            p.addRequired('MoveType', @(x) ismember(lower(x), {'press', 'lick', 'press_spontaneous'}))
             p.addOptional('Channels', [], @isnumeric);
             p.addOptional('Units', [], @isnumeric);
             p.addParameter('BinWidth', 0.1, @isnumeric); % Bin width in seconds
@@ -315,6 +334,10 @@ classdef AcuteRecording < handle
                 case 'lick'
                     tMove = tr.DigitalEvents.LickOn;
                     tExclude = sort([tr.DigitalEvents.PressOn, tr.DigitalEvents.RewardOn]);
+                case 'press_spontaneous'
+                    tRef = tr.DigitalEvents.TRIAL_START;
+                    tMove = tr.DigitalEvents.PressOn;
+                    tExclude = sort([tr.DigitalEvents.LickOn, tr.DigitalEvents.RewardOn]);
                 otherwise
                     error('Unrecognized move type: %s', lower(moveType))
             end
@@ -372,6 +395,8 @@ classdef AcuteRecording < handle
             if store
                 switch lower(moveType)
                     case 'press'
+                        obj.bmrPress = bmr;
+                    case 'press_spontaneous'
                         obj.bmrPress = bmr;
                     case 'lick'
                         obj.bmrLick = bmr;
