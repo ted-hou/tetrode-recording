@@ -14,7 +14,7 @@ for iAnimal = 1:length(dirs)
     bs{iAnimal} = BehaviorSession(files);
 end
 
-save('E:\DATA\bs.mat', 'bs');
+save('C:\SERVER_PRIVATE\data\bs.mat', 'bs');
 
 %% Filter out bad animals
 close all; clear; clc;

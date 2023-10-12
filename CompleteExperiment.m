@@ -23,8 +23,8 @@ classdef CompleteExperiment < handle
             for i = 1:nExp
                 obj(i).name = uniqueExpNames{i};
                 obj(i).eu = eu(expIndices==i);
-                obj(i).vtdL = CompleteExperiment.readVideoTrackingData(obj(i).name, 'l');
-                obj(i).vtdR = CompleteExperiment.readVideoTrackingData(obj(i).name, 'r');
+                obj(i).vtdL = obj.readVideoTrackingData(obj(i).name, 'l');
+                obj(i).vtdR = obj.readVideoTrackingData(obj(i).name, 'r');
                 obj(i).ac = CompleteExperiment.readArduino(obj(i).name);
             end
         end
@@ -237,10 +237,10 @@ classdef CompleteExperiment < handle
                     switch featureName
                         case 'handL'
                             vtd = obj.vtdL;
-                            bodypartName = 'handIpsiCam';
+                            bodypartName = 'handIpsi';
                         case 'handR'
                             vtd = obj.vtdR;
-                            bodypartName = 'handIpsiCam';
+                            bodypartName = 'handIpsi';
                         case 'footL'
                             vtd = obj.vtdL;
                             bodypartName = 'footIpsi';

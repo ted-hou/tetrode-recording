@@ -1191,7 +1191,7 @@ classdef EphysUnit < handle
                 ax.Parent.Position(4) = ax.Parent.Position(4)*nTrials/300;
                 h = gobjects(2, 1);
                 h(1) = scatter(ax, rd.t .* timescale, rd.I, sz, 'k', 'filled', DisplayName='spikes');
-                h(2) = scatter(ax, tEvent .* timescale, 1:length(tEvent), 15, 'r', 'filled', DisplayName=eventName);
+                h(2) = scatter(ax, tEvent .* timescale, 1:length(tEvent), sz*2, 'r', 'filled', DisplayName=eventName);
             else
                 h = gobjects(2, 1);
                 h(1) = scatter(ax, rd.t * timescale, rd.I, sz, 'k', 'filled', DisplayName='spikes');
@@ -1336,7 +1336,7 @@ classdef EphysUnit < handle
             sc = histcounts(spikes, edges);
             t = (edges(1:end-1) + edges(2:end)) / 2;
 
-            assert(sum(sc > 2^16 - 1) == 0, 'Spike counts per bin should exceeded 2^16-1 (%i)', max(sc)) % There should not be more than 255 spikes in an 100ms bin
+            assert(sum(sc > 2^16 - 1) == 0, 'Spike counts per bin should not exceeded 2^16-1 (%i)', max(sc)) % There should not be more than 65k spikes in an 100ms bin
             sc = uint16(sc);
             t = single(t);
         end
