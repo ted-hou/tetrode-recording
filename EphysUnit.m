@@ -1099,15 +1099,16 @@ classdef EphysUnit < handle
                 S = S./sqrt(N);
             end
 
-            hold(ax, 'on')
-            colors = 'rgcbmkrgcbmkrgcbmkrgcbmkrgcbmkrgcbmk';
+            hold(ax, 'on')           
+
+%             colors = 'rgcbmkrgcbmkrgcbmkrgcbmkrgcbmkrgcbmk';
             for iBin = 1:length(B)
                 bin = B(iBin, :);
                 t = T;% + bin(2);
                 if p.Results.showTrialNum
-                    h(iBin) = plot(ax, t, X(iBin, :), colors(iBin), 'LineWidth', 2, 'DisplayName', sprintf('[%.1fs, %.1fs], %i trials', bin(1), bin(2), N(iBin)));
+                    h(iBin) = plot(ax, t, X(iBin, :), 'Color', hsl2rgb([0.7*(iBin-1)/(length(B)-1), 1, 0.4]), 'LineWidth', 2, 'DisplayName', sprintf('[%.1fs, %.1fs], %i trials', bin(1), bin(2), N(iBin)));
                 else
-                    h(iBin) = plot(ax, t, X(iBin, :), colors(iBin), 'LineWidth', 2, 'DisplayName', sprintf('[%.1fs, %.1fs]', bin(1), bin(2)));                    
+                    h(iBin) = plot(ax, t, X(iBin, :), 'Color', hsl2rgb([0.7*(iBin-1)/(length(B)-1), 1, 0.4]), 'LineWidth', 2, 'DisplayName', sprintf('[%.1fs, %.1fs]', bin(1), bin(2)));                    
                 end
                 if p.Results.nsigmas > 0
                     high = X(iBin, :) + p.Results.nsigmas*S(iBin, :); 
@@ -1139,6 +1140,7 @@ classdef EphysUnit < handle
             p.addParameter('iti', false, @islogical);
             p.addParameter('timeUnit', 's', @(x) ismember(x, {'s', 'ms'}))
             p.addParameter('maxTrials', Inf, @isnumeric)
+            p.addParameter('maxTrialsMethod', 'trim', @(x) ismember(lower(x), {'trim', 'randomsample', 'uniformsample'}))
             p.addParameter('sz', 2.5, @isnumeric)
             p.parse(varargin{:})
             rd = p.Results.rd;
@@ -1174,21 +1176,50 @@ classdef EphysUnit < handle
             end
 
             hold(ax, 'on')
-            nTrials = length(unique(rd.I));
-            switch rd.alignTo
-                case 'start'
-                    tEvent = rd.duration;
-                case 'stop'
-                    tEvent = -rd.duration;
-            end
+%             nTrials = length(unique(rd.I));
+            nTrials = length(rd.duration);
             if strcmpi(timeUnit, 'ms')
                 timescale = 1000;
             else
                 timescale = 1;
             end
             sz = p.Results.sz;
+
+            % Make sure rd is still value type, since we're about to make
+            % local changes to it
+            assert(isstruct(rd))
+            if maxTrials < nTrials
+                assert(mod(maxTrials, 1) == 0)
+                switch lower(p.Results.maxTrialsMethod)
+                    case 'trim'
+                        sel = 1:maxTrials;
+                    case 'uniformsample'
+                        sel = floor(linspace(1, nTrials, maxTrials));
+                    case 'randomsample'
+                        sel = randsample(nTrials, maxTrials);
+                    otherwise
+                        error()
+                end
+                selSpike = ismember(rd.I, sel);
+                selTrial = sel;
+                rd.t = rd.t(selSpike);
+                rd.I = rd.I(selSpike);
+                uniqueI = unique(rd.I);
+                rd.I = changem(rd.I, 1:length(uniqueI), uniqueI);
+                rd.duration = rd.duration(selTrial);
+                rd.iti = rd.iti(selTrial);
+                nTrials = maxTrials;
+            end
+
+            switch rd.alignTo
+                case 'start'
+                    tEvent = rd.duration;
+                case 'stop'
+                    tEvent = -rd.duration;
+            end
+
             if ~stim
-                ax.Parent.Position(4) = ax.Parent.Position(4)*nTrials/300;
+%                 ax.Parent.Position(4) = ax.Parent.Position(4)*nTrials/300;
                 h = gobjects(2, 1);
                 h(1) = scatter(ax, rd.t .* timescale, rd.I, sz, 'k', 'filled', DisplayName='spikes');
                 h(2) = scatter(ax, tEvent .* timescale, 1:length(tEvent), sz*2, 'r', 'filled', DisplayName=eventName);
@@ -1212,11 +1243,12 @@ classdef EphysUnit < handle
             hold(ax, 'off')
             ax.YAxis.Direction = 'reverse';
             xlim(ax, p.Results.xlim);
-            if nTrials <= maxTrials
-                ylim(ax, [min(rd.I) - 1, max(rd.I) + 1]);
-            else
-                ylim(ax, [min(rd.I) - 1, maxTrials + 1]);
-            end
+            ylim(ax, [min(rd.I) - 1, max(rd.I) + 1]);
+%             if nTrials <= maxTrials
+%                 ylim(ax, [min(rd.I) - 1, max(rd.I) + 1]);
+%             else
+%                 ylim(ax, [min(rd.I) - 1, maxTrials + 1]);
+%             end
             switch refName
                 case 'press'
                     refName = 'touchbar-contact';
@@ -1227,6 +1259,81 @@ classdef EphysUnit < handle
             ylabel(ax, 'Trial')
             title(ax, sprintf('Spike raster (%s)', rd.name), Interpreter="none");
             legend(ax, h, Location='northwest', FontSize=9);
+        end
+
+        function ax = plotMultiRaster(varargin)
+            p = inputParser();
+            if isgraphics(varargin{1}, 'axes')
+                p.addRequired('ax', @(x) all(isgraphics(x, 'axes')) && length(x) > 1);
+            end
+            p.addRequired('rd', @isstruct);
+            p.addParameter('label', string([]), @(x) isstring(x) || iscell(x)) % Ooh look at you using strings now. So fancy.
+            p.addParameter('xlim', [-6, 1], @(x) isnumeric(x) && length(x) == 2 && x(2) > x(1));
+            p.addParameter('iti', false, @islogical);
+            p.addParameter('timeUnit', 's', @(x) ismember(x, {'s', 'ms'}))
+            p.addParameter('maxTrials', Inf, @(x) isnumeric(x) || ischar(x))
+            p.addParameter('sz', 2.5, @isnumeric)
+            p.addParameter('figUnits', 'normalized', @ischar)
+            p.addParameter('figPosition', [0, 0, 0.5, 0.75], @isnumeric)
+            p.addParameter('figMargins', [0.16, 0.09], @isnumeric)
+            p.parse(varargin{:})
+            r = p.Results;
+
+            rd = r.rd;
+            label = r.label;
+            maxTrials = r.maxTrials;
+
+            if iscell(label)
+                label = string(label);
+            end
+            if isempty(label)
+                label = string({rd.trialType});
+            end
+
+            nTrials = arrayfun(@(rd) length(rd.duration), rd);
+            if isstring(maxTrials)
+                maxTrials = char(maxTrials);
+            end
+            if ischar(maxTrials)
+                switch lower(maxTrials)
+                    case 'min'
+                        maxTrials = min(nTrials);
+                    otherwise
+                        error();
+                end
+            end
+            nTrials = arrayfun(@(n) min(n, maxTrials), nTrials);
+
+            if isfield(r, 'ax')
+                ax = r.ax;
+                fig = ax(1).Parent;
+            else
+                fig = figure(Units='normalized', Position=[0, 0, 0.5, 1], DefaultAxesFontSize=14);
+                xMargin = r.figMargins(1);
+                yMargin = r.figMargins(2);
+                nS = length(rd);
+                ax = gobjects(nS, 1);
+                y = 1;
+                for i = 1:length(rd)
+                    x = xMargin;
+                    w = 0.7;
+                    h = nTrials(i)/sum(nTrials)*(1-yMargin*(nS + 1));
+                    y = y - yMargin - h;
+                    ax(i) = axes(fig, Position=[x, y, w, h]);
+                end
+            end
+            fig.Units = r.figUnits;
+            fig.Position = r.figPosition;
+
+
+            assert(length(rd) == length(ax));
+            assert(length(rd) == length(label));
+
+
+            for i = 1:length(rd)
+                EphysUnit.plotRaster(ax(i), rd(i), xlim=r.xlim, iti=r.iti, timeUnit=r.timeUnit, maxTrials=maxTrials, sz=r.sz, maxTrialsMethod='uniformsample');
+                title(ax(i), label(i));
+            end
         end
 
     end
