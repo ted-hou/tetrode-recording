@@ -10,7 +10,12 @@ p.fontSize = 8;
 p.width = 8;
 p.height = 10;
 p.heightFirstRow = 3;
+p.heightSecondRow = 3;
 
+p.etaSortWindow = [-3, 0];
+p.etaSignWindow = [-0.3, 0];
+p.etaLatencyThresholdPos = 0.5;
+p.etaLatencyThresholdNeg = 0.25;
 
 %% 6a. Double rasters (reach vs lick) 4 example untis
 unitNames = { ...
@@ -47,3 +52,54 @@ end
 clear thisRd ax iEu
 
 %% 6b. PETH Reach vs. Lick vs. Osci Lick
+
+%% Reach, Lick, Osci Lick, sorted amongst themselves
+close all
+clear ax
+fig = figure(Units='inches', Position=[0, 0, p.width, p.heightSecondRow], DefaultAxesFontSize=p.fontSize);
+ax(1) = axes(fig, Position=[0.135507244803911,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
+ax(2) = axes(fig, Position=[0.416304346253187,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
+ax(3) = axes(fig, Position=[0.697101447702462,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
+[~, ~] = EphysUnit.plotETA(ax(1), eta.press, c.hasPress & c.hasLick, ...
+    clim=[-2, 2], xlim=[-4, 0], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=true);
+[~, ~] = EphysUnit.plotETA(ax(2), eta.lick, c.hasPress & c.hasLick, ...
+    clim=[-2, 2], xlim=[-4, 0], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=true);
+[~, ~] = EphysUnit.plotETA(ax(3), eta.anyLickNorm, c.isLick, ...
+    clim=[-2, 2], xlim=[-0.25, 0.25], sortWindow=[-0.13, -0.01], signWindow=[-0.13, -0.01], hidecolorbar=true);
+title(ax(1), 'Pre-reach')
+title(ax(2), 'Pre-lick')
+title(ax(3), 'Osci-lick')
+ylabel(ax(2:3), '')
+xlabel(ax(1:3), 'Time to spout-contact (s)')
+h = colorbar(ax(3)); 
+h.Position = [0.913242151752656,0.109479305740988,0.013611111111111,0.815754339118825];
+h.Label.String = 'z-scored spike rate (a.u.)';
+fontsize(ax, p.fontSize, 'points')
+fontname(ax, 'Arial')
+
+%% Compare lick vs osci lick
+close all
+clear ax
+fig = figure(Units='inches', Position=[0 0 6.5, 5], DefaultAxesFontSize=p.fontSize);
+ax(1) = axes(fig, Position=[0.135507244803911,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
+ax(2) = axes(fig, Position=[0.416304346253187,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
+ax(3) = axes(fig, Position=[0.697101447702462,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
+[~, order] = EphysUnit.plotETA(ax(1), eta.lick, c.hasLick & c.isLick, ...
+    clim=[-2, 2], xlim=[-4, 1], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=true);
+[~, ~] = EphysUnit.plotETA(ax(2), eta.anyLickNorm, c.hasLick & c.isLick, order=order, ...
+    clim=[-2, 2], xlim=[-0.25, 0.25], hidecolorbar=true);
+[~, ~] = EphysUnit.plotETA(ax(3), eta.anyLickNorm, c.hasLick & c.isLick, ...
+    clim=[-2, 2], xlim=[-0.25, 0.25], sortWindow=[-0.13, -0.01], signWindow=[-0.13, -0.01], ...
+    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=true);
+title(ax(1), 'Pre-lick')
+title(ax(2), 'Osci-lick')
+title(ax(3), 'Osci-lick (phase-sorted)')
+ylabel(ax(2:3), '')
+xlabel(ax(1:3), 'Time to spout-contact (s)')
+h = colorbar(ax(3)); 
+h.Position = [0.913242151752656,0.109479305740988,0.013611111111111,0.815754339118825];
+h.Label.String = 'z-scored spike rate (a.u.)';
+set(ax, FontSize=p.fontSize)

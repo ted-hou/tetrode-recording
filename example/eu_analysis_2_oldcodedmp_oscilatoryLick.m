@@ -66,7 +66,8 @@ plot(f, P1)
 title('Single-Sided Amplitude Spectrum of X(t)')
 xlabel('f (Hz)')
 ylabel('|P1(f)|')
-%%
+
+%
 signWindow = [-0.13, -0.01];
 sortWindow = [-0.13, -0.01];
 plotWindow = [-0.25, 0.25];
