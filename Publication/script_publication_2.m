@@ -21,14 +21,15 @@ ndayshown = 18;
 for id = 1:ndayshown
     N = histcounts(ptcat{id}, edges, Normalization='probability');
     % plot(ax, centers, N, Color=hsl2rgb([0.7*(id-1)/(ndayshown-1), 1, 0.5]), LineWidth=1, DisplayName=sprintf('Day %g (%g trials)', daysPress(id), nTrialsPress(id)))
-    plot(ax, centers, N, Color=hsl2rgb([0.7*(id-1)/(ndayshown-1), 1, 0.5]), LineWidth=1, DisplayName=sprintf('Day %g', daysPress(id)))
+    plot(ax, centers, N, Color=hsl2rgb([0.7*(id-1)/(ndayshown-1), 1, 0.4]), LineWidth=1, DisplayName=sprintf('Day %g', daysPress(id)))
     xlabel(ax, 'Contact time (s)')
     ylabel(ax, 'Probability')
 end
 hold(ax, 'off')
 legend(ax, Location='northeast', NumColumns=2)
 title(ax, sprintf('Reach task performance (%g animals)', nAnimalsPress), FontSize=p.fontSize)
-set(ax, FontSize=p.fontSize, FontName='Arial');
+fontsize(fig, p.fontSize, 'points')
+fontname(fig, 'Arial')
 print(fig, 'Fig 2c aggregate reach time histogram across training sessions.fig');
 clear ax fig id
 

@@ -1,9 +1,13 @@
-%%% Figure 3b-c
+%%% Figure 3
 p.fontSize = 8;
 p.width = 3.5;
 p.height = 3;
 close all
 
+
+%% Load all units
+load_ephysunits;
+boot_response_dir;
 
 %% Load example units
 unitNames = { ... 
@@ -11,38 +15,40 @@ unitNames = { ...
     'desmond17_20200310_Channel8_Unit1'; ... % Up
     };
 files = cellfun(@(name) sprintf('C:\\SERVER\\Units\\Lite_NonDuplicate\\%s.mat', name), unitNames, UniformOutput=false);
-eu = EphysUnit.load(files);
+euEg = EphysUnit.load(files);
 
 %% 3b. Raster of two example units (turn on vs. turn off)
-for iEu = 1:length(eu)
-    thisRd = eu(iEu).getRasterData('press', window=[0, 0], sort=true);
+for iEu = 1:length(euEg)
+    thisRd = euEg(iEu).getRasterData('press', window=[0, 0], sort=true);
     ax = EphysUnit.plotRaster(thisRd, xlim=[-4, 0], sz=1);
     ax.Parent.Units = "inches";
     ax.Parent.Position = [0, 0, p.width, p.height];
     fontsize(ax.Parent, p.fontSize, 'points');
     fontsize(ax, p.fontSize, 'points');
     fontname(ax.Parent, 'Arial');
-    xlabel(ax, 'Time to bar-contact (s)')
+    xlabel(ax, 'Time to touch (s)')
     title(ax, '')
 end
 delete(legend(ax))
 
 %% 3c. PETH of two example units (turn on vs. turn off)
-for iEu = 1:length(eu)
-    clear bta
-    [bta.X, bta.T, bta.N, bta.S, bta.B] = eu(iEu).getBinnedTrialAverage('count', linspace(1, 6, 6), 'press', ...
+for iEu = 1:length(euEg)
+    clear btaEg
+    [btaEg.X, btaEg.T, btaEg.N, btaEg.S, btaEg.B] = euEg(iEu).getBinnedTrialAverage('count', linspace(1, 6, 6), 'press', ...
         alignTo='stop', window=[-4, 0], resolution=0.1, normalize=false);
     fig = figure(Units='inches', Position=[0, 0, p.width, p.height*0.5]);
     ax = axes(fig);
-    bta.X = bta.X ./ 0.1;
-    bta.S = bta.S ./ 0.1;
-    EphysUnit.plotBinnedTrialAverage(ax, bta, [-4, 0], nsigmas=0, showTrialNum=false)
-    xlabel(ax, 'Time to bar-contact (s)')
+    btaEg.X = btaEg.X ./ 0.1;
+    btaEg.S = btaEg.S ./ 0.1;
+    EphysUnit.plotBinnedTrialAverage(ax, btaEg, [-4, 0], nsigmas=0, showTrialNum=false)
+    xlabel(ax, 'Time to touch (s)')
     ylabel(ax, 'Spike rate (sp/s)')
     fontsize(fig, p.fontSize, 'points');
     fontname(fig, 'Arial');
+    if iEu == 1
+        delete(legend(ax))
+    end
 end
-delete(legend(ax))
 
 %% 3d. PETH of all units (heatmap)
 fig = figure(Units='inches', Position=[0, 0, 4, 5]);
@@ -72,8 +78,3 @@ xlabel(ax, 'Normalized pre-move response (a.u.)'), ylabel(ax, 'Count')
 % legend(ax, sprintf('N=%g', nnz(c.hasPress)))
 fontsize(fig, p.fontSize, 'points');
 fontname(fig, 'Arial')
-
-
-%% Load all units
-clear, clc
-load_ephysunits;

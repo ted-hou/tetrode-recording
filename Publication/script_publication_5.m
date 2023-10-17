@@ -27,6 +27,53 @@ print(fig, 'Fig 5c aggregate lick time histogram across training sessions.fig');
 
 clear ax fig id
 
+%% 5c. Timing comparison (average lick time vs. average press time)
+euIndices = find(c.hasPress & c.hasLick);
+[~, ia, ~] = unique({eu(euIndices).ExpName});
+euIndices = euIndices(ia);
+
+medianPressTime = arrayfun(@(iEu) median([eu(iEu).Trials.Press.Stop] - [eu(iEu).Trials.Press.Start]), euIndices);
+medianLickTime = arrayfun(@(iEu) median([eu(iEu).Trials.Lick.Stop] - [eu(iEu).Trials.Lick.Start]), euIndices);
+
+aggrPressTime = arrayfun(@(iEu) [eu(iEu).Trials.Press.Stop] - [eu(iEu).Trials.Press.Start], euIndices, UniformOutput=false);
+aggrPressTime = cat(2, aggrPressTime{:});
+
+aggrLickTime = arrayfun(@(iEu) [eu(iEu).Trials.Lick.Stop] - [eu(iEu).Trials.Lick.Start], euIndices, UniformOutput=false);
+aggrLickTime = cat(2, aggrLickTime{:});
+edges = 1:0.5:10;
+centers = (edges(1:end-1) + edges(2:end))*0.5;
+histPress = histcounts(aggrPressTime, edges, Normalization='probability');
+histLick = histcounts(aggrLickTime, edges, Normalization='probability');
+
+fig = figure(Units='inches', Position=[0, 0, 5, 1.75]);
+ax = gobjects(2, 1);
+
+ax(1) = subplot(1, 2, 1);
+hold(ax(1), 'on')
+plot(ax(1), centers, histPress, 'r', LineWidth=1.5, DisplayName=sprintf('Reach', length(aggrPressTime)))
+plot(ax(1), centers, histLick, 'b', LineWidth=1.5, DisplayName=sprintf('Lick', length(aggrLickTime)))
+hold(ax(1), 'off')
+legend(ax(1))
+xlabel(ax(1), 'Time from cue (s)')
+ylabel(ax(1), 'Probability')
+xticks(ax(1), [1, 4, 7, 10])
+xlim(ax(1), [0, 10])
+
+ax(2) = subplot(1, 2, 2);
+hold(ax(2), 'on')
+h = scatter(ax(2), medianPressTime, medianLickTime, 5, 'k', 'filled', DisplayName=sprintf('%i sessions', length(euIndices)));
+plot(ax(2), [0, 10], [0, 10], 'k:')
+xlim(ax(2), [0, 10])
+ylim(ax(2), [0, 10])
+legend(ax(2), h)
+xlabel(ax(2), 'Median reach time (s)')
+ylabel(ax(2), 'Median lick time (s)')
+hold(ax(2), 'off')
+xticks(ax(2), [1, 4, 7, 10])
+yticks(ax(2), [1, 4, 7, 10])
+
+fontsize(ax, p.fontSize, 'points');
+fontname(ax, 'Arial');
 %% Read DLC data (SLOW!)
 read_DLC_data;
 

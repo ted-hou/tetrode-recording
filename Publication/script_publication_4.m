@@ -18,7 +18,7 @@ lickLatency = NaN(size(eu));
     sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
     sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg); 
 title('Pre-reach PETH')
-xlabel('Time to touchbar-contact (s)')
+xlabel('Time to touch (s)')
 ax.Parent.Position(3) = 0.25;
 
 [ax, ~, ~, lickLatency(c.hasLick)] = EphysUnit.plotETA(eta.lick, c.hasLick, xlim=[-4,0], clim=[-2, 2], ...
@@ -36,6 +36,7 @@ latency.pRankSum.pressUpVsContraPaw = ranksum(tst, pressLatency(c.isPressUp), ta
 latency.pRankSum.pressDownVsContraPaw = ranksum(tst, pressLatency(c.isPressDown), tail='right');
 latency.pRankSum.pressVsLick = ranksum(lickLatency, pressLatency, tail='right');
 latency.pRankSum.pressVsContraPawPlus200 = ranksum(tst-0.2, pressLatency(c.isPressResponsive), tail='right');
+latency.pRankSum.pressUpVsPressDown = ranksum(pressLatency(c.isPressUp), pressLatency(c.isPressDown), tail='both');
 
 fprintf(1, 'Median pre-press spiking onset latency = %.1f ms \n', median(latency.press(c.isPressResponsive)*1000, 'omitnan'))
 fprintf(1, 'Median pre-press spiking onset latency (excited) = %.1f ms \n', median(latency.press(c.isPressUp)*1000, 'omitnan'))
@@ -47,38 +48,39 @@ fprintf(1, 'Press spiking precedes paw (-200ms): One-tailed ranksum test p = %g\
 fprintf(1, 'Excited press spiking precedes paw: One-tailed ranksum test p = %g\n', latency.pRankSum.pressUpVsContraPaw)
 fprintf(1, 'Inhibited press spiking precedes paw: One-tailed ranksum test p = %g\n', latency.pRankSum.pressDownVsContraPaw)
 fprintf(1, 'Press spiking precedes lick spiking: One-tailed ranksum test p = %g\n', latency.pRankSum.pressVsLick)
+fprintf(1, 'Press excided vs. press supressed: two-tailed ranksum test p = %g\n', latency.pRankSum.pressUpVsPressDown)
 
 
-figure(DefaultAxesFontSize=p.fontSize, Units='inches', Position=[0 0 3 4])
+fig = figure(DefaultAxesFontSize=p.fontSize, Units='inches', Position=[0 0 3 5]);
 
 ax(1) = subplot(4, 1, 1);
-histogram(latency.press(c.isPressResponsive)*1000, (-2:0.1:0)*1000, Normalization='probability', FaceColor='black')
+histogram(latency.press(c.isPressResponsive), (-2:0.1:0), Normalization='probability', FaceColor='black')
 title('SNr response onset')
 legend(sprintf('%d units', nnz(~isnan(pressLatency(c.isPressResponsive & c.hasPress)))), Location='northwest')
 ylabel('Probability')
 
 ax(2) = subplot(4, 1, 2);
-histogram(latency.press(c.isPressUp)*1000, (-2:0.1:0)*1000, Normalization='probability', FaceColor='red')
+histogram(latency.press(c.isPressUp), (-2:0.1:0), Normalization='probability', FaceColor='red')
 title('SNr response onset (excited)')
 legend(sprintf('%d units', nnz(~isnan(pressLatency(c.isPressUp & c.hasPress)))), Location='northwest')
 ylabel('Probability')
 
 ax(3) = subplot(4, 1, 3);
-histogram(latency.press(c.isPressDown)*1000, (-2:0.1:0)*1000, Normalization='probability', FaceColor='blue')
+histogram(latency.press(c.isPressDown), (-2:0.1:0), Normalization='probability', FaceColor='blue')
 title('SNr response onset (suppressed)')
 legend(sprintf('%d units', nnz(~isnan(pressLatency(c.isPressDown & c.hasPress)))), Location='northwest')
 ylabel('Probability')
 
 ax(4) = subplot(4, 1, 4);
-histogram(latency.contraPaw*1000, (-2:0.1:0)*1000, Normalization='probability', FaceColor='black')
+histogram(latency.contraPaw, (-2:0.1:0), Normalization='probability', FaceColor='black')
 legend(sprintf('%g trials, %g sessions', nnz(~isnan(tst)), 7), Location='northwest')
 title('Forepaw movement onset')
-xlabel('Time to touchbar-contact (ms)')
+xlabel('Time to touch (s)')
 ylabel('Probability')
 yticks(ax, [])
 ylabel(ax, [])
-fontsize(ax, p.fontSize, 'points')
-fontname(ax, 'Arial')
+fontsize(fig, p.fontSize, 'points')
+fontname(fig, 'Arial')
 
 %% 4c. GLM: w/ vs. w/o ramp predictor
 fit_GLM
@@ -126,39 +128,41 @@ for ip = 1:np
     ylabel('\DeltaR^2')
     ylim(ax, [0, max(y)+0.01])
     xlim(ax, [0,nVariants])
-    fontsize(ax, p.fontSize, 'points');
-    fontname(ax, 'Arial')
 end
+fontsize(fig, p.fontSize, 'points');
+fontname(fig, 'Arial')
 %% Plot fitted vs. observed for 2 example units and population average
 SEL = { ...
     84, ...
     39, ...
-    cAcute.isPressDown, ...
-    cAcute.isPressUp, ...
+%     cAcute.isPressDown, ...
+%     cAcute.isPressUp, ...
     };
 TITLE = { ...
     sprintf('Example unit (R^2=%.2f)', R2(84, end)), ...
     sprintf('Example unit (R^2=%.2f)', R2(39, end)), ...
-    sprintf('Population average (N=%d)', nnz(SEL{3})), ...
-    sprintf('Population average (N=%d)', nnz(SEL{4})), ...
+%     sprintf('Population average (N=%d)', nnz(SEL{3})), ...
+%     sprintf('Population average (N=%d)', nnz(SEL{4})), ...
     };
 LOCATION = { ...
     'southwest', ...
     'northwest', ...
-    'southwest', ...
-    'northwest', ...
+%     'southwest', ...
+%     'northwest', ...
     };
 SHOW_LEGEND = { ...
     false, ...
     true, ...
-    false, ...
-    false, ...
+%     false, ...
+%     false, ...
     };
 
 
-fig = figure(Units='inches', Position=[0, 0, 4, 2.5]);
+% fig = figure(Units='inches', Position=[0, 0, 4, 2.5]);
+fig = figure(Units='inches', Position=[0, 0, 4, 1.5]);
 for i = 1:length(SEL)
-    ax = subplot(2, 2, i);
+%     ax = subplot(2, 2, i);
+    ax = subplot(1, 2, i);
     hold(ax, 'on')
     clear h
     sel = SEL{i}';
@@ -171,9 +175,11 @@ for i = 1:length(SEL)
     if SHOW_LEGEND{i}
         legend(ax, h, Location=LOCATION{i})
     end
-    xlim(ax, [-4, 0])
-    xlabel(ax, sprintf('Time to %s (s)', 'lever-contact'))
-    ylabel(ax, 'Spike rate (sp/s)')
+    xlim(ax, [-2, 0])
+    xlabel(ax, sprintf('Time to %s (s)', 'touch'))
+    if i == 1
+        ylabel(ax, 'Spike rate (sp/s)')
+    end
     title(ax, TITLE{i});
     fontsize(ax, p.fontSize, 'points');
     fontname(ax, 'Arial')
