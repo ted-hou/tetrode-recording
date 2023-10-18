@@ -43,8 +43,10 @@ Done
 Done
 % 6b. Reach vs. Lick vs. Osci-lick PETH heatmap
 Done
-% 6c. Reach vs. Lick (scatter), Reach vs. Lick (osci subset, scatter)
+% 6c. Reach vs. Lick (scatter), Reach vs. Lick (osci subset, scatter), Pie chart
+Done
 % 6d. Salt and pepper map (lick vs. reach vs. osci lick)
+Done
 
 %% 7a. Lever-4-pos diagram
 % 7b. PETH (example units, 4 color)

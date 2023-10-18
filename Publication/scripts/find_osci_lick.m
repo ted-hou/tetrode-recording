@@ -70,6 +70,8 @@ title('Single-Sided Amplitude Spectrum of X(t)')
 xlabel('f (Hz)')
 ylabel('|P1(f)|')
 
+t = eta.anyLickNorm.t;
+meta.anyLickNorm = transpose(mean(eta.anyLickNorm.X(:, t >= -0.05 & t < 0), 2, 'omitnan'));
 
 %
 % signWindow = [-0.13, -0.01];
@@ -104,6 +106,4 @@ ylabel('|P1(f)|')
 %         nnz(c.isLick & c.isLickDown), nnz(c.isLick & c.isLickDown) / nnz(c.isLick & c.isLickResponsive) * 100)
 % 
 % 
-% t = eta.anyLickNorm.t;
-% meta.anyLickNorm = transpose(mean(eta.anyLickNorm.X(:, t >= -0.05 & t < 0), 2, 'omitnan'));
 clear t x i Y Fs T L P2 P1 f P8 P6 P10 P16 P14 P18 theta relTheta isLick ax P P2 P1 signWindow sortWindow plotWindow latency
