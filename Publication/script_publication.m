@@ -48,11 +48,13 @@ Done
 % 6d. Salt and pepper map (lick vs. reach vs. osci lick)
 Done
 
-%% 7a. Lever-4-pos diagram
+%% Lever-4-pos
+% 7a. Lever-4-pos diagram
 % 7b. PETH (example units, 4 color)
 % 7c. Tuning curve heatmap for all units
 
-%% 8a. Spontaneous reach task, trial structure
+%% Spontaneous
+% 8a. Spontaneous reach task, trial structure
 % 8b. Raster example
 % 6c. PETH example
 % 6d. Heatmap PETH for all units

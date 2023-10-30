@@ -1,11 +1,5 @@
 close all
 Fs = 100;            % Sampling frequency    
-eta.anyLickSmooth = eu.getETA('rate', 'anylick', [-0.25, 0.25], resolution=1/Fs, normalize='none');
-t = eta.anyLickSmooth.t; 
-x = eta.anyLickSmooth.X';
-x = normalize(x, 1, 'zscore', 'robust');
-eta.anyLickSmoothNorm = eta.anyLickSmooth;
-eta.anyLickSmoothNorm.X = x';
 
 
 eta.anyLickRightRaw = eu.getETA('count', 'anylick', [-0, 0.5], resolution=1/Fs, normalize='none');
@@ -15,27 +9,7 @@ x = normalize(x, 1, 'zscore', 'robust');
 eta.anyLickRightNorm = eta.anyLickRightRaw;
 eta.anyLickRightNorm.X = x';
 
-eta.firstLickRightRaw = eu.getETA('count', 'lick', [-0, 0.5], resolution=1/Fs, normalize='none');
-t = eta.firstLickRightRaw.t; 
-x = eta.firstLickRightRaw.X'*100;
-x = normalize(x, 1, 'zscore', 'robust');
-eta.firstLickRightRawNorm = eta.firstLickRightRaw;
-eta.firstLickRightRawNorm.X = x';
-
-eta.anyLickRaw = eu.getETA('count', 'anylick', [-0.25, 0.25], resolution=1/Fs, normalize='none');
-t = eta.anyLickRaw.t; 
-x = eta.anyLickRaw.X'*100;
-x = normalize(x, 1, 'zscore', 'robust');
-eta.anyLickNorm = eta.anyLickRaw;
-eta.anyLickNorm.X = x';
-
-
 %%
-Fs = 100;            % Sampling frequency    
-
-t = eta.anyLickRaw.t; 
-x = eta.anyLickRaw.X'*100;
-x = normalize(x, 1, 'zscore', 'robust');
 ax = axes();
 hold(ax, 'on')
 clear P8 P6 P10 P16 P14 P18
