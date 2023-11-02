@@ -34,8 +34,9 @@ for iTr = 1:length(files)
         S = load(files{iTr});
         tr = S.tr;
         ar = AcuteRecording(tr, 'N/A');
+        [~, ~, ~, tRef, tMove] = ar.binMoveResponse(tr, 'press_spontaneous', Store=true);
         eu = EphysUnit(ar, savepath='C:\SERVER\Units\acute_spontaneous_reach', ...
-            cullITI=false, readWaveforms=false);
+            cullITI=false, readWaveforms=false, isSpontaneousPress=true, tr=tr, extendedWindow=[0, 0]);
     catch ME
         warning('Error while processing file %g (%s)', iTr, files{iTr});
     end
@@ -47,7 +48,7 @@ clear S tr ar eu iTr
 %% 1.1. Load acute EU objects (duplicates already removed)
 eu = EphysUnit.load('C:\SERVER\Units\acute_spontaneous_reach'); 
 
-%% Remove multiunit detected by ISI test.
+% Remove multiunit detected by ISI test.
 p.ISIThreshold = 0.0015;
 for iEu = 1:length(eu)
     st = eu(iEu).SpikeTimes;
@@ -69,7 +70,7 @@ clearvars -except p eu
 
 eu = eu';
 
-%%
+%
 % 1.2. Load Video Tracking Data (vtd) and ArduinoConnection (ac), and group into experiments
 clearvars -except eu
 exp = CompleteExperiment2(eu);
@@ -242,3 +243,25 @@ eta.t = ETA{1}.t;
 eta.N = repmat(size(eta.X, 1), size(eta.X, 1), 1);
 
 EphysUnit.plotETA(eta, xlim=[-4,0], clim=[-1.5, 1.5], sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25);
+
+%% Calculate InterPressIntervals
+close all
+
+ipi = cell(length(exp), 1);
+for iExp = 1:length(exp)
+    ipi{iExp} = diff([exp(iExp).eu(1).Trials.Press.Stop]);
+end
+
+ipiAggr = cat(2, ipi{:});
+
+edges = 0:2:50;
+
+fig = figure(Units='normalized', OuterPosition=[0, 0, 1, 0.67]);
+for iExp = 1:length(exp)
+    ax = subplot(2, 4, iExp);
+    histogram(ax, ipi{iExp}, edges, Normalization='pdf')
+end
+
+fig = figure(Units='normalized', OuterPosition=[0, 0.67, 1, 0.33]);
+ax = axes(fig);
+histogram(ax, ipiAggr, edges, Normalization='pdf')

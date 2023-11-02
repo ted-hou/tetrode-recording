@@ -39,6 +39,7 @@ classdef EphysUnit < handle
             p.addParameter('savepath', '', @ischar)
             p.addParameter('whitelist', {}, @iscell) % If a list of unit names are provided, only these are created as EU objs.
             p.addParameter('tr', [], @(x) isa(x, 'TetrodeRecording'))
+            p.addParameter('isSpontaneousPress', false, @islogical)
             p.parse(varargin{:});
             extendedWindow = p.Results.extendedWindow;
             
@@ -220,8 +221,14 @@ classdef EphysUnit < handle
                             obj(i).WaveformTimestamps = s.WaveformTimestamps;
                         end
                         % Spontaneous
-                        if isfield(tr.DigitalEvents, 'TRIAL_START')
+%                         if isfield(tr.DigitalEvents, 'TRIAL_START')
+%                             obj(i).EventTimes.Cue = tr.DigitalEvents.TRIAL_START;
+%                         else
+%                             obj(i).EventTimes.Cue = tr.DigitalEvents.CueOn;
+%                         end
+                        if p.Results.isSpontaneousPress
                             obj(i).EventTimes.Cue = tr.DigitalEvents.TRIAL_START;
+                            obj(i).EventTimes.PressOff = tr.DigitalEvents.PressOff;
                         else
                             obj(i).EventTimes.Cue = tr.DigitalEvents.CueOn;
                         end
@@ -265,7 +272,12 @@ classdef EphysUnit < handle
                         end
                         
                         % Make trials
-                        obj(i).Trials.Press = obj(i).makeTrials('press');
+                        if p.Results.isSpontaneousPress
+                            obj(i).Trials.Press = obj(i).makeTrials('press_spontaneous');
+                            obj(i).Trials.PressCorrect = obj(i).makeTrials('press_spontaneous_correct');
+                        else
+                            obj(i).Trials.Press = obj(i).makeTrials('press');
+                        end
                         obj(i).Trials.Lick = obj(i).makeTrials('lick');
                         obj(i).Trials.Stim = obj(i).makeTrials('stim');
                         obj(i).Trials.StimTrain = obj(i).makeTrials('stimtrain');
@@ -1345,6 +1357,10 @@ classdef EphysUnit < handle
                 switch lower(trialType)
                     case 'press'
                         trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Press, 'first', obj.EventTimes.Lick);
+                    case 'press_spontaneous'
+                        trials = Trial(obj.EventTimes.PressOff, obj.EventTimes.Press, 'first');
+                    case 'press_spontaneous_correct'
+                        trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Press, 'first');                        
                     case 'lick'
                         trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Lick, 'first', obj.EventTimes.Press);
                     case 'stim'
