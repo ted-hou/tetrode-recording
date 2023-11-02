@@ -197,36 +197,37 @@ for iExp = 1:length(exp)
     ax = axes(figure(Units='pixels', Position=[0 0 1024 768]));
     hold(ax, 'on')
     h = gobjects(4, 3);
-    for iPos = 1:4
-        h(iPos, 1) = plot(ax, trajectories(iExp).handIpsi.X(iPos, :), trajectories(iExp).handIpsi.Y(iPos, :), ...
-            DisplayName=sprintf('handIpsi %i (n=%i)', iPos, trajectories(iExp).handIpsi.n(iPos)), ...
-            Color=getColor(iPos, 4, 0.7), LineStyle='-');
-        plot(ax, trajectories(iExp).handIpsi.X(iPos, 1), trajectories(iExp).handIpsi.Y(iPos, 1), Color=getColor(iPos, 4, 0.7), Marker='o', MarkerSize=10)
-        plot(ax, trajectories(iExp).handIpsi.X(iPos, end), trajectories(iExp).handIpsi.Y(iPos, end), Color=getColor(iPos, 4, 0.7), Marker='.', MarkerSize=25)
-    end
+    % for iPos = 1:4
+    %     h(iPos, 1) = plot(ax, trajectories(iExp).handIpsi.X(iPos, :), trajectories(iExp).handIpsi.Y(iPos, :), ...
+    %         DisplayName=sprintf('handIpsi %i (n=%i)', iPos, trajectories(iExp).handIpsi.n(iPos)), ...
+    %         Color=getColor(iPos, 4, 0.7), LineStyle='-');
+    %     plot(ax, trajectories(iExp).handIpsi.X(iPos, 1), trajectories(iExp).handIpsi.Y(iPos, 1), Color=getColor(iPos, 4, 0.7), Marker='o', MarkerSize=10)
+    %     plot(ax, trajectories(iExp).handIpsi.X(iPos, end), trajectories(iExp).handIpsi.Y(iPos, end), Color=getColor(iPos, 4, 0.7), Marker='.', MarkerSize=25)
+    % end
     for iPos = 1:4
         h(iPos, 2) = plot(ax, trajectories(iExp).handContra.X(iPos, :), trajectories(iExp).handContra.Y(iPos, :), ...
             DisplayName=sprintf('handContra %i (n=%i)', iPos, trajectories(iExp).handIpsi.n(iPos)), ...
-            Color=getColor(iPos, 4, 0.7), LineStyle='--');
-            plot(ax, trajectories(iExp).handContra.X(iPos, 1), trajectories(iExp).handContra.Y(iPos, 1), Color=getColor(iPos, 4, 0.7), Marker='o', MarkerSize=10)
-            plot(ax, trajectories(iExp).handContra.X(iPos, end), trajectories(iExp).handContra.Y(iPos, end), Color=getColor(iPos, 4, 0.7), Marker='.', MarkerSize=25)
+            Color=getColor(iPos, 4, 0.7), LineStyle='-');
+            plot(ax, trajectories(iExp).handContra.X(iPos, 1), trajectories(iExp).handContra.Y(iPos, 1), Color=getColor(iPos, 4, 0.8), Marker='o', MarkerSize=10)
+            plot(ax, trajectories(iExp).handContra.X(iPos, end), trajectories(iExp).handContra.Y(iPos, end), Color=getColor(iPos, 4, 0.8), Marker='.', MarkerSize=25)
     end
     for iPos = 1:4
         h(iPos, 3) = plot(ax, trajectories(iExp).jaw.X(iPos, :), trajectories(iExp).jaw.Y(iPos, :), ...
             DisplayName=sprintf('jaw %i (n=%i)', iPos, trajectories(iExp).jaw.n(iPos)), ...
-            Color=getColor(iPos, 4, 0.7), LineStyle=':');
+            Color=getColor(iPos, 4, 0.8), LineStyle=':');
     end
     axis(ax, 'image');
     ax.YDir = 'reverse';
 %     xlim(ax, [0, 640])
 %     ylim(ax, [0, 480])
     hold(ax, 'off')
+    h = h(:, 2:3);
     legend(ax, h(:), Interpreter='none', Location='northwest')
     xlabel('X')
     ylabel('Y')
     title(sprintf('%s', exp(iExp).name), Interpreter='none')
 
-    print(ax.Parent, sprintf('C:\\SERVER\\Figures\\lever_4pos\\trajectories\\2d_%s', exp(iExp).name), '-dpng')
+    % print(ax.Parent, sprintf('C:\\SERVER\\Figures\\lever_4pos\\trajectories\\2d_%s', exp(iExp).name), '-dpng')
 %     close(ax.Parent)
 end
         
