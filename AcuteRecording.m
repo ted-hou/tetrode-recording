@@ -335,7 +335,7 @@ classdef AcuteRecording < handle
                     tMove = tr.DigitalEvents.LickOn;
                     tExclude = sort([tr.DigitalEvents.PressOn, tr.DigitalEvents.RewardOn]);
                 case 'press_spontaneous'
-                    tRef = tr.DigitalEvents.TRIAL_START;
+                    tRef = tr.DigitalEvents.PressOff;
                     tMove = tr.DigitalEvents.PressOn;
                     tExclude = sort([tr.DigitalEvents.LickOn, tr.DigitalEvents.RewardOn]);
                 otherwise
@@ -403,7 +403,7 @@ classdef AcuteRecording < handle
                 end
             end
 
-            varargout = {bmr, m, s};
+            varargout = {bmr, m, s, tRef, tMove};
         end
 
         function stats = summarizeMoveResponse(obj, bmrOrType, varargin)
