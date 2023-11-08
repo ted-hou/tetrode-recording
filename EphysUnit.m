@@ -1094,6 +1094,7 @@ classdef EphysUnit < handle
             p.addParameter('nsigmas', 1, @isnumeric)
             p.addParameter('sem', false, @islogical)
             p.addParameter('showTrialNum', false, @islogical)
+            p.addParameter('numFormat', '%.1f', @ischar)
             p.parse(varargin{:})
             if isfield(p.Results, 'ax')
                 ax = p.Results.ax;
@@ -1118,15 +1119,15 @@ classdef EphysUnit < handle
                 bin = B(iBin, :);
                 t = T;% + bin(2);
                 if p.Results.showTrialNum
-                    h(iBin) = plot(ax, t, X(iBin, :), 'Color', hsl2rgb([0.7*(iBin-1)/(length(B)-1), 1, 0.4]), 'LineWidth', 2, 'DisplayName', sprintf('[%.1fs, %.1fs], %i trials', bin(1), bin(2), N(iBin)));
+                    h(iBin) = plot(ax, t, X(iBin, :), 'Color', hsl2rgb([0.7*(iBin-1)/(length(B)-1), 1, 0.4]), 'LineWidth', 1.5, 'DisplayName', sprintf(sprintf('%s-%ss, n=%i trials', p.Results.numFormat, p.Results.numFormat), bin(1), bin(2), N(iBin)));
                 else
-                    h(iBin) = plot(ax, t, X(iBin, :), 'Color', hsl2rgb([0.7*(iBin-1)/(length(B)-1), 1, 0.4]), 'LineWidth', 2, 'DisplayName', sprintf('[%.1fs, %.1fs]', bin(1), bin(2)));                    
+                    h(iBin) = plot(ax, t, X(iBin, :), 'Color', hsl2rgb([0.7*(iBin-1)/(length(B)-1), 1, 0.4]), 'LineWidth', 1.5, 'DisplayName', sprintf(sprintf('%s-%ss', p.Results.numFormat, p.Results.numFormat), bin(1), bin(2)));
                 end
                 if p.Results.nsigmas > 0
                     high = X(iBin, :) + p.Results.nsigmas*S(iBin, :); 
                     low = X(iBin, :) - p.Results.nsigmas*S(iBin, :);
                     selS = ~isnan(high);
-                    patch(ax, [t(selS), flip(t(selS))], [low(selS), flip(high(selS))], colors(iBin), 'FaceAlpha', 0.1, 'EdgeColor', 'none')
+                    patch(ax, [t(selS), flip(t(selS))], [low(selS), flip(high(selS))], hsl2rgb([0.7*(iBin-1)/(length(B)-1), 1, 0.4]), 'FaceAlpha', 0.1, 'EdgeColor', 'none')
                 end
                 %yl = ax.YLim;
                 % plot(ax, [bin(2), bin(2)], yl, '--', 'Color', h(iBin).Color)
