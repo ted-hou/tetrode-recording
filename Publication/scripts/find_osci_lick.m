@@ -126,4 +126,29 @@ meta.anyLickNorm = transpose(mean(eta.anyLickNorm.X(:, t >= -0.05 & t < 0), 2, '
 %         nnz(c.isLick & c.isLickDown), nnz(c.isLick & c.isLickDown) / nnz(c.isLick & c.isLickResponsive) * 100)
 % 
 % 
+
+%% Calculate peri-lick lick frequency histograms
+osciEuIndices = find(c.isLick);
+[~, I] = unique({eu(c.isLick).ExpName});
+expEuIndices = osciEuIndices(I);
+
+lickHistEdges = 0:0.001:0.5;
+lickHistCenters = 0.5*(lickHistEdges(2:end) + lickHistEdges(1:end-1));
+
+lickHistCounts = zeros(size(lickHistCenters));
+lickHistNLicks = 0;
+for iExp = 1:length(expEuIndices)
+    iEu = expEuIndices(iExp);
+    osciLickTimes = eu(iEu).EventTimes.Lick;
+    for iLick = 1:length(osciLickTimes)
+        edgesGlobal = osciLickTimes(iLick) + lickHistEdges;
+        n = histcounts(osciLickTimes, edgesGlobal);
+        lickHistCounts = lickHistCounts + n;
+        lickHistNLicks = lickHistNLicks + 1;
+    end
+end
+lickHistCountsNorm = lickHistCounts ./ lickHistNLicks;
+
+clear iEu iLick n I edgesGlobal osciLickTimes osciEuIndices
+
 clear t x i Y Fs T L P2 P1 f P8 P6 P10 P16 P14 P18 theta relTheta isLick ax P P2 P1 signWindow sortWindow plotWindow latency
