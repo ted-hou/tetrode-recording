@@ -7,5 +7,13 @@ function c = getColor(i, n, maxHue)
         end
         maxHue = 0.8;
     end
-    c = hsl2rgb([maxHue*(i-1)./(n-1), 1, 0.4]);
+    if length(i) > 1
+        c = zeros(length(i), 3);
+        for j = 1:length(i)
+            c(j, :) = getColor(i(j), n, maxHue);
+        end
+        return
+    else
+        c = hsl2rgb([maxHue*(i-1)./(n-1), 1, 0.4]);
+    end
 end

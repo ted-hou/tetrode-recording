@@ -27,9 +27,7 @@ for id = 1:ndayshown
 end
 hold(ax, 'off')
 
-
-% legend(ax, Location='northeast', NumColumns=2)
-
+% Legends (we're gonna be in this city)
 assert(ndayshown==18)
 ticks = [1, 18];
 cmap = arrayfun(@(id) hsl2rgb([0.7*(id-1)/(ndayshown-1), 1, 0.4]), 1:ndayshown, 'UniformOutput', false);
@@ -49,15 +47,10 @@ h.Label.Position = [1.103333312471708,0.505319625773328,0];
 
 % title(ax, sprintf('Reach task performance (%g animals)', nAnimalsPress), FontSize=p.fontSize)
 fontsize(fig, p.fontSize, 'points')
-fontname(fig, 'Arial')
+fontname(fig, 'Aial')
 xticks(ax, [0, 4, 10])
 yticks(ax, ax.YLim(2))
 ax.YLabel.Position = [-0.466049359260518,0.153243392254861,-1];
 print(fig, 'Fig 2c aggregate reach time histogram across training sessions.fig');
 clear ax fig id
 
-
-
-%% Fake colorbar
-colorbar
-colormap

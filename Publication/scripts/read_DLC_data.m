@@ -45,12 +45,15 @@ p.velETABinWidth = 0.05;
 p.minTrialLength = 2;
 
 close all
-statName = 'spd';
+% statName = 'spd';
+statName = 'xVel';
 t = flip(p.velETAWindow(2):-p.velETABinWidth:p.velETAWindow(1));
 fCorrect = cell(1, length(expAcute));
 fIncorrect = cell(1, length(expAcute));
 fnamesL = {'handL', 'footL', 'handR', 'footR', 'spine', 'tongue', 'nose'};
 fnamesR = {'handR', 'footR', 'handL', 'footL', 'spine', 'tongue', 'nose'};
+% fnamesSmoothL = {'handL', 'footL', 'handR', 'footR', 'spine', 'nose'};
+% fnamesSmoothR = {'handR', 'footR', 'handL', 'footL', 'spine', 'nose'};
 fnames = {'handContra', 'footContra', 'handIpsi', 'footIpsi', 'spine', 'tongue', 'nose'};
 fnamesDisp = {'contra hand', 'contra foot', 'ipsi hand', 'ipsi foot', 'spine', 'tongue', 'nose'};
 [kernels, ~, ~] = CompleteExperiment.makeConsineKernels(0, width=0.1); % Kernels for smoothing velocity traces
@@ -59,8 +62,10 @@ for iExp = 1:length(expAcute)
     switch leverSide(iExp)
         case 'L'
             theseNames = fnamesL;
+%             theseNamesSmooth = fnamesSmoothL;
         case 'R'
             theseNames = fnamesR;
+%             theseNamesSmooth = fnamesSmoothR;
     end
 
     fCorrect{iExp} = struct('press', [], 'lick', []);
@@ -85,10 +90,10 @@ for iExp = 1:length(expAcute)
 
             tGlobal = flip(trials(iTrial).Stop + p.velETAWindow(2):-p.velETABinWidth:trials(iTrial).Stop + p.velETAWindow(1));
             F = expAcute(iExp).getFeatures(timestamps=tGlobal, features=theseNames, stats={statName}, useGlobalNormalization=true);
-            F = CompleteExperiment.convolveFeatures(F, kernels, kernelNames={'_smooth'}, ...
-                features=theseNames, ...
-                stats={statName}, ...
-                mode='replace', normalize='none');
+%             F = CompleteExperiment.convolveFeatures(F, kernels, kernelNames={'_smooth'}, ...
+%                 features=theseNames, ...
+%                 stats={statName}, ...
+%                 mode='replace', normalize='none');
             inTrial = F.t >= trials(iTrial).Start;
             if iTrial < length(trials)
                 inTrial = inTrial & F.t <= trials(iTrial + 1).Start;
@@ -110,7 +115,7 @@ for iExp = 1:length(expAcute)
     end
 end
 
-%% Average by trial
+% Average by trial
 clear fstats
 statStruct = struct('mean', [], 'nTrials', [], 'sd', []);
 fallIncorrect = struct('press', statStruct, 'lick', statStruct);
