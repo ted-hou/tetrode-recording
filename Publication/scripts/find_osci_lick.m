@@ -1,104 +1,74 @@
 Fs = 100;            % Sampling frequency    
-eta.anyLickSmooth = eu.getETA('rate', 'anylick', [-0.25, 0.25], resolution=1/Fs, normalize='none');
-t = eta.anyLickSmooth.t; 
-x = eta.anyLickSmooth.X';
+eta.firstLickRaw = eu.getETA('count', 'firstlick', [0, 0.5], resolution=1/Fs, normalize='none', alignTo='stop', includeInvalid=true);
+t = eta.firstLickRaw.t; 
+x = eta.firstLickRaw.X'*Fs;
 x = normalize(x, 1, 'zscore', 'robust');
-eta.anyLickSmoothNorm = eta.anyLickSmooth;
-eta.anyLickSmoothNorm.X = x';
+eta.firstLickNorm = eta.firstLickRaw;
+eta.firstLickNorm.X = x';
 
-
-eta.anyLickRightRaw = eu.getETA('count', 'anylick', [-0, 0.5], resolution=1/Fs, normalize='none');
-t = eta.anyLickRightRaw.t; 
-x = eta.anyLickRightRaw.X'*100;
+%% FFT to find cells with 8Hz modulation
+Fs = 100;
+t = eta.firstLickRaw.t;  
+x = eta.firstLickRaw.X'*Fs;
 x = normalize(x, 1, 'zscore', 'robust');
-eta.anyLickRightNorm = eta.anyLickRightRaw;
-eta.anyLickRightNorm.X = x';
+nUnits = size(x, 2);
 
-eta.firstLickRightRaw = eu.getETA('count', 'lick', [-0, 0.5], resolution=1/Fs, normalize='none');
-t = eta.firstLickRightRaw.t; 
-x = eta.firstLickRightRaw.X'*100;
-x = normalize(x, 1, 'zscore', 'robust');
-eta.firstLickRightRawNorm = eta.firstLickRightRaw;
-eta.firstLickRightRawNorm.X = x';
+Y = fft(x);
+L = length(t); % length of signal;
+freq = Fs/L*(0:L-1);
+magnitude = abs(Y/L);
+Y(magnitude<1e-6) = 0;
+phase = angle(Y);
 
-eta.anyLickRaw = eu.getETA('count', 'anylick', [-0.25, 0.25], resolution=1/Fs, normalize='none');
-t = eta.anyLickRaw.t; 
-x = eta.anyLickRaw.X'*100;
-x = normalize(x, 1, 'zscore', 'robust');
-eta.anyLickNorm = eta.anyLickRaw;
-eta.anyLickNorm.X = x';
+fig = figure(Units='inches', Position=[0, 0, 6, 2]);
+tl = tiledlayout(fig, 1, 3);
+ax = nexttile(tl);
+histogram(ax, magnitude(freq==8, :), 100)
+
+ax = nexttile(tl);
+histogram(ax, phase(freq==8, :), 50)
+xticks((-1:1)*pi)
+xticklabels(["-\pi", "0", "\pi"])
 
 
-%%
-t = eta.anyLickRaw.t; 
-x = eta.anyLickRaw.X'*100;
-x = normalize(x, 1, 'zscore', 'robust');
-ax = axes();
-hold(ax, 'on')
-clear P8 P6 P10 P16 P14 P18
-for i = 1:size(x, 2)
-    Y = fft(x(:, i));                
-    T = 1/Fs;             % Sampling period       
-    L = length(t);             % Length of signal
-    t = (0:L-1)*T;        % Time vector
-    
-    P2 = abs(Y/L);
-    P1 = P2(1:L/2+1);
-    P1(2:end-1) = 2*P1(2:end-1);
-    f = Fs*(0:(L/2))/L;
-    plot(ax, f,P1) 
-    title('Single-Sided Amplitude Spectrum of X(t)')
-    xlabel('f (Hz)')
-    ylabel('|P1(f)|')
-    P8(i) = P1(f==8);
-    P6(i) = P1(f==6);
-    P10(i) = P1(f==10);
-    P16(i) = P1(f==16);
-    P14(i) = P1(f==14);
-    P18(i) = P1(f==18);
-end
-
-theta = 0.75;
-% relTheta = 0;
-% isLick = P8 > P6 + relTheta & P8 > P10 + relTheta & P16 > P14 + relTheta & P16 > P18 + relTheta & P8 > theta;
-isLick = P8 > theta;
+theta = 0.37;%prctile(magnitude(freq==8, :), 80);
+isLick = magnitude(freq==8, :) > theta;
 c.isLick = isLick;
 nnz(isLick)
-figure()
-ax = subplot(1, 3, 1);
-plot(ax, eta.anyLickRaw.t, mean(x(:, isLick), 2))
-title(ax, sprintf('N = %g (%.1f%%)', nnz(isLick), 100*nnz(isLick)/length(eu)))
+ax = nexttile(tl);
+plot(ax, eta.firstLickRaw.t, mean(x(:, isLick), 2))
+title(ax, sprintf('theta=%g, N = %g (%.1f%%)', theta, nnz(isLick), 100*nnz(isLick)/length(eu)))
 xlabel(ax, 'Time to any lick (s)')
-ylabel(ax, 'Mean spike rate (sp.s)')
-
-ax = subplot(1, 3, 2);
-hold(ax, 'on')
-histogram(ax, P8, 50, FaceColor='none');
-ylim(ax, 'manual')
-plot(ax, [theta, theta], ax.YLim, 'r--');
-
-ax = subplot(1, 3, 3); hold(ax, 'on')               
-T = 1/Fs;             % Sampling period       
-L = length(t);             % Length of signal
-t = (0:L-1)*T;        % Time vector
-f = Fs*(0:(L/2))/L;
-
-P = zeros(26, nnz(isLick));
-for i = find(isLick)
-    Y = fft(x(:, i));
-    P2 = abs(Y/L);
-    P1 = P2(1:L/2+1);
-    P1(2:end-1) = 2*P1(2:end-1);
-    P(:, i) = P1;
-end
-plot(ax, f, P1)
-title(ax, 'Single-Sided Amplitude Spectrum of X(t)')
-xlabel(ax, 'f (Hz)')
-ylabel(ax, '|P1(f)|')
-xticks(ax, [0, 4, 8, 12])
-
-t = eta.anyLickNorm.t;
-meta.anyLickNorm = transpose(mean(eta.anyLickNorm.X(:, t >= -0.05 & t < 0), 2, 'omitnan'));
+ylabel(ax, 'Normalized spike rate (pop avg, a.u.)')
+% 
+% ax = subplot(1, 3, 2);
+% hold(ax, 'on')
+% histogram(ax, P8, 50, FaceColor='none');
+% ylim(ax, 'manual')
+% plot(ax, [theta, theta], ax.YLim, 'r--');
+% xlabel(ax, 'Power at 8 Hz')
+% ylabel(ax, '# units')
+% 
+% ax = subplot(1, 3, 3); hold(ax, 'on')               
+% L = length(t);             % Length of signal
+% f = Fs*(0:(L/2))/L;
+% 
+% P = zeros(26, nnz(isLick));
+% for i = find(isLick)
+%     Y = fft(x(:, i));
+%     P2 = abs(Y/L);
+%     P1 = P2(1:L/2+1);
+%     P1(2:end-1) = 2*P1(2:end-1);
+%     P(:, i) = P1;
+% end
+% plot(ax, f, P1)
+% title(ax, 'Single-Sided Amplitude Spectrum of X(t)')
+% xlabel(ax, 'f (Hz)')
+% ylabel(ax, '|P1(f)|')
+% xticks(ax, [0, 4, 8, 12])
+% 
+% t = eta.firstLickNorm.t;
+% meta.firstLickNorm = transpose(mean(eta.firstLickNorm.X(:, t >= -0.05 & t < 0), 2, 'omitnan'));
 
 %
 % signWindow = [-0.13, -0.01];
@@ -135,27 +105,36 @@ meta.anyLickNorm = transpose(mean(eta.anyLickNorm.X(:, t >= -0.05 & t < 0), 2, '
 % 
 
 %% Calculate peri-lick lick frequency histograms
-osciEuIndices = find(c.isLick);
-[~, I] = unique({eu(c.isLick).ExpName});
-expEuIndices = osciEuIndices(I);
-
-lickHistEdges = 0:0.001:0.5;
+[~, expEuIndices] = unique({eu.ExpName});
+FsLick = 500;
+lickHistEdges = 0:1/FsLick:0.5;
 lickHistCenters = 0.5*(lickHistEdges(2:end) + lickHistEdges(1:end-1));
 
 lickHistCounts = zeros(size(lickHistCenters));
 lickHistNLicks = 0;
 for iExp = 1:length(expEuIndices)
     iEu = expEuIndices(iExp);
-    osciLickTimes = eu(iEu).EventTimes.Lick;
-    for iLick = 1:length(osciLickTimes)
-        edgesGlobal = osciLickTimes(iLick) + lickHistEdges;
-        n = histcounts(osciLickTimes, edgesGlobal);
+    firstLickTimes = [eu(iEu).makeTrials('firstlick').Stop];
+    allLickTimes = eu(iEu).EventTimes.Lick;
+    for iLick = 1:length(firstLickTimes)
+        edgesGlobal = firstLickTimes(iLick) + lickHistEdges;
+        n = histcounts(allLickTimes, edgesGlobal);
         lickHistCounts = lickHistCounts + n;
         lickHistNLicks = lickHistNLicks + 1;
     end
 end
 lickHistCountsNorm = lickHistCounts ./ lickHistNLicks;
 
-clear iEu iLick n I edgesGlobal osciLickTimes osciEuIndices
+Y = fft(lickHistCounts);
+L = length(lickHistCounts);             % Length of signal
 
-clear t x i Y Fs T L P2 P1 f P8 P6 P10 P16 P14 P18 theta relTheta isLick ax P P2 P1 signWindow sortWindow plotWindow latency
+ax = axes(figure);
+plot(ax, FsLick/L*(0:L-1), abs(Y/L),"LineWidth",3)
+xlim(ax, [0, 32])
+title(ax, "Complex Magnitude of fft Spectrum")
+xlabel(ax, "f (Hz)")
+ylabel(ax, "|fft(X)|")
+
+% clear iEu iLick n expEuIndices edgesGlobal firstLickTimes allLickTimes
+% 
+% clear t x i Y Fs FsLick T L P2 P1 f P8 P6 P10 P16 P14 P18 theta relTheta isLick ax P P2 P1 signWindow sortWindow plotWindow latency

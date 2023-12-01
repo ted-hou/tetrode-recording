@@ -387,7 +387,7 @@ classdef EphysUnit < handle
         
         function trials = getTrials(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick'})));
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick'})));
             p.addOptional('sorted', true, @islogical);
             p.parse(trialType, varargin{:});
             trialType = p.Results.trialType;
@@ -417,6 +417,8 @@ classdef EphysUnit < handle
                             trials{itt} = obj.Trials.Light(:);
                         case 'anylick'
                             trials{itt} = Trial(obj.EventTimes.Lick-0.001, obj.EventTimes.Lick);
+                        case 'firstlick'
+                            trials{itt} = obj.makeTrials('firstlick');
                     end
                 end
                 trials = cat(1, trials{:});
@@ -524,7 +526,7 @@ classdef EphysUnit < handle
             %  stats - Nx1 struct('mean', 'sd'), mean spike rate and sd for each neuron
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
-            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick'}))
+            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick', 'firstlick'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -577,7 +579,7 @@ classdef EphysUnit < handle
                     end
                 end
                 if isempty(includeInvalid)
-                    if ismember(event, {'stimtrain', 'anylick'})
+                    if ismember(event, {'stimtrain', 'anylick', 'firstlick'})
                         includeInvalid = true;
                     else
                         includeInvalid = false;
@@ -1372,7 +1374,8 @@ classdef EphysUnit < handle
                         trials = Trial([cueToTrainOn.Stop], [cueToTrainOff.Stop]);
                     case 'light'
                         trials = Trial(obj.EventTimes.LightOn, obj.EventTimes.LightOff, 'first');
-
+                    case 'firstlick'
+                        trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Lick, 'first');
                 end
             else
                 trials = cell(length(obj), 1);
@@ -1550,7 +1553,7 @@ classdef EphysUnit < handle
                 useResampleMethod = false;
             end
             p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
-            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick'}))
+            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick', 'firstlick'}))
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
             p.addParameter('resolution', 0.001, @(x) isnumeric(x) && x > 0)
             p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) >= x(1))

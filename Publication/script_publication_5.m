@@ -68,10 +68,9 @@ ax(3) = axes(fig, Position=[0.697101447702462,0.11,0.207898552297538,0.815], Fon
 [~, ~] = EphysUnit.plotETA(ax(2), eta.lick, c.hasPress & c.hasLick, ...
     clim=[-2, 2], xlim=[-4, 0], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
     sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=true);
-% [~, ~] = EphysUnit.plotETA(ax(3), eta.anyLickNorm, c.isLick, ...
-%     clim=[-2, 2], xlim=[-0.25, 0.25], sortWindow=[-0.13, -0.01], signWindow=[-0.13, -0.01], hidecolorbar=true);
-[~, ~] = EphysUnit.plotETA(ax(3), eta.anyLickRightNorm, c.hasPress & c.hasLick & c.isLick, ...
-    clim=[-2, 2], xlim=[-0, 0.5], sortWindow=[0.01, 0.2], signWindow=[0.01, 0.1], hidecolorbar=true);
+[~, I] = sort(phase(freq==8, c.isLick));
+[~, ~] = EphysUnit.plotETA(ax(3), eta.firstLickNorm, c.isLick, order=I, ...
+    clim=[-2, 2], xlim=[0, 0.5], hidecolorbar=true);
 title(ax(1), 'Pre-reach')
 title(ax(2), 'Pre-lick')
 title(ax(3), 'Osci-lick')
@@ -207,13 +206,15 @@ end
 
 % 2. Peri-lick lick prob histogram
 %
-% bar(centers(2:end), N(2:end), EdgeColor='black', FaceColor='black')
-histogram(ax(3), BinEdges=lickHistEdges(2:end), BinCounts=lickHistCounts(2:end), Normalization='probability', EdgeColor='black', FaceColor='black', FaceAlpha=1)
+histogram(ax(3), BinEdges=lickHistEdges(2:end), BinCounts=lickHistCounts(2:end), Normalization='probability')
+yl = ax(3).YLim;
+histogram(ax(3), BinEdges=lickHistEdges(1:end), BinCounts=lickHistCounts(1:end), Normalization='probability', EdgeColor='black', FaceColor='black', FaceAlpha=1)
 xlim(ax(3), [0, 0.5]);
 xticks(ax(3), 0:1/4:0.5)
 yticks(ax(3), [])
-xlabel(ax(3), 'Time from lick (s)')
+xlabel(ax(3), 'Time from first lick (s)')
 ylabel(ax(3), 'Lick probability')
+ylim(ax(3), yl);
 
 % clear I expIndices osciEuIndices expEuIndices iExp iEu osciLickTimes iLick
 
