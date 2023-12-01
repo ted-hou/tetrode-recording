@@ -123,6 +123,43 @@ classdef CompleteExperiment3 < CompleteExperiment
             end
         end
 
+        function [x, y, l] = getTrajectory(obj, t, side, feature, varargin)
+            p = inputParser();
+            p.addRequired('t', @isnumeric)
+            p.addRequired('side', @(x) ismember(x, {'l', 'r', 'f'}))
+            p.addRequired('feature', @ischar)
+            p.addParameter('likelihoodThreshold', 0, @isnumeric)
+            p.addParameter('data', [], @istable)
+            p.parse(t, side, feature, varargin{:})
+            t = p.Results.t;
+            side = p.Results.side;
+            feature = p.Results.feature;
+            likelihoodThreshold = p.Results.likelihoodThreshold;
+
+            if isempty(p.Results.data)
+                switch side
+                    case 'l'
+                        vtd = obj.vtdL;
+                    case 'r'
+                        vtd = obj.vtdR;
+                    case 'f'
+                        vtd = obj.vtdF;
+                end
+            else
+                vtd = p.Results.data;
+            end
+
+            x = vtd.([feature, '_X']);
+            y = vtd.([feature, '_Y']);
+            l = vtd.([feature, '_Likelihood']);
+            x(l < likelihoodThreshold) = NaN;
+            y(l < likelihoodThreshold) = NaN;
+            l(l < likelihoodThreshold) = NaN;
+            x = interp1(vtd.Timestamp, x, t, 'linear');                        
+            y = interp1(vtd.Timestamp, y, t, 'linear');                        
+            l = interp1(vtd.Timestamp, l, t, 'linear');   
+        end
+
         function [X, Y, L, t] = getTrajectoryByTrial(obj, side, feature, varargin)
             p = inputParser();
             p.addRequired('side', @(x) ismember(x, {'l', 'r', 'f'}))

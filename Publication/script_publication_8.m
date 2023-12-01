@@ -14,13 +14,13 @@ p.fontSize = 9;
 
 clear layout
 layout.w = 7;
-layout.h = 6;
+layout.h = 4.5;
 layout.left.w = 4;
 layout.right.w = 3;
 layout.left.top.h = 3;
-layout.left.bottom.h = 7;
+layout.left.bottom.h = 5;
 layout.right.top.h = 3;
-layout.right.bottom.h = 7;
+layout.right.bottom.h = 5;
 
 close all
 fig = figure(Units='inches', Position=[0, 0, layout.w, layout.h]);

@@ -2,7 +2,7 @@
 %% Load EU
 euReachDir = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction');
 
-% Make CompleteExperiment3 from EU
+%% Make CompleteExperiment3 from EU
 expReachDir = CompleteExperiment3(euReachDir);
 expReachDir.alignTimestamps();
 posOrder = zeros(length(expReachDir), 4);
@@ -43,9 +43,10 @@ clear iExp i
 
 %% Gather 2d trajctories from front cam
 pReachDir.resolution = 1/30;
-pReachDir.window = [-10, 0];
+pReachDir.window = [-10, 0.5];
 pReachDir.features = {'handIpsi', 'handContra', 'jaw', 'lever'};
 pReachDir.llThreshold = 0.90;
+pReachDir.nTrajectorySamples = 100;
 
 clear trajectories X Y L XX YY LL motPos;
 motPos = cell(length(expReachDir), 1);
@@ -66,8 +67,8 @@ for iExp = 1:length(expReachDir)
             Y(iPos, :) = mean(YY, 1, 'omitnan');
             L(iPos, :) = mean(LL, 1, 'omitnan');
         end
-
         [XAll, YAll, LLAll] = expReachDir(iExp).getTrajectoryByTrial('f', pReachDir.features{iFeat}, trials=trials, window=pReachDir.window, likelihoodThreshold=pReachDir.llThreshold, includeInvalid=false);
+
 
         trajectories(iExp).(pReachDir.features{iFeat}).X = X;
         trajectories(iExp).(pReachDir.features{iFeat}).Y = Y;
@@ -80,17 +81,19 @@ for iExp = 1:length(expReachDir)
     end
 end
 
-
 % Get TrueStartTime
 pReachDir.tstThreshold = 2.5;
 tstReachDir = cell(length(expReachDir), 1);
 for iExp = 1:length(expReachDir)
     trials = expReachDir(iExp).eu(1).getTrials('press');
     trueStartTime = NaN(length(trials), 1);
+    t = trajectories(iExp).handContra.t;
     for iTrial = 1:length(trials)
         data = [ ...
             normalize(trajectories(iExp).handContra.XAll(iTrial, :), 'zscore', 'robust'); ...
             normalize(trajectories(iExp).handContra.YAll(iTrial, :), 'zscore', 'robust'); ...
+            normalize(trajectories(iExp).handIpsi.XAll(iTrial, :), 'zscore', 'robust'); ...
+            normalize(trajectories(iExp).handIpsi.YAll(iTrial, :), 'zscore', 'robust'); ...
             ];
         trueStartIndex = find(all(abs(data) < pReachDir.tstThreshold, 1), 1, 'last');
         if ~isempty(trueStartIndex)
@@ -100,10 +103,49 @@ for iExp = 1:length(expReachDir)
     tstReachDir{iExp} = trueStartTime;
 end
 
-figure()
-histogram(cat(1, tstReachDir{:}))
-xlabel('True start time (s)')
+%% Get resampled trajectories from reach onset to touch
 
+for iExp = 1:length(expReachDir)
+    trials = expReachDir(iExp).eu(1).getTrials('press');
+    % Only include trials with negative tst (no zeros or NaNs)
+    sel = tstReachDir{iExp} < 0;
+    stopTime = reshape([trials(sel).Stop], [], 1);
+    trueStartTime = stopTime + reshape(tstReachDir{iExp}(sel), [], 1);
+    trajectoryTrials = Trial(trueStartTime, stopTime);
+    motPos = expReachDir(iExp).eu(1).getMotorState([trajectoryTrials.Start]);
+    nTrials = histcounts(motPos, [0.5, 1.5, 2.5, 3.5, 4.5]);
+
+    for iFeat = 1:length(pReachDir.features)
+        XAll = zeros(length(trajectoryTrials), pReachDir.nTrajectorySamples);
+        YAll = XAll;
+        LAll = XAll;
+        TAll = XAll;
+
+        X = zeros(4, pReachDir.nTrajectorySamples);
+        Y = X;
+        L = X;
+        
+        for iTrial = 1:length(trajectoryTrials)
+            t = linspace(trajectoryTrials(iTrial).Start, trajectoryTrials(iTrial).Stop, pReachDir.nTrajectorySamples);
+            [XAll(iTrial, :), YAll(iTrial, :), LAll(iTrial, :)] = expReachDir(iExp).getTrajectory(t, 'f', pReachDir.features{iFeat}, likelihoodThreshold=pReachDir.llThreshold);
+            TAll(iTrial, :) = t;
+        end
+        trajectories(iExp).(pReachDir.features{iFeat}).Resampled.XAll = XAll;
+        trajectories(iExp).(pReachDir.features{iFeat}).Resampled.YAll = YAll;
+        trajectories(iExp).(pReachDir.features{iFeat}).Resampled.LAll = LAll;
+        trajectories(iExp).(pReachDir.features{iFeat}).Resampled.TAll = TAll;
+
+        for iPos = 1:4
+            X(iPos, :) = mean(XAll(motPos==iPos, :), 1, 'omitnan');
+            Y(iPos, :) = mean(YAll(motPos==iPos, :), 1, 'omitnan');
+            L(iPos, :) = mean(LAll(motPos==iPos, :), 1, 'omitnan');
+        end
+        trajectories(iExp).(pReachDir.features{iFeat}).Resampled.X = X;
+        trajectories(iExp).(pReachDir.features{iFeat}).Resampled.Y = Y;
+        trajectories(iExp).(pReachDir.features{iFeat}).Resampled.L = L;
+        trajectories(iExp).(pReachDir.features{iFeat}).Resampled.n = nTrials;
+    end
+end
 
 %% Calculate ETA, grouped by lever pos, correct with true start time
 euReachDir = [expReachDir.eu];

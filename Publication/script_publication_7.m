@@ -10,20 +10,76 @@ layout.h = 5;
 layout.top.h = 2;
 layout.bottom.h = 3;
 layout.top.left.w = 2;
-layout.top.middle.w = 4;
-layout.top.right.w = 4;
+layout.top.right.w = 8;
 
 close all
 fig = figure(Units='inches', Position=[0, 0, layout.w, layout.h]);
 layout.tl = tiledlayout(fig, layout.top.h + layout.bottom.h, 1);
-layout.top.tl = tiledlayout(layout.tl, 1, layout.top.left.w + layout.top.right.w + layout.top.right.w, TileSpacing='loose', Padding='loose');
+layout.top.tl = tiledlayout(layout.tl, 1, layout.top.left.w + layout.top.right.w, TileSpacing='loose', Padding='loose');
 l = layout.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.top.h, 1];
+
+layout.top.right.tl = tiledlayout(layout.top.tl, 1, 2);
+l = layout.top.right.tl; l.Layout.Tile = 1 + layout.top.left.w; l.Layout.TileSpan = [1, layout.top.right.w];
+
 
 layout.bottom.tl = tiledlayout(layout.tl, 1, 4, TileSpacing='compact');
 l = layout.bottom.tl; l.Layout.Tile = 1 + layout.top.h; l.Layout.TileSpan = [layout.bottom.h, 1];
 
 
-% 7b. Grand average PETH
+% 7b. Grand Avg trajectories from all sessions
+X = cell(4, 1);
+Y = cell(4, 1);
+N = zeros(4, 1);
+for iExp = 1:length(expReachDir)
+    x0 = mean(trajectories(iExp).jaw.XAll, 'all', 'omitnan');
+    y0 = mean(trajectories(iExp).jaw.YAll, 'all', 'omitnan');
+    for iPos = 1:4
+        rawPos = posOrder(iExp, iPos);
+        n = trajectories(iExp).handContra.Resampled.n(rawPos);
+        y = trajectories(iExp).handContra.Resampled.Y(rawPos, :) - y0;
+        switch expReachDir(iExp).animalName
+            case 'desmond29'        
+                x = trajectories(iExp).handContra.Resampled.X(rawPos, :) - x0;
+            case {'desmond28', 'desmond30'}
+                x = -trajectories(iExp).handContra.Resampled.X(rawPos, :) + x0;
+        end
+
+        X{iPos} = vertcat(X{iPos}, repmat(x, [n, 1]));
+        Y{iPos} = vertcat(Y{iPos}, repmat(y, [n, 1]));
+        N(iPos) = N(iPos) + n;
+    end
+end
+
+X = cellfun(@(x) mean(x, 1, 'omitnan'), X, UniformOutput=false);
+Y = cellfun(@(x) mean(x, 1, 'omitnan'), Y, UniformOutput=false);
+
+ax = nexttile(layout.top.right.tl);
+hold(ax, 'on')
+h = gobjects(4,1);
+for iPos = 1:4
+    plot(ax, X{iPos}, Y{iPos}, Color=getColor(iPos, 4, 0.8), LineStyle='-');
+    h(iPos) = plot(ax, X{iPos}(end), Y{iPos}(end), Color=getColor(iPos, 4, 0.8), Marker='.', MarkerSize=25, ...
+        DisplayName=sprintf('%s', posNames{iPos}));
+end
+% h(5) = plot(ax, 0, 0, Color='black', LineStyle='none', Marker='o', MarkerSize=5, DisplayName='jaw');
+
+axis(ax, 'image');
+ax.YDir = 'reverse';
+hold(ax, 'off')
+h = h(:);
+l = legend(ax, h(:), Interpreter='none', Orientation='horizontal');
+l.Layout.Tile = 'south';
+xticks(ax, ax.XLim)
+xticklabels(ax, {'out', 'in'})
+yticks(ax, ax.YLim)
+yticklabels(ax, {'up', 'down'})
+xlim(ax, ax.XLim + [-10, 10])
+ylim(ax, ax.YLim + [-10, 10])
+% title(sprintf('%s', exp(iExp).name), Interpreter='none')
+fontsize(ax, p.fontSize, 'points')
+fontname(ax, 'Arial')
+      
+% 7c. Grand average PETH
 nTrials = zeros(4, 1);
 for iExp = 1:length(expReachDir)
     trials = expReachDir(iExp).eu(1).getTrials('press');
@@ -34,19 +90,19 @@ for iExp = 1:length(expReachDir)
         nTrials(iPos) = nTrials(iPos) + nnz(motPos == rawPos);
     end
 end
-ax = nexttile(layout.top.tl, 1 + layout.top.left.w + layout.top.middle.w, [1, layout.top.right.w]);
+ax = nexttile(layout.top.right.tl);
 hold(ax, 'on')
 for iPos = 1:4
     % plot(ax, etaMerged(iPos).t, mean(etaMerged(iPos).X, 1), Color=getColor(iPos, 4, 0.8), DisplayName=sprintf('%s (%i trials)', posNames{iPos}, nTrials(iPos)));
     plot(ax, etaReachDirMerged(iPos).t, mean(etaReachDirMerged(iPos).X, 1), Color=getColor(iPos, 4, 0.8), DisplayName=sprintf('%s', posNames{iPos}));
 end
 hold(ax, 'off')
-legend(ax, Location='northwest')
+% legend(ax, Location='northwest')
 ylabel(ax, 'Normalized spike rate (a.u.)')
 xlabel(ax, 'Time to reach onset (s)')
 % ylim(ax, [0, 150])
 xlim(ax, [-4, 0])
-title(ax, sprintf('Grand average (%i units)', length(euReachDir)))
+% title(ax, sprintf('Grand average (%i units)', length(euReachDir)))
 fontsize(ax, p.fontSize, 'points')
 fontname(ax, 'Arial')
 
@@ -86,43 +142,45 @@ copygraphics(fig, ContentType='vector')
 
 clear fig ax iPos order
 
-%% 7b. Example trajectories from one session
+%% Supplement. Example trajectories from individual sessions
 
 close all
 
-for iExp = 1
-    ax = axes(figure(Units='inches', Position=[2, 2, 2, p.firstRowHeight]));
+fig = figure(Units='inches', Position=[2, 2, 10, p.firstRowHeight]);
+
+for iExp = 1:length(expReachDir)
+    ax = subplot(1, length(expReachDir), iExp);
     hold(ax, 'on')
-    h = gobjects(4, 1);
+    h = gobjects(5, 1);
+
+    x0 = mean(trajectories(iExp).jaw.XAll, 'all', 'omitnan');
+    y0 = mean(trajectories(iExp).jaw.YAll, 'all', 'omitnan');
+
     for iPos = 1:4
         rawPos = posOrder(iExp, iPos);
         switch expReachDir(iExp).animalName
-            case 'desmond29'        
-                h(iPos) = plot(ax, trajectories(iExp).handContra.X(rawPos, :), trajectories(iExp).handContra.Y(rawPos, :), ...
-                    DisplayName=posNames{iPos}, ...
-                    Color=getColor(iPos, 4, 0.8), LineStyle='-');
-                    plot(ax, trajectories(iExp).handContra.X(rawPos, end), trajectories(iExp).handContra.Y(rawPos, end), Color=getColor(iPos, 4, 0.8), Marker='.', MarkerSize=25)
+            case 'desmond29'
+                x = trajectories(iExp).handContra.Resampled.X(rawPos, :) - x0;
             case {'desmond28', 'desmond30'}
-                h(iPos) = plot(ax, -trajectories(iExp).handContra.X(rawPos, :), trajectories(iExp).handContra.Y(rawPos, :), ...
-                    DisplayName=posNames{iPos}, ...
-                    Color=getColor(iPos, 4, 0.8), LineStyle='-');
-                    plot(ax, -trajectories(iExp).handContra.X(rawPos, end), trajectories(iExp).handContra.Y(rawPos, end), Color=getColor(iPos, 4, 0.8), Marker='.', MarkerSize=25)
+                x = -trajectories(iExp).handContra.Resampled.X(rawPos, :) + x0;
         end
+        y = trajectories(iExp).handContra.Resampled.Y(rawPos, :) - y0;
+        n = trajectories(iExp).handContra.Resampled.n(rawPos);
+        plot(ax, x, y, ...
+            Color=getColor(iPos, 4, 0.8), LineStyle='-');
+        h(iPos) = plot(ax, x(end), y(end), Color=getColor(iPos, 4, 0.8), Marker='.', MarkerSize=25, ...
+            DisplayName=sprintf('%s (n=%i)', posNames{iPos}, n));
     end
-    % for iPos = 1:4
-    %     h(5) = plot(ax, mean(trajectories(iExp).jaw.X, 'all'), mean(trajectories(iExp).jaw.Y, 'all'), ...
-    %         DisplayName='jaw', ...
-    %         Color='k', Marker='o', MarkerSize=10, LineStyle='none');
-    % end
-    % axis(ax, 'image');
+
+    h(5) = plot(ax, 0, 0, Marker='o', LineStyle='none', MarkerSize=5, Color='black', DisplayName='jaw');
+
+    axis(ax, 'image');
     ax.YDir = 'reverse';
-%     xlim(ax, [0, 640])
-%     ylim(ax, [0, 480])
     hold(ax, 'off')
     h = h(:);
-    legend(ax, h(:), Interpreter='none', NumColumns=2, Position=[0.005156439690736,0.839620487870244,0.989583319673936,0.138020829918484])
-    % xlabel(ax, 'X')
-    % ylabel(ax, 'Y')
+    legend(ax, h(:), Interpreter='none', Location='northoutside')
+    ax.XLim(2) = 0;
+    ax.YLim(1) = 0;    
     xticks(ax, ax.XLim)
     xticklabels(ax, {'out', 'in'})
     yticks(ax, ax.YLim)
@@ -132,8 +190,17 @@ for iExp = 1
     % title(sprintf('%s', exp(iExp).name), Interpreter='none')
     fontsize(ax, p.fontSize, 'points')
     fontname(ax, 'Arial')
-
 end
+
+%% Supplement, True start time of either paw
+
+ax = axes(figure(Units='inches', Position=[0, 0, 3, 2]));
+histogram(cat(1, tstReachDir{:}), Normalization='probability')
+xlabel('True start time (s)')
+ylabel('Probability')
+fontname(ax, 'Arial')
+fontsize(ax, p.fontSize, 'points')
+
 
 %% Plot difference matrix (upper diagonal)
 % fig = figure();

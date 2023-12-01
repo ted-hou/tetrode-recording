@@ -1,4 +1,3 @@
-close all
 Fs = 100;            % Sampling frequency    
 eta.anyLickSmooth = eu.getETA('rate', 'anylick', [-0.25, 0.25], resolution=1/Fs, normalize='none');
 t = eta.anyLickSmooth.t; 
@@ -31,8 +30,6 @@ eta.anyLickNorm.X = x';
 
 
 %%
-Fs = 100;            % Sampling frequency    
-
 t = eta.anyLickRaw.t; 
 x = eta.anyLickRaw.X'*100;
 x = normalize(x, 1, 'zscore', 'robust');
@@ -61,17 +58,26 @@ for i = 1:size(x, 2)
     P18(i) = P1(f==18);
 end
 
-theta = 0.5;
-relTheta = 0;
-isLick = P8 > P6 + relTheta & P8 > P10 + relTheta & P16 > P14 + relTheta & P16 > P18 + relTheta & P8 > theta;
+theta = 0.75;
+% relTheta = 0;
+% isLick = P8 > P6 + relTheta & P8 > P10 + relTheta & P16 > P14 + relTheta & P16 > P18 + relTheta & P8 > theta;
+isLick = P8 > theta;
 c.isLick = isLick;
 nnz(isLick)
 figure()
-ax = subplot(1, 2, 1);
-plot(t, x(:, isLick))
-title(sprintf('N = %g (%.1f%%)', nnz(isLick), 100*nnz(isLick)/length(eu)))
+ax = subplot(1, 3, 1);
+plot(ax, eta.anyLickRaw.t, mean(x(:, isLick), 2))
+title(ax, sprintf('N = %g (%.1f%%)', nnz(isLick), 100*nnz(isLick)/length(eu)))
+xlabel(ax, 'Time to any lick (s)')
+ylabel(ax, 'Mean spike rate (sp.s)')
 
-ax = subplot(1, 2, 2); hold(ax, 'on')               
+ax = subplot(1, 3, 2);
+hold(ax, 'on')
+histogram(ax, P8, 50, FaceColor='none');
+ylim(ax, 'manual')
+plot(ax, [theta, theta], ax.YLim, 'r--');
+
+ax = subplot(1, 3, 3); hold(ax, 'on')               
 T = 1/Fs;             % Sampling period       
 L = length(t);             % Length of signal
 t = (0:L-1)*T;        % Time vector
@@ -85,10 +91,11 @@ for i = find(isLick)
     P1(2:end-1) = 2*P1(2:end-1);
     P(:, i) = P1;
 end
-plot(f, P1)
-title('Single-Sided Amplitude Spectrum of X(t)')
-xlabel('f (Hz)')
-ylabel('|P1(f)|')
+plot(ax, f, P1)
+title(ax, 'Single-Sided Amplitude Spectrum of X(t)')
+xlabel(ax, 'f (Hz)')
+ylabel(ax, '|P1(f)|')
+xticks(ax, [0, 4, 8, 12])
 
 t = eta.anyLickNorm.t;
 meta.anyLickNorm = transpose(mean(eta.anyLickNorm.X(:, t >= -0.05 & t < 0), 2, 'omitnan'));
