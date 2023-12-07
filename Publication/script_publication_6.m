@@ -10,7 +10,7 @@ boot_response_dir;
 close all
 MOVETYPE = {'press', 'lick', 'lickosci'};
 SEL = {c.isPressResponsive; c.isLickResponsive; c.isLick};
-STATS = {meta.press, meta.lick, meta.anyLickNorm};
+STATS = {meta.press, meta.lick, pi - abs(phase(freq==8, :))};%meta.anyLickNorm};
 TITLE = {'Pre-reach', 'Pre-lick', 'Lick-osci'};
 COLOR = {[], [], hsl2rgb([50/360, 1, 0.4])};
 ALPHA = {0.125, 0.125, 0.5};
@@ -27,7 +27,7 @@ for iMove = 1:length(MOVETYPE)
     sel = SEL{iMove};
     coords = euPos(sel, :);
     stats = STATS{iMove}(sel);
-    AcuteRecording.plotMap(ax, coords, stats, [0 5], 0, UseSignedML=false, BubbleSize=[1, 5], MarkerAlpha=ALPHA{iMove}, Color=COLOR{iMove});
+    AcuteRecording.plotMap(ax, coords, stats, [0, pi], 0, UseSignedML=false, BubbleSize=[1, 5], MarkerAlpha=ALPHA{iMove}, Color=COLOR{iMove});
     title(ax, TITLE{iMove})
     axis(ax, 'image')
     xlim(ax, [0.9, 1.7])

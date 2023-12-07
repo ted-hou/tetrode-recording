@@ -1,4 +1,4 @@
-classdef Trial < handle
+classdef Trial
     properties
         Start = []
         Stop = []
@@ -16,6 +16,7 @@ classdef Trial < handle
             p.addRequired('stop', @isnumeric); % Trial end events
             p.addOptional('stopMode', 'first', @(x) ischar(x) && ismember(lower(x), {'first', 'last'}))
             p.addOptional('exclude', [], @isnumeric); % Trial exclusion events (trial invalid if an exclusion event is detected between start and stop)
+            p.addParameter('advancedValidation', true, @islogical)
             p.parse(start, stop, varargin{:})
             start = p.Results.start;
             stop = p.Results.stop;
@@ -27,7 +28,12 @@ classdef Trial < handle
                 return
             end
             
-            [~, start, stop] = Trial.findEdges(start, stop, stopMode, exclude);
+            if p.Results.advancedValidation
+                [~, start, stop] = Trial.findEdges(start, stop, stopMode, exclude);
+            else
+                assert(length(start) == length(stop), 'When advancedValidation=false, must supply equal number of start (%i) and stop (%i) events.', length(start), length(stop))
+                assert(all(stop - start >= 0), 'When advancedValidation=false, each start event should preceed its corresponding stop event (%i execeptions detected).', nnz(stop - start < 0))
+            end
             nTrials = length(start);
             
             if nTrials == 0

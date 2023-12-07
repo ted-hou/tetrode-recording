@@ -68,14 +68,17 @@ ax(3) = axes(fig, Position=[0.697101447702462,0.11,0.207898552297538,0.815], Fon
 [~, ~] = EphysUnit.plotETA(ax(2), eta.lick, c.hasPress & c.hasLick, ...
     clim=[-2, 2], xlim=[-4, 0], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
     sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=true);
-[~, I] = sort(phase(freq==8, c.isLick));
-[~, ~] = EphysUnit.plotETA(ax(3), eta.firstLickNorm, c.isLick, order=I, ...
-    clim=[-2, 2], xlim=[0, 0.5], hidecolorbar=true);
+% [~, I] = sort(phase(freq==8, c.isLick));
+% [~, ~] = EphysUnit.plotETA(ax(3), eta.firstLickNorm, c.isLick, order=I, ...
+%     clim=[-2, 2], xlim=[0.01, 0.5], hidecolorbar=true);
+[~, I] = sort(angle(meanZ(c.hasPress & c.hasLick & magH')));
+[~, ~] = EphysUnit.plotETA(ax(3), eta.anyLickNorm, c.hasPress & c.hasLick & magH', order=I, ...
+    clim=[-2, 2], xlim=[-0.25, 0.25], hidecolorbar=true);
 title(ax(1), 'Pre-reach')
 title(ax(2), 'Pre-lick')
 title(ax(3), 'Osci-lick')
 ylabel(ax(2:3), '')
-xlabel(ax(1:3), 'Time to spout-contact (s)')
+xlabel(ax(1:3), 'Time to any spout-contact (s)')
 h = colorbar(ax(3)); 
 h.Position = [0.913242151752656,0.109479305740988,0.013611111111111,0.815754339118825];
 h.Label.String = 'z-scored spike rate (a.u.)';
@@ -113,7 +116,7 @@ close all
 sz = 5;
 SEL = { ...
     c.hasLick & c.hasPress, ...
-    c.hasLick & c.hasPress & c.isLick, ...
+    c.hasLick & c.hasPress & magH', ...
     };
 
 % XDATA = { ...
@@ -220,6 +223,7 @@ ylim(ax(3), yl);
 
 set(ax, FontSize=p.fontSize, FontName='Arial');
 hold(ax, 'off')
+
 
 %% Pie chart to count units
 % i = 3;

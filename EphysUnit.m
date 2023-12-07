@@ -387,7 +387,7 @@ classdef EphysUnit < handle
         
         function trials = getTrials(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick'})));
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick'})));
             p.addOptional('sorted', true, @islogical);
             p.parse(trialType, varargin{:});
             trialType = p.Results.trialType;
@@ -419,6 +419,9 @@ classdef EphysUnit < handle
                             trials{itt} = Trial(obj.EventTimes.Lick-0.001, obj.EventTimes.Lick);
                         case 'firstlick'
                             trials{itt} = obj.makeTrials('firstlick');
+                        case 'circlick'
+                            trials{itt} = obj.makeTrials('circlick');
+                            
                     end
                 end
                 trials = cat(1, trials{:});
@@ -526,7 +529,7 @@ classdef EphysUnit < handle
             %  stats - Nx1 struct('mean', 'sd'), mean spike rate and sd for each neuron
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
-            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick', 'firstlick'}))
+            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick', 'firstlick', 'circlick'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -536,7 +539,7 @@ classdef EphysUnit < handle
             p.addParameter('alignTo', 'default', @(x) ismember(x, {'default', 'start', 'stop'}))
             p.addParameter('includeInvalid', [], @islogical)
             p.addParameter('correction', [], @isnumeric)
-            p.addParameter('trials', [], @(x) isempty(x) || isa(x, 'Trial'))
+            p.addParameter('trials', [], @(x) isempty(x) || iscell(x) || isa(x, 'Trial'))
             p.parse(data, event, varargin{:})
             data = lower(p.Results.data);
             event = p.Results.event;
@@ -549,6 +552,7 @@ classdef EphysUnit < handle
             alignTo = p.Results.alignTo;
             includeInvalid = p.Results.includeInvalid;
             correction = p.Results.correction;
+            trials = p.Results.trials;
             
             % Use default resolutions
             if isempty(resolution)
@@ -586,7 +590,18 @@ classdef EphysUnit < handle
                     end
                 end
 
-                [x, ~, d] = obj(i).getTrialAlignedData(data, window, event, trials=p.Results.trials, alignTo=alignTo, allowedTrialDuration=[minTrialDuration, maxTrialDuration], ...
+                if iscell(trials)
+                    theseTrials = trials{i};
+                    if isempty(theseTrials)
+                        X(i, :) = NaN;
+                        N(i) = 0;
+                        continue                        
+                    end
+                else
+                    theseTrials = trials;
+                end
+
+                [x, ~, d] = obj(i).getTrialAlignedData(data, window, event, trials=theseTrials, alignTo=alignTo, allowedTrialDuration=[minTrialDuration, maxTrialDuration], ...
                     findSingleTrialDuration=findSingleTrialDuration, resolution=resolution, includeInvalid=includeInvalid, correction=correction);
                 
                 if isempty(x)
@@ -643,8 +658,9 @@ classdef EphysUnit < handle
                 eta = struct('X', X, 't', t, 'N', N, 'D', D);
             end
 
-            if ~strcmpi(findSingleTrialDuration, 'off')
-            end
+%             if ~strcmpi(findSingleTrialDuration, 'off')
+%                 error('Not implemented');
+%             end
         end
 
         function rd = getRasterData(obj, trialType, varargin)
@@ -759,7 +775,6 @@ classdef EphysUnit < handle
 
             assert(length(obj) > 1)
             
-
             % Calculate spike rates/counts for all objects in array (saves
             % time when there are thousands of pairs)
             X = zeros(length(obj), length(edges) - 1);
@@ -1376,6 +1391,29 @@ classdef EphysUnit < handle
                         trials = Trial(obj.EventTimes.LightOn, obj.EventTimes.LightOff, 'first');
                     case 'firstlick'
                         trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Lick, 'first');
+                    case 'circlick'
+%                         lickTimes = unique(obj.EventTimes.Lick);
+%                         rewardExclusionWindow = [0, 2];
+%                         rewardTimes = unique(obj.EventTimes.RewardTimes);
+%                         for iReward = 1:length(rewardTimes)
+%                             toExclude = lickTimes >= rewardTimes(iReward) + rewardExclusionWindow(1) & lickTimes <= rewardTimes(iReward) + rewardExclusionWindow(2);
+%                             lickTimes(toExclude) = [];
+%                         end
+
+%                         lickTimes = unique(obj.EventTimes.Lick);
+%                         firstLickTrials = Trial(obj.EventTimes.Cue, obj.EventTimes.Lick, 'first');
+%                         firstLickTimes = [firstLickTrials.Stop];
+%                         firstLickExclusionWindow = [-0.01, 2];
+%                         nLicksRaw = nnz(lickTimes);
+%                         for iFirstLick = 1:length(firstLickTimes)
+%                             toExclude = lickTimes >= firstLickTimes(iFirstLick) + firstLickExclusionWindow(1) & lickTimes <= firstLickTimes(iFirstLick) + firstLickExclusionWindow(2);
+%                             lickTimes(toExclude) = [];
+%                         end
+%                         nLicksTrimmed = nnz(lickTimes);
+%                         fprintf('Removed %i of %i licks, %i remaining.\n', nLicksRaw - nLicksTrimmed, nLicksRaw, nLicksTrimmed);
+
+                        lickTimes = unique(obj.EventTimes.Lick);
+                        trials = Trial(lickTimes(1:end-1), lickTimes(2:end), advancedValidation=false);
                 end
             else
                 trials = cell(length(obj), 1);
@@ -1553,7 +1591,7 @@ classdef EphysUnit < handle
                 useResampleMethod = false;
             end
             p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
-            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick', 'firstlick'}))
+            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick', 'firstlick', 'circlick'}))
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
             p.addParameter('resolution', 0.001, @(x) isnumeric(x) && x > 0)
             p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) >= x(1))
@@ -1644,12 +1682,21 @@ classdef EphysUnit < handle
                 return
             end
 
-            tAligned = window(1):resolution:window(2);
-            switch alignTo
-                case 'stop'
-                    tAlignedGlobal = tAligned + vertcat(trials.Stop);
-                case 'start'
-                    tAlignedGlobal = tAligned + vertcat(trials.Start);
+            switch lower(trialType)
+                case 'circlick'
+                    tAligned = 0:resolution:2*pi;
+                    tAlignedGlobal = zeros(length(trials), length(tAligned));
+                    for iTrial = 1:length(trials)
+                        tAlignedGlobal(iTrial, :) = linspace(trials(iTrial).Start, trials(iTrial).Stop, length(tAligned));
+                    end                    
+                otherwise
+                    tAligned = window(1):resolution:window(2);
+                    switch alignTo
+                        case 'stop'
+                            tAlignedGlobal = tAligned + vertcat(trials.Stop);
+                        case 'start'
+                            tAlignedGlobal = tAligned + vertcat(trials.Start);
+                    end
             end
 
             function sel = select(tt, iTrial)
@@ -1674,36 +1721,52 @@ classdef EphysUnit < handle
                     sel = select(tt, iTrial);
                     xAligned(iTrial, sel) = xx(sel);
                 end
+                assert(~strcmpi(trialType, 'circlick'), 'CircLick trials do not support resampling spike data.')
             % Recalculate data (count or rate) in new bins.
             else
-                tAligned = (tAligned(1:end-1) + tAligned(2:end)) / 2;
-                xAligned = NaN(length(trials), length(tAligned));
-                switch data
-                    case 'rate'
-                        kernel = obj.SpikeRateKernel;
-                        width = kernel.params.width;
-                        if strcmpi(kernel.type, 'gaussian')
-                            sigma = kernel.params.sigma;
-%                             sigma = 0.01;
-                            for iTrial = 1:length(trials)
-                                [xx, ~] = obj.getSpikeRates('gaussian', sigma, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
-                                sel = select(tAligned, iTrial);
-                                xAligned(iTrial, sel) = xx(sel);
-                            end
-                        else
-                            lambda1 = kernel.params.lambda1;
-                            lambda2 = kernel.params.lambda2;
-                            for iTrial = 1:length(trials)
-                                [xx, ~] = obj.getSpikeRates('exponential', lambda1, lambda2, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
-                                sel = select(tAligned, iTrial);
-                                xAligned(iTrial, sel) = xx(sel);
-                            end
+                switch lower(trialType)
+                    case 'circlick'
+                        tAligned = (tAligned(1:end-1) + tAligned(2:end)) / 2;
+                        xAligned = NaN(length(trials), length(tAligned));
+                        switch data
+                            case 'rate'
+                                error('Not implemented: "rate" for circlick')
+                            case 'count'
+                                for iTrial = 1:length(trials)
+                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :));
+                                    xAligned(iTrial, :) = xx;
+                                end
                         end
-                    case 'count'
-                        for iTrial = 1:length(trials)
-                            [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :));
-                            sel = select(tAligned, iTrial);
-                            xAligned(iTrial, sel) = xx(sel);
+                    otherwise
+                        tAligned = (tAligned(1:end-1) + tAligned(2:end)) / 2;
+                        xAligned = NaN(length(trials), length(tAligned));
+                        switch data
+                            case 'rate'
+                                kernel = obj.SpikeRateKernel;
+                                width = kernel.params.width;
+                                if strcmpi(kernel.type, 'gaussian')
+                                    sigma = kernel.params.sigma;
+        %                             sigma = 0.01;
+                                    for iTrial = 1:length(trials)
+                                        [xx, ~] = obj.getSpikeRates('gaussian', sigma, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
+                                        sel = select(tAligned, iTrial);
+                                        xAligned(iTrial, sel) = xx(sel);
+                                    end
+                                else
+                                    lambda1 = kernel.params.lambda1;
+                                    lambda2 = kernel.params.lambda2;
+                                    for iTrial = 1:length(trials)
+                                        [xx, ~] = obj.getSpikeRates('exponential', lambda1, lambda2, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
+                                        sel = select(tAligned, iTrial);
+                                        xAligned(iTrial, sel) = xx(sel);
+                                    end
+                                end
+                            case 'count'
+                                for iTrial = 1:length(trials)
+                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :));
+                                    sel = select(tAligned, iTrial);
+                                    xAligned(iTrial, sel) = xx(sel);
+                                end
                         end
                 end
             end
