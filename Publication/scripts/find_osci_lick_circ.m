@@ -10,7 +10,7 @@
 
 %% Find lick pairs defining the start and stop of trials
 maxLickInterval = 0.2;
-minLickInterval = 0.075;
+minLickInterval = 0.05;
 
 [~, expEuIndices, euExpIndices] = unique({eu.ExpName});
 

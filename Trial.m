@@ -24,7 +24,7 @@ classdef Trial
             exclude = p.Results.exclude;
             
             if isempty(start) || isempty(stop)
-                obj(1) = [];
+                obj = Trial.empty;
                 return
             end
             
@@ -37,7 +37,7 @@ classdef Trial
             nTrials = length(start);
             
             if nTrials == 0
-                obj(1) = [];
+                obj = Trial.empty;
                 return
             end
             
@@ -56,6 +56,14 @@ classdef Trial
             start = [obj.Start];
             stop = [obj.Stop];
             l = [start(2:end) - stop(1:end-1), Inf];
+        end
+
+        function b = isempty(obj)
+            if numel(obj) > 1
+                b = arrayfun(@(o) o.isempty(), obj);
+                return
+            end
+            b = isempty(obj.Start) || isempty(obj.Stop);
         end
 
         % Sort trials by start time

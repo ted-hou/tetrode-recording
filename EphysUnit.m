@@ -389,6 +389,8 @@ classdef EphysUnit < handle
             p = inputParser();
             p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick'})));
             p.addOptional('sorted', true, @islogical);
+            p.addParameter('minBoutCycles', 2)
+            p.addParameter('maxBoutCycles', 4)
             p.parse(trialType, varargin{:});
             trialType = p.Results.trialType;
             sorted = p.Results.sorted;
@@ -421,7 +423,8 @@ classdef EphysUnit < handle
                             trials{itt} = obj.makeTrials('firstlick');
                         case 'circlick'
                             trials{itt} = obj.makeTrials('circlick');
-                            
+                        case 'lickbout'
+                            trials{itt} = obj.makeTrials('lickbout', minBoutCycles=p.Results.minBoutCycles, maxBoutCycles=p.Results.maxBoutCycles);
                     end
                 end
                 trials = cat(1, trials{:});
@@ -1370,7 +1373,7 @@ classdef EphysUnit < handle
 
     % private methods
     methods % (Access = {})
-        function trials = makeTrials(obj, trialType)
+        function trials = makeTrials(obj, trialType, varargin)
             if length(obj) == 1
                 switch lower(trialType)
                     case 'press'
@@ -1392,28 +1395,41 @@ classdef EphysUnit < handle
                     case 'firstlick'
                         trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Lick, 'first');
                     case 'circlick'
-%                         lickTimes = unique(obj.EventTimes.Lick);
-%                         rewardExclusionWindow = [0, 2];
-%                         rewardTimes = unique(obj.EventTimes.RewardTimes);
-%                         for iReward = 1:length(rewardTimes)
-%                             toExclude = lickTimes >= rewardTimes(iReward) + rewardExclusionWindow(1) & lickTimes <= rewardTimes(iReward) + rewardExclusionWindow(2);
-%                             lickTimes(toExclude) = [];
-%                         end
-
-%                         lickTimes = unique(obj.EventTimes.Lick);
-%                         firstLickTrials = Trial(obj.EventTimes.Cue, obj.EventTimes.Lick, 'first');
-%                         firstLickTimes = [firstLickTrials.Stop];
-%                         firstLickExclusionWindow = [-0.01, 2];
-%                         nLicksRaw = nnz(lickTimes);
-%                         for iFirstLick = 1:length(firstLickTimes)
-%                             toExclude = lickTimes >= firstLickTimes(iFirstLick) + firstLickExclusionWindow(1) & lickTimes <= firstLickTimes(iFirstLick) + firstLickExclusionWindow(2);
-%                             lickTimes(toExclude) = [];
-%                         end
-%                         nLicksTrimmed = nnz(lickTimes);
-%                         fprintf('Removed %i of %i licks, %i remaining.\n', nLicksRaw - nLicksTrimmed, nLicksRaw, nLicksTrimmed);
-
                         lickTimes = unique(obj.EventTimes.Lick);
                         trials = Trial(lickTimes(1:end-1), lickTimes(2:end), advancedValidation=false);
+                    case 'lickbout'
+                        p = inputParser();
+                        p.addParameter('minBoutCycles', 2) % shorter bouts are discarded entirely.
+                        p.addParameter('maxBoutCycles', 4) % longer bouts are truncated, shorter bouts are padded with Empty Trial objects.
+                        p.addParameter('maxInterval', 0.25) % interlick intervals longer than maxInterval breaks bouts
+                        p.addParameter('minInterval', 0.05) % interlick intervals shorter than minInterval are considered artefacts with lick detection
+                        p.parse(varargin{:})
+                        minBoutCycles = p.Results.minBoutCycles;
+                        maxBoutCycles = p.Results.maxBoutCycles;
+                        maxInterval = p.Results.maxInterval;
+                        minInterval = p.Results.minInterval;
+                        
+                        circTrials = obj.makeTrials('circlick');
+                        isValidLick = circTrials.duration <= maxInterval & circTrials.duration >= minInterval;
+                        boutStarts = strfind([false, isValidLick], [false, true]);
+                        boutEnds = strfind([isValidLick, false], [true, false]);
+                        boutCycles = boutEnds - boutStarts + 1;
+                        isInvalidBout = boutCycles < minBoutCycles;
+                        boutStarts(isInvalidBout) = [];
+                        boutEnds(isInvalidBout) = [];
+                        boutCycles(isInvalidBout) = [];
+                        breakdownBoutStarts = [];
+                        breakdownBoutEnds = [];
+                        longBoutIndices = find(boutCycles > maxBoutCycles);
+                        longBoutIndices = longBoutIndices(:)';
+                        for iBout = longBoutIndices
+                            breakdownBoutStarts = [breakdownBoutStarts, boutStarts(iBout):maxBoutCycles:boutEnds(iBout)-maxBoutCycles];
+                            breakdownBoutEnds = [breakdownBoutEnds, boutStarts(iBout)+maxBoutCycles:maxBoutCycles:boutEnds(iBout)];
+                        end
+                        boutStarts(longBoutIndices) = [];
+                        boutEnds(longBoutIndices) = [];
+                        boutStarts = sort([boutStarts, breakdownBoutStarts]);
+                        boutEnds = sort([boutEnds, breakdownBoutEnds]);
                 end
             else
                 trials = cell(length(obj), 1);
