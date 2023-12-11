@@ -387,10 +387,12 @@ classdef EphysUnit < handle
         
         function trials = getTrials(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick'})));
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout'})));
             p.addOptional('sorted', true, @islogical);
             p.addParameter('minBoutCycles', 2)
             p.addParameter('maxBoutCycles', 4)
+            p.addParameter('minInterval', 0.05);
+            p.addParameter('maxInterval', 0.25);
             p.parse(trialType, varargin{:});
             trialType = p.Results.trialType;
             sorted = p.Results.sorted;
@@ -424,7 +426,9 @@ classdef EphysUnit < handle
                         case 'circlick'
                             trials{itt} = obj.makeTrials('circlick');
                         case 'lickbout'
-                            trials{itt} = obj.makeTrials('lickbout', minBoutCycles=p.Results.minBoutCycles, maxBoutCycles=p.Results.maxBoutCycles);
+                            trials{itt} = obj.makeTrials('lickbout', ...
+                                minBoutCycles=p.Results.minBoutCycles, maxBoutCycles=p.Results.maxBoutCycles, ...
+                                minInterval=p.Results.minInterval, maxInterval=p.Results.maxInterval);
                     end
                 end
                 trials = cat(1, trials{:});
@@ -532,7 +536,7 @@ classdef EphysUnit < handle
             %  stats - Nx1 struct('mean', 'sd'), mean spike rate and sd for each neuron
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
-            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick', 'firstlick', 'circlick'}))
+            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick', 'firstlick', 'circlick', 'lickbout'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -1418,18 +1422,28 @@ classdef EphysUnit < handle
                         boutStarts(isInvalidBout) = [];
                         boutEnds(isInvalidBout) = [];
                         boutCycles(isInvalidBout) = [];
+
+                        % Break down long bouts into many non-overlapping short bouts with length=maxBoutCycles
                         breakdownBoutStarts = [];
                         breakdownBoutEnds = [];
                         longBoutIndices = find(boutCycles > maxBoutCycles);
                         longBoutIndices = longBoutIndices(:)';
                         for iBout = longBoutIndices
-                            breakdownBoutStarts = [breakdownBoutStarts, boutStarts(iBout):maxBoutCycles:boutEnds(iBout)-maxBoutCycles];
-                            breakdownBoutEnds = [breakdownBoutEnds, boutStarts(iBout)+maxBoutCycles:maxBoutCycles:boutEnds(iBout)];
+                            breakdownBoutStarts = [breakdownBoutStarts, boutStarts(iBout):maxBoutCycles:boutEnds(iBout)-maxBoutCycles+1];
+                            breakdownBoutEnds = [breakdownBoutEnds, boutStarts(iBout)+maxBoutCycles-1:maxBoutCycles:boutEnds(iBout)];
                         end
                         boutStarts(longBoutIndices) = [];
                         boutEnds(longBoutIndices) = [];
                         boutStarts = sort([boutStarts, breakdownBoutStarts]);
                         boutEnds = sort([boutEnds, breakdownBoutEnds]);
+                        boutCycles = boutEnds - boutStarts + 1;
+                        assert(all(boutCycles <= maxBoutCycles & boutCycles >= minBoutCycles), 'Probably messed up while splitting longer bouts into short ones.');
+
+                        % Make trials array (2d, rows are bouts, columns are lick cycles
+                        trials = repmat(Trial(), [length(boutStarts), maxBoutCycles]);
+                        for iBout = 1:length(boutStarts)
+                            trials(iBout, 1:boutCycles(iBout)) = circTrials(boutStarts(iBout):boutEnds(iBout));
+                        end
                 end
             else
                 trials = cell(length(obj), 1);
@@ -1607,7 +1621,7 @@ classdef EphysUnit < handle
                 useResampleMethod = false;
             end
             p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
-            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick', 'firstlick', 'circlick'}))
+            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick', 'firstlick', 'circlick', 'lickbout'}))
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
             p.addParameter('resolution', 0.001, @(x) isnumeric(x) && x > 0)
             p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) >= x(1))
@@ -1670,27 +1684,31 @@ classdef EphysUnit < handle
                 iti = itiAll(index);
             end
 
-            durations = round(trials.duration()./err)*err;
-            seltrials = durations >= allowedTrialDuration(1) & durations <= allowedTrialDuration(2);
-            trials = trials(seltrials);
-            durations = durations(seltrials);
-            switch p.Results.findSingleTrialDuration
-                case 'min'
-                    requestedDuration = allowedTrialDuration(1);
-                    if ~any(durations == requestedDuration) && any(durations > requestedDuration)
-                        requestedDuration = min(durations(durations > requestedDuration));
-                    end
-                    trials = trials(durations == requestedDuration);
-                    iti = iti(durations == requestedDuration);
-                case 'max'
-                    requestedDuration = allowedTrialDuration(2);
-                    if ~any(durations == requestedDuration) && any(durations < requestedDuration)
-                        requestedDuration = max(durations(durations < requestedDuration));
-                    end
-                    trials = trials(durations == requestedDuration);
-                    iti = iti(durations == requestedDuration);
-                otherwise
-                    requestedDuration = NaN;
+            if strcmpi(p.Results.findSingleTrialDuration, 'off')
+                requestedDuration = NaN;
+            else
+                durations = round(trials.duration()./err)*err;
+                seltrials = durations >= allowedTrialDuration(1) & durations <= allowedTrialDuration(2);
+                trials = trials(seltrials);
+                durations = durations(seltrials);
+                switch p.Results.findSingleTrialDuration
+                    case 'min'
+                        requestedDuration = allowedTrialDuration(1);
+                        if ~any(durations == requestedDuration) && any(durations > requestedDuration)
+                            requestedDuration = min(durations(durations > requestedDuration));
+                        end
+                        trials = trials(durations == requestedDuration);
+                        iti = iti(durations == requestedDuration);
+                    case 'max'
+                        requestedDuration = allowedTrialDuration(2);
+                        if ~any(durations == requestedDuration) && any(durations < requestedDuration)
+                            requestedDuration = max(durations(durations < requestedDuration));
+                        end
+                        trials = trials(durations == requestedDuration);
+                        iti = iti(durations == requestedDuration);
+                    otherwise
+                        requestedDuration = NaN;
+                end
             end
             if isempty(trials)
                 xAligned = [];
@@ -1704,7 +1722,19 @@ classdef EphysUnit < handle
                     tAlignedGlobal = zeros(length(trials), length(tAligned));
                     for iTrial = 1:length(trials)
                         tAlignedGlobal(iTrial, :) = linspace(trials(iTrial).Start, trials(iTrial).Stop, length(tAligned));
-                    end                    
+                    end
+                case 'lickbout'
+                    tAligned = 0:resolution:2*pi*size(trials, 2);
+                    binsPerCycle = length(0:resolution:2*pi) - 1;
+                    tAlignedGlobal = NaN(size(trials, 1), length(tAligned));
+                    for iTrial = 1:size(trials, 1)
+                        for iCycle = 1:size(trials, 2)
+                            if trials(iTrial, iCycle).isEmpty
+                                break;
+                            end
+                            tAlignedGlobal(iTrial, 1+(iCycle-1)*binsPerCycle:1+iCycle*binsPerCycle) = linspace(trials(iTrial, iCycle).Start, trials(iTrial, iCycle).Stop, binsPerCycle + 1);
+                        end
+                    end
                 otherwise
                     tAligned = window(1):resolution:window(2);
                     switch alignTo
@@ -1741,7 +1771,7 @@ classdef EphysUnit < handle
             % Recalculate data (count or rate) in new bins.
             else
                 switch lower(trialType)
-                    case 'circlick'
+                    case {'circlick', 'lickbout'}
                         tAligned = (tAligned(1:end-1) + tAligned(2:end)) / 2;
                         xAligned = NaN(length(trials), length(tAligned));
                         switch data
@@ -1749,8 +1779,9 @@ classdef EphysUnit < handle
                                 error('Not implemented: "rate" for circlick')
                             case 'count'
                                 for iTrial = 1:length(trials)
-                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :));
-                                    xAligned(iTrial, :) = xx;
+                                    sel = ~isnan(tAlignedGlobal(iTrial, :));
+                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, sel));
+                                    xAligned(iTrial, 1:length(xx)) = xx;
                                 end
                         end
                     otherwise

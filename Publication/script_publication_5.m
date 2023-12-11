@@ -3,10 +3,10 @@
 %% Load all units
 load_ephysunits;
 boot_response_dir;
-
+find_osci_lick_circ;
 
 %% plot params
-p.fontSize = 8;
+p.fontSize = 9;
 p.width = 8;
 p.height = 10;
 p.heightFirstRow = 3;
@@ -72,13 +72,17 @@ ax(3) = axes(fig, Position=[0.697101447702462,0.11,0.207898552297538,0.815], Fon
 % [~, ~] = EphysUnit.plotETA(ax(3), eta.firstLickNorm, c.isLick, order=I, ...
 %     clim=[-2, 2], xlim=[0.01, 0.5], hidecolorbar=true);
 [~, I] = sort(angle(meanZ(c.hasPress & c.hasLick & magH')));
-[~, ~] = EphysUnit.plotETA(ax(3), eta.anyLickNorm, c.hasPress & c.hasLick & magH', order=I, ...
-    clim=[-2, 2], xlim=[-0.25, 0.25], hidecolorbar=true);
+[~, ~] = EphysUnit.plotETA(ax(3), eta.lickBoutNorm, c.hasPress & c.hasLick & magH', order=I, ...
+    clim=[-2, 2], xlim=[0, 2*pi*maxBoutCycles], hidecolorbar=true);
+xticks (ax(3), (0:2:8).*pi);
+xticklabels(ax(3), arrayfun(@(x) sprintf('%i\\pi', x), 0:2:8, UniformOutput=false));
 title(ax(1), 'Pre-reach')
 title(ax(2), 'Pre-lick')
 title(ax(3), 'Osci-lick')
 ylabel(ax(2:3), '')
-xlabel(ax(1:3), 'Time to any spout-contact (s)')
+xlabel(ax(1), 'Time to bar contact (s)')
+xlabel(ax(2), 'Time to spout contact (s)')
+xlabel(ax(3), 'Lick phase')
 h = colorbar(ax(3)); 
 h.Position = [0.913242151752656,0.109479305740988,0.013611111111111,0.815754339118825];
 h.Label.String = 'z-scored spike rate (a.u.)';

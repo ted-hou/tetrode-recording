@@ -58,9 +58,13 @@ classdef Trial
             l = [start(2:end) - stop(1:end-1), Inf];
         end
 
-        function b = isempty(obj)
+        function b = isEmpty(obj)
             if numel(obj) > 1
-                b = arrayfun(@(o) o.isempty(), obj);
+                b = arrayfun(@(o) o.isEmpty(), obj);
+                return
+            end
+            if isempty(obj)
+                b = true;
                 return
             end
             b = isempty(obj.Start) || isempty(obj.Stop);

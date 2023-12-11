@@ -107,7 +107,7 @@ for iEu = 1:length(eu)
 end
 
 
-
+%%
 
 % 2.3.1  Basic summaries
 % Baseline (median) spike rates
