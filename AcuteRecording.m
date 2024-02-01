@@ -1585,6 +1585,7 @@ classdef AcuteRecording < handle
             p.addParameter('UseSignedML', false, @islogical);
             p.addParameter('BubbleSize', [1 10], @(x) isnumeric(x) && length(x) == 2)
             p.addParameter('MarkerAlpha', 0.5, @isnumeric)
+            p.addParameter('MarkerEdgeAlpha', 0.8, @isnumeric)
             p.addParameter('Color', [], @isnumeric)
             p.addParameter('XJitter', 'density') % 'none' | 'density' | 'rand' | 'randn'
             p.addParameter('XJitterWidth', 0.1, @isnumeric)
@@ -1622,7 +1623,9 @@ classdef AcuteRecording < handle
                 ml = abs(ml);
             end
 %             h = scatter3(ax, ml, dv, ap, S, C, 'filled', 'MarkerFaceAlpha', 'flat', 'AlphaData', A, 'AlphaDataMapping', 'direct');
-            h = bubblechart3(ax, ml, dv, ap, S, C, MarkerFaceAlpha=p.Results.MarkerAlpha, MarkerEdgeAlpha=0.8, ...
+%             h = bubblechart3(ax, ml, dv, ap, S, C, MarkerFaceAlpha=p.Results.MarkerAlpha, MarkerEdgeAlpha=p.Results.MarkerEdgeAlpha, ...
+%                 XJitter=p.Results.XJitter, XJitterWidth=p.Results.XJitterWidth, LineWidth=p.Results.LineWidth);
+            h = bubblechart(ax, ml, dv, S, C, MarkerFaceAlpha=p.Results.MarkerAlpha, MarkerEdgeAlpha=p.Results.MarkerEdgeAlpha, ...
                 XJitter=p.Results.XJitter, XJitterWidth=p.Results.XJitterWidth, LineWidth=p.Results.LineWidth);
             bubblesize(ax, p.Results.BubbleSize)
             bubblelim(ax, srange)

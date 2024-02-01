@@ -1,4 +1,4 @@
-%% 
+ %% 
 read_reachDir
 
 %% Lever-4-pos
@@ -101,7 +101,7 @@ hold(ax, 'off')
 ylabel(ax, 'Normalized spike rate (a.u.)')
 xlabel(ax, 'Time to reach onset (s)')
 % ylim(ax, [0, 150])
-xlim(ax, [-4, 0])
+xlim(ax, [-4, 0.5])
 % title(ax, sprintf('Grand average (%i units)', length(euReachDir)))
 fontsize(ax, p.fontSize, 'points')
 fontname(ax, 'Arial')
@@ -109,8 +109,8 @@ fontname(ax, 'Arial')
 clear iExp trials tTouch motPos iPos rawPos ax
 
 % Plot population ETAs, 4 pos side by side
-p.etaWindow = [-4, 0];
-p.etaSortWindow = [-2, 0];
+p.etaWindow = [-4, 0.5];
+p.etaSortWindow = [-2, 0.5];
 p.etaSignWindow = [-0.5, 0];
 for iPos = 1:4
     ax = nexttile(layout.bottom.tl);

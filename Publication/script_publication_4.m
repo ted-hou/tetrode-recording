@@ -211,8 +211,30 @@ for iTrialType = 1:length(trialTypes)
         fontname(ax, 'Arial');
     end
 end
-
-
 copygraphics(fig, ContentType='vector')
 
 clear iExp ax fig trialTypeName h iVar axAll n
+
+%%
+clear cc
+cc.hasTrials = c.hasPress & c.hasLick;
+cc.isBothResponsive = cc.hasTrials & c.isPressResponsive & c.isLickResponsive;
+cc.isBothUp = cc.hasTrials & c.isPressUp & c.isLickUp;
+cc.isBothDown = cc.hasTrials & c.isPressDown & c.isLickDown;
+cc.isUpDown = cc.hasTrials & c.isPressUp & c.isLickDown;
+cc.isDownUp = cc.hasTrials & c.isPressDown & c.isLickUp;
+cc.isSame = cc.isBothUp | cc.isBothDown;
+cc.isOpposite = cc.isUpDown | cc.isDownUp;
+
+fprintf('%i units with %i+ press and reach trials, %i (%.1f%%) are significantly modulated in both (p<%.2f):\n', nnz(cc.hasTrials), p.minNumTrials, nnz(cc.isBothResponsive), 100*nnz(cc.isBothResponsive)/nnz(cc.hasTrials), p.bootAlpha)
+fprintf('\t%i (%.1f%%) are similarly modulated;\n', nnz(cc.isSame), 100*nnz(cc.isSame)/nnz(cc.isBothResponsive))
+fprintf('\t%i (%.1f%%) are oppositely modulated;\n', nnz(cc.isOpposite), 100*nnz(cc.isOpposite)/nnz(cc.isBothResponsive))
+fprintf('\t%i (%.1f%%) are excited in both;\n', nnz(cc.isBothUp), 100*nnz(cc.isBothUp)/nnz(cc.isBothResponsive))
+fprintf('\t%i (%.1f%%) are suppressed in both;\n', nnz(cc.isBothDown), 100*nnz(cc.isBothDown)/nnz(cc.isBothResponsive))
+fprintf('\t%i (%.1f%%) are excited in press and suppressed in lick;\n', nnz(cc.isUpDown), 100*nnz(cc.isUpDown)/nnz(cc.isBothResponsive))
+fprintf('\t%i (%.1f%%) are suppressed in press and excited in lick;\n', nnz(cc.isDownUp), 100*nnz(cc.isDownUp)/nnz(cc.isBothResponsive))
+
+
+fprintf('In the "modulated-for-both" population (%i units):\n', nnz(cc.isBothResponsive))
+fprintf('\tFor press: %i (%.1f%%) excited and %i (%.1f%%) suppressed;\n', nnz(cc.isBothResponsive & c.isPressUp), 100*nnz(cc.isBothResponsive & c.isPressUp)/nnz(cc.isBothResponsive), nnz(cc.isBothResponsive & c.isPressDown), 100*nnz(cc.isBothResponsive & c.isPressDown)/nnz(cc.isBothResponsive))
+fprintf('\tFor lick: %i (%.1f%%) excited and %i (%.1f%%) suppressed;\n', nnz(cc.isBothResponsive & c.isLickUp), 100*nnz(cc.isBothResponsive & c.isLickUp)/nnz(cc.isBothResponsive), nnz(cc.isBothResponsive & c.isLickDown), 100*nnz(cc.isBothResponsive & c.isLickDown)/nnz(cc.isBothResponsive))

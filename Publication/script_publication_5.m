@@ -59,26 +59,32 @@ clear thisRd ax iEu
 % close all
 clear ax
 fig = figure(Units='inches', Position=[0, 0, p.width, p.rowHeight(2)], DefaultAxesFontSize=p.fontSize);
-ax(1) = axes(fig, Position=[0.135507244803911,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
-ax(2) = axes(fig, Position=[0.416304346253187,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
-ax(3) = axes(fig, Position=[0.697101447702462,0.11,0.207898552297538,0.815], FontSize=p.fontSize);
+ax(1) = axes(fig, Position=[0.135507244803911,0.12,0.207898552297538,0.815], FontSize=p.fontSize);
+ax(2) = axes(fig, Position=[0.416304346253187,0.12,0.207898552297538,0.815], FontSize=p.fontSize);
+ax(3) = axes(fig, Position=[0.697101447702462,0.12,0.207898552297538,0.815], FontSize=p.fontSize);
 [~, ~] = EphysUnit.plotETA(ax(1), eta.press, c.hasPress & c.hasLick, ...
     clim=[-2, 2], xlim=[-4, 0], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
     sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=true);
 [~, ~] = EphysUnit.plotETA(ax(2), eta.lick, c.hasPress & c.hasLick, ...
     clim=[-2, 2], xlim=[-4, 0], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
     sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=true);
-% [~, I] = sort(phase(freq==8, c.isLick));
-% [~, ~] = EphysUnit.plotETA(ax(3), eta.firstLickNorm, c.isLick, order=I, ...
-%     clim=[-2, 2], xlim=[0.01, 0.5], hidecolorbar=true);
-[~, I] = sort(angle(meanZ(c.hasPress & c.hasLick & magH')));
-[~, ~] = EphysUnit.plotETA(ax(3), eta.lickBoutNorm, c.hasPress & c.hasLick & magH', order=I, ...
+sel = c.hasPress & c.hasLick & c.isLick; 
+meanLickInterval = mean(cat(2, durations{:}));
+meanBinWidth = meanLickInterval / length(eta.circLick.t);
+eta.circLick.Z = eta.circLick.X.*exp(eta.circLick.t*1i)./meanBinWidth;
+eta.circLick.Z(:, 1) = mean(eta.circLick.X(:, [2, 30]), 2).*exp(eta.circLick.t(1)*1i)./meanBinWidth;
+meanZ = mean(eta.circLick.Z, 2);
+eta.lickBoutNorm = eta.lickBout;
+eta.lickBoutNorm.X = normalize(eta.lickBout.X, 2, 'zscore', 'robust');
+
+[~, I] = sort(angle(meanZ(sel)));
+[~, ~] = EphysUnit.plotETA(ax(3), eta.lickBoutNorm, sel, order=I, ...
     clim=[-2, 2], xlim=[0, 2*pi*maxBoutCycles], hidecolorbar=true);
 xticks (ax(3), (0:2:8).*pi);
-xticklabels(ax(3), arrayfun(@(x) sprintf('%i\\pi', x), 0:2:8, UniformOutput=false));
+xticklabels(ax(3), [{'0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2:2:8, UniformOutput=false)]);
 title(ax(1), 'Pre-reach')
 title(ax(2), 'Pre-lick')
-title(ax(3), 'Osci-lick')
+title(ax(3), 'Lick-entrained')
 ylabel(ax(2:3), '')
 xlabel(ax(1), 'Time to bar contact (s)')
 xlabel(ax(2), 'Time to spout contact (s)')
@@ -120,7 +126,7 @@ close all
 sz = 5;
 SEL = { ...
     c.hasLick & c.hasPress, ...
-    c.hasLick & c.hasPress & magH', ...
+    c.hasLick & c.hasPress & c.isLick, ...
     };
 
 % XDATA = { ...
@@ -153,7 +159,7 @@ YNAME = { ...
     };
 TITLE = { ...
     'All units', ...
-    'Lick-osci units'
+    'Lick-entrained units'
     };
 LEGENDPOS = {...
     [0.244956331030447,0.173453205894066,0.117187498486601,0.122685182149764], ...

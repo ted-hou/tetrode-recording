@@ -24,7 +24,7 @@ phase = angle(Y);
 
 theta = 0.37;%prctile(magnitude(freq==8, :), 80);
 isLick = magnitude(freq==8, :) > theta;
-c.isLick = isLick;
+c.isLickFFT = isLick;
 nnz(isLick)
 
 fig = figure(Units='inches', Position=[0, 0, 8, 2]);
@@ -33,7 +33,7 @@ ax = nexttile(tl);
 histogram(ax, magnitude(freq==8, :), 100)
 
 ax = nexttile(tl);
-histogram(ax, phase(freq==8, c.isLick), 50)
+histogram(ax, phase(freq==8, c.isLickFFT), 50)
 xticks((-1:1)*pi)
 xticklabels(["-\pi", "0", "\pi"])
 
@@ -51,19 +51,31 @@ xlabel(ax, 'Pre-lick responses (a.u.)')
 ylabel(ax, 'First-lick response(a.u.)')
 
 %% Plot some ETA heatmaps for funsies
-tl = tiledlayout(figure(Units='inches', Position=[0, 0, 6, 5]), 1, 2);
+close all
+tl = tiledlayout(figure(Units='inches', Position=[0, 0, 6, 5]), 1, 3);
 
-[~, I] = sort(phase(freq==8, c.isLick));
+sel = c.isLickFFT;
+
+[~, I] = sort(phase(freq==8, sel));
 
 ax = nexttile(tl);
-[~, ~] = EphysUnit.plotETA(ax, eta.anyLickNorm, c.isLick, order=I, ...
+[~, ~] = EphysUnit.plotETA(ax, eta.anyLickNorm, sel, order=I, ...
     clim=[-2, 2], xlim=[-0.25, 0.25], hidecolorbar=true);
 xlabel(ax, 'Time to lick')
 title(ax, '')
 ylabel(ax, '')
 
 ax = nexttile(tl);
-[~, ~] = EphysUnit.plotETA(ax, eta.firstLickNorm, c.isLick, order=I, ...
+EphysUnit.plotETA(ax, eta.lickBoutNorm, sel, order=I, clim=[-2, 2], xlim=[0, 2*pi*maxBoutCycles], hidecolorbar=true);
+xlabel(ax, 'Lick phase')
+xticks (ax, (0:2:8).*pi);
+xticklabels(ax, [{'0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2:2:8, UniformOutput=false)]);
+xlabel(ax, 'Lick phase')
+title(ax, '')
+ylabel(ax, '')
+
+ax = nexttile(tl);
+[~, ~] = EphysUnit.plotETA(ax, eta.firstLickNorm, sel, order=I, ...
     clim=[-2, 2], xlim=[0.01, 0.5]);
 xlabel(ax, 'Time to first lick')
 ax.Colorbar.Layout.Tile = 'east';
@@ -71,7 +83,7 @@ title(ax, '')
 ylabel(ax, '')
 
 ylabel(tl, 'Unit', FontSize=p.fontSize, FontName='Arial')
-title(tl, sprintf('%i lick entrained units (FFT)', nnz(c.isLick)), FontSize=p.fontSize, FontName='Arial')
+title(tl, sprintf('%i lick entrained units (FFT)', nnz(sel)), FontSize=p.fontSize, FontName='Arial')
 
 %% Calculate peri-lick lick frequency histograms
 [~, expEuIndices] = unique({eu.ExpName});

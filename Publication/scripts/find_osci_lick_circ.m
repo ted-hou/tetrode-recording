@@ -60,9 +60,11 @@ eta.circLick = eu.getETA('count', 'circlick', window=[0, 2*pi], resolution=2*pi/
 % Units are spike counts per bin averaged across trials. Hard to convert to sp/s so we won't do
 % it. Values are non-negative.
 
-% Bootstrap to find the significance of average Z vector magnitudes (shuffle bins, not trials)
+%% Bootstrap to find the significance of average Z vector magnitudes (shuffle bins, not trials)
 
-[magH, magCI] = bootCircLick(eta.circLick, alpha=0.01, nBoot=100000, replace=true);
+[magH, magCI] = bootCircLick(eta.circLick, alpha=0.01, nBoot=100000, replace=false, seed=42);
+
+c.isLick = magH(:)';
 
 %%
 eta.lickBout = eu.getETA('count', 'lickbout', window=[0, 2*pi*maxBoutCycles], resolution=2*pi/30, normalize='none', trials=bouts);
@@ -73,6 +75,7 @@ function [magH, magCI] = bootCircLick(eta, varargin)
     parser.addParameter('alpha', 0.01, @isnumeric);
     parser.addParameter('nBoot', 10000, @isnumeric);
     parser.addParameter('replace', true, @islogical) % true for bootstrap, false for wda
+    parser.addParameter('seed', 42, @isnumeric)
     parser.parse(eta, varargin{:});
     r = parser.Results;
     X = r.eta.X;
@@ -80,6 +83,8 @@ function [magH, magCI] = bootCircLick(eta, varargin)
     alpha = r.alpha;
     nBoot = r.nBoot;
     replace = r.replace;
+    seed = r.seed;
+    rng(seed);
 
     magH = false(size(X, 1), 1);
     magCI = zeros(size(X, 1), 2);

@@ -996,8 +996,8 @@ classdef EphysUnit < handle
                 Ilate = size(isAboveThresholdConseq, 2) + 2 - Ilate;
 %                 [~, Ilate] = min(~isAboveThresholdConseq, [], 2, 'omitnan');
                 
-                min(Ilate)
-                max(Ilate)
+%                 min(Ilate)
+%                 max(Ilate)
 
                 nonSig = Ilate==size(isAboveThresholdConseq, 2) + 1;
                 Ilate(nonSig) = size(isAboveThresholdConseq, 2);
@@ -1659,7 +1659,8 @@ classdef EphysUnit < handle
                 return
             end
             if ~isempty(correction)
-                trials = Trial([trials.Start], [trials.Stop] + correction);
+                assert(length(correction) == length(trials))
+                trials = Trial([trials.Start], [trials.Stop] + correction(:)');
             end
             if ~strcmpi(trialType, 'stimfirstpulse')
                 iti = trials.iti();
@@ -1684,7 +1685,7 @@ classdef EphysUnit < handle
                 iti = itiAll(index);
             end
 
-            if strcmpi(p.Results.findSingleTrialDuration, 'off')
+            if ismember(lower(trialType), {'circlick', 'lickbout'}) && strcmpi(p.Results.findSingleTrialDuration, 'off')
                 requestedDuration = NaN;
             else
                 durations = round(trials.duration()./err)*err;

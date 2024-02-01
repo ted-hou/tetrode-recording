@@ -2,7 +2,7 @@ function [h, muDiffCI, muDiffObs] = bootstrapMoveResponse(eu, trialType, varargi
     p = inputParser();
     p.addRequired('eu', @(x) length(x) >= 1 && isa(x, 'EphysUnit'));
     p.addRequired('trialType', @(x) ismember(x, {'press', 'lick'}));
-    p.addParameter('nboot', 10000, @isnumeric)
+    p.addParameter('nboot', 100000, @isnumeric)
     p.addParameter('baselineWindow', [-4, -2], @(x) isnumeric(x) && length(x) == 2)
     p.addParameter('responseWindow', [-0.5, -0.2], @(x) isnumeric(x) && length(x) == 2)
     p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
