@@ -179,9 +179,11 @@ classdef TetrodeRecording < handle
 %                             digitalChannels = {'Cue', 1; 'Reward', 2; 'Lick', 3; 'Press', 4; 'LED', 5; 'Opto', 6};
 %                         end
 						obj.GetDigitalData('ChannelLabels', digitalChannels, 'Append', iChunk > 1);
-% 						obj.GetAnalogData('ChannelLabels', analogChannels, 'Append', iChunk > 1);
-						obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', iChunk > 1);
-						obj.ClearCache();
+						obj.GetAnalogData('ChannelLabels', analogChannels, 'Append', iChunk > 1);
+						if detectSpikes
+						    obj.SpikeDetect(channels, 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', iChunk > 1);
+						    obj.ClearCache();
+                        end     
 					end
 					obj.GetDigitalEvents(true);
 				case 'blackrock'
@@ -665,7 +667,7 @@ classdef TetrodeRecording < handle
 							fread(fid, [1, num_temp_sensor_channels], 'int16')';
 						end
 						if (num_board_adc_channels > 0)
-							fread(fid, [num_samples_per_data_block, num_board_adc_channels], 'uint16')';
+							objTemp(iFile).BoardADC.Data(:, board_adc_index:(board_adc_index + num_samples_per_data_block - 1)) = fread(fid, [num_samples_per_data_block, num_board_adc_channels], 'uint16')';
 						end
 						if (num_board_dig_in_channels > 0)
 							board_dig_in_raw(board_dig_in_index:(board_dig_in_index + num_samples_per_data_block - 1)) = fread(fid, num_samples_per_data_block, 'uint16');
@@ -756,8 +758,8 @@ classdef TetrodeRecording < handle
 			obj.Amplifier.Data = zeros(nChannels, obj.Amplifier.NumSamples);
 			obj.BoardDigIn.Timestamps = zeros(1, obj.BoardDigIn.NumSamples);
 			obj.BoardDigIn.Data = zeros(length(obj.BoardDigIn.Channels), obj.BoardDigIn.NumSamples);
-% 			obj.BoardADC.Timestamps = zeros(1, obj.BoardADC.NumSamples);
-% 			obj.BoardADC.Data = zeros(length(obj.BoardADC.Channels), obj.BoardADC.NumSamples);
+			obj.BoardADC.Timestamps = zeros(1, obj.BoardADC.NumSamples);
+			obj.BoardADC.Data = zeros(length(obj.BoardADC.Channels), obj.BoardADC.NumSamples);
 
 			iSample.Amplifier = 0;
 			iSample.BoardDigIn = 0;
@@ -768,12 +770,12 @@ classdef TetrodeRecording < handle
 				obj.Amplifier.Data(ia, iSample.Amplifier + 1:iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2)) = objTemp(iFile).Amplifier.Data(ib, :);
 				obj.BoardDigIn.Timestamps(1, iSample.BoardDigIn + 1:iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2)) = objTemp(iFile).BoardDigIn.Timestamps;
 				obj.BoardDigIn.Data(:, iSample.BoardDigIn + 1:iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2)) = objTemp(iFile).BoardDigIn.Data;
-% 				obj.BoardADC.Timestamps(1, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Timestamps;
-% 				obj.BoardADC.Data(:, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Data;
+				obj.BoardADC.Timestamps(1, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Timestamps;
+				obj.BoardADC.Data(:, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Data;
 
 				iSample.Amplifier = iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2);
 				iSample.BoardDigIn = iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2);
-% 				iSample.BoardADC = iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2);
+				iSample.BoardADC = iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2);
 			end
 			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
         end
@@ -1099,7 +1101,7 @@ classdef TetrodeRecording < handle
 		function GetDigitalEvents(obj, clearCache)
 			if nargin < 2
 				clearCache = false;
-			end
+            end
 
 			% Get digital signals
 			channelNames = obj.DigitalEvents.ChannelNames;
@@ -1125,6 +1127,10 @@ classdef TetrodeRecording < handle
 			% Check if ptr file exists
 			ptrFile = sprintf('%s..\\SpikeSort\\ptr_%s.mat', obj.Path, obj.GetExpName());
 			ptr = dir(ptrFile);
+            if ~isempty(ptr)
+			    ptrFile = sprintf('%s..\\..\\SpikeSort\\ptr_%s.mat', obj.Path, obj.GetExpName());
+			    ptr = dir(ptrFile);
+            end
             
             if ~isempty(ptr)
                 S = load(ptrFile);
@@ -1134,8 +1140,8 @@ classdef TetrodeRecording < handle
                 obj.SelectedChannels = ptr.SelectedChannels;
             else
                 warning('Cannot find ptr file %s', ptrFile)
-                obj.ChannelMap = [];
-                obj.SelectedChannels = [];
+%                 obj.ChannelMap = [];
+%                 obj.SelectedChannels = [];
             end
             
 		end
@@ -4692,12 +4698,26 @@ classdef TetrodeRecording < handle
 	methods (Static)
 		function previewObj = BatchPreview(showResults)
 			previewObj = TetrodeRecording();
-			dirs = uipickfiles('Prompt', 'Select (multiple) folders...');
+% 			dirs = uipickfiles('Prompt', 'Select (multiple) folders...');
+            dirs = {};
+            while true
+                dirs = [dirs; uigetdirs()];
+                answer = questdlg(sprintf('%i folders selected, keep adding?', length(dirs)), 'Batch Preview', 'Yes', 'No', 'Yes');
+                switch answer
+                    case 'Yes'
+                        continue
+                    case 'No'
+                        break
+                end
+            end
+
 			dirs = dirs(isfolder(dirs));
 			for iDir = 1:length(dirs)
-				files = dir([dirs{iDir}, '\*.rhd']);
+				files = dir(fullfile(dirs{iDir}, '**\*.rhd'));
 				if ~isempty(files)
 					stepSize = round(length(files)/6);
+                    assert(length(unique({files.folder})) == 1)
+                    dirs{iDir} = files(1).folder;
 					files = {files(stepSize:stepSize:5*stepSize).name};
 					sysName = 'Intan';
 				else
@@ -4843,7 +4863,23 @@ classdef TetrodeRecording < handle
 		function varargout = BatchLoad(expNames)
 			iExp = [];
 			if nargin < 1
-				files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
+                files = {};
+                while true
+                    [newFiles, newPath] = uigetfile({'*.mat', 'MAT-Files'}, MultiSelect="on");
+                    if ~iscell(newFiles)
+                        newFiles = {newFiles};
+                    end
+                    files = [files; cellfun(@(f) [newPath, f], newFiles, UniformOutput=false)'];
+                    answer = questdlg(sprintf('%i files selected, keep adding?', length(files)), 'Batch Preview', 'Yes', 'No', 'Yes');
+                    switch answer
+                        case 'Yes'
+                            continue
+                        case 'No'
+                            break
+                    end
+                end
+
+% 				files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
 				for iFile = 1:length(files)
                     tTic = tic();
                     fprintf(1, 'Loading file: %s... ', files{iFile})
@@ -4911,14 +4947,16 @@ classdef TetrodeRecording < handle
         end
 
         function tr = BatchLoadSimple(expName, intan)
-        % Read multiple TR objects, assuming they're non-overlapping files from the same experiment.
+        % Read multiple TR objects, assuming they're non-overlapping files (split by channel) from the same experiment.
             if nargin < 2
                 intan = false;
             end
         
             % Choose files
             if nargin < 1
-                files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
+%                 files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
+                [files, path] = uigetfile('*.mat', MultiSelect='on');
+                files = cellfun(@(f) [path, f], files, UniformOutput=false);
             else
 				files = {};
                 tTic = tic();
@@ -4955,7 +4993,7 @@ classdef TetrodeRecording < handle
         end
         
         function tr = BatchMergeSimple(TR)
-        % Merge multiple TR objects, assuming they're non-overlapping files from the same experiment.
+        % Merge multiple TR objects, assuming they're non-overlapping files (split by channel) from the same experiment.
             if length(TR) == 1
                 tr = TR;
                 return
@@ -4988,11 +5026,26 @@ classdef TetrodeRecording < handle
 				end
 
 				if isempty(savePath)
-					thisSavePath = tr.Path;
-					if ~isfolder([thisSavePath, '..\SpikeSort\'])
-						mkdir([thisSavePath, '..\SpikeSort\'])
-					end
-					thisSavePath = [thisSavePath, '..\SpikeSort\'];
+                    if strcmpi(tr.System, 'intan')
+                        str = strsplit(tr.Path, '\');
+                        assert(isempty(str{end}))
+                        numUnderscores = nnz(str{end-1} == '_');
+                        switch numUnderscores
+                            case 3
+                                nUp = 2;
+                            case 1
+                                nUp = 1;
+                            otherwise
+                                warning('Folder %s had %i underscores? What?', str{end-1}, numUnderscores)
+                                nUp = 1;
+                        end
+                    else
+                        nUp = 1;
+                    end
+				    thisSavePath = [tr.Path, repmat('..\', 1, nUp), 'SpikeSort\'];
+                    if ~isfolder(thisSavePath)
+                        mkdir(thisSavePath)
+                    end
 				else
 					thisSavePath = savePath;
 				end
@@ -5001,6 +5054,7 @@ classdef TetrodeRecording < handle
 				if discardData
 					tr.Spikes = [];
 					tr.DigitalEvents = [];
+                    tr.AnalogIn = [];
 				end
 				partition = false;
 				if ~isempty(maxChannels)
