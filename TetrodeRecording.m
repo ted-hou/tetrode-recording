@@ -4946,10 +4946,14 @@ classdef TetrodeRecording < handle
 			varargout = {tr, iExp};
         end
 
-        function tr = BatchLoadSimple(expName, intan)
+        function tr = BatchLoadSimple(expName, intan, prefix)
         % Read multiple TR objects, assuming they're non-overlapping files (split by channel) from the same experiment.
             if nargin < 2
                 intan = false;
+            end
+
+            if nargin < 3
+                prefix = 'tr*';
             end
         
             % Choose files
@@ -4963,9 +4967,10 @@ classdef TetrodeRecording < handle
                 animalName = strsplit(expName, '_');
                 animalName = animalName{1};
                 if ~intan
-                    thisFile = dir(sprintf('C:\\SERVER\\%s\\SpikeSort\\tr*%s*.mat', animalName, expName));
+                    thisFile = dir(sprintf('C:\\SERVER\\%s\\SpikeSort\\%s%s*.mat', animalName, prefix, expName));
                 else
-                    thisFile = dir(sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\tr*%s*.mat', animalName, expName, expName));
+                    sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\%s%s*.mat', animalName, expName, prefix, expName)
+                    thisFile = dir(sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\%s%s*.mat', animalName, expName, prefix, expName));
                 end
                 thisFile = thisFile(~[thisFile.isdir]);
                 if ~isempty(thisFile)
