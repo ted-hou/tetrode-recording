@@ -69,7 +69,6 @@ for iExp = 1:length(expReachDir)
         end
         [XAll, YAll, LLAll] = expReachDir(iExp).getTrajectoryByTrial('f', pReachDir.features{iFeat}, trials=trials, window=pReachDir.window, likelihoodThreshold=pReachDir.llThreshold, includeInvalid=false);
 
-
         trajectories(iExp).(pReachDir.features{iFeat}).X = X;
         trajectories(iExp).(pReachDir.features{iFeat}).Y = Y;
         trajectories(iExp).(pReachDir.features{iFeat}).L = L;
@@ -104,7 +103,6 @@ for iExp = 1:length(expReachDir)
 end
 
 % Get resampled trajectories from reach onset to touch
-
 for iExp = 1:length(expReachDir)
     trials = expReachDir(iExp).eu(1).getTrials('press');
     % Only include trials with negative tst (no zeros or NaNs)
