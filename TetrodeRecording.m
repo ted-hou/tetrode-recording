@@ -54,8 +54,8 @@ classdef TetrodeRecording < handle
 			if isempty(obj.Path)
 				obj.SelectFiles();
 			end
-			obj.ReadFiles(chunkSize, 'Rig', rig, 'Duration', duration, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 10, 'WaveformWindow', [-0.5, 0.5]);
-			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 3);
+			obj.ReadFiles(chunkSize, 'Rig', rig, 'Duration', duration, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 20, 'WaveformWindow', [-0.5, 1.5]);
+			obj.SpikeSort(channels, 'ClusterMethod', 'kmeans', 'FeatureMethod', 'PCA', 'Dimension', 4);
 			if ~hideResults
 				obj.PlotAllChannels('plotMethod', 'mean');
 			end
@@ -2178,7 +2178,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'XLim', [], @isnumeric);
 			addParameter(p, 'SelectedSampleIndex', [], @isnumeric);
 			addParameter(p, 'Ax', []);
-            addParameter(p, 'TrialEvent', 'CueOn', @ischar);
+            addParameter(p, 'TrialEvent', 'Mot2BusyOn', @ischar);
             addParameter(p, 'StimOnEvent', 'StimOn', @ischar);
             addParameter(p, 'StimOffEvent', 'StimOff', @ischar);
 			parse(p, channels, varargin{:});
@@ -3604,7 +3604,7 @@ classdef TetrodeRecording < handle
                         end
 				    else
 					    obj.RasterStim(iChannel, 'Clusters', clusters,...
-						    'ExtendedWindow', extendedWindow, 'XLim', [-0.5, 0.5],...
+						    'ExtendedWindow', extendedWindow, 'XLim', [0, 2],...
 						    'SelectedSampleIndex', selectedSampleIndex,...
 						    'Ax', h.Raster2);
 				    end

@@ -23,7 +23,7 @@ TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'N
 % TetrodeRecording.BatchProcess(ptr1, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-.5, .5], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 3, 'ChunkSize', 1);
 % TetrodeRecording.BatchProcess(ptr2, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 40, 'WaveformWindow', [-.5, .5], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 3, 'ChunkSize', 1);
 
-TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 20, 'WaveformWindow', [-1, 1], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 10, ...
+TetrodeRecording.BatchProcess(ptr, 'NumSigmas', 2.5, 'NumSigmasReturn', 1.25, 'NumSigmasReject', 20, 'WaveformWindow', [-0.5, 1.5], 'FeatureMethod', 'PCA', 'ClusterMethod', 'kmeans', 'Dimension', 3, ...
     'ChunkSize', 5, 'MaxChannelsPerBatch', 32);
 
 % Batch load
@@ -38,7 +38,8 @@ iTrLastSaved = 0;
 tr.ReadDigitalEventsFromArduino({'TRIAL_START', 'LEVER_PRESSED', 'REWARD_ON', 'LEVER_RETRACT_START', 'LEVER_RETRACT_END', 'LEVER_DEPLOY_START', 'LEVER_DEPLOY_END'}, refArduinoEvent='REWARD_ON', refEphysEvent='RewardOn')
 tr(iTr).PlotAllChannels(plotMethod='mean');
 
-tr(iTr).PlotChannel([], 'Reference', 'TRIAL_START', 'Event', 'PressOn', 'Exclude', '', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-4, 1], 'ExtendedWindow', [-0, 1], 'WaveformYLim', [-200, 200], 'PlotStim', false, 'Bins', 3);
+tr(iTr).PlotChannel([], 'Reference', 'PressOff', 'Event', 'PressOn', 'Exclude', '', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-4, 1], 'ExtendedWindow', [-0, 0], 'WaveformYLim', [-200, 200], 'PlotStim', false, 'Bins', 3);
+
 
 % tr(iTr).PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', 'LickOn', 'Exclude2', 'PressOn', 'BinMethod', 'percentile', 'Bins', 3, 'RasterXLim', [-5, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', 'auto');
 % tr(iTr).PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-5, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', 'auto', 'Clusters', 1);
