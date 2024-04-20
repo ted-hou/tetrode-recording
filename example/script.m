@@ -39,7 +39,7 @@ tr.ReadDigitalEventsFromArduino({'TRIAL_START', 'LEVER_PRESSED', 'REWARD_ON', 'L
 tr(iTr).PlotAllChannels(plotMethod='mean');
 
 tr(iTr).PlotChannel([], 'Reference', 'PressOff', 'Event', 'PressOn', 'Exclude', '', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-4, 1], 'ExtendedWindow', [-0, 0], 'WaveformYLim', [-200, 200], 'PlotStim', false, 'Bins', 3);
-
+tr(iTr).PlotChannel([], 'Reference', 'PressOff', 'Event', 'PressOn', 'Exclude', '', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-4, 1], 'ExtendedWindow', [-0, 0], 'WaveformYLim', [-200, 200], 'PlotStim', true, 'Bins', 3);
 
 % tr(iTr).PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', 'LickOn', 'Exclude2', 'PressOn', 'BinMethod', 'percentile', 'Bins', 3, 'RasterXLim', [-5, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', 'auto');
 % tr(iTr).PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-5, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', 'auto', 'Clusters', 1);
