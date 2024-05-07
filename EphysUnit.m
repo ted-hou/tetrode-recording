@@ -17,8 +17,9 @@ classdef EphysUnit < handle
         SpikeRateKernel = struct('type', [], 'params', [], 't', [], 'y', [])
         SpikeCountStats = struct('median', [], 'mad', [], 'medianITI', [], 'madITI', [], 'resolution', [])
         SpikeRateStats = struct('median', [], 'mad', [], 'medianITI', [], 'madITI', [], 'resolution', [])
+        ProbeMap = []
     end
-    
+
     % public methods
     methods
         % constructor
@@ -40,8 +41,10 @@ classdef EphysUnit < handle
             p.addParameter('whitelist', {}, @iscell) % If a list of unit names are provided, only these are created as EU objs.
             p.addParameter('tr', [], @(x) isa(x, 'TetrodeRecording'))
             p.addParameter('isSpontaneousPress', false, @islogical)
+            p.addParameter('sessionInfo', [], @isstruct)
             p.parse(varargin{:});
             extendedWindow = p.Results.extendedWindow;
+            sessionInfo = p.Results.sessionInfo;
             
             usePETH = isfield(p.Results, 'PETH');
 
@@ -187,6 +190,11 @@ classdef EphysUnit < handle
                 end
                 obj(length(BSR)) = EphysUnit();
                 expName = ar.expName;
+                if ~isempty(sessionInfo)
+                    pm = ProbeMap(sessionInfo.ml, sessionInfo.ap, sessionInfo.dv, duraOffset=sessionInfo.duraOffset, facing=sessionInfo.facing, model=sessionInfo.model);
+                else
+                    pm = [];
+                end
                 fprintf(1, 'Loading experiment %s...\n', expName)
                 if ~isempty(p.Results.tr)
                     tr = p.Results.tr;
@@ -229,8 +237,13 @@ classdef EphysUnit < handle
                         if p.Results.isSpontaneousPress
                             obj(i).EventTimes.Cue = tr.DigitalEvents.TRIAL_START;
                             obj(i).EventTimes.PressOff = tr.DigitalEvents.PressOff;
-                        else
+                        elseif isfield(tr.DigitalEvents, 'CueOn')
                             obj(i).EventTimes.Cue = tr.DigitalEvents.CueOn;
+                        elseif isfield(tr.DigitalEvents, 'CueLeftOn')
+                            obj(i).EventTimes.CueLeftOn = tr.DigitalEvents.CueLeftOn;
+                            obj(i).EventTimes.CueLeftOff = tr.DigitalEvents.CueLeftOff;
+                            obj(i).EventTimes.CueRightOn = tr.DigitalEvents.CueRightOn;
+                            obj(i).EventTimes.CueRightOff = tr.DigitalEvents.CueRightOff;
                         end
                         obj(i).EventTimes.Press = tr.DigitalEvents.PressOn;
                         obj(i).EventTimes.Lick = tr.DigitalEvents.LickOn;
@@ -256,6 +269,24 @@ classdef EphysUnit < handle
                             obj(i).EventTimes.Motor2Off = tr.DigitalEvents.Motor2Off;
                             obj(i).EventTimes.MotorBusyOn = tr.DigitalEvents.MotorBusyOn;
                             obj(i).EventTimes.MotorBusyOff = tr.DigitalEvents.MotorBusyOff;
+                        else
+                            obj(i).EventTimes.Motor1On = [];
+                            obj(i).EventTimes.Motor1Off = [];
+                            obj(i).EventTimes.Motor2On = [];
+                            obj(i).EventTimes.Motor2Off = [];
+                            obj(i).EventTimes.MotorBusyOn = [];
+                            obj(i).EventTimes.MotorBusyOff = [];
+                        end
+
+                        if isfield(tr.DigitalEvents, 'Mot1HiOn')
+                            obj(i).EventTimes.Mot1HiOn = tr.DigitalEvents.Mot1HiOn;
+                            obj(i).EventTimes.Mot1HiOff = tr.DigitalEvents.Mot1HiOff;
+                            obj(i).EventTimes.Mot1LoOn = tr.DigitalEvents.Mot1LoOn;
+                            obj(i).EventTimes.Mot1LoOff = tr.DigitalEvents.Mot1LoOff;
+                            obj(i).EventTimes.Mot1BusyOn = tr.DigitalEvents.Mot1BusyOn;
+                            obj(i).EventTimes.Mot1BusyOff = tr.DigitalEvents.Mot1BusyOff;
+                            obj(i).EventTimes.Mot2BusyOn = tr.DigitalEvents.Mot2BusyOn;
+                            obj(i).EventTimes.Mot2BusyOff = tr.DigitalEvents.Mot2BusyOff;
                         else
                             obj(i).EventTimes.Motor1On = [];
                             obj(i).EventTimes.Motor1Off = [];
@@ -311,6 +342,7 @@ classdef EphysUnit < handle
                             obj(i).SpikeRateTimestamps = tsr;
                         end
                         obj(i).SpikeRateKernel = kernel;
+                        obj(i).ProbeMap = pm;
 
                         if ~isempty(p.Results.savepath)
                             obj(i).save(p.Results.savepath);
@@ -325,7 +357,6 @@ classdef EphysUnit < handle
                 end
                 fprintf(1, 'Done (%.1f sec).\n', toc(tTic))
             end
-
         end
         
         function save(obj, varargin)
@@ -387,7 +418,7 @@ classdef EphysUnit < handle
         
         function trials = getTrials(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout'})));
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout', 'stimtwocolor'})));
             p.addOptional('sorted', true, @islogical);
             p.addParameter('minBoutCycles', 2)
             p.addParameter('maxBoutCycles', 4)
@@ -417,6 +448,8 @@ classdef EphysUnit < handle
                             pulses = obj.Trials.Stim(:);
                             trials{itt} = Trial([trains.Start], [pulses.Stop], 'first');
                             trials{itt} = trials{itt}(:);
+                        case 'stimtwocolor'
+                            trials{itt} = obj.makeTrials('stim');
                         case 'light'
                             trials{itt} = obj.Trials.Light(:);
                         case 'anylick'
@@ -536,7 +569,7 @@ classdef EphysUnit < handle
             %  stats - Nx1 struct('mean', 'sd'), mean spike rate and sd for each neuron
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
-            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick', 'firstlick', 'circlick', 'lickbout'}))
+            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', 'firstlick', 'circlick', 'lickbout'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -672,7 +705,7 @@ classdef EphysUnit < handle
 
         function rd = getRasterData(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse'})))
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor'})))
             p.addOptional('window', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -680,6 +713,7 @@ classdef EphysUnit < handle
             p.addParameter('alignTo', 'default', @(x) ismember(x, {'default', 'start', 'stop'}))
             p.addParameter('sort', true, @islogical);
             p.addParameter('trials', [], @(x) isa(x, 'Trial'))
+            p.addParameter('shutterDelay', 0, @isnumeric)
             p.parse(trialType, varargin{:})
             trialType = p.Results.trialType;
             window = p.Results.window;
@@ -692,7 +726,7 @@ classdef EphysUnit < handle
                 switch trialType
                     case {'press', 'lick'}
                         alignTo = 'stop';
-                    case {'stim', 'stimtrain', 'stimfirstpulse'}
+                    case {'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor'}
                         alignTo = 'start';
                 end
             end
@@ -737,9 +771,44 @@ classdef EphysUnit < handle
                 end
 
                 if p.Results.sort
-                    [dur, ISort] = sort(dur, 'ascend');
-                    I = changem(I, 1:length(ISort), ISort);
-                    iti = iti(ISort);
+                    if strcmpi(trialType, 'stimtwocolor')
+                        [tce, stimOn, stimOff, trainIndices] = obj.LoadTwoColorExperiment();
+                        stimOn = stimOn + p.Results.shutterDelay;
+                        stimOff = stimOff + p.Results.shutterDelay;
+                        nPulses = length(stimOn);
+                        trainHash = tce.getStimHash();
+                        pulseHash = trainHash(trainIndices);
+
+                        [~, trainOrder] = sort(trainHash, 'ascend');
+                        [~, pulseOrder] = sort(pulseHash, 'ascend');
+                        assert(length(pulseOrder) == max(pulseOrder) && min(pulseOrder) == 1)
+
+                        trialIndices = NaN(size(obj.SpikeTimes));
+                        spikesRelative = NaN(size(obj.SpikeTimes));
+                        for iPulse = 1:nPulses
+                            sel = obj.SpikeTimes >= stimOn(iPulse) + window(1) & obj.SpikeTimes <= stimOn(iPulse) + window(2);
+                            trialIndices(sel) = iPulse;
+                            spikesRelative(sel) = obj.SpikeTimes(sel) - stimOn(iPulse);
+                        end
+                        trialIndicesSorted = changem(trialIndices, 1:length(pulseOrder), pulseOrder);
+                        
+                        I = trialIndicesSorted;
+                        t = spikesRelative;
+                        sel = ~isnan(I);
+                        I = I(sel);
+                        t = t(sel);
+                        dur = dur(pulseOrder);
+                        iti = iti(pulseOrder);
+                        rd.tce.stimLog = tce.Log;
+                        rd.tce.trainOrder = trainOrder(:)';
+                        rd.tce.pulseOrder = pulseOrder(:)';
+                        rd.tce.trainIndices = trainIndices(:)';
+                        rd.tce.params = tce.Params;
+                    else
+                        [dur, ISort] = sort(dur, 'ascend');
+                        I = changem(I, 1:length(ISort), ISort);
+                        iti = iti(ISort);
+                    end
                 end
                 rd.name = obj.getName('_');
                 rd.trialType = trialType;
@@ -750,13 +819,17 @@ classdef EphysUnit < handle
                 rd.iti = iti;
             else
                 tTic = tic();
-                rd(length(obj)) = struct('name', '', 'trialType', '', 'alignTo', '', 't', [], 'I', [], 'duration', [], 'iti', []);
+                if strcmpi(trialType, 'stimtwocolor')
+                    rd(length(obj)) = struct('name', '', 'trialType', '', 'alignTo', '', 't', [], 'I', [], 'duration', [], 'iti', [], 'tce', []);
+                else
+                    rd(length(obj)) = struct('name', '', 'trialType', '', 'alignTo', '', 't', [], 'I', [], 'duration', [], 'iti', []);
+                end
                 fprintf(1, 'Calculating raster data for %g units...\n', length(obj));
                 for i = 1:length(obj)
                     try
                         rd(i) = obj(i).getRasterData(trialType, window, ...
                             minTrialDuration=minTrialDuration, alignTo=alignTo, sort=p.Results.sort, ...
-                            maxTrialDuration=maxTrialDuration, durErr=durErr);
+                            maxTrialDuration=maxTrialDuration, durErr=durErr, shutterDelay=p.Results.shutterDelay);
                     catch ME
                         warning('\tError when processing unit %g', i)
                         warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
@@ -773,6 +846,7 @@ classdef EphysUnit < handle
             p.addParameter('resolution', 0.001, @isnumeric);
             p.addParameter('normalize', true, @islogical)
             p.addParameter('maxlag', NaN, @isnumeric);
+            p.addParameter('useCorr', false, @islogical)
             p.parse(data, varargin{:});
             data = p.Results.data;
             resolution = p.Results.resolution;
@@ -781,10 +855,11 @@ classdef EphysUnit < handle
             edges = min(arrayfun(@(obj) obj.SpikeTimes(1), obj)):resolution:max(arrayfun(@(obj) obj.SpikeTimes(end), obj));
 
             assert(length(obj) > 1)
-            
+
             % Calculate spike rates/counts for all objects in array (saves
             % time when there are thousands of pairs)
             X = zeros(length(obj), length(edges) - 1);
+            fprintf('\tCalculating binned spike counts for %i units...', length(obj))
             for i = 1:length(obj)
                 switch data
                     case 'count'
@@ -802,13 +877,16 @@ classdef EphysUnit < handle
                         end
                 end
             end
+            fprintf('Done.\n')
 
             % Optionally normalize (zscore) data before calculating
             % xcorr, this helps get rid of the triagle shape in r vs.
             % lag plots (due to zero padding for missing data?, so centering on zero hides this?).
             if p.Results.normalize
+                fprintf('\tNormalizing spike counts...')
                 X = normalize(X, 2, 'zscore', 'std');
                 scaleopt = 'normalized';
+                fprintf('Done.\n')
             else
                 scaleopt = 'none';
             end
@@ -818,19 +896,85 @@ classdef EphysUnit < handle
             nPairs = size(pairedIndices, 1);
             r = cell(nPairs, 1);
             lags = cell(nPairs, 1);
+            fprintf('\tCalculating %i pairwise cross-correlations...', nPairs)
             for iPair = 1:nPairs
                 i = pairedIndices(iPair, 1);
                 j = pairedIndices(iPair, 2);
     
-                if isinf(maxlag) || isnan(maxlag)
-                    [r{iPair}, lags{iPair}] = xcorr(X(i, :), X(j, :), scaleopt);
+                if ~p.Results.useCorr
+                    if isinf(maxlag) || isnan(maxlag)
+                        [r{iPair}, lags{iPair}] = xcorr(X(i, :), X(j, :), scaleopt);
+                    else
+                        [r{iPair}, lags{iPair}] = xcorr(X(i, :), X(j, :), maxlag/resolution, scaleopt);
+                    end
                 else
-                    [r{iPair}, lags{iPair}] = xcorr(X(i, :), X(j, :), maxlag/resolution, scaleopt);
+                    lags{iPair} = 0;
+                    r{iPair} = corr(X(i, :)', X(j, :)');
                 end
             end
+            fprintf('Done.\n')
 
             r = cat(1, r{:});
             lags = cat(1, lags{:});
+        end
+
+        function [obj, isDuplicate] = removeDuplicates(obj, threshold)
+            if nargin < 2
+                threshold = 0.7;
+            end
+
+            if length(obj) <= 1
+                return
+            end
+
+            [uniqueExpNames, ia, ic] = unique({obj.ExpName});
+            assert(all(diff(ic) >= 0)) % So we can use ia as bin edges (where each bin is an experiment)
+            isDuplicate = cell(length(uniqueExpNames), 1);
+            ia(end + 1) = length(obj) + 1;
+            for iExp = 1:length(uniqueExpNames)
+                fprintf('Removing duplicate units in session %i of %i:\n', iExp, length(uniqueExpNames))
+                iStart = ia(iExp);
+                iEnd = ia(iExp + 1) - 1;
+                theseObjs = obj(iStart:iEnd);
+                [r, ~, pairIndices] = theseObjs.xcorr('count', resolution=0.002, normalize=false, useCorr=true);
+
+                duplicatePairs = pairIndices(r > threshold, :);
+                isDup = false(length(theseObjs), 1);
+                for iPair = 1:size(duplicatePairs, 1)
+                    assert(duplicatePairs(iPair, 2) > duplicatePairs(iPair, 1))
+                    isDup(duplicatePairs(iPair, 2)) = true;
+                end
+                isDuplicate{iExp} = isDup;
+                fprintf('Removed %i duplicate units out of %i.\n', nnz(isDup), length(theseObjs))
+            end
+
+            isDuplicate = cat(1, isDuplicate{:});
+            obj = obj(~isDuplicate);
+        end
+
+        function [obj, isMultiUnit] = removeMultiUnits(obj, varargin)
+            p = inputParser();
+            p.addParameter('maxISI', 1.5e-3, @isnumeric);
+            p.addParameter('maxFraction', 0.05, @isnumeric);
+            p.addParameter('cullZeros', true, @islogical); % Doing this a second time should not have any additional effect
+            p.parse(varargin{:});
+            maxISI = p.Results.maxISI;
+            maxFraction = p.Results.maxFraction;
+            cullZeros = p.Results.cullZeros;
+
+            isMultiUnit = false(size(obj));
+            for i = 1:length(obj)
+                if cullZeros
+                    isi = [Inf, diff(obj(i).SpikeTimes)];
+                    toCull = isi == 0;
+                    obj(i).SpikeTimes(toCull) = [];
+                    obj(i).Waveforms(toCull) = [];
+                    % Hey, remember to redo spikecounts/spikerates after this
+                end
+                isi = [Inf, diff(obj(i).SpikeTimes)];
+                isMultiUnit(i) = (nnz(isi < maxISI) ./ length(obj(i).SpikeTimes)) > maxFraction;
+            end
+            obj = obj(~isMultiUnit);
         end
 
         function [pos, mot1, mot2, motBusy] = getMotorState(obj, t)
@@ -884,6 +1028,97 @@ classdef EphysUnit < handle
                 pos = 3;
             else
                 pos = 4;
+            end
+        end
+
+        function [tce, tOn, tOff, trainIndices] = LoadTwoColorExperiment(obj, varargin)
+            assert(length(obj) == 1)
+            p = inputParser();
+            p.addParameter('pulseWidthErrorMargin', 1e-3, @isnumeric)
+            p.parse(varargin{:})
+
+            expName = obj.ExpName;
+            animalName = obj.getAnimalName;
+            file = dir(sprintf('Z:\\%s\\%s\\%s.mat', animalName, expName, expName));
+            assert(~isempty(file))
+
+            tce = load(sprintf('%s\\%s', file.folder, file.name));
+            tce = tce.obj;
+            assert(isa(tce, 'TwoColorExperiment'))
+            clear file
+
+            tOn = obj.EventTimes.StimOn;
+            tOff = obj.EventTimes.StimOff;
+
+            nPulsesPerTrain = arrayfun(@(log) log.params.nPulses, tce.Log);
+            pulseWidth = arrayfun(@(log) repmat(log.params.pulseWidth, [1, log.params.nPulses]), tce.Log, UniformOutput=false);
+            pulseWidth = cat(2, pulseWidth{:});
+            
+            % Verify congruence between Intan shutter events and TwoColorExperiment.Log
+            assert(sum(nPulsesPerTrain) == nnz(tOn), 'Intan recorded %i shutterOn events while TwoColorExperiment.Log has %i.', nnz(tOn), sum(nPulsesPerTrain));
+            assert(sum(nPulsesPerTrain) == nnz(tOff), 'Intan recorded %i shutterOn events while TwoColorExperiment.Log has %i.', nnz(tOn), sum(nPulsesPerTrain));
+            nPulses = nnz(tOn);
+            % fprintf('Intan & TwoColorExperiment.Log both recorded %i shutter pulses.\n', nnz(tOn))
+            
+            % Pulse durations should match between Intan and TCE as well.
+            assert(all(abs(tOff - tOn - pulseWidth) < p.Results.pulseWidthErrorMargin), 'Only %i/%i pulseWidths agree (df<%gs).', ...
+                nnz(abs(tOff - tOn - pulseWidth) < p.Results.pulseWidthErrorMargin), nPulses, p.Results.pulseWidthErrorMargin)
+            % fprintf('All %i pulseWidths agree (df<%gs).\n', nPulses, p.Results.pulseWidthErrorMargin)
+            
+            % Generate pulse->train map
+            iPulse = 0;
+            trainIndices = NaN(1, nPulses);
+            for iTrain = 1:length(tce.Log)
+                trainIndices(iPulse + 1:iPulse + nPulsesPerTrain(iTrain)) = iTrain;
+                iPulse = iPulse + nPulsesPerTrain(iTrain);
+            end
+        end
+
+        function groups = groupTwoColorStimTrials(obj, varargin)
+            p = inputParser();
+            p.addOptional('groupBy', {'wavelength', 'location', 'duration', 'power'}, @(x) ~isempty(x) && all(ismember(x, {'wavelength', 'location', 'duration', 'power'})));
+            p.parse(varargin{:});
+            groupBy = p.Results.groupBy;
+
+            assert(length(obj) == 1);
+
+            [tce, ~, ~, trainIndices] = obj.LoadTwoColorExperiment();
+            [groupIndices, conditions] = tce.groupStimTrains(groupBy);
+
+            nGroups = length(conditions);
+            nTrains = length(groupIndices);
+
+            groups(nGroups).trials = [];
+            groups(nGroups).pulseIndices = [];
+            for i = 1:length(groupBy)
+                switch lower(groupBy{i})
+                    case 'wavelength'
+                        groups(nGroups).wavelength = [];
+                    case 'location'
+                        groups(nGroups).location = [];
+                    case 'duration'
+                        groups(nGroups).duration = [];
+                    case 'power'
+                        groups(nGroups).power = [];
+                end
+            end
+            trials = obj.getTrials('stim');
+            trials = trials(:)';
+            for iGroup = 1:nGroups
+                groups(iGroup).pulseIndices = find(ismember(trainIndices, find(groupIndices == iGroup)));
+                groups(iGroup).trials = trials(groups(iGroup).pulseIndices);
+                for i = 1:length(groupBy)
+                    switch lower(groupBy{i})
+                        case 'wavelength'
+                            groups(iGroup).wavelength = conditions(iGroup).wavelength;
+                        case 'location'
+                            groups(iGroup).location = conditions(iGroup).location;
+                        case 'duration'
+                            groups(iGroup).duration = conditions(iGroup).duration;
+                        case 'power'
+                            groups(iGroup).power = conditions(iGroup).power;
+                    end
+                end
             end
         end
     end
@@ -1181,7 +1416,8 @@ classdef EphysUnit < handle
             p.addParameter('sz', 2.5, @isnumeric)
             p.parse(varargin{:})
             rd = p.Results.rd;
-            stim = ismember(lower(rd.trialType), {'stim', 'stimtrain', 'stimfirstpulse'});
+            isSimpleStim = ismember(lower(rd.trialType), {'stim', 'stimtrain', 'stimfirstpulse'});
+            isTwoColorStim = strcmpi(rd.trialType, 'stimtwocolor');
             timeUnit = p.Results.timeUnit;
             maxTrials = p.Results.maxTrials;
 
@@ -1197,13 +1433,13 @@ classdef EphysUnit < handle
             switch rd.alignTo
                 case 'start'
                     eventName = rd.trialType;
-                    if ~stim
+                    if ~isSimpleStim && ~isTwoColorStim
                         refName = 'trial start';
                     else
                         refName = 'opto onset';
                     end
                 case 'stop'
-                    if ~stim
+                    if ~isSimpleStim && ~isTwoColorStim
                         eventName = 'trial start';
                         refName = rd.trialType;
                     else
@@ -1255,12 +1491,12 @@ classdef EphysUnit < handle
                     tEvent = -rd.duration;
             end
 
-            if ~stim
+            if ~isSimpleStim && ~isTwoColorStim
 %                 ax.Parent.Position(4) = ax.Parent.Position(4)*nTrials/300;
                 h = gobjects(2, 1);
                 h(1) = scatter(ax, rd.t .* timescale, rd.I, sz, 'k', 'filled', DisplayName='spikes');
                 h(2) = scatter(ax, tEvent .* timescale, 1:length(tEvent), sz*2, 'r', 'filled', DisplayName=eventName);
-            else
+            elseif isSimpleStim
                 h = gobjects(2, 1);
                 h(1) = scatter(ax, rd.t * timescale, rd.I, sz, 'k', 'filled', DisplayName='spikes');
                 uniqueDurations = unique(rd.duration);
@@ -1273,10 +1509,47 @@ classdef EphysUnit < handle
                 if p.Results.iti
                     h(4) = scatter(ax, (tEvent + rd.iti) .* timescale, 1:nTrials, 5, 'g', 'filled', DisplayName='ITI end');
                 end
+            elseif isTwoColorStim
+                h = gobjects(1, 1);
+                h(1) = scatter(ax, rd.t * timescale, rd.I, sz, 'k', 'filled', DisplayName='spikes');
+                stimLog = rd.tce.stimLog;
+                trainOrder = rd.tce.trainOrder;
+                pulseOrder = rd.tce.pulseOrder;
+                trainIndices = rd.tce.trainIndices;
+                nPulses = length(rd.duration);
+                tceParams = rd.tce.params;
+                % Draw a box to mark the stim window
+                stimBoxDict = dictionary();
+                for iTrain = 1:length(stimLog)
+                    selPulse = trainIndices == iTrain;
+                    iPulseStart = strfind(selPulse, [0, 1]) + 1;
+                    iPulseEnd = strfind(selPulse, [1, 0]);
+                    if isempty(iPulseStart)
+                        iPulseStart = 1;
+                    end
+                    if isempty(iPulseEnd)
+                        iPulseEnd = nPulses;
+                    end
+                    iPulseStart = find(pulseOrder == iPulseStart);
+                    iPulseEnd = find(pulseOrder == iPulseEnd);
+                    pulseWidth = stimLog(iTrain).params.pulseWidth;
+                    switch stimLog(iTrain).wavelength
+                        case 473
+                            color = [0.2, 0.2, 0.8];
+                        case 593
+                            color = [0.8, 0.2, 0.2];
+                    end
+                    alpha = 0.2 + 0.6*((stimLog(iTrain).params.iPower - 1)./(length(tceParams.targetPowers) - 1));
+                    partialHash = stimLog(iTrain).params.iPower + stimLog(iTrain).wavelength*10;
+                    partialDesc = sprintf('%guW \t%inm', tceParams.targetPowers(stimLog(iTrain).params.iPower)*1e6, stimLog(iTrain).wavelength);
+                    stimBoxDict(partialHash) = patch(ax, [0, pulseWidth, pulseWidth, 0], [iPulseStart, iPulseStart, iPulseEnd, iPulseEnd], color, ...
+                        FaceAlpha=alpha, EdgeColor=color, EdgeAlpha=alpha, DisplayName=partialDesc);
+                end
+                [~, I] = sort(stimBoxDict.keys);
+                handles = stimBoxDict.values;
+                h = [h; handles(I)];
             end
 
-            if stim
-            end
             hold(ax, 'off')
             ax.YAxis.Direction = 'reverse';
             xlim(ax, p.Results.xlim);
@@ -1295,7 +1568,11 @@ classdef EphysUnit < handle
             xlabel(ax, sprintf('Time to %s (%s)', refName, timeUnit))
             ylabel(ax, 'Trial')
             title(ax, sprintf('Spike raster (%s)', rd.name), Interpreter="none");
-            legend(ax, h, Location='northwest', FontSize=9);
+            if ~isTwoColorStim
+                legend(ax, h, Location='northwest', FontSize=9);
+            else
+                legend(ax, h, Location='eastoutside', FontSize=9);
+            end
         end
 
         function ax = plotMultiRaster(varargin)
@@ -1389,7 +1666,7 @@ classdef EphysUnit < handle
                     case 'lick'
                         trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Lick, 'first', obj.EventTimes.Press);
                     case 'stim'
-                        trials = Trial(obj.EventTimes.StimOn, obj.EventTimes.StimOff, 'first');
+                        trials = Trial([obj.EventTimes.StimOn, obj.EventTimes.StimOff(end)], obj.EventTimes.StimOff, 'first');
                     case 'stimtrain'
                         cueToTrainOn = Trial(obj.EventTimes.Cue, obj.EventTimes.StimOn, 'first');
                         cueToTrainOff = Trial(obj.EventTimes.Cue, obj.EventTimes.StimOff, 'last');

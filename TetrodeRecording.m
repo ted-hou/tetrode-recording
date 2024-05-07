@@ -1213,7 +1213,7 @@ classdef TetrodeRecording < handle
                 fprintf(1, 'Done.\n')
             end
         end
-        
+
         function SpikeClusterReorder(obj, channel, newOrder)
             assert(length(newOrder) == max(newOrder));
             oldClasses = obj.Spikes(channel).Cluster.Classes;
@@ -1858,7 +1858,8 @@ classdef TetrodeRecording < handle
 						end
 					end
 					dispName = ['Cluster ', num2str(iCluster), ' (', percentage, ' | ', count, ')'];
-					h = scatter3(hAxes1, feature(inCluster, 1), feature(inCluster, 2), feature(inCluster, 3), 1, thisColor, 'DisplayName', dispName);
+					% h = scatter3(hAxes1, feature(inCluster, 1), feature(inCluster, 2), feature(inCluster, 3), 1, thisColor, 'DisplayName', dispName);
+					h = plot3(hAxes1, feature(inCluster, 1), feature(inCluster, 2), feature(inCluster, 3), thisColor, LineStyle='none', Marker='.', MarkerSize=1, DisplayName=dispName);
 					if isempty(selectedCluster) || (~isempty(selectedCluster) && iCluster == selectedCluster)
 						hLegends = [hLegends, h];
 						if iCluster == selectedCluster
@@ -2173,7 +2174,7 @@ classdef TetrodeRecording < handle
 		function RasterStim(obj, channels, varargin)
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric);
-			addParameter(p, 'ExtendedWindow', [-2, 2], @isnumeric);
+			addParameter(p, 'ExtendedWindow', [-1, 1], @isnumeric);
 			addParameter(p, 'Clusters', [], @isnumeric);
 			addParameter(p, 'XLim', [], @isnumeric);
 			addParameter(p, 'SelectedSampleIndex', [], @isnumeric);
@@ -2181,6 +2182,7 @@ classdef TetrodeRecording < handle
             addParameter(p, 'TrialEvent', 'Mot2BusyOn', @ischar);
             addParameter(p, 'StimOnEvent', 'StimOn', @ischar);
             addParameter(p, 'StimOffEvent', 'StimOff', @ischar);
+            addParameter(p, 'TwoColorExperiment', false, @islogical)
 			parse(p, channels, varargin{:});
 			channels 			= p.Results.Channels;
 			extendedWindow 		= p.Results.ExtendedWindow;
@@ -2188,25 +2190,49 @@ classdef TetrodeRecording < handle
 			xRange 				= p.Results.XLim;
 			selectedSampleIndex	= p.Results.SelectedSampleIndex;
 			ax 					= p.Results.Ax;
+            isTCE               = p.Results.TwoColorExperiment;
 
-			cueOn = sort(obj.DigitalEvents.(p.Results.TrialEvent));
-			pulseOn = sort(obj.DigitalEvents.(p.Results.StimOnEvent));
-			pulseOff = sort(obj.DigitalEvents.(p.Results.StimOffEvent));
-
-			% Get spikes between first pulse start and last pulse end
-			[cueOnStimTrials, trainOn] = TetrodeRecording.FindFirstInTrial(cueOn, pulseOn);
-			[~, trainOff] = TetrodeRecording.FindLastInTrial(cueOn, pulseOff);
+            if ~isTCE
+			    cueOn = sort(obj.DigitalEvents.(p.Results.TrialEvent));
+			    pulseOn = sort(obj.DigitalEvents.(p.Results.StimOnEvent));
+			    pulseOff = sort(obj.DigitalEvents.(p.Results.StimOffEvent));
+    
+			    % Get spikes between first pulse start and last pulse end
+			    [cueOnStimTrials, trainOn] = TetrodeRecording.FindFirstInTrial(cueOn, pulseOn);
+			    [~, trainOff] = TetrodeRecording.FindLastInTrial(cueOn, pulseOff);
+            else
+                [tce, stimOn, stimOff, trainIndices] = obj.LoadTwoColorExperiment();
+                nPulses = length(stimOn);
+            end
 
 			% Bin spikes into trials
 			for iChannel = channels
-				[sampleIndex, spikes, trials] = obj.GetSpikesByTrial(iChannel, 'Reference', trainOn, 'Event', trainOff, 'Clusters', clusters,...
-					'Window', extendedWindow, 'WindowReference', 'StartAndEnd');
+                if ~isTCE
+				    [sampleIndex, spikes, trials] = obj.GetSpikesByTrial(iChannel, 'Reference', trainOn, 'Event', trainOff, 'Clusters', clusters,...
+					    'Window', extendedWindow, 'WindowReference', 'StartAndEnd');
+                else
+                    sel = ismember(obj.Spikes(iChannel).Cluster.Classes, clusters);
+                    sampleIndex = obj.Spikes(iChannel).SampleIndex(sel);
+                    spikes = obj.Spikes(iChannel).Timestamps(sel);
+
+                    % Assign to trials
+                    trials = NaN(size(spikes));
+                    spikesRelative = NaN(size(spikes));
+                    for iPulse = 1:nPulses
+                        sel = spikes >= stimOn(iPulse) + extendedWindow(1) & spikes <= stimOn(iPulse) + extendedWindow(2);
+                        trials(sel) = iPulse;
+                        spikesRelative(sel) = spikes(sel) - stimOn(iPulse);
+                    end
+                end
 
 				if ~isempty(selectedSampleIndex)
-					selected 	= ismember(sampleIndex, selectedSampleIndex);
-					sampleIndex = sampleIndex(selected);
-					spikes 		= spikes(selected);
-					trials 		= trials(selected);
+					sel = ismember(sampleIndex, selectedSampleIndex);
+					sampleIndex = sampleIndex(sel);
+					spikes = spikes(sel);
+					trials = trials(sel);
+                    if isTCE
+                        spikesRelative = spikesRelative(sel);
+                    end
 				end
 
 				if isempty(ax)
@@ -2217,56 +2243,138 @@ classdef TetrodeRecording < handle
 					axes(hAxes);
 				end
 
-				spikesRelative = spikes - trainOn(trials);
+                if isTCE
+                    trainHash = tce.getStimHash();
+                    pulseHash = trainHash(trainIndices);
 
-				edges = [trainOn, trainOff(end)];
-				[~, ~, trialsPulseOn] = histcounts(pulseOn, edges);
-				[~, ~, trialsPulseOff] = histcounts(pulseOff, edges);
-                                
-                
-                trainOn1 = zeros(size(pulseOn));
-                trainOn2 = zeros(size(pulseOff));
-                trainOn1(trialsPulseOn > 0) = trainOn(trialsPulseOn(trialsPulseOn > 0));
-                trainOn2(trialsPulseOff > 0) = trainOn(trialsPulseOff(trialsPulseOff > 0));
-                
-				pulseOnRelative = pulseOn - trainOn1;
-				pulseOffRelative = pulseOff - trainOn2;
+                    [~, trainOrder] = sort(trainHash, 'ascend');
+                    [~, pulseOrder] = sort(pulseHash, 'ascend');
+                    assert(length(pulseOrder) == max(pulseOrder) && min(pulseOrder) == 1)
+                    trialsSorted = changem(trials, 1:length(pulseOrder), pulseOrder);
 
-				hold on
-				plot(hAxes, spikesRelative, trials, '.',...
-					'MarkerSize', 5,...
-					'MarkerEdgeColor', 'k',...
-					'MarkerFaceColor', 'k',...
-					'LineWidth', 1.5,...
-					'DisplayName', 'Spike'...
-				)
-				plot(hAxes, pulseOnRelative, trialsPulseOn, '.',...
-					'MarkerSize', 5,...
-					'MarkerEdgeColor', 'b',...
-					'MarkerFaceColor', 'b',...
-					'LineWidth', 1.5,...
-					'DisplayName', 'Pulse On'...
-				)
-				plot(hAxes, pulseOffRelative, trialsPulseOff, '.',...
-					'MarkerSize', 5,...
-					'MarkerEdgeColor', 'r',...
-					'MarkerFaceColor', 'r',...
-					'LineWidth', 1.5,...
-					'DisplayName', 'Pulse Off'...
-				)
-				title(hAxes, 'Spike raster')
-				xlabel(hAxes, 'Time relative to Stim On (s)')
-				ylabel(hAxes, 'Trial')
-				legend(hAxes, 'Location', 'NorthWest');
-				if ~isempty(xRange)
-					xlim(hAxes, xRange);
-				end
-				hold off
+                    hold(hAxes, 'on')
+                    plot(hAxes, 1e3*spikesRelative, trialsSorted, 'k.', MarkerSize=5)
+                    ylim(hAxes, [0, nPulses + 1])
+                    hAxes.YAxis.Direction = 'reverse';
 
-                hAxes.UserData.PlotParams = struct('Reference', p.Results.StimOnEvent, 'Event', p.Results.StimOffEvent, 'Exclude', '', 'AlignTo', 'reference');
-% 				hAxes.UserData.PlotParams = p.Results;
+                    % Mark a box around the stim window
+                    for iTrain = 1:length(tce.Log)
+                        selPulse = trainIndices == iTrain;
+                        iPulseStart = strfind(selPulse, [0, 1]) + 1;
+                        iPulseEnd = strfind(selPulse, [1, 0]);
+                        if isempty(iPulseStart)
+                            iPulseStart = 1;
+                        end
+                        if isempty(iPulseEnd)
+                            iPulseEnd = nPulses;
+                        end
+                        iPulseStart = find(pulseOrder == iPulseStart);
+                        iPulseEnd = find(pulseOrder == iPulseEnd);
+                        pulseWidth = tce.Log(iTrain).params.pulseWidth;
+                        switch tce.Log(iTrain).wavelength
+                            case 473
+                                color = [0.2, 0.2, 0.8];
+                            case 593
+                                color = [0.8, 0.2, 0.2];
+                        end
+                        alpha = 0.2 + 0.6*((tce.Log(iTrain).params.iPower - 1)./(length(tce.Params.targetPowers) - 1));
+                        patch(hAxes, 1e3*[0, pulseWidth, pulseWidth, 0], [iPulseStart, iPulseStart, iPulseEnd, iPulseEnd], color, ...
+                            FaceAlpha=alpha, EdgeColor='none')                        
+                    end
+                    xlabel(hAxes, 'Time (ms)')
+                    ylabel(hAxes, 'Trial')
+
+                    hold(hAxes, 'off')
+                else
+				    spikesRelative = spikes - trainOn(trials);
+    
+				    edges = [trainOn, trainOff(end)];
+				    [~, ~, trialsPulseOn] = histcounts(pulseOn, edges);
+				    [~, ~, trialsPulseOff] = histcounts(pulseOff, edges);
+
+                    trainOn1 = zeros(size(pulseOn));
+                    trainOn2 = zeros(size(pulseOff));
+                    trainOn1(trialsPulseOn > 0) = trainOn(trialsPulseOn(trialsPulseOn > 0));
+                    trainOn2(trialsPulseOff > 0) = trainOn(trialsPulseOff(trialsPulseOff > 0));
+                    
+				    pulseOnRelative = pulseOn - trainOn1;
+				    pulseOffRelative = pulseOff - trainOn2;
+    
+				    hold(hAxes, 'on')
+				    plot(hAxes, spikesRelative, trials, '.',...
+					    'MarkerSize', 5,...
+					    'MarkerEdgeColor', 'k',...
+					    'MarkerFaceColor', 'k',...
+					    'LineWidth', 1.5,...
+					    'DisplayName', 'Spike'...
+				    )
+				    plot(hAxes, pulseOnRelative, trialsPulseOn, '.',...
+					    'MarkerSize', 5,...
+					    'MarkerEdgeColor', 'b',...
+					    'MarkerFaceColor', 'b',...
+					    'LineWidth', 1.5,...
+					    'DisplayName', 'Pulse On'...
+				    )
+				    plot(hAxes, pulseOffRelative, trialsPulseOff, '.',...
+					    'MarkerSize', 5,...
+					    'MarkerEdgeColor', 'r',...
+					    'MarkerFaceColor', 'r',...
+					    'LineWidth', 1.5,...
+					    'DisplayName', 'Pulse Off'...
+				    )
+				    title(hAxes, 'Spike raster')
+				    xlabel(hAxes, 'Time relative to Stim On (s)')
+				    ylabel(hAxes, 'Trial')
+				    legend(hAxes, 'Location', 'NorthWest');
+				    if ~isempty(xRange)
+					    xlim(hAxes, xRange);
+                    end
+				    hold(hAxes, 'off')
+    
+                    hAxes.UserData.PlotParams = struct('Reference', p.Results.StimOnEvent, 'Event', p.Results.StimOffEvent, 'Exclude', '', 'AlignTo', 'reference');
+                end
 			end
-		end
+        end
+
+        function [tce, tOn, tOff, trainIndices] = LoadTwoColorExperiment(obj, varargin)
+            p = inputParser();
+            p.addParameter('pulseWidthErrorMargin', 1e-3, @isnumeric)
+            p.parse(varargin{:})
+
+            file = dir(sprintf('%s\\..\\%s.mat', obj.Path, obj.GetExpName(includeSuffix=false)));
+            assert(~isempty(file))
+            
+            tce = load(sprintf('%s\\%s', file.folder, file.name));
+            tce = tce.obj;
+            assert(isa(tce, 'TwoColorExperiment'))
+            clear file
+            
+            tOn = obj.DigitalEvents.StimOn;
+            tOff = obj.DigitalEvents.StimOff;
+            
+            nPulsesPerTrain = arrayfun(@(log) log.params.nPulses, tce.Log);
+            pulseWidth = arrayfun(@(log) repmat(log.params.pulseWidth, [1, log.params.nPulses]), tce.Log, UniformOutput=false);
+            pulseWidth = cat(2, pulseWidth{:});
+            
+            % Verify congruence between Intan shutter events and TwoColorExperiment.Log
+            assert(sum(nPulsesPerTrain) == nnz(tOn), 'Intan recorded %i shutterOn events while TwoColorExperiment.Log has %i.', nnz(tOn), sum(nPulsesPerTrain));
+            assert(sum(nPulsesPerTrain) == nnz(tOff), 'Intan recorded %i shutterOn events while TwoColorExperiment.Log has %i.', nnz(tOn), sum(nPulsesPerTrain));
+            nPulses = nnz(tOn);
+            fprintf('Intan & TwoColorExperiment.Log both recorded %i shutter pulses.\n', nnz(tOn))
+            
+            % Pulse durations should match between Intan and TCE as well.
+            assert(all(abs(tOff - tOn - pulseWidth) < p.Results.pulseWidthErrorMargin), 'Only %i/%i pulseWidths agree (df<%gs).', ...
+                nnz(abs(tOff - tOn - pulseWidth) < p.Results.pulseWidthErrorMargin), nPulses, p.Results.pulseWidthErrorMargin)
+            fprintf('All %i pulseWidths agree (df<%gs).\n', nPulses, p.Results.pulseWidthErrorMargin)
+            
+            % Generate pulse->train map
+            iPulse = 0;
+            trainIndices = NaN(1, nPulses);
+            for iTrain = 1:length(tce.Log)
+                trainIndices(iPulse + 1:iPulse + nPulsesPerTrain(iTrain)) = iTrain;
+                iPulse = iPulse + nPulsesPerTrain(iTrain);
+            end
+        end
 
 		function PETH(obj, channels, varargin)
 			p = inputParser;
@@ -2596,6 +2704,7 @@ classdef TetrodeRecording < handle
             m0_3 = uimenu(m0, 'Text', 'Lick/Stim', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Lick/Stim'});
             m0_4 = uimenu(m0, 'Text', 'Press/Lick', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Lick'});
             m0_5 = uimenu(m0, 'Text', 'Stim1/Stim2', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Stim1/Stim2'});
+            m0_6 = uimenu(m0, 'Text', 'StimTwoColor', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'StimTwoColor'});
             m1 = uimenu(cm, 'Text', 'Delete Channel', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteChn, 'Separator', true);
             m2 = uimenu(cm, 'Text', 'Delete Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteClusters, 'Separator', true);
             m3 = uimenu(cm, 'Text', 'Merge Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnMergeClusters);
@@ -2735,7 +2844,9 @@ classdef TetrodeRecording < handle
                 case 'Press/Lick'
                     obj.PlotChannel(channel, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', 'LickOn', 'Exclude2', 'PressOn', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', false);
                 case 'Stim1/Stim2'
-                    obj.PlotChannel(channel, PlotStimBlue=true, PlotStimOrange=true, ExtendedWindow=[-0.25, 0.5])
+                    obj.PlotChannel(channel, PlotStimBlue=true, PlotStimOrange=true, ExtendedWindow=[-0.25, 0.5]) % Legacy, only used for Sep2023 experiments
+                case 'StimTwoColor'
+                    obj.PlotChannel(channel, TwoColorExperiment=true, ExtendedWindow=[-0.1, 0.3])
             end
         end
         
@@ -3071,6 +3182,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'PlotPETH', true, @islogical);
             addParameter(p, 'PlotStimBlue', false, @islogical);
             addParameter(p, 'PlotStimOrange', false, @islogical);
+            addParameter(p, 'TwoColorExperiment', false, @islogical)
 			addParameter(p, 'Fig', []);
 			parse(p, channel, varargin{:});
 			iChannel 			= p.Results.Channel;
@@ -3096,6 +3208,7 @@ classdef TetrodeRecording < handle
 			plotStimBlue 		= p.Results.PlotStimBlue;
 			plotStimOrange 		= p.Results.PlotStimOrange;
             plotPETH            = p.Results.PlotPETH;
+            isTCE               = p.Results.TwoColorExperiment;
 			h.Figure 			= p.Results.Fig;
 
 			allChannels = [obj.Spikes.Channel];
@@ -3389,7 +3502,7 @@ classdef TetrodeRecording < handle
                 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, ...
                 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, ...
                 'FrameRate', frameRate, 'PlotStim', plotStim, 'PlotPETH', plotPETH, 'Fig', h.Figure, ...
-                'PlotStimBlue', plotStimBlue, 'PlotStimOrange', plotStimOrange)},...
+                'PlotStimBlue', plotStimBlue, 'PlotStimOrange', plotStimOrange, 'TwoColorExperiment', isTCE)},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', [1 - xMargin - 2*buttonWidth, 1 - yMargin, buttonWidth, min(yMargin, buttonHeight)]);
@@ -3418,7 +3531,7 @@ classdef TetrodeRecording < handle
                 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, ...
                 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, ...
                 'FrameRate', frameRate, 'PlotStim', plotStim, 'Fig', h.Figure, ...
-                'PlotStimBlue', plotStimBlue, 'PlotStimOrange', plotStimOrange)},...
+                'PlotStimBlue', plotStimBlue, 'PlotStimOrange', plotStimOrange, 'TwoColorExperiment', isTCE)},...
 				'BusyAction', 'cancel',...
 				'Units', 'Normalized',...
 				'Position', hPrev.Position);
@@ -3529,6 +3642,7 @@ classdef TetrodeRecording < handle
 			plotStimBlue 	= p.Results.PlotStimBlue;
 			plotStimOrange 	= p.Results.PlotStimOrange;
             plotPETH        = p.Results.PlotPETH;
+            isTCE           = p.Results.TwoColorExperiment;
 
             if ~h.Figure.UserData.PlotRefreshEnabled
                 return
@@ -3556,7 +3670,13 @@ classdef TetrodeRecording < handle
 			end
 
 			% Replot newly selected clusters
-            if plotStimBlue && plotStimOrange
+            if isTCE
+			    if isgraphics(h.Raster, 'Axes')
+				    obj.RasterStim(iChannel, TwoColorExperiment=true, Clusters=clusters, ...
+					    ExtendedWindow=extendedWindow, SelectedSampleIndex=selectedSampleIndex, ...
+					    Ax=h.Raster);
+                end
+            elseif plotStimBlue && plotStimOrange
 			    if isgraphics(h.Raster, 'Axes')
 				    obj.RasterStim(iChannel, 'TrialEvent', 'StimBlueOn', 'StimOnEvent', 'StimBlueOn', 'StimOffEvent', 'StimBlueOff', ...
                         'Clusters', clusters,...
@@ -4176,8 +4296,9 @@ classdef TetrodeRecording < handle
 					printMode 			= p.Results.PrintMode;
 					frameRate 			= p.Results.FrameRate;
 					plotStim 			= p.Results.PlotStim;
+                    isTCE               = p.Results.TwoColorExperiment;
 
-					obj.PlotChannel(nextChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', h.Figure, 'PlotStim', plotStim);
+					obj.PlotChannel(nextChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, 'FrameRate', frameRate, 'Fig', h.Figure, 'PlotStim', plotStim, 'TwoColorExperiment', isTCE);
 				end
 			end
 			obj.GUIBusy(h.Figure, false);
@@ -4946,7 +5067,7 @@ classdef TetrodeRecording < handle
 			varargout = {tr, iExp};
         end
 
-        function tr = BatchLoadSimple(expName, intan, prefix)
+        function tr = BatchLoadSimple(expNameOrFiles, intan, prefix)
         % Read multiple TR objects, assuming they're non-overlapping files (split by channel) from the same experiment.
             if nargin < 2
                 intan = false;
@@ -4961,16 +5082,18 @@ classdef TetrodeRecording < handle
 %                 files = uipickfiles('Prompt', 'Select .mat files containing TetrodeRecording objects to load...', 'Type', {'*.mat', 'MAT-files'});
                 [files, path] = uigetfile('*.mat', MultiSelect='on');
                 files = cellfun(@(f) [path, f], files, UniformOutput=false);
+            elseif iscell(expNameOrFiles)
+                files = expNameOrFiles;
             else
 				files = {};
                 tTic = tic();
-                animalName = strsplit(expName, '_');
+                animalName = strsplit(expNameOrFiles, '_');
                 animalName = animalName{1};
                 if ~intan
-                    thisFile = dir(sprintf('C:\\SERVER\\%s\\SpikeSort\\%s%s*.mat', animalName, prefix, expName));
+                    thisFile = dir(sprintf('C:\\SERVER\\%s\\SpikeSort\\%s%s*.mat', animalName, prefix, expNameOrFiles));
                 else
-                    sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\%s%s*.mat', animalName, expName, prefix, expName)
-                    thisFile = dir(sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\%s%s*.mat', animalName, expName, prefix, expName));
+                    sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\%s%s*.mat', animalName, expNameOrFiles, prefix, expNameOrFiles)
+                    thisFile = dir(sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\%s%s*.mat', animalName, expNameOrFiles, prefix, expNameOrFiles));
                 end
                 thisFile = thisFile(~[thisFile.isdir]);
                 if ~isempty(thisFile)

@@ -287,7 +287,7 @@ classdef AcuteRecording < handle
         function varargout = binMoveResponse(obj, tr, moveType, varargin)
             p = inputParser();
             p.addRequired('TetrodeRecording', @(x) isa(x, 'TetrodeRecording'))
-            p.addRequired('MoveType', @(x) ismember(lower(x), {'press', 'lick', 'press_spontaneous'}))
+            p.addRequired('MoveType', @(x) ismember(lower(x), {'press', 'lick', 'press_spontaneous', 'none'}))
             p.addOptional('Channels', [], @isnumeric);
             p.addOptional('Units', [], @isnumeric);
             p.addParameter('BinWidth', 0.1, @isnumeric); % Bin width in seconds
@@ -326,18 +326,23 @@ classdef AcuteRecording < handle
             m = zeros(nUnits, 1);
             s = zeros(nUnits, 1);
 
-            tRef = tr.DigitalEvents.CueOn;
             switch lower(moveType)
                 case 'press'
+                    tRef = tr.DigitalEvents.CueOn;
                     tMove = tr.DigitalEvents.PressOn;
                     tExclude = sort([tr.DigitalEvents.LickOn, tr.DigitalEvents.RewardOn]);
                 case 'lick'
+                    tRef = tr.DigitalEvents.CueOn;
                     tMove = tr.DigitalEvents.LickOn;
                     tExclude = sort([tr.DigitalEvents.PressOn, tr.DigitalEvents.RewardOn]);
                 case 'press_spontaneous'
                     tRef = tr.DigitalEvents.PressOff;
                     tMove = tr.DigitalEvents.PressOn;
                     tExclude = sort([tr.DigitalEvents.LickOn, tr.DigitalEvents.RewardOn]);
+                case 'none'
+                    tRef = [];
+                    tMove = [];
+                    tExclude = [];
                 otherwise
                     error('Unrecognized move type: %s', lower(moveType))
             end
@@ -394,7 +399,7 @@ classdef AcuteRecording < handle
 
             if store
                 switch lower(moveType)
-                    case 'press'
+                    case {'press', 'none'}
                         obj.bmrPress = bmr;
                     case 'press_spontaneous'
                         obj.bmrPress = bmr;

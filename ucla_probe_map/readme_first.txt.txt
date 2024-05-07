@@ -1,3 +1,9 @@
+HLF, 20240430:
+ - The .jpg/.mat files are generated from the .m files
+ - x is ML, z is DV (0 is tip, 800 is up), y should be 0.
+ - Viewed from the front (of probe contacts/epoxy/optic fiber side), with the probe facing downwards
+
+Original readme:
 A.  	Instructions for Initial Setup.
 
 Unzip and copy the contents of the folder microprobe wiring to your Matlab path.

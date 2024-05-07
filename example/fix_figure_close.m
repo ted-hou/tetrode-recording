@@ -1,0 +1,1 @@
+set(groot, 'defaultFigureCloseRequestFcn', 'delete(gcf)');
