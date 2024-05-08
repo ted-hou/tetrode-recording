@@ -21,7 +21,7 @@ for iExp = 2:length(sessionInfo)
 end
 clear iExp
 %% Load EU
-eu = EphysUnit.load('Y:\Units\TwoColor_Optrode\NonDuplicate_SingleUnit');
+eu = EphysUnit.load('Y:\Units\TwoColor_Optrode\NonDuplicate_SingleUnit_Good');
 
 %% Make rasters and save to disk
 rd = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-2, shutterDelay=0);
@@ -37,10 +37,64 @@ for iEu = 1:length(eu)
     print(fig, sprintf('Y:\\Figures\\TwoColor_Optrode\\%s.png', eu(iEu).getName()), '-dpng');
 end
 
-%% Make PETH and save to disk
-
-%% Calculate peristim ISI, average across trials, group by condition. We use this in lieu of PSTHs
-
+%% Make PE-ISI and save to disk
+clear p
+p.isiWindow = [-0.5, 0.5];
+p.isiRes = 1e-3;
+p.xlim = [-0.1, 0.1];
+p.path = 'Y:\Figures\TwoColor_Optrode_PEISI\stage';
+if ~exist(p.path, 'dir')
+    mkdir(p.path)
+end
+for iEu = 1:length(eu)
+% for iEu = 1:length(eu)
+    ax = axes(figure(Units='inches', Position=[0, 0, 6, 8]));
+    groups = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'});
+    isi = NaN(length(groups), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)));
+    normSR = isi;
+    for iGrp = 1:length(groups)
+        [isi(iGrp, :), t] = eu(iEu).getMeanPEISI('stimtwocolor', groups(iGrp).trials, window=p.isiWindow, resolution=p.isiRes);
+        normSR(iGrp, :) = 1./isi(iGrp, :) - mean(1./isi(iGrp, t<0), 'omitnan');
+    end
+    imagesc(ax, 1e3*t, [], normSR)
+    xlim(ax, p.xlim*1e3)
+    clim(ax, [0, 50])
+    ax.YAxisLocation = 'right';
+    colormap(ax, 'hot')
+    h = colorbar(ax, 'westoutside');
+    h.Label.String = '\Deltasp/s';
+    yticks(ax, 1:length(groups));
+    yticklabels(ax, {groups.label})
+    xlabel(ax, 'Time from opto onset (ms)')
+    title(ax, eu(iEu).getName, Interpreter="none")
+    print(ax.Parent, sprintf('%s\\%s.png', p.path, eu(iEu).getName), '-dpng')
+    close(ax.Parent)
+end
+%% Create plot across units
+for iEu = 1:length(eu)
+% for iEu = 1:length(eu)
+    ax = axes(figure(Units='inches', Position=[0, 0, 6, 8]));
+    groups = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'location'});
+    isi = NaN(length(groups), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)));
+    normSR = isi;
+    for iGrp = 1:length(groups)
+        [isi(iGrp, :), t] = eu(iEu).getMeanPEISI('stimtwocolor', groups(iGrp).trials, window=p.isiWindow, resolution=p.isiRes);
+        normSR(iGrp, :) = 1./isi(iGrp, :) - mean(1./isi(iGrp, t<0), 'omitnan');
+    end
+    imagesc(ax, 1e3*t, [], normSR)
+    xlim(ax, p.xlim*1e3)
+    clim(ax, [0, 50])
+    ax.YAxisLocation = 'right';
+    colormap(ax, 'hot')
+    h = colorbar(ax, 'westoutside');
+    h.Label.String = '\Deltasp/s';
+    yticks(ax, 1:length(groups));
+    yticklabels(ax, {groups.label})
+    xlabel(ax, 'Time from opto onset (ms)')
+    title(ax, eu(iEu).getName, Interpreter="none")
+    % print(ax.Parent, sprintf('%s\\%s.png', p.path, eu(iEu).getName), '-dpng')
+    % close(ax.Parent)
+end
 
 %% Plot 
 

@@ -839,6 +839,44 @@ classdef EphysUnit < handle
             end
         end
 
+        function [isi, t] = getMeanPEISI(obj, trialType, trials, varargin)
+            p = inputParser();
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor'})))
+            p.addRequired('trials', @(x) isa(x, 'Trial'))
+            p.addOptional('window', [-0.5, 0.5], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
+            p.addParameter('resolution', 1e-3, @isnumeric)
+            p.addParameter('alignTo', 'default', @(x) ismember(x, {'default', 'start', 'stop'}))
+            p.addParameter('shutterDelay', 0, @isnumeric)
+            p.parse(trialType, trials, varargin{:})
+            trialType = p.Results.trialType;
+            trials = p.Results.trials;
+            window = p.Results.window;
+            resolution = p.Results.resolution;
+            alignTo = p.Results.alignTo;
+            shutterDelay = p.Results.shutterDelay;
+
+            assert(length(obj) == 1)
+
+            rd = obj.getRasterData(trialType, window, trials=trials, alignTo=alignTo, shutterDelay=shutterDelay, sort=false);
+            isFirstSpikeInTrial = logical([1, diff(rd.I)]);
+            start = [1, strfind(isFirstSpikeInTrial, [0, 1]) + 1];
+            stop = [strfind(isFirstSpikeInTrial, [0, 1]), length(rd.I)];
+
+            nTrials = length(start);
+            isi = [NaN, diff(rd.t)];
+            isi(isFirstSpikeInTrial) = NaN;
+
+            t = window(1):resolution:window(2);
+            ISI = NaN(nTrials, length(t));
+            for iTrial = 1:nTrials
+                sel = start(iTrial) + 1:stop(iTrial);
+                try
+                    ISI(iTrial, :) = interp1(rd.t(sel), isi(sel), t, 'linear');
+                end
+            end
+            isi = mean(ISI, 1, 'omitnan');
+        end
+
         function [r, lags, pairedIndices] = xcorr(obj, data, varargin)
             %% [r, lags] = obj.XCORR(_), returns full cross correlation as a function of lag, for all pairs of objects in obj array.
             p = inputParser();
@@ -1090,6 +1128,7 @@ classdef EphysUnit < handle
 
             groups(nGroups).trials = [];
             groups(nGroups).pulseIndices = [];
+            groups(nGroups).label = '';
             for i = 1:length(groupBy)
                 switch lower(groupBy{i})
                     case 'wavelength'
@@ -1111,16 +1150,22 @@ classdef EphysUnit < handle
                     switch lower(groupBy{i})
                         case 'wavelength'
                             groups(iGroup).wavelength = conditions(iGroup).wavelength;
+                            groups(iGroup).label = sprintf('%s %inm', groups(iGroup).label, groups(iGroup).wavelength);
                         case 'location'
                             groups(iGroup).location = conditions(iGroup).location;
+                            groups(iGroup).label = sprintf('%s %i', groups(iGroup).label, groups(iGroup).location);
                         case 'duration'
                             groups(iGroup).duration = conditions(iGroup).duration;
+                            groups(iGroup).label = sprintf('%s %gms', groups(iGroup).label, 1e3*groups(iGroup).duration);
                         case 'power'
                             groups(iGroup).power = conditions(iGroup).power;
+                            groups(iGroup).label = sprintf('%s %guW', groups(iGroup).label, 1e6*groups(iGroup).power);
                     end
                 end
             end
         end
+
+        
     end
     
     % static methods
