@@ -74,7 +74,7 @@ for iEu = 1:length(euEg)
     fontname(ax, 'Arial');
     ax.Box = 'off';
     if iEu == 1
-        h = text(ax, 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold');
+        % h = text(ax, 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold');
         ax.Units = 'inches'; h.Units = 'inches';
         h.HorizontalAlignment = 'right';
         h.VerticalAlignment = 'top';
@@ -98,7 +98,7 @@ xlabel(ax, 'Time to bar-contact (s)')
 fontsize(ax, p.fontSize, 'points');
 fontname(ax, 'Arial')
 % annotation(fig, 'textbox', Units='inches', Position=[0.30,4.5,0.4,0.36], EdgeColor='none', String='c', FontSize=16, FontName='Arial', FontWeight='bold');
-h = text(ax, 0, 0, 'c', FontSize=16, FontName='Arial', FontWeight='bold');
+h = text(ax, 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold');
 ax.Units = 'inches'; h.Units = 'inches';
 h.HorizontalAlignment = 'right';
 h.VerticalAlignment = 'top';
@@ -111,7 +111,7 @@ histogram(ax, msr(c.hasPress), 0:5:150, FaceColor='white');
 xlabel(ax, 'Baseline spike rate (sp/s)'), ylabel(ax, 'Count')
 fontsize(ax, p.fontSize, 'points');
 fontname(ax, 'Arial')
-h = text(ax, 0, 0, 'd', FontSize=16, FontName='Arial', FontWeight='bold');
+h = text(ax, 0, 0, 'c', FontSize=16, FontName='Arial', FontWeight='bold');
 ax.Units = 'inches'; h.Units = 'inches';
 h.HorizontalAlignment = 'right';
 h.VerticalAlignment = 'top';
@@ -122,7 +122,7 @@ histogram(ax, meta.pressRaw(c.hasPress)./0.1 - msr(c.hasPress), 30, FaceColor='w
 xlabel(ax, 'Pre-move response (\Deltasp/s)'), ylabel(ax, 'Count')
 fontsize(ax, p.fontSize, 'points');
 fontname(ax, 'Arial')
-h = text(ax, 0, 0, 'e', FontSize=16, FontName='Arial', FontWeight='bold');
+h = text(ax, 0, 0, 'd', FontSize=16, FontName='Arial', FontWeight='bold');
 ax.Units = 'inches'; h.Units = 'inches';
 h.HorizontalAlignment = 'right';
 h.VerticalAlignment = 'top';
@@ -133,7 +133,7 @@ histogram(ax, meta.press(c.hasPress), 30, FaceColor='white')
 xlabel(ax, 'Normalized pre-move response (a.u.)'), ylabel(ax, 'Count')
 fontsize(ax, p.fontSize, 'points');
 fontname(ax, 'Arial')
-h = text(ax, 0, 0, 'f', FontSize=16, FontName='Arial', FontWeight='bold');
+h = text(ax, 0, 0, 'e', FontSize=16, FontName='Arial', FontWeight='bold');
 ax.Units = 'inches'; h.Units = 'inches';
 h.HorizontalAlignment = 'right';
 h.VerticalAlignment = 'top';

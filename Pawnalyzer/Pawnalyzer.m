@@ -1,3 +1,4 @@
+% Used for manually labeling lever reach trials as Left or Right paw reach
 classdef Pawnalyzer < handle
     properties
         sessions

@@ -1,7 +1,6 @@
 % Batch preview
 ptr = TetrodeRecording.BatchPreview();
 
-
 set(findobj(gcf, 'Type', 'Axes', '-not', 'Tag', 'suptitle'), 'YLim', [-200, 200]);
 
 % Save/load batch preview files
@@ -47,7 +46,8 @@ tr(iTr).PlotChannel([], 'Reference', 'PressOff', 'Event', 'PressOn', 'Exclude', 
 tr(iTr).PlotChannel([], 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-8, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', true);
 tr(iTr).PlotAllChannels(plotMethod='mean');
 
-TetrodeRecording.BatchSave(tr(iTrLastSaved+1:iTr), 'Prefix', 'tr_sorted_DA_', 'DiscardData', false); iTrLastSaved = iTr;
+TetrodeRecording.BatchSave(tr, 'Prefix', 'tr_sorted_', 'DiscardData', false)
+TetrodeRecording.BatchSave(tr(iTrLastSaved+1:iTr), 'Prefix', 'tr_sorted_', 'DiscardData', false); iTrLastSaved = iTr;
 
 % Batch plot
 for iTr = 1:length(tr)
@@ -63,7 +63,6 @@ for iTr = 1:length(tr)
 	end
 end
 clear iTr iChannel iCluster
-
 
 % Batchplot based on date/channel, and paste to clipboard
 % Ref/noise cluster is last cluster

@@ -15,6 +15,8 @@ function [h, muDiffCI, muDiffObs] = bootstrapMoveResponse(eu, trialType, varargi
     r = p.Results;
     eu = r.eu;
 
+    rng(42);
+
     dataWindow = [min(r.baselineWindow(1), r.responseWindow(1)), max(r.baselineWindow(2), r.responseWindow(2))];
 
     h = NaN(length(eu), 1);

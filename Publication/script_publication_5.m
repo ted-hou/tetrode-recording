@@ -4,6 +4,9 @@
 load_ephysunits;
 boot_response_dir;
 find_osci_lick_circ;
+[bootPressVsLick.h, bootPressVsLick.p, bootPressVsLick.ci, bootPressVsLick.obs] = bootstrapPressVsLick(eu(c.hasLick & c.hasPress));
+c.isPressVsLickSelective = false(1, length(eu));
+c.isPressVsLickSelective(c.hasLick & c.hasPress) = bootPressVsLick.h;
 
 %% plot params
 p.fontSize = 9;
@@ -188,8 +191,10 @@ for i = 1:2
     x = XDATA{i}(sel);
     y = YDATA{i}(sel);
     nnz(sel)
-    subselResp = sel & c.isPressResponsive & c.isLickResponsive;
-    subselNone = sel & (~c.isPressResponsive | ~c.isLickResponsive);
+    % subselResp = sel & c.isPressResponsive & c.isLickResponsive;
+    % subselNone = sel & (~c.isPressResponsive | ~c.isLickResponsive);
+    subselResp = sel & c.isPressVsLickSelective;
+    subselNone = sel & ~c.isPressVsLickSelective;
     h(i, 1) = scatter(ax(i), XDATA{i}(subselNone), YDATA{i}(subselNone), sz, 'black', 'filled', DisplayName=sprintf('%g units', nnz(subselNone)));   
     h(i, 2) = scatter(ax(i), XDATA{i}(subselResp), YDATA{i}(subselResp), sz, 'red', 'filled', DisplayName=sprintf('%g units', nnz(subselResp)));
 
@@ -205,7 +210,7 @@ for i = 1:2
     plot(ax(i), [0, 0], yl, 'k:')
     
     mdl = fitlm(x, y);
-%     h(i, 3) = plot(ax(i), xl', mdl.predict(xl'), 'k--', LineWidth=1, DisplayName=sprintf('R^2 = %.2f', mdl.Rsquared.Ordinary));
+    h(i, 3) = plot(ax(i), xl', mdl.predict(xl'), 'k--', LineWidth=1, DisplayName=sprintf('R^2 = %.2f', mdl.Rsquared.Ordinary));
     if i == 1
         xlabel(ax(i), XNAME{i}, Units='normalized', Position=[1.18902486151029,-0.115261042292962,0])
         ylabel(ax(i), YNAME{i})
