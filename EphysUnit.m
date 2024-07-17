@@ -418,7 +418,7 @@ classdef EphysUnit < handle
         
         function trials = getTrials(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout', 'stimtwocolor'})));
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous2', 'press_spontaneous_medial', 'press_spontaneous_lateral'})));
             p.addOptional('sorted', true, @islogical);
             p.addParameter('minBoutCycles', 2)
             p.addParameter('maxBoutCycles', 4)
@@ -437,6 +437,14 @@ classdef EphysUnit < handle
                     switch lower(trialType{itt})
                         case 'press'
                             trials{itt} = obj.Trials.Press(:);
+                        case 'press_spontaneous'
+                            trials{itt} = obj.Trials.PressSpontaneous(:);
+                        case 'press_spontaneous_medial'
+                            trials{itt} = obj.Trials.PressSpontaneousMedial(:);
+                        case 'press_spontaneous_lateral'
+                            trials{itt} = obj.Trials.PressSpontaneousLateral(:);
+                        case 'press_spontaneous2'
+                            trials{itt} = obj.makeTrials('press_spontaneous2');
                         case 'lick'
                             trials{itt} = obj.Trials.Lick(:);
                         case 'stim'
@@ -569,7 +577,8 @@ classdef EphysUnit < handle
             %  stats - Nx1 struct('mean', 'sd'), mean spike rate and sd for each neuron
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
-            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', 'firstlick', 'circlick', 'lickbout'}))
+            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', ...
+                'firstlick', 'circlick', 'lickbout', 'press_spontaneous', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -705,7 +714,7 @@ classdef EphysUnit < handle
 
         function rd = getRasterData(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor'})))
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'press_spontaneous2'})))
             p.addOptional('window', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -1006,7 +1015,9 @@ classdef EphysUnit < handle
                     isi = [Inf, diff(obj(i).SpikeTimes)];
                     toCull = isi == 0;
                     obj(i).SpikeTimes(toCull) = [];
-                    obj(i).Waveforms(toCull) = [];
+                    if ~isempty(obj(i).Waveforms)
+                        obj(i).Waveforms(toCull) = [];
+                    end
                     % Hey, remember to redo spikecounts/spikerates after this
                 end
                 isi = [Inf, diff(obj(i).SpikeTimes)];
@@ -1706,6 +1717,8 @@ classdef EphysUnit < handle
                         trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Press, 'first', obj.EventTimes.Lick);
                     case 'press_spontaneous'
                         trials = Trial(obj.EventTimes.PressOff, obj.EventTimes.Press, 'first');
+                    case 'press_spontaneous2'
+                        trials = Trial(obj.EventTimes.Press(1:end-1), obj.EventTimes.Press(2:end), advancedValidation=false);
                     case 'press_spontaneous_correct'
                         trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Press, 'first');                        
                     case 'lick'
@@ -1943,7 +1956,7 @@ classdef EphysUnit < handle
                 useResampleMethod = false;
             end
             p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
-            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick', 'firstlick', 'circlick', 'lickbout'}))
+            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick', 'firstlick', 'circlick', 'lickbout', 'press_spontaneous', 'press_spontaneous2', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
             p.addParameter('resolution', 0.001, @(x) isnumeric(x) && x > 0)
             p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) >= x(1))
