@@ -165,8 +165,9 @@ classdef CompleteExperiment < handle
             t = zeros(length(ephysTime), numFramesBefore + numFramesAfter + 1);
 
             firstFrame = vtd.FrameNumber(1);
+            fprintf('Extracting %i clips...', length(ephysTime))
 			for iClip = 1:length(ephysTime)
-				fprintf('Extracting clip %d of %d...', iClip, length(ephysTime))
+% 				fprintf('Extracting clip %d of %d...', iClip, length(ephysTime))
 
 				[~, iFrame] = min(abs(vtd.Timestamp - ephysTime(iClip)));
 % 				v.CurrentTime = (firstFrame + iFrame - 1 - numFramesBefore)/v.FrameRate + vidStartTime;
@@ -194,8 +195,8 @@ classdef CompleteExperiment < handle
 %                     end
                     clip{iClip}(:, :, :, iClipFrame) = thisFrame;
 				end
-				fprintf('Done!\n')
             end
+            fprintf('Done!\n')
 
             if length(ephysTime) == 1
                 clip = clip{1};

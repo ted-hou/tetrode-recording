@@ -19,9 +19,9 @@ classdef CompleteExperiment3 < CompleteExperiment
             for i = 1:nExp
                 obj(i).name = uniqueExpNames{i};
                 obj(i).eu = eu(expIndices==i);
-                obj(i).vtdF = obj.readOrCreateVideoTrackingData(obj(i).name, 'f');
-                obj(i).vtdL = obj.readOrCreateVideoTrackingData(obj(i).name, 'l');
-                obj(i).vtdR = obj.readOrCreateVideoTrackingData(obj(i).name, 'r');
+                obj(i).vtdF = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'f');
+                obj(i).vtdL = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'l');
+                obj(i).vtdR = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'r');
                 obj(i).ac = CompleteExperiment.readArduino(obj(i).name);
             end
         end
@@ -59,12 +59,12 @@ classdef CompleteExperiment3 < CompleteExperiment
                 eventId = find(strcmp(obj.ac.EventMarkerNames, refEventNameArduino));
                 eventDateNum = obj.ac.EventMarkersUntrimmed(obj.ac.EventMarkersUntrimmed(:, 1) == eventId, 3)';
                 eventDateTime = datetime(eventDateNum, ConvertFrom='datenum', TimeZone='America/New_York');
-                fcamDateTime = datetime([obj.ac.Cameras(1).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
-                fcamFrameNum = [obj.ac.Cameras(1).Camera.EventLog.FrameNumber];
-                lcamDateTime = datetime([obj.ac.Cameras(2).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
-                lcamFrameNum = [obj.ac.Cameras(2).Camera.EventLog.FrameNumber];
-                rcamDateTime = datetime([obj.ac.Cameras(3).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
-                rcamFrameNum = [obj.ac.Cameras(3).Camera.EventLog.FrameNumber];
+                fcamDateTime = datetime([obj.ac.Cameras(obj.getCameraIndex('f')).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
+                fcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('f')).Camera.EventLog.FrameNumber];
+                lcamDateTime = datetime([obj.ac.Cameras(obj.getCameraIndex('l')).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
+                lcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('l')).Camera.EventLog.FrameNumber];
+                rcamDateTime = datetime([obj.ac.Cameras(obj.getCameraIndex('r')).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
+                rcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('r')).Camera.EventLog.FrameNumber];
 
                 % Find event in ephystime
                 eventEhpysTime = obj.eu(1).EventTimes.(refEventNameEphys);
@@ -139,15 +139,32 @@ classdef CompleteExperiment3 < CompleteExperiment
         end
 
         function i = getCameraIndex(obj, side)
-            switch lower(side)
-                case {'f', 'front'}
-                    i = 1;
-                case {'l', 'left'}
-                    i = 2;
-                case {'r', 'right'}
-                    i = 3;
-                otherwise
-                    error('Unrecognized side string: ''%s''', side)
+            assert(length(obj) == 1)
+            animalName = strsplit(obj.name, '_');
+            animalName = animalName{1};
+            switch animalName
+                case {'daisy23', 'daisy24', 'daisy25'}
+                    switch lower(side)
+                        case {'f', 'front'}
+                            i = 2;
+                        case {'l', 'left'}
+                            i = 3;
+                        case {'r', 'right'}
+                            i = 1;
+                        otherwise
+                            error('Unrecognized side string: ''%s''', side)
+                    end                    
+                case {'desmond28', 'desmond29', 'desmond30'}
+                    switch lower(side)
+                        case {'f', 'front'}
+                            i = 1;
+                        case {'l', 'left'}
+                            i = 2;
+                        case {'r', 'right'}
+                            i = 3;
+                        otherwise
+                            error('Unrecognized side string: ''%s''', side)
+                    end                    
             end
         end
 

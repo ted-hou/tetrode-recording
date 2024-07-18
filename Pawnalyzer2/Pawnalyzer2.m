@@ -107,7 +107,7 @@ classdef Pawnalyzer2 < handle
             p = inputParser();
             p.addParameter('nFramesBefore', 15, @isnumeric);
             p.addParameter('nFramesAfter', 0, @isnumeric);
-            p.addParameter('trials', []);
+            p.addParameter('trials', [], @(x) isnumeric(x) || ismember(x, {'PressSpontaneous', 'Press', 'PressSpontaneousMedial', 'PressSpontaneousLateral'}));
             p.addParameter('keepData', true, @islogical);
             p.parse(varargin{:})
             nFramesBefore = p.Results.nFramesBefore;
@@ -119,9 +119,13 @@ classdef Pawnalyzer2 < handle
             clips = cell(length(obj.exp), 1);
             t = cell(length(obj.exp), 1);
             for iExp = 1:length(obj.exp)
-                trials{iExp} = VideoDirReachTrial(obj.exp(iExp));
-                if ~isempty(selTrials)
-                    trials{iExp} = trials{iExp}(selTrials);
+                if ischar(selTrials)
+                    trials{iExp} = obj.exp(iExp).eu(1).Trials.(selTrials);
+                else
+                    trials{iExp} = VideoDirReachTrial(obj.exp(iExp));
+                    if ~isempty(selTrials)
+                        trials{iExp} = trials{iExp}(selTrials);
+                    end
                 end
                 timestamps = [trials{iExp}.Stop];
                 [clipsF, t{iExp}.front] = obj.exp(iExp).getVideoClip(timestamps, side='f', bodyparts={}, ...
@@ -161,8 +165,13 @@ classdef Pawnalyzer2 < handle
         function save(obj, path)
             if nargin < 2 || isempty(path)
                 if isempty(obj.path)
-                    [file, path] = uigetfile();
-                    path = [path, file];
+                    if length(obj.exp) == 1
+                        [file, path] = uiputfile(sprintf('C:\\SERVER\\%s\\%s\\pawnalyzer2_%s.mat', obj.exp.animalName, obj.exp.name, obj.exp.name));
+                        path = [path, file];
+                    else
+                        [file, path] = uiputfile('C:\SERVER\pawnalyzer2_data.mat');
+                        path = [path, file];
+                    end
                 else
                     path = obj.path;
                 end
@@ -389,6 +398,19 @@ classdef Pawnalyzer2 < handle
             end
         end
 
+        function trials = getTrials(obj, iExp)
+            if ischar(obj.clipParams.trials)
+                trials = obj.exp(iExp).eu(1).Trials.(obj.clipParams.trials);
+            else
+                error('Not tested')
+                if isempty(obj.clipParams.trials)
+                    trials = obj.exp(iExp).eu(1).Trials.Press;
+                else
+                    trials = obj.exp(iExp).eu(1).Trials.Press(obj.clipParams.trials);
+                end
+            end
+        end
+
         function showFrame(obj, varargin)
             p = inputParser();
             p.addParameter('exp', 'curr', @(x) isnumeric(x) || ismember(x, {'curr', 'next', 'prev'}));
@@ -406,7 +428,8 @@ classdef Pawnalyzer2 < handle
             obj.gui.index.frame = iFrame;
             nFrames = obj.getLength('frame');
             iFrameRef = nFrames - obj.clipParams.nFramesAfter;
-            tRef = obj.exp(iExp).eu(1).Trials.Press(iTrial).Stop;
+            trials = obj.getTrials(iExp);
+            tRef = trials(iTrial).Stop;
 
             % Show title text
             obj.gui.text.title.String = sprintf('%s\nExp: %i / %i (Ctrl)\nTrial: %03i / %03i (Shift)\nFrame: %02i / %02i', obj.exp(iExp).name, iExp, obj.getLength('exp'), iTrial, obj.getLength('trial'), iFrame, nFrames);
@@ -634,7 +657,8 @@ classdef Pawnalyzer2 < handle
                         error();
                 end
                 
-                tGlobal = (-15:0)./30 + obj.exp(iExp).eu(1).Trials.Press(iTrial).Stop;
+                trials = obj.getTrials(iExp);
+                tGlobal = (-15:0)./30 + trials(iTrial).Stop;
                 tGlobal = tGlobal(:);
                 t = (-15:0)./30;
                 t = t(:);

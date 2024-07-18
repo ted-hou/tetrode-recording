@@ -2,7 +2,22 @@ eu = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction');
 pa = Pawnalyzer2(eu);
 %%
 eu = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction_2tgts\SingleUnits_NonDuplicate');
-pa = Pawnalyzer2(eu, refEvent='press');
+for iEu = 1:length(eu)
+    trials = eu(iEu).makeTrials('press_spontaneous2');
+    goodTrials = trials(trials.duration() > 4);
+    eu(iEu).Trials.PressSpontaneous = goodTrials;
+end
+%%
+pa = Pawnalyzer2(eu, refEvent='reward');
+euByExp = arrayfun(@(x) x.eu, pa.exp, UniformOutput=false);
+%%
+
+%%
+iExp = 10;
+pa = Pawnalyzer2(euByExp{iExp}, refEvent='press');
+pa.getClips(nFramesBefore=15, nFramesAfter=0, keepData=false, trials='PressSpontaneous');
+pa.start();
+
 %%
 pa.getClips(nFramesBefore=15, nFramesAfter=0, keepData=false);
 
