@@ -128,7 +128,13 @@ classdef CompleteExperiment < handle
             assert(length(obj) == 1)
 
             if isempty(p.Results.file)
-                file = sprintf('C:\\SERVER\\%s\\%s\\%s_%i.mp4', obj.animalName, obj.name, obj.name, obj.getCameraIndex(side));
+                file = sprintf('C:\\SERVER\\%s\\%s\\%s*_%i.mp4', obj.animalName, obj.name, obj.name, obj.getCameraIndex(side));
+                file = dir(file);
+                if isempty(file)
+                    error('Video file not found (%s)', sprintf('C:\\SERVER\\%s\\%s\\%s*_%i.mp4', obj.animalName, obj.name, obj.name, obj.getCameraIndex(side)));
+                else
+                    file = sprintf('%s\\%s', file.folder, file.name);
+                end
             else
                 file = p.Results.file;
             end
@@ -151,6 +157,7 @@ classdef CompleteExperiment < handle
             labelColors = [transpose(0:(0.8 - 0)/(length(bodyparts) - 1):0.8), repmat([1, 0.5], length(bodyparts), 1)];
             labelColors = hsl2rgb(labelColors)*255;
 
+            fprintf('Reading video file %s\n', file)
 			v = VideoReader(file);
 			vidStartTime = v.CurrentTime;
 
@@ -767,6 +774,9 @@ classdef CompleteExperiment < handle
             animalName = animalName{1};
             S = load(sprintf('C:\\SERVER\\%s\\%s\\%s.mat', animalName, expName, expName));
             ac = S.obj;
+            if isa(ac, 'TwoColorExperiment')
+                ac = ac.LaserArduino;
+            end
         end
         
     end

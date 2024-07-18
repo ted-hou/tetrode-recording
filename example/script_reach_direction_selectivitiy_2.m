@@ -118,9 +118,6 @@ end
 eta = eu.getETA('count', 'press_spontaneous', window=[-4, 0], includeInvalid=true, normalize=[-4, -2]);
 plot(eta.t, eta.X);
 
-%% Plot ETA
-EphysUnit.plotETA(eta, clim=[-1, 1], signWindow=[-0.5, -0.2], sortWindow=[-3, 0], sortThreshold=0.5, negativeSortThreshold=0.25)
-
 %% Calculate separate ETAs for medial vs. lateral reach
 for iEu = 1:length(eu)
     pressTrials = eu(iEu).Trials.PressSpontaneous;
@@ -129,16 +126,37 @@ for iEu = 1:length(eu)
     motorTrials = Trial(eu(1).EventTimes.Mot1LoOn, eu(1).EventTimes.Mot1LoOff, advancedValidation=false);
     isLateral = motorTrials.inTrial(pressTimes);
 
-    eu(iEu).Trials.PressSpontaneousLateral = pressTrials(isLateral);
+    fprintf(1, '%i med, %i lat\n', nnz(~isLateral), nnz(isLateral))
+
     eu(iEu).Trials.PressSpontaneousMedial = pressTrials(~isLateral);
+    eu(iEu).Trials.PressSpontaneousLateral = pressTrials(isLateral);
 end
 
-etaLateral = eu.getETA('count', 'press_spontaneous_lateral', window=[-4, 0], includeInvalid=true, normalize=[-4, -2]);
 etaMedial = eu.getETA('count', 'press_spontaneous_medial', window=[-4, 0], includeInvalid=true, normalize=[-4, -2]);
+etaLateral = eu.getETA('count', 'press_spontaneous_lateral', window=[-4, 0], includeInvalid=true, normalize=[-4, -2]);
 
 %% Plot ETA
-[~, I] = EphysUnit.plotETA(etaLateral, clim=[-1, 1], signWindow=[-0.5, -0.2], sortWindow=[-3, 0], sortThreshold=0.5, negativeSortThreshold=0.25);
-EphysUnit.plotETA(etaMedial, clim=[-1, 1], order=I);
+% [~, I] = EphysUnit.plotETA(etaLateral, clim=[-1, 1], signWindow=[-0.5, -0.2], sortWindow=[-3, 0], sortThreshold=0.5, negativeSortThreshold=0.25);
+
+fig = figure(Units='inches', Position=[0 0 8 8]);
+tl = tiledlayout(fig, 1, 3);
+ax = gobjects(1, 3);
+ax(1) = nexttile(tl);
+ax(2) = nexttile(tl);
+ax(3) = nexttile(tl);
+[~, I] = EphysUnit.plotETA(ax(1), eta, clim=[-1, 1], signWindow=[-0.5, -0.2], sortWindow=[-3, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
+
+EphysUnit.plotETA(ax(2), etaMedial, clim=[-1, 1], order=I, hideColorbar=true);
+
+EphysUnit.plotETA(ax(3), etaLateral, clim=[-1, 1], order=I);
+ylabel(ax(2:3), '')
+xlabel(ax(1:3), '')
+title(ax(1), 'all reach trials')
+title(ax(2), 'medial reach trials')
+title(ax(3), 'lateral reach trials')
+colorbar(ax(3), Position=[0.925683549861173,0.108072916666667,0.014453125,0.815104166666667])
+
+xlabel(tl, 'Time from bar-contact (s)')
 
 %%
 t = etaLateral.t;

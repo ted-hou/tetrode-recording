@@ -1307,17 +1307,17 @@ classdef EphysUnit < handle
                     varargout = {ax, order};
                 else
                     error('Latency calc not implemented')
-                    XSort = X(:, t >= sortWindow(1) & t <= sortWindow(2));
-                    tSort = t(t >= sortWindow(1) & t <= sortWindow(2));
-                    meta = mean(X(:, t >= signWindow(1) & t <= signWindow(2)), 2, 'omitnan');
-                    etaSign = sign(meta);
-                    assert(size(etaSign, 2) == 1);
-                    isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
-                    [~, Ilate] = max(isAboveThreshold, [], 2, 'omitnan');
-                    meta = meta(order);
-                    latency = tSort(Ilate);
-                    latency = latency(order);
-                    varargout = {ax, order(:), meta(:), latency(:)};
+%                     XSort = X(:, t >= sortWindow(1) & t <= sortWindow(2));
+%                     tSort = t(t >= sortWindow(1) & t <= sortWindow(2));
+%                     meta = mean(X(:, t >= signWindow(1) & t <= signWindow(2)), 2, 'omitnan');
+%                     etaSign = sign(meta);
+%                     assert(size(etaSign, 2) == 1);
+%                     isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
+%                     [~, Ilate] = max(isAboveThreshold, [], 2, 'omitnan');
+%                     meta = meta(order);
+%                     latency = tSort(Ilate);
+%                     latency = latency(order);
+%                     varargout = {ax, order(:), meta(:), latency(:)};
                 end
             end
             

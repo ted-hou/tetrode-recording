@@ -1,7 +1,9 @@
-pa = Pawnalyzer2('Z:\Units\acute_3cam_reach_direction');
-eu = [pa.eu];
-%
+eu = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction');
 pa = Pawnalyzer2(eu);
+%%
+eu = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction_2tgts\SingleUnits_NonDuplicate');
+pa = Pawnalyzer2(eu, refEvent='press');
+%%
 pa.getClips(nFramesBefore=15, nFramesAfter=0, keepData=false);
 
 %

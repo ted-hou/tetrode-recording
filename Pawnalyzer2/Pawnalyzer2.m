@@ -26,21 +26,41 @@ classdef Pawnalyzer2 < handle
             p = inputParser();
             if ischar(varargin{1})
                 p.addRequired('path', @ischar);
+                p.addParameter('refEvent', 'cue', @(x) ismember(x, {'cue', 'press', 'reward'}));
                 p.parse(varargin{:});
                 path = p.Results.path;
                 eu = EphysUnit.load(path);
                 exp = CompleteExperiment3(eu);
-                exp.alignTimestamps();
+                switch p.Results.refEvent
+                    case 'cue'
+                        exp.alignTimestamps(refEventNameArduino='CUE_ON', refEventNameEphys='Cue', trialDurationTolerance=0.1);
+                    case 'press'
+                        exp.alignTimestamps(refEventNameArduino='LEVER_PRESSED', refEventNameEphys='Press', trialDurationTolerance=1);
+                    case 'reward'
+                        exp.alignTimestamps(refEventNameArduino='REWARD_ON', refEventNameEphys='RewardTimes', trialDurationTolerance=1);
+                    otherwise
+                        error();
+                end
             else
                 if isa(varargin{1}, 'EphysUnit')
                     p.addRequired('eu', @(x) isa(x, 'EphysUnit'))
                     p.addOptional('exp', [], @(x) isa(x, 'CompleteExperiment3'))
+                    p.addParameter('refEvent', 'cue', @(x) ismember(x, {'cue', 'press', 'reward'}));
                     p.parse(varargin{:})
                     eu = p.Results.eu;
                     exp = p.Results.exp;
                     if isempty(exp)
                         exp = CompleteExperiment3(eu);
-                        exp.alignTimestamps();
+                        switch p.Results.refEvent
+                            case 'cue'
+                                exp.alignTimestamps(refEventNameArduino='CUE_ON', refEventNameEphys='Cue', trialDurationTolerance=0.1);
+                            case 'press'
+                                exp.alignTimestamps(refEventNameArduino='LEVER_PRESSED', refEventNameEphys='Press', trialDurationTolerance=1.5);
+                            case 'reward'
+                                exp.alignTimestamps(refEventNameArduino='REWARD_ON', refEventNameEphys='RewardTimes', trialDurationTolerance=1.5);
+                            otherwise
+                                error();
+                        end
                     end
                 elseif isa(varargin{1}, 'CompleteExperiment3')
                     p.addRequired('exp', @(x) isa(x, 'CompleteExperiment3'))
@@ -52,32 +72,32 @@ classdef Pawnalyzer2 < handle
 
             
             % Correct feature names
-            for iExp = 1:length(exp)
-                switch exp(iExp).animalName
-                    case {'desmond28', 'desmond30'}
-                        exp(iExp).vtdL = renamevars(exp(iExp).vtdL, ...
-                            {'handIpsiCam_X', 'handIpsiCam_Y', 'handIpsiCam_Likelihood', 'footIpsiCam_X', 'footIpsiCam_Y', 'footIpsiCam_Likelihood'}, ...
-                            {'handContra_X', 'handContra_Y', 'handContra_Likelihood', 'footContra_X', 'footContra_Y', 'footContra_Likelihood'});
-                        exp(iExp).vtdR = renamevars(exp(iExp).vtdR, ...
-                            {'handIpsiCam_X', 'handIpsiCam_Y', 'handIpsiCam_Likelihood', 'footIpsiCam_X', 'footIpsiCam_Y', 'footIpsiCam_Likelihood'}, ...
-                            {'handIpsi_X', 'handIpsi_Y', 'handIpsi_Likelihood', 'footIpsi_X', 'footIpsi_Y', 'footIpsi_Likelihood'});
-            
-                    case 'desmond29'
-                        exp(iExp).vtdF = renamevars(exp(iExp).vtdF, ...
-                            {'handIpsi_X', 'handIpsi_Y', 'handIpsi_Likelihood', 'footIpsi_X', 'footIpsi_Y', 'footIpsi_Likelihood', ...
-                            'handContra_X', 'handContra_Y', 'handContra_Likelihood', 'footContra_X', 'footContra_Y', 'footContra_Likelihood'}, ...
-                            {'handContra_X', 'handContra_Y', 'handContra_Likelihood', 'footContra_X', 'footContra_Y', 'footContra_Likelihood', ...
-                            'handIpsi_X', 'handIpsi_Y', 'handIpsi_Likelihood', 'footIpsi_X', 'footIpsi_Y', 'footIpsi_Likelihood'});
-                        exp(iExp).vtdL = renamevars(exp(iExp).vtdL, ...
-                            {'handIpsiCam_X', 'handIpsiCam_Y', 'handIpsiCam_Likelihood', 'footIpsiCam_X', 'footIpsiCam_Y', 'footIpsiCam_Likelihood'}, ...
-                            {'handIpsi_X', 'handIpsi_Y', 'handIpsi_Likelihood', 'footIpsi_X', 'footIpsi_Y', 'footIpsi_Likelihood'});
-                        exp(iExp).vtdR = renamevars(exp(iExp).vtdR, ...
-                            {'handIpsiCam_X', 'handIpsiCam_Y', 'handIpsiCam_Likelihood', 'footIpsiCam_X', 'footIpsiCam_Y', 'footIpsiCam_Likelihood'}, ...
-                            {'handContra_X', 'handContra_Y', 'handContra_Likelihood', 'footContra_X', 'footContra_Y', 'footContra_Likelihood'});
-                    otherwise
-                        error('Unknown animal %s, please manually specify camera side vs. contra/ipsi.', exp(iExp).animalName)
-                end
-            end
+%             for iExp = 1:length(exp)
+%                 switch exp(iExp).animalName
+%                     case {'desmond28', 'desmond30'}
+%                         exp(iExp).vtdL = renamevars(exp(iExp).vtdL, ...
+%                             {'handIpsiCam_X', 'handIpsiCam_Y', 'handIpsiCam_Likelihood', 'footIpsiCam_X', 'footIpsiCam_Y', 'footIpsiCam_Likelihood'}, ...
+%                             {'handContra_X', 'handContra_Y', 'handContra_Likelihood', 'footContra_X', 'footContra_Y', 'footContra_Likelihood'});
+%                         exp(iExp).vtdR = renamevars(exp(iExp).vtdR, ...
+%                             {'handIpsiCam_X', 'handIpsiCam_Y', 'handIpsiCam_Likelihood', 'footIpsiCam_X', 'footIpsiCam_Y', 'footIpsiCam_Likelihood'}, ...
+%                             {'handIpsi_X', 'handIpsi_Y', 'handIpsi_Likelihood', 'footIpsi_X', 'footIpsi_Y', 'footIpsi_Likelihood'});
+%             
+%                     case 'desmond29'
+%                         exp(iExp).vtdF = renamevars(exp(iExp).vtdF, ...
+%                             {'handIpsi_X', 'handIpsi_Y', 'handIpsi_Likelihood', 'footIpsi_X', 'footIpsi_Y', 'footIpsi_Likelihood', ...
+%                             'handContra_X', 'handContra_Y', 'handContra_Likelihood', 'footContra_X', 'footContra_Y', 'footContra_Likelihood'}, ...
+%                             {'handContra_X', 'handContra_Y', 'handContra_Likelihood', 'footContra_X', 'footContra_Y', 'footContra_Likelihood', ...
+%                             'handIpsi_X', 'handIpsi_Y', 'handIpsi_Likelihood', 'footIpsi_X', 'footIpsi_Y', 'footIpsi_Likelihood'});
+%                         exp(iExp).vtdL = renamevars(exp(iExp).vtdL, ...
+%                             {'handIpsiCam_X', 'handIpsiCam_Y', 'handIpsiCam_Likelihood', 'footIpsiCam_X', 'footIpsiCam_Y', 'footIpsiCam_Likelihood'}, ...
+%                             {'handIpsi_X', 'handIpsi_Y', 'handIpsi_Likelihood', 'footIpsi_X', 'footIpsi_Y', 'footIpsi_Likelihood'});
+%                         exp(iExp).vtdR = renamevars(exp(iExp).vtdR, ...
+%                             {'handIpsiCam_X', 'handIpsiCam_Y', 'handIpsiCam_Likelihood', 'footIpsiCam_X', 'footIpsiCam_Y', 'footIpsiCam_Likelihood'}, ...
+%                             {'handContra_X', 'handContra_Y', 'handContra_Likelihood', 'footContra_X', 'footContra_Y', 'footContra_Likelihood'});
+%                     otherwise
+%                         error('Unknown animal %s, please manually specify camera side vs. contra/ipsi.', exp(iExp).animalName)
+%                 end
+%             end
 
             obj.eu = eu;
             obj.exp = exp;
@@ -108,10 +128,10 @@ classdef Pawnalyzer2 < handle
                     numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter);
             
                 switch obj.exp(iExp).animalName
-                    case {'desmond28', 'desmond30'}
+                    case {'desmond28', 'desmond30', 'daisy23', 'daisy24'}
                         [clipsIpsi, t{iExp}.ipsi] = obj.exp(iExp).getVideoClip(timestamps, side='r', bodyparts={}, numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter);
                         [clipsContra, t{iExp}.contra] = obj.exp(iExp).getVideoClip(timestamps, side='l', bodyparts={}, numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter);
-                    case 'desmond29'
+                    case {'desmond29', 'daisy25'}
                         [clipsIpsi, t{iExp}.ipsi] = obj.exp(iExp).getVideoClip(timestamps, side='l', bodyparts={}, numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter);
                         [clipsContra, t{iExp}.contra] = obj.exp(iExp).getVideoClip(timestamps, side='r', bodyparts={}, numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter);
                 end
@@ -567,10 +587,10 @@ classdef Pawnalyzer2 < handle
             rawData(any(isnan(rawData), 2), :) = [];
 
             switch obj.exp(iExp).animalName
-                case {'desmond28', 'desmond30'}
+                case {'desmond28', 'desmond30', 'daisy23', 'daisy24'}
                     rawData(:, 3) = 2*videoWidth - rawData(:, 3);
                     rawData(:, 7) = rawData(:, 7) - 2*videoWidth;
-                case 'desmond29'
+                case {'desmond29', 'daisy25'}
                     rawData(:, 3) = rawData(:, 3) - videoWidth;
                     rawData(:, 7) = 3*videoWidth - rawData(:, 7);
                 otherwise
@@ -604,10 +624,10 @@ classdef Pawnalyzer2 < handle
                     'ipsiFrontX', 'ipsiFrontY', 'ipsiSideX', 'ipsiSideY'});
 
                 switch obj.exp(iExp).animalName
-                    case {'desmond28', 'desmond30'}
+                    case {'desmond28', 'desmond30', 'daisy23', 'daisy24'}
                         rawData.contraSideX = 2*videoWidth - rawData.contraSideX;
                         rawData.ipsiSideX = rawData.ipsiSideX - 2*videoWidth;
-                    case 'desmond29'
+                    case {'desmond29', 'daisy25'}
                         rawData.contraSideX = rawData.contraSideX - videoWidth;
                         rawData.ipsiSideX = 3*videoWidth - rawData.ipsiSideX;
                     otherwise
@@ -726,7 +746,7 @@ classdef Pawnalyzer2 < handle
 
         function str = convertSide(obj, iExp, side)
             switch obj.exp(iExp).animalName
-                case {'desmond28', 'desmond30'}
+                case {'desmond28', 'desmond30', 'daisy23', 'daisy24'}
                     switch side
                         case 'contra'
                             str = 'L';
@@ -737,7 +757,7 @@ classdef Pawnalyzer2 < handle
                         case 'R'
                             str = 'ipsi';
                     end
-                case 'desmond29'
+                case {'desmond29', 'daisy25'}
                     switch side
                         case 'contra'
                             str = 'R';

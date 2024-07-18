@@ -19,19 +19,44 @@ classdef CompleteExperiment3 < CompleteExperiment
             for i = 1:nExp
                 obj(i).name = uniqueExpNames{i};
                 obj(i).eu = eu(expIndices==i);
-                obj(i).vtdF = obj.readVideoTrackingData(obj(i).name, 'f');
-                obj(i).vtdL = obj.readVideoTrackingData(obj(i).name, 'l');
-                obj(i).vtdR = obj.readVideoTrackingData(obj(i).name, 'r');
+                obj(i).vtdF = obj.readOrCreateVideoTrackingData(obj(i).name, 'f');
+                obj(i).vtdL = obj.readOrCreateVideoTrackingData(obj(i).name, 'l');
+                obj(i).vtdR = obj.readOrCreateVideoTrackingData(obj(i).name, 'r');
                 obj(i).ac = CompleteExperiment.readArduino(obj(i).name);
             end
         end
 
-        function alignTimestamps(obj)
+        function vtd = readOrCreateVideoTrackingData(obj, expName, side)
+            sidenum = obj.getCameraIndex(side);
+            animalName = strsplit(expName, '_');
+            animalName = animalName{1};
+
+            deepLabCutFiles = dir(sprintf('C:\\SERVER\\%s\\%s\\%s_%g*.csv', animalName, expName, expName, sidenum));
+            if ~isempty(deepLabCutFiles)
+                vtd = obj.readVideoTrackingData(expName, side);
+            else
+                vidFile = dir(sprintf('C:\\SERVER\\%s\\%s\\%s*_%g.mp4', animalName, expName, expName, sidenum));
+                vid = VideoReader(sprintf('%s\\%s', vidFile.folder, vidFile.name));
+                nFrames = round(vid.FrameRate*vid.Duration);
+                delete(vid);
+                vtd = table(transpose(0:nFrames - 1), VariableNames={'FrameNumber'});
+            end
+        end
+
+        function alignTimestamps(obj, varargin)
+            p = inputParser();
+            p.addParameter('refEventNameArduino', 'CUE_ON', @ischar)
+            p.addParameter('refEventNameEphys', 'Cue', @ischar)
+            p.addParameter('trialDurationTolerance', 0.1, @isnumeric)
+            p.parse(varargin{:});
+            refEventNameArduino = p.Results.refEventNameArduino;
+            refEventNameEphys = p.Results.refEventNameEphys;
+            trialDurationTolerance = p.Results.trialDurationTolerance;
             % Use CUE_ON events because this is recorded in arduino and ephys
             if length(obj) == 1
-                fprintf(1, '%s (%g units), alingning ephys & camera using CUE timestamps.\n', obj.name, length(obj.eu))
+                fprintf(1, '%s (%g units), alingning ephys & camera using %s and %s timestamps.\n', obj.name, length(obj.eu), refEventNameEphys, refEventNameArduino)
 
-                eventId = find(strcmp(obj.ac.EventMarkerNames, 'CUE_ON'));
+                eventId = find(strcmp(obj.ac.EventMarkerNames, refEventNameArduino));
                 eventDateNum = obj.ac.EventMarkersUntrimmed(obj.ac.EventMarkersUntrimmed(:, 1) == eventId, 3)';
                 eventDateTime = datetime(eventDateNum, ConvertFrom='datenum', TimeZone='America/New_York');
                 fcamDateTime = datetime([obj.ac.Cameras(1).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
@@ -42,24 +67,27 @@ classdef CompleteExperiment3 < CompleteExperiment
                 rcamFrameNum = [obj.ac.Cameras(3).Camera.EventLog.FrameNumber];
 
                 % Find event in ephystime
-                eventEhpysTime = obj.eu(1).EventTimes.Cue;
+                eventEhpysTime = obj.eu(1).EventTimes.(refEventNameEphys);
                 
                 % Some assertions: 
                 try
-                    assert(length(eventEhpysTime) == length(eventDateTime), 'Arduino has %g cue events, but ephys has %g cue events.', length(eventDateTime), length(eventEhpysTime))
+                    assert(length(eventEhpysTime) == length(eventDateTime), 'Arduino has %g %s events, but ephys has %g %s events.', length(eventDateTime), refEventNameArduino, length(eventEhpysTime), refEventNameEphys)
                 catch
-                    % The last cue event might not have been saved to
+                    % The last ref event might not have been saved to
                     % arduino, if trial was interrupted before reaching
                     % resultCode, and the user did not manually save after.
                     if length(eventEhpysTime) == length(eventDateTime) + 1
                         eventEhpysTime = eventEhpysTime(1:end-1);
-                        fprintf(1, '\tArduino has %g cue events, but ephys has %g+1 cue events. Now we try to ignore the last ephys cue event.\n', length(eventDateTime), length(eventEhpysTime));
+                        fprintf(1, '\tArduino has %g ref events, but ephys has %g+1 ref events. Now we try to ignore the last ephys ref event.\n', length(eventDateTime), length(eventEhpysTime));
+                    elseif length(eventEhpysTime) == length(eventDateTime) - 1
+                        eventDateTime = eventDateTime(1:end-1);
+                        fprintf(1, '\tArduino has %g ref events, but ephys has %g-1 ref events. Now we try to ignore the last arduino ref event.\n', length(eventDateTime), length(eventEhpysTime));
                     else
-                        error('Arduino has %g cue events, but ephys has %g cue events.', length(eventDateTime), length(eventEhpysTime));
+                        error('Arduino has %g ref events, but ephys has %g ref events.', length(eventDateTime), length(eventEhpysTime));
                     end
                 end
-                assert(all(abs(diff(eventEhpysTime) - seconds(diff(eventDateTime))) < 0.1), 'Adruino trial lengths differe significantly from ephys, max different: %g.', max(abs(diff(eventEhpysTime) - seconds(diff(eventDateTime)))))
-                fprintf(1, '\tInter-cue-intervals match between ephys and arduino for %g trials with a tolerance of 0.1s.\n', length(eventEhpysTime));
+                assert(all(abs(diff(eventEhpysTime) - seconds(diff(eventDateTime))) < trialDurationTolerance), 'Adruino trial lengths differe significantly from ephys, max different: %g.', max(abs(diff(eventEhpysTime) - seconds(diff(eventDateTime)))))
+                fprintf(1, '\tInter-ref-intervals match between ephys and arduino for %g trials with a tolerance of %gs.\n', length(eventEhpysTime), trialDurationTolerance);
 
                 % Clean up restarting framenums
                 if nnz(fcamFrameNum == 0) > 1
@@ -101,7 +129,7 @@ classdef CompleteExperiment3 < CompleteExperiment
             else
                 for i = 1:length(obj)
                     try
-                        obj(i).alignTimestamps();
+                        obj(i).alignTimestamps(refEventNameEphys=refEventNameEphys, refEventNameArduino=refEventNameArduino, trialDurationTolerance=trialDurationTolerance);
                     catch ME
                         fprintf(1, '%g: %s has error. %g EphysUnits involved.\n', i, obj(i).name, length(obj(i).eu))
                         warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)

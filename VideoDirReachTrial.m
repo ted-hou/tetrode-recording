@@ -29,15 +29,24 @@ classdef VideoDirReachTrial < Trial
                 case {'desmond28', 'desmond30'}
                     side = 'R';
                     posOrder = [4, 3, 2, 1];
+                    targetPosNames = {'contra-out', 'contra-front', 'contra-in', 'ipsi-front'};
                 % Left implant, press with right arm
                 % contra-front, contra-out
                 case 'desmond29'
                     side = 'L';
                     posOrder = [1, 2, 3, 4];
+                    targetPosNames = {'contra-out', 'contra-front', 'contra-in', 'ipsi-front'};
+                case {'daisy23', 'daisy24'}
+                    side = 'R';
+                    posOrder = [2, 1];
+                    targetPosNames = {'contra-out', 'contra-in'};
+                case 'daisy25'
+                    side = 'L';
+                    posOrder = [2, 1];
+                    targetPosNames = {'contra-out', 'contra-in'};
                 otherwise
                     error()
             end
-            targetPosNames = {'contra-out', 'contra-front', 'contra-in', 'ipsi-front'};
 
             obj(nTrials) = VideoDirReachTrial();
             for i = 1:nTrials
