@@ -17,7 +17,7 @@ clear pa iEu trials goodTrials
 % increment the value of iExp when you're done with a session
 
 % 2.1 Read video clips from ONE session.
-iExp = 1; % !!!Change this to 2, 3, 4, etc to work on other sessions.
+iExp = 9; % !!!Change this to 2, 3, 4, etc to work on other sessions.
 clear pa, close all
 pa = Pawnalyzer2(euByExp{iExp}, refEvent='press');
 pa.getClips(nFramesBefore=15, nFramesAfter=0, keepData=false, trials='PressSpontaneous');

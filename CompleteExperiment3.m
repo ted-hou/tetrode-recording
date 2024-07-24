@@ -67,27 +67,39 @@ classdef CompleteExperiment3 < CompleteExperiment
                 rcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('r')).Camera.EventLog.FrameNumber];
 
                 % Find event in ephystime
-                eventEhpysTime = obj.eu(1).EventTimes.(refEventNameEphys);
+                eventEphysTime = obj.eu(1).EventTimes.(refEventNameEphys);
                 
                 % Some assertions: 
                 try
-                    assert(length(eventEhpysTime) == length(eventDateTime), 'Arduino has %g %s events, but ephys has %g %s events.', length(eventDateTime), refEventNameArduino, length(eventEhpysTime), refEventNameEphys)
+                    assert(length(eventEphysTime) == length(eventDateTime), 'Arduino has %g %s events, but ephys has %g %s events.', length(eventDateTime), refEventNameArduino, length(eventEphysTime), refEventNameEphys)
                 catch
                     % The last ref event might not have been saved to
                     % arduino, if trial was interrupted before reaching
                     % resultCode, and the user did not manually save after.
-                    if length(eventEhpysTime) == length(eventDateTime) + 1
-                        eventEhpysTime = eventEhpysTime(1:end-1);
-                        fprintf(1, '\tArduino has %g ref events, but ephys has %g+1 ref events. Now we try to ignore the last ephys ref event.\n', length(eventDateTime), length(eventEhpysTime));
-                    elseif length(eventEhpysTime) == length(eventDateTime) - 1
+                    if length(eventEphysTime) == length(eventDateTime) + 1
+                        eventEphysTime = eventEphysTime(1:end-1);
+                        fprintf(1, '\tArduino has %g ref events, but ephys has %g+1 ref events. Now we try to ignore the last ephys ref event.\n', length(eventDateTime), length(eventEphysTime));
+                    elseif length(eventEphysTime) == length(eventDateTime) - 1
                         eventDateTime = eventDateTime(1:end-1);
-                        fprintf(1, '\tArduino has %g ref events, but ephys has %g-1 ref events. Now we try to ignore the last arduino ref event.\n', length(eventDateTime), length(eventEhpysTime));
+                        fprintf(1, '\tArduino has %g ref events, but ephys has %g-1 ref events. Now we try to ignore the last arduino ref event.\n', length(eventDateTime), length(eventEphysTime));
                     else
-                        error('Arduino has %g ref events, but ephys has %g ref events.', length(eventDateTime), length(eventEhpysTime));
+                        itiEphys = diff(eventEphysTime);
+                        itiArduino = seconds(diff(eventDateTime));
+                        n = length(eventDateTime) - length(eventEphysTime);
+                        assert(n > 0, 'Not implemented')
+                        % case 1: remove first n arduino events
+                        if all(abs(itiArduino(n+1:end) - itiEphys) < 1.5)
+                            eventDateTime = eventDateTime(n+1:end);
+                        % case 2: remove last n arduino events
+                        elseif all(abs(itiArduino(1:end-n) - itiEphys) < 1.5)
+                            eventDateTime = eventDateTime(1:end-n);
+                        else
+                            error('Arduino has %g ref events, but ephys has %g ref events.', length(eventDateTime), length(eventEphysTime));
+                        end
                     end
                 end
-                assert(all(abs(diff(eventEhpysTime) - seconds(diff(eventDateTime))) < trialDurationTolerance), 'Adruino trial lengths differe significantly from ephys, max different: %g.', max(abs(diff(eventEhpysTime) - seconds(diff(eventDateTime)))))
-                fprintf(1, '\tInter-ref-intervals match between ephys and arduino for %g trials with a tolerance of %gs.\n', length(eventEhpysTime), trialDurationTolerance);
+                assert(all(abs(diff(eventEphysTime) - seconds(diff(eventDateTime))) < trialDurationTolerance), 'Adruino trial lengths differe significantly from ephys, max different: %g.', max(abs(diff(eventEphysTime) - seconds(diff(eventDateTime)))))
+                fprintf(1, '\tInter-ref-intervals match between ephys and arduino for %g trials with a tolerance of %gs.\n', length(eventEphysTime), trialDurationTolerance);
 
                 % Clean up restarting framenums
                 if nnz(fcamFrameNum == 0) > 1
@@ -112,9 +124,9 @@ classdef CompleteExperiment3 < CompleteExperiment
                 assert(all(diff(lcamFrameNum) == 10))
                 assert(all(diff(rcamFrameNum) == 10))
 
-                fcamEphysTime = interp1(eventDateTime, eventEhpysTime, fcamDateTime, 'linear', 'extrap');
-                lcamEphysTime = interp1(eventDateTime, eventEhpysTime, lcamDateTime, 'linear', 'extrap');
-                rcamEphysTime = interp1(eventDateTime, eventEhpysTime, rcamDateTime, 'linear', 'extrap');
+                fcamEphysTime = interp1(eventDateTime, eventEphysTime, fcamDateTime, 'linear', 'extrap');
+                lcamEphysTime = interp1(eventDateTime, eventEphysTime, lcamDateTime, 'linear', 'extrap');
+                rcamEphysTime = interp1(eventDateTime, eventEphysTime, rcamDateTime, 'linear', 'extrap');
 
                 fvtdEphysTime = interp1(fcamFrameNum, fcamEphysTime, obj.vtdF.FrameNumber, 'linear', 'extrap');
                 lvtdEphysTime = interp1(lcamFrameNum, lcamEphysTime, obj.vtdL.FrameNumber, 'linear', 'extrap');

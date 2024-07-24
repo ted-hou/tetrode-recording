@@ -164,13 +164,19 @@ classdef Pawnalyzer2 < handle
 
         function save(obj, path)
             if nargin < 2 || isempty(path)
-                if isempty(obj.path)
+                if isempty(obj.path) || isequal(obj.path, [0, 0])
                     if length(obj.exp) == 1
                         [file, path] = uiputfile(sprintf('C:\\SERVER\\%s\\%s\\pawnalyzer2_%s.mat', obj.exp.animalName, obj.exp.name, obj.exp.name));
                         path = [path, file];
+                        if isequal(path, [0, 0])
+                            return
+                        end
                     else
                         [file, path] = uiputfile('C:\SERVER\pawnalyzer2_data.mat');
                         path = [path, file];
+                        if isequal(path, [0, 0])
+                            return
+                        end
                     end
                 else
                     path = obj.path;
@@ -273,7 +279,7 @@ classdef Pawnalyzer2 < handle
                 end
             end
 
-            [iExp, iTrial, iFrame, iCam] = obj.drawLabel(x, y, side);
+            [iExp, iTrial, iFrame, ~] = obj.drawLabel(x, y, side);
             obj.setData(x, y, iExp, iTrial, iFrame, side);
         end
 
@@ -475,6 +481,7 @@ classdef Pawnalyzer2 < handle
             iTrial = obj.getIndex('trial', p.Results.trial);
             iFrame = obj.getIndex('frame', p.Results.frame);
 
+            iCam = 1;
             if isnan(x) || isnan(y)
                 return
             end
