@@ -194,6 +194,19 @@ classdef Pawnalyzer2 < handle
                 [file, path] = uigetfile();
                 path = [path, file];
             end
+            if strcmpi(path, 'auto')
+                for iExp = 1:length(obj.exp)
+                    expName = obj.exp(iExp).name;
+                    dataPath = sprintf('C:\\SERVER\\PawAnalysis\\pawnalyzer2_%s*.mat', expName);
+                    files = dir(dataPath);
+                    filePath = sprintf('%s\\%s', files.folder, files.name);
+                    S = load(filePath);
+                    assert(isa(S.obj, 'Pawnalyzer2'))
+                    obj.data{iExp} = S.obj.data{1};
+                end
+                return
+            end
+
             S = load(path);
             assert(isa(S.obj, 'Pawnalyzer2'))
             assert(obj.clipParams.nFramesBefore == S.obj.clipParams.nFramesBefore)
@@ -408,7 +421,7 @@ classdef Pawnalyzer2 < handle
             if ischar(obj.clipParams.trials)
                 trials = obj.exp(iExp).eu(1).Trials.(obj.clipParams.trials);
             else
-                error('Not tested')
+%                 error('Not tested')
                 if isempty(obj.clipParams.trials)
                     trials = obj.exp(iExp).eu(1).Trials.Press;
                 else
@@ -713,7 +726,11 @@ classdef Pawnalyzer2 < handle
         function n = getLength(obj, type, varargin)
             switch lower(type)
                 case 'exp'
-                    n = length(obj.clips);
+                    try
+                        n = length(obj.clips);
+                    catch
+                        n = length(obj.data);
+                    end
                 case 'trial'
                     p = inputParser();
                     p.addOptional('exp', 'curr', @(x) isnumeric(x) ||  ismember(x, {'curr', 'prev', 'next'}))
@@ -723,7 +740,11 @@ classdef Pawnalyzer2 < handle
                     else
                         iExp = p.Results.exp;
                     end
-                    n = length(obj.clips{iExp});
+                    try
+                        n = length(obj.clips{iExp});
+                    catch
+                        n = length(obj.data{iExp});
+                    end
                 case 'frame'
                     p = inputParser();
                     p.addOptional('exp', 'curr', @(x) isnumeric(x) ||  ismember(x, {'curr', 'prev', 'next'}))
@@ -739,7 +760,11 @@ classdef Pawnalyzer2 < handle
                     else
                         iTrial = p.Results.trial;
                     end
-                    n = size(obj.clips{iExp}{iTrial}, 4);
+                    try
+                        n = size(obj.clips{iExp}{iTrial}, 4);
+                    catch
+                        n = size(obj.data{iExp}{iTrial}, 1);
+                    end
                 otherwise
                     error()
             end

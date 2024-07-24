@@ -7,7 +7,10 @@ classdef VideoDirReachTrial < Trial
     end
 
     methods
-        function obj = VideoDirReachTrial(exp)
+        function obj = VideoDirReachTrial(exp, trialType)
+            if nargin < 2
+                trialType = 'PressSpontaneous';
+            end
             if nargin == 0
                 return
             end
@@ -16,7 +19,7 @@ classdef VideoDirReachTrial < Trial
             assert(length(exp) == 1)
             assert(isa(exp, 'CompleteExperiment3'))
 
-            trials = exp.eu(1).Trials.Press;
+            trials = exp.eu(1).Trials.(trialType);
             nTrials = length(trials);
 
             if nTrials == 0

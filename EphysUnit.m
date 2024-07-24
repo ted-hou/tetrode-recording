@@ -1027,12 +1027,22 @@ classdef EphysUnit < handle
         end
 
         function [pos, mot1, mot2, motBusy] = getMotorState(obj, t)
+            name1On = 'Motor1On';
+            name1Off = 'Motor1Off';
+            name2On = 'Motor2On';
+            name2Off  = 'Motor2Off';
+            if isfield(obj.EventTimes, 'Mot1HiOn')
+                name1On = 'Mot1HiOn';
+                name1Off = 'Mot1HiOff';
+                name2On = 'Mot1LoOn';
+                name2Off  = 'Mot1LoOff';
+            end
             assert(isfield(obj.EventTimes, 'Motor1On'))
-            assert(length(obj.EventTimes.Motor1On) == length(obj.EventTimes.Motor1Off))
-            assert(length(obj.EventTimes.Motor2On) == length(obj.EventTimes.Motor2Off))
+            assert(length(obj.EventTimes.(name1On)) == length(obj.EventTimes.(name1Off)))
+            assert(length(obj.EventTimes.(name2On)) == length(obj.EventTimes.(name2Off)))
             assert(length(obj.EventTimes.MotorBusyOn) == length(obj.EventTimes.MotorBusyOff))
-            assert(all((obj.EventTimes.Motor1Off - obj.EventTimes.Motor1On) > 0))
-            assert(all((obj.EventTimes.Motor2Off - obj.EventTimes.Motor2On) > 0))
+            assert(all((obj.EventTimes.(name1Off) - obj.EventTimes.(name1On)) > 0))
+            assert(all((obj.EventTimes.(name2Off) - obj.EventTimes.(name2On)) > 0))
             assert(all((obj.EventTimes.MotorBusyOff - obj.EventTimes.MotorBusyOn) > 0))
 
             if length(t) > 1
@@ -1050,14 +1060,14 @@ classdef EphysUnit < handle
             mot1 = false;
             mot2 = false;
             motBusy = false;
-            for i = 1:length(obj.EventTimes.Motor1On)
-                if t >= obj.EventTimes.Motor1On(i) && t <= obj.EventTimes.Motor1Off(i)
+            for i = 1:length(obj.EventTimes.(name1On))
+                if t >= obj.EventTimes.(name1On)(i) && t <= obj.EventTimes.(name1Off)(i)
                     mot1 = true;
                     break
                 end
             end
-            for i = 1:length(obj.EventTimes.Motor2On)
-                if t >= obj.EventTimes.Motor2On(i) && t <= obj.EventTimes.Motor2Off(i)
+            for i = 1:length(obj.EventTimes.(name2On))
+                if t >= obj.EventTimes.(name2On)(i) && t <= obj.EventTimes.(name2Off)(i)
                     mot2 = true;
                     break
                 end
