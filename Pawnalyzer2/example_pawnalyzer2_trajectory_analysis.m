@@ -25,14 +25,14 @@ pa.getClips(nFramesBefore=15, nFramesAfter=0, keepData=false, trials='PressSpont
 pa.load('auto')
 
 %% Analysis
-%% Divide trajectories (nTargets x nSubclusters) and average into PETHs
+%% PLOT TRAJECTORIES
 close all
 nDims = 8;
 nSubClusters = 1;
 nExp = pa.getLength('exp');
 fig1 = figure();
 ax1 = axes(fig1);
-fig2 = figure(Units='inches', OuterPosition=[0, 0, 7, 4]);
+fig2 = figure(Units='inches', OuterPosition=[0, 0, 7, 4], DefaultAxesFontSize=14);
 ax2 = gobjects(nExp, 1);
 ax3 = gobjects(nExp - 1, 1);
 hold(ax1, 'on')

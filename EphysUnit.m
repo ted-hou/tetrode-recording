@@ -714,7 +714,7 @@ classdef EphysUnit < handle
 
         function rd = getRasterData(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'press_spontaneous2'})))
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous2'})))
             p.addOptional('window', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -733,7 +733,7 @@ classdef EphysUnit < handle
 
             if strcmp(alignTo, 'default')
                 switch trialType
-                    case {'press', 'lick'}
+                    case {'press', 'lick', 'press_spontaneous'}
                         alignTo = 'stop';
                     case {'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor'}
                         alignTo = 'start';
@@ -1631,7 +1631,7 @@ classdef EphysUnit < handle
                 case 'lick'
                     refName = 'spout-contact';
             end
-            xlabel(ax, sprintf('Time to %s (%s)', refName, timeUnit))
+            xlabel(ax, sprintf('Time to %s (%s)', refName, timeUnit), Interpreter='none')
             ylabel(ax, 'Trial')
             title(ax, sprintf('Spike raster (%s)', rd.name), Interpreter="none");
             if ~isTwoColorStim
