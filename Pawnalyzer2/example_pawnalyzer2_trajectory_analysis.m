@@ -32,9 +32,9 @@ nSubClusters = 1;
 nExp = pa.getLength('exp');
 fig1 = figure();
 ax1 = axes(fig1);
-fig2 = figure(Units='normalized', OuterPosition=[0.1, 0.1, 0.7, 0.5]);
+fig2 = figure(Units='inches', OuterPosition=[0, 0, 7, 4]);
 ax2 = gobjects(nExp, 1);
-ax3 = gobjects(nExp, 1);
+ax3 = gobjects(nExp - 1, 1);
 hold(ax1, 'on')
 clear traj
 traj(nExp) = struct(contra=[], ipsi=[], target=[], t=[], pca=[], kmeans=[]);
@@ -80,10 +80,16 @@ for iExp = 2:nExp
 %         legend(ax2(iExp), h, Location='northoutside', Orientation='horizontal')
 %     end
 
-    ax3(iExp) = subplot(1, nExp, iExp);
-    xlabel(ax3(iExp), 'ML')
-    ylabel(ax3(iExp), 'AP')
-    zlabel(ax3(iExp), 'DV')
+    ax3(iExp) = subplot(1, nExp-1, iExp-1);
+    if iExp == 3
+        xlabel(ax3(iExp), 'ML')
+    end
+    if iExp == 4
+        ylabel(ax3(iExp), 'AP')
+    end
+    if iExp == 2
+        zlabel(ax3(iExp), 'DV')
+    end
     hold(ax3(iExp), 'on')
     selFrames = nFrames - nt + 1:nFrames;
     h = gobjects(2, 1);
@@ -99,22 +105,27 @@ for iExp = 2:nExp
             h(iTarget) = plot3(ax3(iExp), median(x, 1, 'omitnan'), median(y, 1, 'omitnan'), median(z, 1, 'omitnan'), Color=colors(iTarget), DisplayName=targetNames{iTarget}, LineWidth=1.5);
             scatter3(ax3(iExp), median(x, 1, 'omitnan'), median(y, 1, 'omitnan'), median(z, 1, 'omitnan'), 2*(selFrames).^1.4, colors(iTarget), Marker=markers(iSubCluster), DisplayName=targetNames{iTarget})
 
-            % x = traj(iExp).ipsi.x(selTrials, selFrames);
-            % y = traj(iExp).ipsi.y(selTrials, selFrames);
-            % z = traj(iExp).ipsi.z(selTrials, selFrames);
-            % plot3(ax3(iExp), median(x, 1, 'omitnan'), median(y, 1, 'omitnan'), median(z, 1, 'omitnan'), Color=colors(iTarget), DisplayName=targetNames{iTarget}, LineWidth=1.5, LineStyle='--');
-            % scatter3(ax3(iExp), median(x, 1, 'omitnan'), median(y, 1, 'omitnan'), median(z, 1, 'omitnan'), 2*(selFrames).^1.4, colors(iTarget), Marker=markers(iSubCluster), DisplayName=targetNames{iTarget})            
+%             x = traj(iExp).ipsi.x(selTrials, selFrames);
+%             y = traj(iExp).ipsi.y(selTrials, selFrames);
+%             z = traj(iExp).ipsi.z(selTrials, selFrames);
+%             plot3(ax3(iExp), median(x, 1, 'omitnan'), median(y, 1, 'omitnan'), median(z, 1, 'omitnan'), Color=colors(iTarget), DisplayName=targetNames{iTarget}, LineWidth=1.5, LineStyle='--');
+%             scatter3(ax3(iExp), median(x, 1, 'omitnan'), median(y, 1, 'omitnan'), median(z, 1, 'omitnan'), 2*(selFrames).^1.4, colors(iTarget), Marker=markers(iSubCluster), DisplayName=targetNames{iTarget})            
         end        
     end
-    legend(h)
+    if iExp == 3
+        legend(h, Orientation='horizontal', Position=[0.394454511181646,0.794971459584328,0.286585361946647,0.061855668669304])
+    end
     hold(ax3(iExp), 'off')
+    xticks(ax3(iExp), [])
+    yticks(ax3(iExp), [])
+    zticks(ax3(iExp), [])
     ax3(iExp).ZAxis.Direction = 'reverse';
     ax3(iExp).YAxis.Direction = 'reverse';
     axis(ax3(iExp), 'image')
     if ismember(pa.exp(iExp).animalName, {'desmond29'})
         ax3(iExp).XAxis.Direction = 'reverse';
     end
-    ax3(iExp).View = [15, 15];
+    ax3(iExp).View = [28, 40];
 end
 ylim(ax1, [0, 100])
 xlabel(ax1, 'dims')
@@ -212,6 +223,7 @@ for iEu = 1:length(eu)
     zlabel(ax, 'DV')
     legend(ax, h)
 end
+
 %% Finished manual labeling, now we combine front and side view and figure out the scaling
 % close all
 % fig = figure(Units='pixels', Position=[50, 200, 1500, 600]);
