@@ -73,26 +73,27 @@ classdef CompleteExperiment3 < CompleteExperiment
                 try
                     assert(length(eventEphysTime) == length(eventDateTime), 'Arduino has %g %s events, but ephys has %g %s events.', length(eventDateTime), refEventNameArduino, length(eventEphysTime), refEventNameEphys)
                 catch
-                    % The last ref event might not have been saved to
-                    % arduino, if trial was interrupted before reaching
-                    % resultCode, and the user did not manually save after.
-                    if length(eventEphysTime) == length(eventDateTime) + 1
-                        eventEphysTime = eventEphysTime(1:end-1);
-                        fprintf(1, '\tArduino has %g ref events, but ephys has %g+1 ref events. Now we try to ignore the last ephys ref event.\n', length(eventDateTime), length(eventEphysTime));
-                    elseif length(eventEphysTime) == length(eventDateTime) - 1
-                        eventDateTime = eventDateTime(1:end-1);
-                        fprintf(1, '\tArduino has %g ref events, but ephys has %g-1 ref events. Now we try to ignore the last arduino ref event.\n', length(eventDateTime), length(eventEphysTime));
-                    else
-                        itiEphys = diff(eventEphysTime);
-                        itiArduino = seconds(diff(eventDateTime));
-                        n = length(eventDateTime) - length(eventEphysTime);
-                        assert(n > 0, 'Not implemented')
+                    itiEphys = diff(eventEphysTime);
+                    itiArduino = seconds(diff(eventDateTime));
+                    n = length(eventDateTime) - length(eventEphysTime);
+                    if n > 0
                         % case 1: remove first n arduino events
                         if all(abs(itiArduino(n+1:end) - itiEphys) < 1.5)
                             eventDateTime = eventDateTime(n+1:end);
                         % case 2: remove last n arduino events
                         elseif all(abs(itiArduino(1:end-n) - itiEphys) < 1.5)
                             eventDateTime = eventDateTime(1:end-n);
+                        else
+                            error('Arduino has %g ref events, but ephys has %g ref events.', length(eventDateTime), length(eventEphysTime));
+                        end
+                    else
+                        n = -n;
+                        % case 1: remove first n ephys events
+                        if all(abs(itiArduino - itiEphys(n+1:end)) < 1.5)
+                            eventEphysTime = eventEphysTime(n+1:end);
+                        % case 2: remove last n ephys events
+                        elseif all(abs(itiArduino - itiEphys(1:end-n)) < 1.5)
+                            eventEphysTime = eventEphysTime(1:end-n);
                         else
                             error('Arduino has %g ref events, but ephys has %g ref events.', length(eventDateTime), length(eventEphysTime));
                         end

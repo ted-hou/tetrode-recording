@@ -109,11 +109,13 @@ classdef Pawnalyzer2 < handle
             p.addParameter('nFramesAfter', 0, @isnumeric);
             p.addParameter('trials', [], @(x) isnumeric(x) || ismember(x, {'PressSpontaneous', 'Press', 'PressSpontaneousMedial', 'PressSpontaneousLateral'}));
             p.addParameter('keepData', true, @islogical);
+            p.addParameter('noImage', false, @islogical);
             p.parse(varargin{:})
             nFramesBefore = p.Results.nFramesBefore;
             nFramesAfter = p.Results.nFramesAfter;
             selTrials = p.Results.trials;
             keepData = p.Results.keepData;
+            noImage = p.Results.noImage;
 
             trials = cell(length(obj.exp), 1);
             clips = cell(length(obj.exp), 1);
@@ -128,16 +130,19 @@ classdef Pawnalyzer2 < handle
                     end
                 end
                 timestamps = [trials{iExp}.Stop];
+                if iExp == 3
+                    disp(3)
+                end
                 [clipsF, t{iExp}.front] = obj.exp(iExp).getVideoClip(timestamps, side='f', bodyparts={}, ...
-                    numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter);
+                    numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter, noImage=noImage);
             
                 switch obj.exp(iExp).animalName
                     case {'desmond28', 'desmond30', 'daisy23', 'daisy24'}
-                        [clipsIpsi, t{iExp}.ipsi] = obj.exp(iExp).getVideoClip(timestamps, side='r', bodyparts={}, numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter);
-                        [clipsContra, t{iExp}.contra] = obj.exp(iExp).getVideoClip(timestamps, side='l', bodyparts={}, numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter);
+                        [clipsIpsi, t{iExp}.ipsi] = obj.exp(iExp).getVideoClip(timestamps, side='r', bodyparts={}, numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter, noImage=noImage);
+                        [clipsContra, t{iExp}.contra] = obj.exp(iExp).getVideoClip(timestamps, side='l', bodyparts={}, numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter, noImage=noImage);
                     case {'desmond29', 'daisy25'}
-                        [clipsIpsi, t{iExp}.ipsi] = obj.exp(iExp).getVideoClip(timestamps, side='l', bodyparts={}, numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter);
-                        [clipsContra, t{iExp}.contra] = obj.exp(iExp).getVideoClip(timestamps, side='r', bodyparts={}, numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter);
+                        [clipsIpsi, t{iExp}.ipsi] = obj.exp(iExp).getVideoClip(timestamps, side='l', bodyparts={}, numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter, noImage=noImage);
+                        [clipsContra, t{iExp}.contra] = obj.exp(iExp).getVideoClip(timestamps, side='r', bodyparts={}, numFramesBefore=nFramesBefore, numFramesAfter=nFramesAfter, noImage=noImage);
                 end
                 clips{iExp} = cell(length(trials{iExp}), 1);
                 for iTrial = 1:length(timestamps)
@@ -199,6 +204,9 @@ classdef Pawnalyzer2 < handle
                     expName = obj.exp(iExp).name;
                     dataPath = sprintf('C:\\SERVER\\PawAnalysis\\pawnalyzer2_%s*.mat', expName);
                     files = dir(dataPath);
+                    if isempty(files)
+                        continue
+                    end
                     filePath = sprintf('%s\\%s', files.folder, files.name);
                     S = load(filePath);
                     assert(isa(S.obj, 'Pawnalyzer2'))
@@ -211,7 +219,7 @@ classdef Pawnalyzer2 < handle
             assert(isa(S.obj, 'Pawnalyzer2'))
             assert(obj.clipParams.nFramesBefore == S.obj.clipParams.nFramesBefore)
             assert(obj.clipParams.nFramesAfter == S.obj.clipParams.nFramesAfter)
-            assert(isequal(obj.clipParams.trials, S.obj.clipParams.trials))
+%             assert(isequal(obj.clipParams.trials, S.obj.clipParams.trials))
             obj.data = S.obj.data;
         end
 
@@ -640,6 +648,15 @@ classdef Pawnalyzer2 < handle
                     error();
             end
 
+            switch obj.exp(iExp).animalName
+                case {'desmond28', 'desmond29', 'desmond30'}
+                    trialType = 'Press';
+                case {'daisy23', 'daisy24', 'daisy25'}
+                    trialType = 'PressSpontaneous';
+                otherwise
+                    error();
+            end
+
             scale = struct( ...
                 contra=std(rawData(:, 4))./std(rawData(:, 2)), ...
                 ipsi=std(rawData(:, 8))./std(rawData(:, 6)) ...
@@ -653,7 +670,7 @@ classdef Pawnalyzer2 < handle
             ipsiY = contraX;
             ipsiZ = contraX;
             
-            targetPos = VideoDirReachTrial(obj.exp(iExp)).getTargetPos();
+            targetPos = VideoDirReachTrial(obj.exp(iExp), trialType).getTargetPos();
             targetPos = targetPos(selTrials);
 
 
@@ -692,14 +709,15 @@ classdef Pawnalyzer2 < handle
                 rawData.ipsiSideX(:) = interp1(obj.t{iExp}.ipsi(iTrial, :), rawData.ipsiSideX, tGlobal, 'linear', 'extrap');
                 rawData.ipsiSideY(:) = interp1(obj.t{iExp}.ipsi(iTrial, :), rawData.ipsiSideY, tGlobal, 'linear', 'extrap');
 
+                varNames = rawData.Properties.VariableNames;
                 if isnumeric(zeroMode)
-                    rawData = rawData - rawData(zeroMode, :);
+                    rawData = array2table(table2array(rawData) - table2array(rawData(zeroMode, :)), VariableNames=varNames);
                 else
                     switch zeroMode
                         case 'start'
-                            rawData = rawData - rawData(1, :);
+                            rawData = array2table(table2array(rawData) - table2array(rawData(1, :)), VariableNames=varNames);
                         case 'end'
-                            rawData = rawData - rawData(end, :);
+                            rawData = array2table(table2array(rawData) - table2array(rawData(end, :)), VariableNames=varNames);
                     end
                 end
 
@@ -719,7 +737,6 @@ classdef Pawnalyzer2 < handle
             ipsi.x = ipsiX;
             ipsi.y = ipsiY;
             ipsi.z = ipsiZ;
-
         end
 
         % Get number of exp/trial/frame available in obj.clips
@@ -761,9 +778,10 @@ classdef Pawnalyzer2 < handle
                         iTrial = p.Results.trial;
                     end
                     try
-                        n = size(obj.clips{iExp}{iTrial}, 4);
-                    catch
                         n = size(obj.data{iExp}{iTrial}, 1);
+                        assert(n>1)
+                    catch
+                        n = size(obj.clips{iExp}{iTrial}, 4);
                     end
                 otherwise
                     error()

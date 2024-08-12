@@ -9,7 +9,7 @@ classdef VideoDirReachTrial < Trial
     methods
         function obj = VideoDirReachTrial(exp, trialType)
             if nargin < 2
-                trialType = 'PressSpontaneous';
+                trialType = 'Press';
             end
             if nargin == 0
                 return

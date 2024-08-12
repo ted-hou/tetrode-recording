@@ -117,6 +117,7 @@ classdef CompleteExperiment < handle
             addParameter(p, 'bodyParts', {'handIpsi', 'footIpsi', 'nose', 'spine', 'tail', 'tongue'}, @iscell)
             addParameter(p, 'vtd', [], @istable)
             addParameter(p, 'file', '', @isfile)
+            addParameter(p, 'noImage', false, @islogical); % Skip reading video, just return dummy video and real timestamps
 			parse(p, ephysTime, varargin{:});
 			ephysTime			= p.Results.ephysTime;
             side                = p.Results.side;
@@ -124,6 +125,7 @@ classdef CompleteExperiment < handle
 			numFramesAfter		= p.Results.numFramesAfter;
             bodyparts           = p.Results.bodyParts;
             vtd                 = p.Results.vtd;
+            noImage             = p.Results.noImage;
 
             assert(length(obj) == 1)
 
@@ -158,43 +160,47 @@ classdef CompleteExperiment < handle
             labelColors = hsl2rgb(labelColors)*255;
 
             fprintf('Reading video file %s\n', file)
-			v = VideoReader(file);
-			vidStartTime = v.CurrentTime;
 
 			clip = cell(length(ephysTime), 1);
             t = zeros(length(ephysTime), numFramesBefore + numFramesAfter + 1);
 
+		    v = VideoReader(file);
+		    vidStartTime = v.CurrentTime;
+
             firstFrame = vtd.FrameNumber(1);
             fprintf('Extracting %i clips...', length(ephysTime))
-			for iClip = 1:length(ephysTime)
-% 				fprintf('Extracting clip %d of %d...', iClip, length(ephysTime))
-
-				[~, iFrame] = min(abs(vtd.Timestamp - ephysTime(iClip)));
-% 				v.CurrentTime = (firstFrame + iFrame - 1 - numFramesBefore)/v.FrameRate + vidStartTime;
-				v.CurrentTime = (firstFrame + iFrame - numFramesBefore)/v.FrameRate + vidStartTime;
-
-				clip{iClip} = uint8(zeros(v.Height, v.Width, 3, numFramesBefore + numFramesAfter + 1));
-				for iClipFrame = 1:size(clip{iClip}, 4)
-					thisFrame = readFrame(v);
-					iFrameAbs = iFrame + iClipFrame - numFramesBefore - 1;
+            for iClip = 1:length(ephysTime)
+            % 				fprintf('Extracting clip %d of %d...', iClip, length(ephysTime))
+            
+                [~, iFrame] = min(abs(vtd.Timestamp - ephysTime(iClip)));
+            % 				v.CurrentTime = (firstFrame + iFrame - 1 - numFramesBefore)/v.FrameRate + vidStartTime;
+                v.CurrentTime = (firstFrame + iFrame - numFramesBefore)/v.FrameRate + vidStartTime;
+            
+                if ~noImage
+                    clip{iClip} = uint8(zeros(v.Height, v.Width, 3, numFramesBefore + numFramesAfter + 1));
+                end
+                for iClipFrame = 1:size(t, 2)
+	                iFrameAbs = iFrame + iClipFrame - numFramesBefore - 1;
                     t(iClip, iClipFrame) = vtd.Timestamp(iFrameAbs);
-					thisProb = transpose(cellfun(@(x) x(iFrameAbs), prob));
+	                thisProb = transpose(cellfun(@(x) x(iFrameAbs), prob));
                     sel = thisProb > 0.95;
-                    if any(sel)
-                        thisProb = thisProb(sel);
-					    thisPos = transpose([cellfun(@(x) x(iFrameAbs), xPos); cellfun(@(x) x(iFrameAbs), yPos)]);
-                        thisPos = thisPos(sel, :);
-                        thisColor = labelColors(sel, :);
-                        thisLabels = bodyparts(sel);
-					    thisFrame = insertText(thisFrame, thisPos, thisLabels, TextColor=thisColor, BoxOpacity=0, AnchorPoint='RightTop');
-					    thisFrame = insertText(thisFrame, thisPos, round(100*thisProb)/100, TextColor=thisColor, BoxOpacity=0, AnchorPoint='RightBottom');
-					    thisFrame = insertMarker(thisFrame, thisPos, Color=thisColor, Size=10);
-                    end					    
-%                     if iClipFrame == numFramesBefore + 1
-% 					    thisFrame = insertShape(thisFrame, 'FilledRectangle', [0, 0, v.Width, v.Height], Color='red', Opacity=0.7);
-%                     end
-                    clip{iClip}(:, :, :, iClipFrame) = thisFrame;
-				end
+                    if ~noImage
+	                    thisFrame = readFrame(v);
+                        if any(sel)
+                            thisProb = thisProb(sel);
+	                        thisPos = transpose([cellfun(@(x) x(iFrameAbs), xPos); cellfun(@(x) x(iFrameAbs), yPos)]);
+                            thisPos = thisPos(sel, :);
+                            thisColor = labelColors(sel, :);
+                            thisLabels = bodyparts(sel);
+	                        thisFrame = insertText(thisFrame, thisPos, thisLabels, TextColor=thisColor, BoxOpacity=0, AnchorPoint='RightTop');
+	                        thisFrame = insertText(thisFrame, thisPos, round(100*thisProb)/100, TextColor=thisColor, BoxOpacity=0, AnchorPoint='RightBottom');
+	                        thisFrame = insertMarker(thisFrame, thisPos, Color=thisColor, Size=10);
+                        end					    
+                        if ~noImage
+                            clip{iClip}(:, :, :, iClipFrame) = thisFrame;
+                        end
+                    end
+                end
             end
             fprintf('Done!\n')
 
@@ -591,7 +597,6 @@ classdef CompleteExperiment < handle
                 end
             end
         end
-
 
         function i = getCameraIndex(obj, side)
             switch lower(side)
