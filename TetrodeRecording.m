@@ -2341,9 +2341,12 @@ classdef TetrodeRecording < handle
             p.addParameter('pulseWidthErrorMargin', 1e-3, @isnumeric)
             p.parse(varargin{:})
 
+            if strcmpi(obj.Path(1:3), 'Z:\')
+                obj.Path = strrep(obj.Path, 'Z:\', 'C:\SERVER\');
+            end
             file = dir(sprintf('%s\\..\\%s.mat', obj.Path, obj.GetExpName(includeSuffix=false)));
-            assert(~isempty(file))
-            
+            assert(~isempty(file), 'Cannot find file %s', sprintf('%s\\..\\%s.mat', obj.Path, obj.GetExpName(includeSuffix=false)))
+
             tce = load(sprintf('%s\\%s', file.folder, file.name));
             tce = tce.obj;
             assert(isa(tce, 'TwoColorExperiment'))
@@ -5092,8 +5095,8 @@ classdef TetrodeRecording < handle
                 if ~intan
                     thisFile = dir(sprintf('C:\\SERVER\\%s\\SpikeSort\\%s%s*.mat', animalName, prefix, expNameOrFiles));
                 else
-                    sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\%s%s*.mat', animalName, expNameOrFiles, prefix, expNameOrFiles)
-                    thisFile = dir(sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\%s%s*.mat', animalName, expNameOrFiles, prefix, expNameOrFiles));
+                    sprintf('C:\\SERVER\\%s\\SpikeSort\\%s%s*.mat', animalName, prefix, expNameOrFiles)
+                    thisFile = dir(sprintf('C:\\SERVER\\%s\\SpikeSort\\%s%s*.mat', animalName, prefix, expNameOrFiles));
                 end
                 thisFile = thisFile(~[thisFile.isdir]);
                 if ~isempty(thisFile)
