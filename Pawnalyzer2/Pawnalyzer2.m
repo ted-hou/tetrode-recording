@@ -13,6 +13,7 @@ classdef Pawnalyzer2 < handle
         exp = CompleteExperiment3.empty;
         gui
         clips
+        dataEMG = struct([])
     end
 
     methods
@@ -202,7 +203,8 @@ classdef Pawnalyzer2 < handle
             if strcmpi(path, 'auto')
                 for iExp = 1:length(obj.exp)
                     expName = obj.exp(iExp).name;
-                    dataPath = sprintf('C:\\SERVER\\PawAnalysis\\pawnalyzer2_%s*.mat', expName);
+                    animalName = obj.exp(iExp).eu(1).getAnimalName();
+                    dataPath = sprintf('C:\\SERVER\\%s\\%s\\pawnalyzer2_%s*.mat', animalName, expName, expName);
                     files = dir(dataPath);
                     if isempty(files)
                         continue
@@ -276,7 +278,27 @@ classdef Pawnalyzer2 < handle
             obj.gui.fig.WindowKeyPressFcn = @obj.onKeyDown;
             obj.gui.fig.WindowKeyReleaseFcn = @obj.onKeyUp;
 
+            if obj.hasEMG()
+                obj.gui.axEMG = uiaxes(obj.gui.fig, Units='normalized', Position=[0.33, 0, 0.33, 0.25]);
+            end
+
             obj.showFrame(exp=index.exp, trial=index.trial, frame=index.frame);
+        end
+
+        function b = hasEMG(obj, iExp)
+            if nargin < 2
+                b = ~isempty(obj.dataEMG);
+                return
+            end
+            if isempty(obj.dataEMG)
+                b = false;
+                return
+            end
+            if length(obj.dataEMG) < iExp
+                b = false;
+                return
+            end
+            b = ~isempty(obj.dataEMG(iExp).X);
         end
 
         function [x, y, side] = saveCursorPos(obj)
@@ -474,15 +496,22 @@ classdef Pawnalyzer2 < handle
             end
 
             % Show annotation
-            side = 'contra';
-            for iCam = [1, 2]
-                [x, y] = obj.getData(iExp, iTrial, iFrame, side, iCam);
-                obj.drawLabel(x, y, side, exp=iExp, trial=iTrial, frame=iFrame);
+            hasData = ~isempty(obj.data);
+            if hasData
+                side = 'contra';
+                for iCam = [1, 2]
+                    [x, y] = obj.getData(iExp, iTrial, iFrame, side, iCam);
+                    obj.drawLabel(x, y, side, exp=iExp, trial=iTrial, frame=iFrame);
+                end
+                side = 'ipsi';
+                for iCam = [1, 3]
+                    [x, y] = obj.getData(iExp, iTrial, iFrame, side, iCam);
+                    obj.drawLabel(x, y, side, exp=iExp, trial=iTrial, frame=iFrame);
+                end
             end
-            side = 'ipsi';
-            for iCam = [1, 3]
-                [x, y] = obj.getData(iExp, iTrial, iFrame, side, iCam);
-                obj.drawLabel(x, y, side, exp=iExp, trial=iTrial, frame=iFrame);
+
+            if obj.hasEMG(iExp)
+                obj.drawEMG(iExp, iTrial, iFrame);
             end
         end
 
@@ -541,6 +570,19 @@ classdef Pawnalyzer2 < handle
             else
                 set(obj.gui.label(iSide, iCam), XData=x, YData=y);
             end
+        end
+
+        function drawEMG(obj, iExp, iTrial, iFrame)
+            ax = obj.gui.axEMG;
+            cla(ax)
+            hold(ax, 'on')
+            xEMG = obj.dataEMG(iExp).X(iTrial, :);
+            tEMG = obj.dataEMG(iExp).T(iTrial, :);
+            tFrame = obj.t{iExp}.contra(iTrial, iFrame);
+            plot(ax, 1000.*(tEMG - tEMG(end)), xEMG, 'k');
+            [~, sel] = min(abs(tEMG - tFrame));
+            plot(ax, 1000.*(tEMG(sel) - tEMG(end)), xEMG(sel), 'r.', MarkerSize=25)
+            hold(ax, 'off')
         end
 
         function setData(obj, x, y, iExp, iTrial, iFrame, side)
@@ -610,8 +652,6 @@ classdef Pawnalyzer2 < handle
 
             x = obj.data{iExp}{iTrial}(iFrame, ix);
             y = obj.data{iExp}{iTrial}(iFrame, iy);
-
-            % obj.drawLabel(x, y, side, exp=iExp, trial=iTrial, frame=iFrame);
         end
 
         % x right, y forward, z up (not Maya/Unity)
