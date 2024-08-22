@@ -86,6 +86,8 @@ classdef EphysUnit < handle
                             % Spontaneous
                             if isfield(tr.DigitalEvents, 'TRIAL_START')
                                 obj(i).EventTimes.Cue = tr.DigitalEvents.TRIAL_START;
+                            elseif isfield(tr.DigitalEvents, 'WAITFORTOUCH')
+                                obj(i).EventTimes.Cue = tr.DigitalEvents.WAITFORTOUCH;
                             else
                                 obj(i).EventTimes.Cue = tr.DigitalEvents.CueOn;
                             end
@@ -228,14 +230,12 @@ classdef EphysUnit < handle
                             obj(i).Waveforms = int16(s.Waveforms(inCluster, :));
                             obj(i).WaveformTimestamps = s.WaveformTimestamps;
                         end
-                        % Spontaneous
-%                         if isfield(tr.DigitalEvents, 'TRIAL_START')
-%                             obj(i).EventTimes.Cue = tr.DigitalEvents.TRIAL_START;
-%                         else
-%                             obj(i).EventTimes.Cue = tr.DigitalEvents.CueOn;
-%                         end
                         if p.Results.isSpontaneousPress
-                            obj(i).EventTimes.Cue = tr.DigitalEvents.TRIAL_START;
+                            if isfield(tr.DigitalEvents, 'TRIAL_START')
+                                obj(i).EventTimes.Cue = tr.DigitalEvents.TRIAL_START;
+                            else
+                                obj(i).EventTimes.Cue = tr.DigitalEvents.WAITFORTOUCH;
+                            end
                             obj(i).EventTimes.PressOff = tr.DigitalEvents.PressOff;
                         elseif isfield(tr.DigitalEvents, 'CueOn')
                             obj(i).EventTimes.Cue = tr.DigitalEvents.CueOn;
@@ -1734,8 +1734,16 @@ classdef EphysUnit < handle
                     case 'lick'
                         trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Lick, 'first', obj.EventTimes.Press);
                     case 'stim'
+                        if isempty(obj.EventTimes.StimOn)
+                            trials = Trial.empty;
+                            return
+                        end
                         trials = Trial([obj.EventTimes.StimOn, obj.EventTimes.StimOff(end)], obj.EventTimes.StimOff, 'first');
                     case 'stimtrain'
+                        if isempty(obj.EventTimes.StimOn)
+                            trials = Trial.empty;
+                            return
+                        end
                         cueToTrainOn = Trial(obj.EventTimes.Cue, obj.EventTimes.StimOn, 'first');
                         cueToTrainOff = Trial(obj.EventTimes.Cue, obj.EventTimes.StimOff, 'last');
                         trials = Trial([cueToTrainOn.Stop], [cueToTrainOff.Stop]);
