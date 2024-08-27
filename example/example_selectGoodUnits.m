@@ -1,11 +1,14 @@
+fpath = 'C:\SERVER\Units\TwoColor_SNr\BatchOne';
+
 % (!!!ONLY DO ONCE PER DATASET!!!) Cull multi-units, duplicate-units, DA untis, and write the remainder to server
 clear p
 p.maxISI = 1.5e-3;
 p.maxFraction = 0.05;
 p.minSpikeRate = 15;
 
+
 %
-eu = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction');
+eu = EphysUnit.load(fpath);
 euAll = eu;
 % Multiunit detection by ISI.
 clear cAll
@@ -100,4 +103,4 @@ fprintf(1, 'Removed %g putative duplicate units with R(0) > %.2f.\n', nnz(isDupl
 
 
 % Save good units post-cull
-eu.save('C:\SERVER\Units\acute_3cam_reach_direction\SingleUnits_NonDuplicate')
+eu.save(sprintf('%s\\SingleUnits_NonDuplicate', fpath))

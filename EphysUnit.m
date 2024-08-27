@@ -1098,7 +1098,7 @@ classdef EphysUnit < handle
 
             expName = obj.ExpName;
             animalName = obj.getAnimalName;
-            file = dir(sprintf('Z:\\%s\\%s\\%s.mat', animalName, expName, expName));
+            file = dir(sprintf('C:\\SERVER\\%s\\%s\\%s.mat', animalName, expName, expName));
             assert(~isempty(file))
 
             tce = load(sprintf('%s\\%s', file.folder, file.name));

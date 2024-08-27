@@ -25,20 +25,20 @@ for iExp = 1:length(sessionInfo)
 end
 clear iExp
 %% Load EU
-eu = EphysUnit.load('Y:\Units\TwoColor_Optrode\NonDuplicate_SingleUnit_Good');
+eu = EphysUnit.load('C:\SERVER\Units\TwoColor_SNr\BatchOne\SingleUnits_NonDuplicate');
 
 %% Make rasters and save to disk
-rd = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-2, shutterDelay=0);
+rd = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-2, shutterDelay=0.01);
 %%
 fig = figure(Units='inches', Position=[0, 0, 6, 8]);
 ax = axes(fig);
-if ~exist('Y:\Figures\TwoColor_Optrode', 'dir')
-    mkdir('Y:\Figures\TwoColor_Optrode')
+if ~exist('C:\SERVER\Figures\TwoColor_SNr\BatchOne', 'dir')
+    mkdir('C:\SERVER\Figures\TwoColor_SNr\BatchOne')
 end
 for iEu = 1:length(eu)
     cla(ax)
     EphysUnit.plotRaster(ax, rd(iEu), xlim=[-0.1, 0.3], sz=2);
-    print(fig, sprintf('Y:\\Figures\\TwoColor_Optrode\\%s.png', eu(iEu).getName()), '-dpng');
+    print(fig, sprintf('C:\\SERVER\\Figures\\TwoColor_SNr\\BatchOne\\%s.png', eu(iEu).getName()), '-dpng');
 end
 
 %% Make PE-ISI and save to disk
@@ -46,13 +46,13 @@ clear p
 p.isiWindow = [-0.5, 0.5];
 p.isiRes = 1e-3;
 p.xlim = [-0.1, 0.1];
-p.path = 'Y:\Figures\TwoColor_Optrode_PEISI\stage';
+p.path = 'C:\SERVER\Figures\TwoColor_SNr\BatchOne\PEISI\wavelength_power_duration';
 if ~exist(p.path, 'dir')
     mkdir(p.path)
 end
 for iEu = 1:length(eu)
 % for iEu = 1:length(eu)
-    ax = axes(figure(Units='inches', Position=[0, 0, 6, 8]));
+    ax = axes(figure(Units='inches', Position=[0, 0, 10, 8]));
     groups = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'});
     isi = NaN(length(groups), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)));
     normSR = isi;
@@ -62,9 +62,9 @@ for iEu = 1:length(eu)
     end
     imagesc(ax, 1e3*t, [], normSR)
     xlim(ax, p.xlim*1e3)
-    clim(ax, [0, 50])
+    clim(ax, [-25, 25])
     ax.YAxisLocation = 'right';
-    colormap(ax, 'hot')
+    colormap(ax, 'jet')
     h = colorbar(ax, 'westoutside');
     h.Label.String = '\Deltasp/s';
     yticks(ax, 1:length(groups));
@@ -75,8 +75,11 @@ for iEu = 1:length(eu)
     close(ax.Parent)
 end
 %% Create plot across units
+p.path2 = 'C:\SERVER\Figures\TwoColor_SNr\BatchOne\PEISI\wavelength_power_location';
+if ~exist(p.path2, 'dir')
+    mkdir(p.path2)
+end
 for iEu = 1:length(eu)
-% for iEu = 1:length(eu)
     ax = axes(figure(Units='inches', Position=[0, 0, 6, 8]));
     groups = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'location'});
     isi = NaN(length(groups), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)));
@@ -87,120 +90,46 @@ for iEu = 1:length(eu)
     end
     imagesc(ax, 1e3*t, [], normSR)
     xlim(ax, p.xlim*1e3)
-    clim(ax, [0, 50])
+    clim(ax, [-25, 25])
     ax.YAxisLocation = 'right';
-    colormap(ax, 'hot')
+    colormap(ax, 'jet')
     h = colorbar(ax, 'westoutside');
     h.Label.String = '\Deltasp/s';
     yticks(ax, 1:length(groups));
     yticklabels(ax, {groups.label})
     xlabel(ax, 'Time from opto onset (ms)')
     title(ax, eu(iEu).getName, Interpreter="none")
-    % print(ax.Parent, sprintf('%s\\%s.png', p.path, eu(iEu).getName), '-dpng')
-    % close(ax.Parent)
+    print(ax.Parent, sprintf('%s\\%s.png', p.path2, eu(iEu).getName), '-dpng')
+    close(ax.Parent)
 end
 
-%% Plot 
-
-
-%  tr = TetrodeRecording.BatchLoadSimple();
-%  % Try daisy19_20240411, Chn15, Cluster 2
-% %% Load two color experiment and validate stim pulse timing
-% file = dir(sprintf('%s\\..\\%s.mat', tr.Path, tr.GetExpName(includeSuffix=false)));
-% assert(~isempty(file))
-% 
-% tce = load(sprintf('%s\\%s', file.folder, file.name));
-% tce = tce.obj;
-% assert(isa(tce, 'TwoColorExperiment'))
-% clear file
-% 
-% tOn = tr.DigitalEvents.StimOn;
-% tOff = tr.DigitalEvents.StimOff;
-% 
-% nPulsesPerTrain = arrayfun(@(log) log.params.nPulses, tce.Log);
-% pulseWidth = arrayfun(@(log) repmat(log.params.pulseWidth, [1, log.params.nPulses]), tce.Log, UniformOutput=false);
-% % pulseWidth = cat(2, pulseWidth{:});
-% 
-% % Verify congruence between Intan shutter events and TwoColorExperiment.Log
-% assert(sum(nPulsesPerTrain) == nnz(tOn), 'Intan recorded %i shutterOn events while TwoColorExperiment.Log has %i.', nnz(tOn), sum(nPulsesPerTrain));
-% assert(sum(nPulsesPerTrain) == nnz(tOff), 'Intan recorded %i shutterOn events while TwoColorExperiment.Log has %i.', nnz(tOn), sum(nPulsesPerTrain));
-% nPulses = nnz(tOn);
-% fprintf('Intan & TwoColorExperiment.Log both recorded %i shutter pulses.\n', nnz(tOn))
-% 
-% % Pulse durations should match between Intan and TCE as well.
-% pulseWidthErrorMargin = 1e-3;
-% assert(all(abs(tOff - tOn - pulseWidth) < pulseWidthErrorMargin), 'Only %i/%i pulseWidths agree (df<%gs).', nnz(abs(tOff - tOn - pulseWidth) < pulseWidthErrorMargin), nPulses, pulseWidthErrorMargin)
-% fprintf('All %i pulseWidths agree (df<%gs).\n', nPulses, pulseWidthErrorMargin)
-% 
-% % Generate pulse->train map
-% iPulse = 0;
-% pulseToTrain = NaN(1, nPulses);
-% for iTrain = 1:length(tce.Log)
-%     pulseToTrain(iPulse + 1:iPulse + nPulsesPerTrain(iTrain)) = iTrain;
-%     iPulse = iPulse + nPulsesPerTrain(iTrain);
-% end
-% 
-% clear iPulse iTrain pulseWidth
-% 
-% %% Make one raster
-% iChn = 15;
-% iUnit = [3];
-% % Stim condition has
-% % 1000000*wavelength (1, 2) + 100000*location (1, 2, 3, 4) + 1000*duration (1, 2, 4, 6, 10, 20, 40) + 1*nominalpower (1, 2, 4, 20, 80, 320)
-% 
-% trainHash = tce.getStimHash();
-% pulseHash = trainHash(pulseToTrain);
-% 
-% [~, trainOrder] = sort(trainHash, 'ascend');
-% [~, pulseOrder] = sort(pulseHash, 'ascend');
-% 
-% % Get pulse on/pulse off times, sorted by hash
-% % edges = [tOn(pulseOrder); tOff(pulseOrder)];
-% 
-% % assert(sizes(edges, 2) == nPulses)
-% % assert(size(edges, 1) == 2)
-% tOnSorted = tOn(pulseOrder);
-% tOffSorted = tOff(pulseOrder);
-% 
-% st = tr.Spikes(iChn).Timestamps(ismember(tr.Spikes(iChn).Cluster.Classes, iUnit));
-% stAligned = st;
-% I = NaN(size(st));
-% for iPulse = 1:nPulses
-%     sel = st >= tOnSorted(iPulse) - 0.25 & st <= tOnSorted(iPulse) + 0.5;
-%     I(sel) = iPulse;
-%     stAligned(sel) = st(sel) - tOnSorted(iPulse);
-% end
-% 
-% close all
-% fig = figure();
-% ax = axes(fig);
-% hold(ax, 'on')
-% scatter(ax, stAligned, I, 5, 'k', 'filled');
-% ylim(ax, [0, nPulses + 1])
-% ax.YAxis.Direction = 'reverse';
-% 
-% for iTrain = 1:length(tce.Log)
-%     selPulse = pulseToTrain == iTrain;
-%     iPulseStart = strfind(selPulse, [0, 1]) + 1;
-%     iPulseEnd = strfind(selPulse, [1, 0]);
-%     if isempty(iPulseStart)
-%         iPulseStart = 1;
-%     end
-%     if isempty(iPulseEnd)
-%         iPulseEnd = nPulses;
-%     end
-%     iPulseStart = find(pulseOrder == iPulseStart);
-%     iPulseEnd = find(pulseOrder == iPulseEnd);
-%     pulseWidth = tce.Log(iTrain).params.pulseWidth;
-%     switch tce.Log(iTrain).wavelength
-%         case 473
-%             color = [0.2, 0.2, 0.8];
-%         case 593
-%             color = [0.8, 0.2, 0.2];
-%     end
-%     alpha = 0.2 + 0.6*((tce.Log(iTrain).params.iPower - 1)./(length(tce.Params.targetPowers) - 1));
-%     % assert(tce.Log(iTrain).targetPower == 25e-6)
-%     patch(ax, [0, pulseWidth, pulseWidth, 0], [iPulseStart, iPulseStart, iPulseEnd, iPulseEnd], color, ...
-%         FaceAlpha=alpha, EdgeColor='none')
-% end
-% hold(ax, 'off')
+%% Create plot across units
+close all
+p.path3 = 'C:\SERVER\Figures\TwoColor_SNr\BatchOne\PEISI\wavelength_power';
+p.xlim = [-0.05, 0.1];
+if ~exist(p.path3, 'dir')
+    mkdir(p.path3)
+end
+for iEu = 1:length(eu)
+    ax = axes(figure(Units='inches', Position=[0, 0, 6, 4]));
+    groups = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power'});
+    isi = NaN(length(groups), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)));
+    normSR = isi;
+    for iGrp = 1:length(groups)
+        [isi(iGrp, :), t] = eu(iEu).getMeanPEISI('stimtwocolor', groups(iGrp).trials, window=p.isiWindow, resolution=p.isiRes);
+        normSR(iGrp, :) = (1./isi(iGrp, :) - mean(1./isi(iGrp, t<=0), 'omitnan'))./std(1./isi(iGrp, t<0), 0, 'omitnan');
+    end
+    imagesc(ax, 1e3*t, [], normSR)
+    xlim(ax, p.xlim*1e3)
+    clim(ax, [-3, 3])
+    ax.YAxisLocation = 'right';
+    colormap(ax, 'jet')
+    h = colorbar(ax, 'westoutside');
+    h.Label.String = 'Normalized spike rate (a.u.)';
+    yticks(ax, 1:length(groups));
+    yticklabels(ax, {groups.label})
+    xlabel(ax, 'Time from opto onset (ms)')
+    title(ax, eu(iEu).getName, Interpreter="none")
+    print(ax.Parent, sprintf('%s\\%s.png', p.path3, eu(iEu).getName), '-dpng')
+    close(ax.Parent)
+end
