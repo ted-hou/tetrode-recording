@@ -632,7 +632,7 @@ classdef EphysUnit < handle
                     end
                 end
                 if isempty(includeInvalid)
-                    if ismember(event, {'stimtrain', 'anylick', 'firstlick'})
+                    if ismember(event, {'stimtrain', 'anylick', 'firstlick', 'stimtwocolor'})
                         includeInvalid = true;
                     else
                         includeInvalid = false;
@@ -1136,13 +1136,17 @@ classdef EphysUnit < handle
         function groups = groupTwoColorStimTrials(obj, varargin)
             p = inputParser();
             p.addOptional('groupBy', {'wavelength', 'location', 'duration', 'power'}, @(x) ~isempty(x) && all(ismember(x, {'wavelength', 'location', 'duration', 'power'})));
+            p.addOptional('selectBy', struct([]), @(x) isstruct(x) && all(isfield(x, {'wavelength', 'location', 'duration', 'power'})));
+            p.addOptional('firstShutterControlTrain', NaN, @isnumeric)
             p.parse(varargin{:});
             groupBy = p.Results.groupBy;
+            selectBy = p.Results.selectBy;
+            firstShutterControlTrain = p.Results.firstShutterControlTrain;
 
             assert(length(obj) == 1);
 
             [tce, ~, ~, trainIndices] = obj.LoadTwoColorExperiment();
-            [groupIndices, conditions] = tce.groupStimTrains(groupBy);
+            [groupIndices, conditions] = tce.groupStimTrains(groupBy, firstShutterControlTrain);
 
             nGroups = length(conditions);
             nTrains = length(groupIndices);
@@ -1182,6 +1186,25 @@ classdef EphysUnit < handle
                             groups(iGroup).power = conditions(iGroup).power;
                             groups(iGroup).label = sprintf('%s %guW', groups(iGroup).label, 1e6*groups(iGroup).power);
                     end
+                end
+            end
+
+            if ~isempty(selectBy)
+                if ~isempty(selectBy.wavelength)
+                    assert(ismember('wavelength', groupBy))
+                    groups = groups(ismember([groups.wavelength], selectBy.wavelength));
+                end
+                if ~isempty(selectBy.location)
+                    assert(ismember('location', groupBy))
+                    groups = groups(ismember([groups.location], selectBy.location));
+                end
+                if ~isempty(selectBy.duration)
+                    assert(ismember('duration', groupBy))
+                    groups = groups(ismember([groups.duration], selectBy.duration));
+                end
+                if ~isempty(selectBy.power)
+                    assert(ismember('power', groupBy))
+                    groups = groups(ismember([groups.power], selectBy.power));
                 end
             end
         end
@@ -1974,7 +1997,7 @@ classdef EphysUnit < handle
                 useResampleMethod = false;
             end
             p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
-            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'anylick', 'firstlick', 'circlick', 'lickbout', 'press_spontaneous', 'press_spontaneous2', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
+            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', 'firstlick', 'circlick', 'lickbout', 'press_spontaneous', 'press_spontaneous2', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
             p.addParameter('resolution', 0.001, @(x) isnumeric(x) && x > 0)
             p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) >= x(1))

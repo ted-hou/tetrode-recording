@@ -127,6 +127,9 @@ meta.press = transpose(mean(eta.press.X(:, eta.press.t >= p.metaWindowPress(1) &
 meta.lick = transpose(mean(eta.lick.X(:, eta.lick.t >= p.metaWindowLick(1) & eta.lick.t <= p.metaWindowLick(2)), 2, 'omitnan'));
 meta.pressRaw = transpose(mean(eta.pressRaw.X(:, eta.pressRaw.t >= p.metaWindowPress(1) & eta.pressRaw.t <= p.metaWindowPress(2)), 2, 'omitnan'));
 meta.lickRaw = transpose(mean(eta.lickRaw.X(:, eta.lickRaw.t >= p.metaWindowLick(1) & eta.lickRaw.t <= p.metaWindowLick(2)), 2, 'omitnan'));
+meta.pressRawBaseline = transpose(mean(eta.pressRaw.X(:, eta.pressRaw.t >= p.etaNorm(1) & eta.pressRaw.t <= p.etaNorm(2)), 2, 'omitnan'));
+meta.lickRawBaseline = transpose(mean(eta.lickRaw.X(:, eta.lickRaw.t >= p.etaNorm(1) & eta.lickRaw.t <= p.etaNorm(2)), 2, 'omitnan'));
+
 
 
 % 2.3.2 Basic summaries (fast)
