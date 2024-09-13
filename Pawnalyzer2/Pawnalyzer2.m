@@ -108,7 +108,7 @@ classdef Pawnalyzer2 < handle
             p = inputParser();
             p.addParameter('nFramesBefore', 15, @isnumeric);
             p.addParameter('nFramesAfter', 0, @isnumeric);
-            p.addParameter('trials', [], @(x) isnumeric(x) || ismember(x, {'PressSpontaneous', 'Press', 'PressSpontaneousMedial', 'PressSpontaneousLateral'}));
+            p.addParameter('trials', [], @(x) isa(x, 'Trial') || isnumeric(x) || ismember(x, {'PressSpontaneous', 'Press', 'PressSpontaneousMedial', 'PressSpontaneousLateral'}));
             p.addParameter('keepData', true, @islogical);
             p.addParameter('noImage', false, @islogical);
             p.parse(varargin{:})
@@ -122,7 +122,9 @@ classdef Pawnalyzer2 < handle
             clips = cell(length(obj.exp), 1);
             t = cell(length(obj.exp), 1);
             for iExp = 1:length(obj.exp)
-                if ischar(selTrials)
+                if isa(selTrials, 'Trial')
+                    trials{iExp} = selTrials;
+                elseif ischar(selTrials)
                     trials{iExp} = obj.exp(iExp).eu(1).Trials.(selTrials);
                 else
                     trials{iExp} = VideoDirReachTrial(obj.exp(iExp));
@@ -454,6 +456,8 @@ classdef Pawnalyzer2 < handle
 %                 error('Not tested')
                 if isempty(obj.clipParams.trials)
                     trials = obj.exp(iExp).eu(1).Trials.Press;
+                elseif isa(obj.clipParams.trials, 'Trial')
+                    trials = obj.clipParams.trials;
                 else
                     trials = obj.exp(iExp).eu(1).Trials.Press(obj.clipParams.trials);
                 end
@@ -576,7 +580,7 @@ classdef Pawnalyzer2 < handle
             ax = obj.gui.axEMG;
             cla(ax)
             hold(ax, 'on')
-            xEMG = obj.dataEMG(iExp).X(iTrial, :);
+            xEMG = obj.dataEMG(iExp).normX(iTrial, :);
             tEMG = obj.dataEMG(iExp).T(iTrial, :);
             tFrame = obj.t{iExp}.contra(iTrial, iFrame);
             plot(ax, 1000.*(tEMG - tEMG(end)), xEMG, 'k');

@@ -32,7 +32,7 @@ whitelist = ...
     {'desmond27'}; ...
 ];
 
-S = load('C:\SERVER_PRIVATE\data\bs.mat');
+S = load('C:\SERVER\bs.mat');
 bs = S.bs;
 clear S
 bs = cellfun(@(x) x(x.isvalid()), bs, 'UniformOutput', false);

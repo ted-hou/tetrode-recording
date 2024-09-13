@@ -166,6 +166,12 @@ for iEu = 1:size(mdl, 1)
     end
 end
 
+%% Estimate model criterion
+crits = ["AIC", "AICc", "BIC", "CAIC"];
+for crit = crits
+    modelCriterion.(crit) = cellfun(@(mdl) mdl.ModelCriterion.(crit), mdl);
+end
+
 %% Calculate trial-average fitted vs. observed for all units
 euAcute = vertcat(expAcute.eu);
 pAcute.minSpikeRate = 15;

@@ -45,17 +45,22 @@ p.velETABinWidth = 0.05;
 p.minTrialLength = 2;
 
 close all
-% statName = 'spd';
-statName = 'xVel';
+% statName = {'spd'};
+statName = {'xVel', 'yVel', 'spd'}; % Side camera, xVel along AP, yVel along DV.
+statNameDisp = {'AP', 'DV', 'spd'};
 t = flip(p.velETAWindow(2):-p.velETABinWidth:p.velETAWindow(1));
 fCorrect = cell(1, length(expAcute));
 fIncorrect = cell(1, length(expAcute));
-fnamesL = {'handL', 'footL', 'handR', 'footR', 'spine', 'tongue', 'nose'};
-fnamesR = {'handR', 'footR', 'handL', 'footL', 'spine', 'tongue', 'nose'};
-% fnamesSmoothL = {'handL', 'footL', 'handR', 'footR', 'spine', 'nose'};
-% fnamesSmoothR = {'handR', 'footR', 'handL', 'footL', 'spine', 'nose'};
-fnames = {'handContra', 'footContra', 'handIpsi', 'footIpsi', 'spine', 'tongue', 'nose'};
-fnamesDisp = {'contra hand', 'contra foot', 'ipsi hand', 'ipsi foot', 'spine', 'tongue', 'nose'};
+fnamesL = {'handL', 'footL', 'handR', 'footR', 'spine', 'nose', 'tongue'};
+fnamesR = {'handR', 'footR', 'handL', 'footL', 'spine', 'nose', 'tongue'};
+fnames = {'handContra', 'footContra', 'handIpsi', 'footIpsi', 'spine', 'nose', 'tongue'};
+assert(strcmpi(fnames{end}, 'tongue'))
+fnames = cellfun(@(f) cellfun(@(stat) [f, '_', stat], statName, UniformOutput=false)', fnames(1:end-1), UniformOutput=false);
+fnames = [cat(1, fnames{:})', {'tongue'}];
+fnamesDisp = {'contra hand', 'contra foot', 'ipsi hand', 'ipsi foot', 'spine', 'nose', 'tongue'};
+assert(strcmpi(fnamesDisp{end}, 'tongue'))
+fnamesDisp = cellfun(@(f) cellfun(@(stat) [f, ' ', stat], statNameDisp, UniformOutput=false)', fnamesDisp(1:end-1), UniformOutput=false);
+fnamesDisp = [cat(1, fnamesDisp{:})', {'tongue'}];
 [kernels, ~, ~] = CompleteExperiment.makeConsineKernels(0, width=0.1); % Kernels for smoothing velocity traces
 for iExp = 1:length(expAcute)
     clear trials
@@ -89,7 +94,7 @@ for iExp = 1:length(expAcute)
             end
 
             tGlobal = flip(trials(iTrial).Stop + p.velETAWindow(2):-p.velETABinWidth:trials(iTrial).Stop + p.velETAWindow(1));
-            F = expAcute(iExp).getFeatures(timestamps=tGlobal, features=theseNames, stats={statName}, useGlobalNormalization=true);
+            F = expAcute(iExp).getFeatures(timestamps=tGlobal, features=theseNames, stats=statName, useGlobalNormalization=true);
 %             F = CompleteExperiment.convolveFeatures(F, kernels, kernelNames={'_smooth'}, ...
 %                 features=theseNames, ...
 %                 stats={statName}, ...
@@ -116,6 +121,7 @@ for iExp = 1:length(expAcute)
 end
 
 % Average by trial
+% fnames = F.Properties.VariableNames;
 clear fstats
 statStruct = struct('mean', [], 'nTrials', [], 'sd', []);
 fallIncorrect = struct('press', statStruct, 'lick', statStruct);

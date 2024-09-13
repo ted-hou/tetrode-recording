@@ -1,9 +1,11 @@
-zThreshold = 0.25;
+function [exp, onset, isGoodTrial, etaMerged, onsetThreshold, spuriousMovementThreshold] = read_emg()
+
+onsetThreshold = 0.25;
 expName = {'daisy24_20240626', 'daisy24_20240627', 'daisy24_20240628'};
-nExp = length(expName);
+
 % Load data
-exp(nExp) = struct(ai=[], pa=[], eu=[], goodTrials=[]);
-for iExp = 1:nExp
+exp(length(expName)) = struct(ai=[], pa=[], eu=[], goodTrials=[]);
+for iExp = 1:length(exp)
     ai = load(sprintf('C:\\SERVER\\PawAnalysis\\EMG_%s.mat', expName{iExp}));
     exp(iExp).ai = ai.ai; 
     clear ai;
@@ -25,39 +27,10 @@ for iExp = 1:nExp
 end
 clear iExp files trials
 
-%% Load clips and plot alongside EMG data for verification of EMG quality, filter settings, etc
-% selTrials = EMG.isGoodTrial(1:length(EMG.exp(1).goodTrials));
-
-normX = arrayfun(@(exp) exp.emg.touchAligned.normX, EMG.exp, UniformOutput=false);
-normX = cat(1, normX{:});
-t = EMG.exp(1).emg.touchAligned.t;
-maxPost = max(normX(:, dataEMG.t > -0.5), [], 2, 'omitnan');
-maxPre = max(normX(:, dataEMG.t <= -0.5), [], 2, 'omitnan');
-sdPost = std(normX(:, dataEMG.t > -0.5), 0, 2, 'omitnan');
-sdPre = std(normX(:, dataEMG.t <= -0.5), 0, 2, 'omitnan');
-isGoodTrial = sdPre < sdPost*0.2;
-trials = cat(2, EMG.exp.goodTrials);
-
-
-
-sessionEdges = [0, cumsum(arrayfun(@(exp) length(exp.goodTrials), EMG.exp))];
-for iExp = 1:length(EMG.exp)
-    theseTrials = EMG.exp(iExp).goodTrials;
-    selTrials = isGoodTrial(sessionEdges(iExp) + 1:sessionEdges(iExp + 1));
-    EMG.exp(iExp).pa.getClips(trials=theseTrials(selTrials), nFramesBefore=120, nFramesAfter=0, keepData=false);
-    dataEMG = EMG.exp(iExp).emg.touchAligned;
-    
-    
-    dataEMG.T = dataEMG.T(selTrials, :);
-    dataEMG.X = dataEMG.X(selTrials, :);
-    dataEMG.normX = dataEMG.normX(selTrials, :);
-    EMG.exp(iExp).pa.dataEMG = dataEMG;
-%     EMG.exp(1).pa.start();
-end
-%% %Calculate paw trajectories
+%% Calculate paw trajectories
 nt = 10;
 nFrames = 16;
-for iExp = 1:nExp
+for iExp = 1:length(exp)
     clear traj
     traj = struct(contra=[], ipsi=[], target=[], t=[], pca=[], kmeans=[]);
     [traj.contra, traj.ipsi, traj.target, traj.t] = exp(iExp).pa.getTrajectories(1, zero=nFrames - nt + 1);
@@ -68,11 +41,8 @@ for iExp = 1:nExp
     exp(iExp).traj = traj;
 end
 clear iExp traj
-
-
-
 %% Calculate video-movement onset times
-for iExp = 1:nExp
+for iExp = 1:length(exp)
     nTrials = length(exp(iExp).traj.target);
     exp(iExp).trueStartTime = NaN(nTrials, 1);
     t = exp(iExp).traj.t;
@@ -90,7 +60,7 @@ for iExp = 1:nExp
         if any(isnan(distNorm(iTrial, :)))
             continue
         end
-        isAbove = distNorm(iTrial, :) >= zThreshold;
+        isAbove = distNorm(iTrial, :) >= onsetThreshold;
         iLastAbove = find(isAbove, 1, 'last'); % We don't do abs since dist is already positive, although z-scoring will generate negatives, true movement should be positive.
         if isempty(iLastAbove)
             continue
@@ -104,7 +74,7 @@ for iExp = 1:nExp
     end
 end
 
-for iExp = 1:nExp
+for iExp = 1:length(exp)
     nTrials = length(exp(iExp).traj.target);
     exp(iExp).trueStartTimeLeft = NaN(nTrials, 1);
     t = exp(iExp).traj.t;
@@ -122,7 +92,7 @@ for iExp = 1:nExp
         if any(isnan(distNorm(iTrial, :)))
             continue
         end
-        isAbove = distNorm(iTrial, :) >= zThreshold;
+        isAbove = distNorm(iTrial, :) >= onsetThreshold;
         iOnset = strfind(isAbove, [0 1 1]) + 1;
         if isempty(iOnset)
             continue
@@ -141,10 +111,10 @@ hold on
 histogram(vertcat(exp.trueStartTimeLeft), -0.5:0.05:0, Normalization='probability')
 xlabel('Time to touch (s)')
 ylabel('Probability')
-title(sprintf('Video detected movement onset time (when z(dist) > %g for 2 conseq bins)', zThreshold))
+title(sprintf('Video detected movement onset time (when z(dist) > %g for 2 conseq bins)', onsetThreshold))
 %% Calculate touch aligned EMG
 baseWindow = [-4, -2];
-for iExp = 1:nExp
+for iExp = 1:length(exp)
     tLocal = -4:1/30000:0;
     tEvent = reshape([exp(iExp).eu(1).Trials.PressSpontaneous.Stop], [], 1);
     tGlobal = tLocal + tEvent;
@@ -167,7 +137,7 @@ end
 clear tLocal tEvent tGlobal nTrials X iTrial emg iExp selBase baseMeanByTrial baseSdByTrial normX
 
 %% Calculate video-movement-onset aligned EMG
-for iExp = 1:nExp
+for iExp = 1:length(exp)
     tLocal = -4:1/30000:0.5;
     tEvent = reshape([exp(iExp).eu(1).Trials.PressSpontaneous.Stop], [], 1) + reshape(exp(iExp).trueStartTime, [], 1);
     tGlobal = tLocal + tEvent;
@@ -189,22 +159,22 @@ for iExp = 1:nExp
 end
 clear tLocal tEvent tGlobal nTrials X iTrial iExp selBase baseMeanByTrial baseSdByTrial normX
 %% PLOT Trial-average EMG aligned to touch
-figure
-normX = arrayfun(@(exp) exp.emg.touchAligned.normX, exp, UniformOutput=false);
-normX = cat(1, normX{:});
-plot(exp(1).emg.touchAligned.t, mean(normX, 1, 'omitnan'))
-xlabel('Time to touch (s)')
-ylabel('Smoothed normalzied EMG')
-title(sprintf('Trial-average EMG aligned to touch (when z(dist) > %g for 2 conseq bins)', size(normX, 1), nExp))
+% figure
+% normX = arrayfun(@(exp) exp.emg.touchAligned.normX, expEMG, UniformOutput=false);
+% normX = cat(1, normX{:});
+% plot(expEMG(1).emg.touchAligned.t, mean(normX, 1, 'omitnan'))
+% xlabel('Time to touch (s)')
+% ylabel('Smoothed normalzied EMG')
+% title(sprintf('Trial-average EMG aligned to touch (when z(dist) > %g for 2 conseq bins)', size(normX, 1), length(expEMG)))
 
 %% Detect movement onset time based on z(EMG)>0.25 for 2 conseq bins (from right)
-for iExp = 1:nExp
+for iExp = 1:length(exp)
     nTrials = length(exp(iExp).traj.target);
     trueStartTimeEMG = NaN(nTrials, 1);
     t = -2:1/30:0;
     for iTrial = 1:nTrials
         x = interp1(exp(iExp).emg.touchAligned.t, exp(iExp).emg.touchAligned.normX(iTrial, :), t);
-        isAbove = x >= zThreshold;
+        isAbove = x >= onsetThreshold;
         iLastAbove = find(isAbove, 1, 'last'); % We don't do abs since dist is already positive, although z-scoring will generate negatives, true movement should be positive.
         if isempty(iLastAbove)
             continue
@@ -220,7 +190,7 @@ for iExp = 1:nExp
 end
 
 % Detect video and EMG onset from the left
-for iExp = 1:nExp
+for iExp = 1:length(exp)
     nTrials = length(exp(iExp).traj.target);
     exp(iExp).trueStartTimeEMGLeft = NaN(nTrials, 1);
     t = -2:1/30:0;
@@ -236,48 +206,48 @@ for iExp = 1:nExp
     end
 end
 
-figure
-histogram(vertcat(exp.trueStartTimeEMG), -2:0.05:0, Normalization='probability')
-hold on
-histogram(vertcat(exp.trueStartTimeEMGLeft), -2:0.05:0, Normalization='probability')
-hold on
-t = vertcat(exp.trueStartTimeEMGLeft);
-histogram(t(selTrials), -2:0.05:0, Normalization='probability')
-xlabel('Time to touch (s)')
-ylabel('Probability')
-title(sprintf('EMG detected movement onset time (when z(EMG) > %g)', zThreshold))
+% figure
+% histogram(vertcat(expEMG.trueStartTimeEMG), -2:0.05:0, Normalization='probability')
+% hold on
+% histogram(vertcat(expEMG.trueStartTimeEMGLeft), -2:0.05:0, Normalization='probability')
+% hold on
+% t = vertcat(expEMG.trueStartTimeEMGLeft);
+% histogram(t(selTrials), -2:0.05:0, Normalization='probability')
+% xlabel('Time to touch (s)')
+% ylabel('Probability')
+% title(sprintf('EMG detected movement onset time (when z(EMG) > %g)', onsetThreshold))
 
 
 %% Plot EMG-Video latency difference
-figure
-df = trueStartTimeEMG - trueStartTime;
-histogram(df, -0.5:0.05:0.5, Normalization='probability')
-xlabel('tOnset(EMG) - tOnset(Video) (s)')
-ylabel('Prob')
-title(sprintf('EMG onset preceeds video-onset by (\\mu=%.1f, \\sigma=%.1f) ms', mean(df, 'omitnan')*1000, std(df, 'omitnan')*1000))
+% figure
+% df = trueStartTimeEMG - trueStartTime;
+% histogram(df, -0.5:0.05:0.5, Normalization='probability')
+% xlabel('tOnset(EMG) - tOnset(Video) (s)')
+% ylabel('Prob')
+% title(sprintf('EMG onset preceeds video-onset by (\\mu=%.1f, \\sigma=%.1f) ms', mean(df, 'omitnan')*1000, std(df, 'omitnan')*1000))
 
 
 %% PLOT Trial-average EMG aligned to vid onset
 
-normX = arrayfun(@(exp) exp.emg.vidOnsetAligned.normX, exp, UniformOutput=false);
-normX = cat(1, normX{:});
-
-ax = axes(figure);
-hold(ax, 'on')
-% plot(ax, exp(1).emg.vidOnsetAligned.t, normX(1:10, :)')
-plot(ax, exp(1).emg.vidOnsetAligned.t, mean(normX, 1, 'omitnan'), 'k', LineWidth=3)
-hold on
-ylim(ax, 'auto')
-xlim(ax, 'auto')
-plot([0, 0], ax.YLim, 'k--')
-plot(ax.XLim, [0.25, 0.25], 'k--')
-xlabel(ax, 'Time to touch (s)')
-ylabel(ax, 'Smoothed normalzied EMG')
-title(ax, 'Trial-average EMG aligned to vid-onset')
+% normX = arrayfun(@(exp) exp.emg.vidOnsetAligned.normX, expEMG, UniformOutput=false);
+% normX = cat(1, normX{:});
+% 
+% ax = axes(figure);
+% hold(ax, 'on')
+% % plot(ax, exp(1).emg.vidOnsetAligned.t, normX(1:10, :)')
+% plot(ax, expEMG(1).emg.vidOnsetAligned.t, mean(normX, 1, 'omitnan'), 'k', LineWidth=3)
+% hold on
+% ylim(ax, 'auto')
+% xlim(ax, 'auto')
+% plot([0, 0], ax.YLim, 'k--')
+% plot(ax.XLim, [0.25, 0.25], 'k--')
+% xlabel(ax, 'Time to touch (s)')
+% ylabel(ax, 'Smoothed normalzied EMG')
+% title(ax, 'Trial-average EMG aligned to vid-onset')
 
 %% Do some cherry picking: find trials without spurious pre-reach movements, compare to those with
-close all
-hThreshold = 5;
+% close all
+spuriousMovementThreshold = 5;
 
 normX = arrayfun(@(exp) exp.emg.touchAligned.normX, exp, UniformOutput=false);
 normX = cat(1, normX{:});
@@ -286,15 +256,17 @@ t = exp(1).emg.touchAligned.t;
 trueStartTimeEMG = vertcat(exp.trueStartTimeEMG);
 trueStartTime = vertcat(exp.trueStartTime);
 
+
 nTrials = size(normX, 1);
 tThreshold = -0.5;
-hMax = max(normX(:, t <= tThreshold), [], 2, 'omitnan');
-selTrials = hMax <= hThreshold;
+hMaxPre = max(normX(:, t <= tThreshold), [], 2, 'omitnan');
+hMaxPost = max(normX(:, t > tThreshold), [], 2, 'omitnan');
+isGoodTrial = hMaxPre <= spuriousMovementThreshold & hMaxPost >= spuriousMovementThreshold;
 
 ax = axes(figure); hold(ax, 'on');
-plot(ax, t, mean(normX(selTrials, :), 1, 'omitnan'), DisplayName=sprintf('Good trials (n=%i)', nnz(selTrials)))
-plot(ax, t, mean(normX(~selTrials, :), 1, 'omitnan'), DisplayName=sprintf('Naughty trials (n=%i)', nnz(~selTrials)))
-plot(ax, [-4, 0], [0.25, 0.25], 'k--', DisplayName=sprintf('Threshold=%g', zThreshold))
+plot(ax, t, mean(normX(isGoodTrial, :), 1, 'omitnan'), DisplayName=sprintf('Good trials (n=%i)', nnz(isGoodTrial)))
+plot(ax, t, mean(normX(~isGoodTrial, :), 1, 'omitnan'), DisplayName=sprintf('Naughty trials (n=%i)', nnz(~isGoodTrial)))
+plot(ax, [-4, 0], [0.25, 0.25], 'k--', DisplayName=sprintf('Threshold=%g', onsetThreshold))
 hold(ax, 'off')
 legend(ax)
 xlabel(ax, 'Time to touch (s)')
@@ -307,9 +279,9 @@ normX = cat(1, normX{:});
 t = exp(1).emg.vidOnsetAligned.t;
 
 ax = axes(figure); hold(ax, 'on');
-plot(ax, t, mean(normX(selTrials, :), 1, 'omitnan'), DisplayName=sprintf('Good trials (n=%i)', nnz(selTrials)))
-plot(ax, t, mean(normX(~selTrials, :), 1, 'omitnan'), DisplayName=sprintf('Naughty trials (n=%i)', nnz(~selTrials)))
-plot(ax, [-4, 0], [0.25, 0.25], 'k--', DisplayName=sprintf('Threshold=%g', zThreshold))
+plot(ax, t, mean(normX(isGoodTrial, :), 1, 'omitnan'), DisplayName=sprintf('Good trials (n=%i)', nnz(isGoodTrial)))
+plot(ax, t, mean(normX(~isGoodTrial, :), 1, 'omitnan'), DisplayName=sprintf('Naughty trials (n=%i)', nnz(~isGoodTrial)))
+plot(ax, [-4, 0], [0.25, 0.25], 'k--', DisplayName=sprintf('Threshold=%g', onsetThreshold))
 hold(ax, 'off')
 legend(ax)
 xlabel(ax, 'Time to video onset (s)')
@@ -319,20 +291,20 @@ ylim(ax, [0-1, 15])
 
 ax = axes(figure); hold(ax, 'on')
 % histogram(ax, trueStartTimeEMG(selTrials) - trueStartTime(selTrials), -5:0.1:0)
-histogram(ax, trueStartTimeEMG(selTrials), -0.5:0.05:0)
+histogram(ax, trueStartTimeEMG(isGoodTrial), -0.5:0.05:0)
 % histogram(ax, trueStartTimeEMG(~selTrials), -5:0.1:0)
-title(ax, sprintf('mean=%g s, %g s, %g s', mean(trueStartTimeEMG(selTrials) - trueStartTime(selTrials), 'omitnan'), mean(trueStartTimeEMG(selTrials), 'omitnan'), mean(trueStartTimeEMG(~selTrials), 'omitnan')))
+title(ax, sprintf('mean=%g s, %g s, %g s', mean(trueStartTimeEMG(isGoodTrial) - trueStartTime(isGoodTrial), 'omitnan'), mean(trueStartTimeEMG(isGoodTrial), 'omitnan'), mean(trueStartTimeEMG(~isGoodTrial), 'omitnan')))
 
 %% PLOT ETAs side by side (good vs bad trials), aligned to EMG onset
 % Good trials should still have early activation
-eta(nExp) = struct(good=[], bad=[]);
+eta(length(exp)) = struct(good=[], bad=[]);
 csnTrials = cumsum([0, arrayfun(@(exp) length(exp.goodTrials), exp)]);
-for iExp = 1:nExp
+for iExp = 1:length(exp)
     selTrialInSession = csnTrials(iExp) + 1:csnTrials(iExp + 1);
     eta(iExp).good = exp(iExp).eu.getETA('count', 'press_spontaneous', window=[-4, 0.5], resolution=0.1, normalize=[-4, -2], alignTo='stop', includeInvalid=true, ...
-                trials=exp(iExp).goodTrials(selTrials(selTrialInSession)), correction=trueStartTimeEMG(selTrials(selTrialInSession)));
+                trials=exp(iExp).goodTrials(isGoodTrial(selTrialInSession)), correction=trueStartTimeEMG(isGoodTrial(selTrialInSession)));
     eta(iExp).bad = exp(iExp).eu.getETA('count', 'press_spontaneous', window=[-4, 0.5], resolution=0.1, normalize=[-4, -2], alignTo='stop', includeInvalid=true, ...
-                trials=exp(iExp).goodTrials(~selTrials(selTrialInSession)), correction=trueStartTimeEMG(~selTrials(selTrialInSession)));
+                trials=exp(iExp).goodTrials(~isGoodTrial(selTrialInSession)), correction=trueStartTimeEMG(~isGoodTrial(selTrialInSession)));
 end
 
 etaGood = [eta.good];
@@ -342,7 +314,11 @@ etaMerged.bad = struct(X=cat(1, etaBad.X), t=etaBad(1).t, N=cat(1, etaBad.N), D=
 clear etaGood etaBad csnTrials iExp selTrialInSession
 
 [ax, order] = EphysUnit.plotDoubleETA(etaMerged.good, etaMerged.bad, clim=[-1.5, 1.5], xlim=[-4, 0], sortWindow=[-4, 0], signWindow=[-0.3, 0], sortThreshold=0.25, negativeSortThreshold=0.25);
-title(ax(1), sprintf('%i good trials', nnz(selTrials)))
-title(ax(2), sprintf('%i bad trials', nnz(~selTrials)))
+title(ax(1), sprintf('%i good trials', nnz(isGoodTrial)))
+title(ax(2), sprintf('%i bad trials', nnz(~isGoodTrial)))
 xlabel(ax, 'Time to EMG onset (s)')
+
+onset.video = trueStartTime;
+onset.emg = trueStartTimeEMG;
+
 

@@ -1,17 +1,5 @@
-%%% Figure 3
+%% Figure 3
 p.fontSize = 9;
-% p.width = 7;
-% p.height = 8;
-% 
-% p.h1 = 3;
-% p.h2 = 5;
-% 
-% p.h1_1 = 9;
-% p.h1_2 = 7;
-% 
-% p.w1 = 3;
-% p.w2 = 2;
-% 
 p.lineWidth = 1.5;
 close all
 
@@ -107,7 +95,9 @@ delete(legend(ax))
 % 3d. PETH of all units (heatmap)
 % fig = figure(Units='inches', Position=[0, 0, 4, 5]);
 ax = nexttile(layout.bottom.tl, [1, layout.bottom.left.w]);
-EphysUnit.plotETA(ax, eta.press, c.hasPress, xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.2, 0], sortThreshold=0.6, negativeSortThreshold=0.3); 
+[~, order, ~, lat] = EphysUnit.plotETA(ax, eta.press, c.hasPress, xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.3, 0], sortThreshold=0.25, negativeSortThreshold=0.25); 
+% hold(ax, 'on')
+% plot(lat(order), 1:nnz(c.hasPress))
 ax.Colorbar.Label.Position = [-0.995833372448878, 0.033151078619351, 0];
 title(ax, 'Pre-reach PETH')
 xlabel(ax, 'Time to bar-contact (s)')
@@ -125,15 +115,10 @@ h.Position = [-0.4, ax.Position(4)+0.4, 0];
 ax = nexttile(layout.bottom.right.tl);
 hold(ax, 'on')
 edges = 0:5:150;
-hHist1 = histogram(ax, msr(c.hasPress), edges, FaceColor='white');
-X = vertcat(histcounts(msr(c.isPressDown), edges), histcounts(msr(c.isPressUp), edges));
-hBar = bar(ax, (edges(1:end-1) + edges(2:end))./2, X, 1.0, 'stacked', FaceAlpha=0.6, EdgeColor='none');
-hBar(1).FaceColor = 'blue';
-hBar(2).FaceColor = 'red';
-hHist1.DisplayName = 'flat';
-hBar(1).DisplayName = 'dec';
-hBar(2).DisplayName = 'inc';
-% histogram(ax, msr(c.isPressResponsive), 0:5:150, FaceColor='black', EdgeColor='none')
+hHist1 = gobjects(3, 1);
+hHist1(1) = histogram(ax, msr(c.hasPress), edges, FaceColor='white', DisplayName='all');
+hHist1(2) = histogram(ax, msr(c.isPressUp), edges, FaceColor='red', DisplayName='inc', EdgeColor='none');
+hHist1(3) = histogram(ax, msr(c.isPressDown), edges, FaceColor='blue', DisplayName='dec', EdgeColor='none');
 hold(ax, 'off')
 xlabel(ax, 'Baseline spike rate (sp/s)'), ylabel(ax, 'Count')
 fontsize(ax, p.fontSize, 'points');
@@ -143,7 +128,7 @@ ax.Units = 'inches'; h.Units = 'inches';
 h.HorizontalAlignment = 'right';
 h.VerticalAlignment = 'top';
 h.Position = [-0.5, ax.Position(4)+0.4, 0];
-hLgd = legend(ax, [hHist1, hBar], Orientation='horizontal', Location='layout');
+hLgd = legend(ax, hHist1, Orientation='horizontal', Location='layout');
 hLgd.Layout.Tile = 'north';
 
 ax = nexttile(layout.bottom.right.tl);
