@@ -1,4 +1,4 @@
-%% Figure 3
+%%% Figure 3
 p.fontSize = 9;
 p.lineWidth = 1.5;
 close all

@@ -5,173 +5,209 @@ read_reachDir_2tgt;
 %% Lever-4-pos
 p.fontSize = 9;
 p.view = [0, 90];
-p.trajDotMultiplier = 1.5;
-p.trajDotPower = 1.5;
-p.etaWindow = [-2, 0.5];
+p.etaWindow = [-4, 0.5];
 p.etaSortWindow = [-2, 0.5];
-p.etaSignWindow = [-0.25, 0.25];
+p.etaSignWindow = [-0.2, 0.2];
+p.minNumTrials = 4;
+
+hLetters = gobjects(1, 3);
 
 clear layout
-layout.w = 7;
+layout.w = 5;
 layout.h = 6;
-layout.top.h = 2;
-layout.middle.h = 2;
-layout.bottom.h = 2;
-layout.top.left.w = 3;
-layout.top.middle.w = 4;
-layout.top.right.w = 3;
-layout.middle.left.w = 5;
-layout.middle.right.w = 4;
+layout.top.h = 4;
+layout.bottom.h = 8;
+layout.top.left.w = 4;
+layout.top.right.w = 2;
 
 close all
 fig = figure(Units='inches', Position=[0, 0, layout.w, layout.h]);
-layout.tl = tiledlayout(fig, layout.top.h + layout.middle.h + layout.bottom.h, 1, TileSpacing='loose');
-
-% Top
-layout.top.tl = tiledlayout(layout.tl, 1, layout.top.left.w + layout.top.middle.w + layout.top.right.w, TileSpacing='compact');
+layout.tl = tiledlayout(fig, layout.top.h + layout.bottom.h, 1, TileSpacing='loose');
+layout.top.tl = tiledlayout(layout.tl, 1, layout.top.left.w + layout.top.right.w, TileSpacing='loose');
 l = layout.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.top.h, 1];
-layout.top.middle.tl = tiledlayout(layout.top.tl, 1, 2, TileSpacing='compact');
-l = layout.top.middle.tl; l.Layout.Tile = 1 + layout.top.left.w; l.Layout.TileSpan = [1, layout.top.middle.w];
 
-% Middle
-layout.middle.tl = tiledlayout(layout.tl, 1, layout.middle.left.w + layout.middle.right.w, TileSpacing='compact');
-l = layout.middle.tl; l.Layout.Tile = 1 + layout.top.h; l.Layout.TileSpan = [layout.middle.h, 1];
-layout.middle.left.tl = tiledlayout(layout.middle.tl, 1, 2, TileSpacing='compact');
-l = layout.middle.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.middle.left.w];
-layout.middle.right.tl = tiledlayout(layout.middle.tl, 1, 2, TileSpacing='compact');
-l = layout.middle.right.tl; l.Layout.Tile = 1 + layout.middle.left.w; l.Layout.TileSpan = [1, layout.middle.right.w];
+% Topleft (traj 1x2)
+layout.top.left.tl = tiledlayout(layout.top.tl, 1, 2, TileSpacing='compact', Padding='compact');
+l = layout.top.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.top.left.w];
 
-% Bottom
-layout.bottom.tl = tiledlayout(layout.tl, 1, 4, TileSpacing='compact');
-l = layout.bottom.tl; l.Layout.Tile = 1 + layout.top.h + layout.middle.h; l.Layout.TileSpan = [layout.bottom.h, 1];
+% Topright (scatter 1x1)
+layout.top.right.tl = tiledlayout(layout.top.tl, 1, 1, TileSpacing='compact');
+l = layout.top.right.tl; l.Layout.Tile = 1 + layout.top.left.w; l.Layout.TileSpan = [1, layout.top.right.w];
 
-% 7a. (top left, powerpoint) 4tgt mouse/target diagram
-% 7b. Trajectories, 2tgts
-ax = nexttile(layout.top.middle.tl);
-title(ax, 'contra paw')
-axis(ax, 'image');
-hold(ax, 'on')
-nTargets = 2;
-nFrames = length(trajCombined.t);
-targetNames = ["contra-out", "contra-in"];
-h = gobjects(nTargets, 1);
-for iTarget = 1:nTargets
-    switch iTarget
-        case 1
-            iColor = 1;
-        case 2
-            iColor = 3;
-        otherwise
-            iColor = iTarget;
+% Bottom (ETA 1x2)
+layout.bottom.tl = tiledlayout(layout.tl, 1, 8, TileSpacing='loose');
+l = layout.bottom.tl; l.Layout.Tile = 1 + layout.top.h; l.Layout.TileSpan = [layout.bottom.h, 1];
+
+layout.bottom.left.tl = tiledlayout(layout.bottom.tl, 1, 2, TileSpacing='compact');
+l = layout.bottom.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, 7];
+
+% 7a. Trajectories, 2tgts (a: good trials, b: trials where ipsi paw moved ~30%, based on LM separation, see fig generated in read_reachDir_2tgt)
+PAWNAME = ["contra", "ipsi"];
+SELTRIALS = {~trajCombined2tgt.usedIpsiPaw, ~trajCombined2tgt.usedIpsiPaw};
+XL = {[-35, 20], [-20, 35]};
+XTICKLABELS = {["L", "M"], ["M", "L"]};
+TITLES = ["Contra paw", "Ipsi paw"];
+DOTFACTOR = [1, 1];
+DOTPOWER = [1.25, 1.25];
+AX = gobjects(1, 2);
+hDummy = gobjects(1, 2);
+for iCol = 1:2
+    ax = nexttile(layout.top.left.tl);
+    AX(iCol) = ax;
+    title(ax, TITLES(iCol))
+    axis(ax, 'equal');
+    hold(ax, 'on')
+    nTargets = 2;
+    nFrames = length(trajCombined.t);
+    targetNames = ["contra-out", "contra-in"];
+    targetNamesDisp = ["Lateral reach", "Medial reach"];
+    for iTarget = 1:nTargets
+        switch iTarget
+            case 1
+                iColor = 1;
+            case 2
+                iColor = 3;
+        end
+        selFrames = nFrames - nt + 1:nFrames;
+        selTrials = trajCombined2tgt.target == targetNames(iTarget) & SELTRIALS{iCol};
+        x = mean(trajCombined2tgt.(PAWNAME(iCol)).x(selTrials, selFrames), 1, 'omitnan');
+        y = mean(trajCombined2tgt.(PAWNAME(iCol)).y(selTrials, selFrames), 1, 'omitnan');
+        z = mean(trajCombined2tgt.(PAWNAME(iCol)).z(selTrials, selFrames), 1, 'omitnan');
+        plot3(ax, x, y, z, LineWidth=1.5, Color=getColor(iColor, 4, 0.8), DisplayName=targetNamesDisp(iTarget));
+        scatter3(ax, x, y, z, DOTFACTOR(iCol)*(selFrames-selFrames(1)+1).^DOTPOWER(iCol), getColor(iColor, 4, 0.8), Marker='o', DisplayName=targetNamesDisp(iTarget));
+        hDummy(iTarget) = plot3(ax, NaN, NaN, NaN, '-o', LineWidth=1.5, Color=getColor(iColor, 4, 0.8), DisplayName=targetNamesDisp(iTarget));
     end
-    selFrames = nFrames - nt + 1:nFrames;
-    sel = trajCombined2tgt.target == targetNames(iTarget);
-    x = mean(trajCombined2tgt.contra.x(sel, selFrames), 1, 'omitnan');
-    y = mean(trajCombined2tgt.contra.y(sel, selFrames), 1, 'omitnan');
-    z = mean(trajCombined2tgt.contra.z(sel, selFrames), 1, 'omitnan');
-    plot3(ax, x, y, z, LineWidth=1.5, Color=getColor(iColor, 4, 0.8), DisplayName=targetNames(iTarget));
-    scatter3(ax, x, y, z, p.trajDotMultiplier*(selFrames-selFrames(1)+1).^p.trajDotPower, getColor(iColor, 4, 0.8), Marker='o', DisplayName=targetNames(iTarget));
+    ax.XAxis.Direction = 'normal';
+    ax.YAxis.Direction = 'normal';
+    ax.ZAxis.Direction = 'reverse';
+    ax.View = p.view;
+    
+    set(ax, XLim=XL{iCol}, YLim=[-15, 35], ZLim=[-100, 100])
+    xrange = diff(ax.XLim);
+    yrange = diff(ax.YLim);
+    zrange = diff(ax.ZLim);
+    
+    xticks(ax, ax.XLim + xrange*[0.125, -0.125])
+    yticks(ax, ax.YLim + yrange*[0.125, -0.125])
+    zticks(ax, ax.ZLim + zrange*[0.125, -0.125])
+    xticklabels(ax, XTICKLABELS{iCol})
+    yticklabels(ax, ["P", "A"])
+    zticklabels(ax, ["D", "V"])
+    set(ax, XMinorGrid='on', YMinorGrid='on', ZMinorGrid='on', Box='off')
+    ax.XAxis.MinorTickValues=ax.XLim(1) + xrange*[0.375, 0.625];
+    ax.YAxis.MinorTickValues=ax.YLim(1) + yrange*[0.375, 0.625];
+    ax.ZAxis.MinorTickValues=ax.ZLim(1) + zrange*[0.375, 0.625];
 end
-ax.ZAxis.Direction = 'reverse';
-ax.YAxis.Direction = 'reverse';
-ax.View = p.view;
 
-xl = [-35, 15];
-yl = [-5, 30];
-zl = [-100, 100];
-set(ax, XLim=xl, YLim=yl, ZLim=zl)
-xrange = diff(ax.XLim);
-yrange = diff(ax.YLim);
-zrange = diff(ax.ZLim);
+ax = AX; clear AX;
+yticklabels(ax(2), [])
+hLegend = legend(hDummy, Location='layout', Orientation='horizontal');
+hLegend.Layout.Tile = 'south';
 
-xticks(ax, ax.XLim + xrange*[0.125, -0.125])
-yticks(ax, ax.YLim + yrange*[0.125, -0.125])
-zticks(ax, ax.ZLim + zrange*[0.125, -0.125])
-xticklabels(ax, ["lat", "med"])
-yticklabels(ax, ["back", "front"])
-zticklabels(ax, ["up", "down"])
-set(ax, XMinorGrid='on', YMinorGrid='on', ZMinorGrid='on', Box='off')
-ax.XAxis.MinorTickValues=ax.XLim(1) + xrange*[0.375, 0.625];
-ax.YAxis.MinorTickValues=ax.YLim(1) + yrange*[0.375, 0.625];
-ax.ZAxis.MinorTickValues=ax.ZLim(1) + zrange*[0.375, 0.625];
 
-% 7c. ipsi
-ax = nexttile(layout.top.middle.tl);
-title(ax, 'ipsi paw')
-axis(ax, 'image')
+hLetters(1) = text(ax(1), 0, 0, 'a', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax(1).Units = 'inches';
+hLetters(1).HorizontalAlignment = 'right';
+hLetters(1).VerticalAlignment = 'top';
+hLetters(1).Position = [-0.2, ax(1).Position(4)+0.3, 0];
+
+
+clear PAWNAME SELTRIALS XL XTICKLABELS DOTFACTOR DOTPOWER AX hDummy iRow iCol ax nTargets nFrames iTarget selFrames selTrials x y z hLegend
+
+
+% 7b. Scatter META
+% Select units with enough trials per condition
+ETA = trajCombined2tgt.eta;
+N = horzcat(ETA.N);
+selUnits = all(N >= p.minNumTrials, 2);
+
+metaWindow = [-0.2, 0.2];
+ax = nexttile(layout.top.right.tl);
 hold(ax, 'on')
-nTargets = 2;
-nFrames = length(trajCombined2tgt.t);
-targetNames = ["contra-out", "contra-in"];
-h = gobjects(1, 2);
-for iTarget = 1:nTargets
-    switch iTarget
-        case 1
-            iColor = 1;
-        case 2
-            iColor = 3;
-        otherwise
-            iColor = iTarget;
-    end
-    selFrames = nFrames - nt + 1:nFrames;
-    sel = trajCombined2tgt.target == targetNames(iTarget);
-    x = mean(trajCombined2tgt.ipsi.x(sel, selFrames), 1, 'omitnan');
-    y = mean(trajCombined2tgt.ipsi.y(sel, selFrames), 1, 'omitnan');
-    z = mean(trajCombined2tgt.ipsi.z(sel, selFrames), 1, 'omitnan');
-    plot3(ax, x, y, z, LineWidth=1.5, Color=getColor(iColor, 4, 0.8));
-    scatter3(ax, x, y, z, p.trajDotMultiplier*(selFrames-selFrames(1)+1).^p.trajDotPower, getColor(iColor, 4, 0.8), Marker='o');
-    h(iTarget) = plot(NaN, NaN, LineStyle='-', LineWidth=1.5, Marker='o', Color=getColor(iColor, 4, 0.8), DisplayName=targetNames(iTarget));    
-end
-ax.ZAxis.Direction = 'reverse';
-ax.YAxis.Direction = 'reverse';
-ax.View = p.view;
-hLegend = legend(h, NumColumns=2, Location='southoutside');
+ex = trajCombined2tgt.eta(1);
+ey = trajCombined2tgt.eta(2);
+metaX = mean(ex.X(selUnits, ex.t > metaWindow(1) & ex.t < metaWindow(2)), 2);
+metaY = mean(ey.X(selUnits, ey.t > metaWindow(1) & ey.t < metaWindow(2)), 2);
+scatter(ax, metaX, metaY, 5, 'k')
+plot(ax, [-1, 3], [-1, 3], 'k:')
+plot(ax, [-1, 3], [0, 0], 'k:')
+plot(ax, [0, 0], [-1, 3], 'k:')
+xlabel(ax, "Lateral (a.u.)")
+ylabel(ax, "Medial (a.u.)")
+title(ax, 'SNr response')
+axis(ax, 'equal')
+xlim(ax, [-1, 2])
+ylim(ax, [-1, 2])
 
-set(ax, XLim=flip(-xl), YLim=yl, ZLim=zl)
+hLetters(2) = text(ax, 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax.Units = 'inches';
+hLetters(2).HorizontalAlignment = 'right';
+hLetters(2).VerticalAlignment = 'top';
+hLetters(2).Position = [-0.2, ax.Position(4)+0.4, 0];
 
-xticks(ax, ax.XLim + xrange*[0.125, -0.125])
-yticks(ax, ax.YLim + yrange*[0.125, -0.125])
-zticks(ax, ax.ZLim + zrange*[0.125, -0.125])
-ax.XAxis.MinorTickValues=ax.XLim(1) + xrange*[0.375, 0.625];
-ax.YAxis.MinorTickValues=ax.YLim(1) + yrange*[0.375, 0.625];
-ax.ZAxis.MinorTickValues=ax.ZLim(1) + zrange*[0.375, 0.625];
-xticklabels(ax, ["med", "lat"])
-yticklabels(ax, ["back", "front"])
-zticklabels(ax, ["up", "down"])
-set(ax, XMinorGrid='on', YMinorGrid='on', ZMinorGrid='on', Box='off')
+clear metaWindow ETAX ETAY iRow iCol ax ex ey metaX metaY
 
-% 7e-f. ETA, 2tgt2
-targetNames = ["contra-out", "contra-in"];
-for iTarget = 1:2
-    ax = nexttile(layout.middle.left.tl);
-    if iTarget == 1
-        [~, order] = EphysUnit.plotETA(ax, trajCombined2tgt.eta(iTarget), event='reach onset', ...
-            clim=[-1.5, 1.5], xlim=p.etaWindow, sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
-            sortThreshold=0.3, negativeSortThreshold=0.15);
-        yticks(ax, unique([1, 50:50:size(trajCombined2tgt.eta(1).X, 1), size(trajCombined2tgt.eta(1).X, 1)]))
+% 7c ETA HEATMAPS
+TARGETNAME = ["contra-out", "contra-in"];
+TARGETNAMEDISP = ["Lateral reach", "Medial reach"];
+SELTRIALS = {~trajCombined2tgt.usedIpsiPaw, ~trajCombined2tgt.usedIpsiPaw};
+FIELDNAME = ["eta", "eta"];
+ITARGET = [1, 2];
+AX = gobjects(1, 2);
+
+targetNamesDisp = ["lat", "med"];
+nUnits = nnz(selUnits);%size(trajCombined2tgt.eta(1).X, 1);
+for iCol = 1:2
+    ax = nexttile(layout.bottom.left.tl);
+    AX(iCol) = ax;
+    iTarget = ITARGET(iCol);
+    if iCol == 1
+        [~, order] = EphysUnit.plotETA(ax, trajCombined2tgt.(FIELDNAME(iCol))(iTarget), selUnits, event='reach onset', ...
+            clim=[-2, 2], xlim=p.etaWindow, sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+            sortThreshold=0.25, negativeSortThreshold=0.25);
+        yticks(ax, unique([1, 50:50:nUnits, nUnits]))
     else
-        EphysUnit.plotETA(ax, trajCombined2tgt.eta(iTarget), event='reach onset', order=order, clim=[-1.5, 1.5], xlim=p.etaWindow);
+        EphysUnit.plotETA(ax, trajCombined2tgt.(FIELDNAME(iCol))(iTarget), selUnits, event='reach onset', order=order, clim=[-1, 1], xlim=p.etaWindow);
         yticks(ax, []);
     end
+    hold(ax, 'on')
+    plot(ax, [0, 0], [0, size(trajCombined2tgt.(FIELDNAME(iCol))(1).X, 1)], 'k')
+    ylim(ax, [0, nUnits])
+    xlim(ax, p.etaWindow)
     ylabel(ax, '');
     xlabel(ax, '');    
-    title(ax, targetNames{iTarget})
-    if iTarget < 2
+    title(ax, TARGETNAMEDISP(iCol))
+    if iCol < 2
         colorbar(ax, 'off')
     else
         ax.Colorbar.Layout.Tile = 'east';
     end
     fontsize(ax, p.fontSize, 'points')
     fontname(ax, 'Arial')
+    ax.YAxis.Direction = 'reverse';
 end
-xlabel(layout.middle.left.tl, 'Time to reach onset (s)', FontSize=p.fontSize, FontName='Arial')
-ylabel(layout.middle.left.tl, 'Unit', FontSize=p.fontSize, FontName='Arial')
+ax = AX;
+xlabel(layout.bottom.tl, 'Time from reach onset (s)', FontSize=p.fontSize, FontName='Arial')
+ylabel(layout.bottom.tl, 'Unit', FontSize=p.fontSize, FontName='Arial')
 
+hLetters(3) = text(ax(1), 0, 0, 'c', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax(1).Units = 'inches';
+hLetters(3).HorizontalAlignment = 'right';
+hLetters(3).VerticalAlignment = 'top';
+hLetters(3).Position = [-0.2, ax(1).Position(4)+0.3, 0];
 
+% Set fontsize
+fontsize(fig, p.fontSize, 'points')
+fontname(fig, 'Arial')
 
+fontsize(hLetters, 16, 'points')
+fontname(hLetters, 'Arial')
+
+copygraphics(fig, ContentType='vector')
+%%
 % 7g. 4tgt trajectories (contra, ipsi)
 ax = nexttile(layout.middle.right.tl);
-title(ax, 'contra paw')
+title(ax, 'Contra paw')
 axis(ax, 'image');
 hold(ax, 'on')
 nTargets = 4;
@@ -179,10 +215,10 @@ nFrames = length(trajCombined.t);
 targetNames = ["contra-out", "contra-front", "contra-in", "ipsi-front"];
 for iTarget = 1:nTargets
     selFrames = nFrames - nt + 1:nFrames;
-    sel = trajCombined.target == targetNames(iTarget);
-    x = mean(trajCombined.contra.x(sel, selFrames), 1, 'omitnan');
-    y = mean(trajCombined.contra.y(sel, selFrames), 1, 'omitnan');
-    z = mean(trajCombined.contra.z(sel, selFrames), 1, 'omitnan');
+    selTrials = trajCombined.target == targetNames(iTarget);
+    x = mean(trajCombined.contra.x(selTrials, selFrames), 1, 'omitnan');
+    y = mean(trajCombined.contra.y(selTrials, selFrames), 1, 'omitnan');
+    z = mean(trajCombined.contra.z(selTrials, selFrames), 1, 'omitnan');
     plot3(ax, x, y, z, LineWidth=1.5, Color=getColor(iTarget, 4, 0.8), DisplayName=targetNames(iTarget));
     scatter3(ax, x, y, z, p.trajDotMultiplier*(selFrames-selFrames(1)+1).^p.trajDotPower, getColor(iTarget, 4, 0.8), Marker='o', DisplayName=targetNames(iTarget));
 end
@@ -201,7 +237,7 @@ zrange = diff(ax.ZLim);
 xticks(ax, ax.XLim + xrange*[0.125, -0.125])
 yticks(ax, ax.YLim + yrange*[0.125, -0.125])
 zticks(ax, ax.ZLim + zrange*[0.125, -0.125])
-xticklabels(ax, ["lat", "med"])
+xticklabels(ax, ["lat", "lat"])
 yticklabels(ax, ["back", "front"])
 zticklabels(ax, ["up", "down"])
 set(ax, XMinorGrid='on', YMinorGrid='on', ZMinorGrid='on', Box='off')
@@ -212,7 +248,7 @@ ax.ZAxis.MinorTickValues=ax.ZLim(1) + zrange*[0.375, 0.625];
 
 % ipsi
 ax = nexttile(layout.middle.right.tl);
-title(ax, 'ipsi paw')
+title(ax, 'Ipsi paw')
 axis(ax, 'image');
 hold(ax, 'on')
 nTargets = 4;
@@ -221,10 +257,10 @@ targetNames = ["contra-out", "contra-front", "contra-in", "ipsi-front"];
 h = gobjects(4, 1);
 for iTarget = 1:nTargets
     selFrames = nFrames - nt + 1:nFrames;
-    sel = trajCombined.target == targetNames(iTarget);
-    x = mean(trajCombined.ipsi.x(sel, selFrames), 1, 'omitnan');
-    y = mean(trajCombined.ipsi.y(sel, selFrames), 1, 'omitnan');
-    z = mean(trajCombined.ipsi.z(sel, selFrames), 1, 'omitnan');
+    selTrials = trajCombined.target == targetNames(iTarget);
+    x = mean(trajCombined.ipsi.x(selTrials, selFrames), 1, 'omitnan');
+    y = mean(trajCombined.ipsi.y(selTrials, selFrames), 1, 'omitnan');
+    z = mean(trajCombined.ipsi.z(selTrials, selFrames), 1, 'omitnan');
     plot3(ax, x, y, z, LineWidth=1.5, Color=getColor(iTarget, 4, 0.8));
     scatter3(ax, x, y, z, p.trajDotMultiplier*(selFrames-selFrames(1)+1).^p.trajDotPower, getColor(iTarget, 4, 0.8), Marker='o');
     h(iTarget) = plot(NaN, NaN, LineStyle='-', LineWidth=1.5, Marker='o', Color=getColor(iTarget, 4, 0.8), DisplayName=targetNames(iTarget));    
@@ -271,7 +307,7 @@ for iTarget = 1:4
     fontsize(ax, p.fontSize, 'points')
     fontname(ax, 'Arial')
 end
-xlabel(layout.bottom.tl, 'Time to reach onset (s)', FontSize=p.fontSize, FontName='Arial')
+xlabel(layout.bottom.tl, 'Time from reach onset (s)', FontSize=p.fontSize, FontName='Arial')
 ylabel(layout.bottom.tl, 'Unit', FontSize=p.fontSize, FontName='Arial')
 
 
@@ -287,143 +323,3 @@ hold(ax, 'off')
 
 
 copygraphics(fig, ContentType='vector')
-%% Supplement. Example trajectories from individual sessions
-
-close all
-
-fig = figure(Units='inches', Position=[2, 2, 10, p.firstRowHeight]);
-
-for iExp = 1:length(expReachDir)
-    ax = subplot(1, length(expReachDir), iExp);
-    hold(ax, 'on')
-    h = gobjects(5, 1);
-
-    x0 = mean(trajectories(iExp).jaw.XAll, 'all', 'omitnan');
-    y0 = mean(trajectories(iExp).jaw.YAll, 'all', 'omitnan');
-
-    for iTarget = 1:4
-        rawPos = posOrder(iExp, iTarget);
-        switch expReachDir(iExp).animalName
-            case 'desmond29'
-                x = trajectories(iExp).handContra.Resampled.X(rawPos, :) - x0;
-            case {'desmond28', 'desmond30'}
-                x = -trajectories(iExp).handContra.Resampled.X(rawPos, :) + x0;
-        end
-        y = trajectories(iExp).handContra.Resampled.Y(rawPos, :) - y0;
-        n = trajectories(iExp).handContra.Resampled.n(rawPos);
-        plot(ax, x, y, ...
-            Color=getColor(iTarget, 4, 0.8), LineStyle='-');
-        h(iTarget) = plot(ax, x(end), y(end), Color=getColor(iTarget, 4, 0.8), Marker='.', MarkerSize=25, ...
-            DisplayName=sprintf('%s (n=%i)', posNames{iTarget}, n));
-    end
-
-    h(5) = plot(ax, 0, 0, Marker='o', LineStyle='none', MarkerSize=5, Color='black', DisplayName='jaw');
-
-    axis(ax, 'image');
-    ax.YDir = 'reverse';
-    hold(ax, 'off')
-    h = h(:);
-    legend(ax, h(:), Interpreter='none', Location='northoutside')
-    ax.XLim(2) = 0;
-    ax.YLim(1) = 0;    
-    xticks(ax, ax.XLim)
-    xticklabels(ax, {'out', 'in'})
-    yticks(ax, ax.YLim)
-    yticklabels(ax, {'up', 'down'})
-    xlim(ax, ax.XLim + [-10, 10])
-    ylim(ax, ax.YLim + [-10, 10])
-    % title(sprintf('%s', exp(iExp).name), Interpreter='none')
-    fontsize(ax, p.fontSize, 'points')
-    fontname(ax, 'Arial')
-end
-
-%% Supplement, True start time of either paw
-
-ax = axes(figure(Units='inches', Position=[0, 0, 3, 2]));
-histogram(cat(1, tstReachDir{:}), Normalization='probability')
-xlabel('True start time (s)')
-ylabel('Probability')
-fontname(ax, 'Arial')
-fontsize(ax, p.fontSize, 'points')
-
-
-%% Supplements Draw per-session trajectories (4tgts, each session)
-fig = figure(DefaultAxesFontSize=p.fontSize, Units='inches', Position=[0, 0, 6, 3*nExp]);
-
-for iExp = 1:nExp
-    ax = subplot(nExp, 2, 2*(iExp - 1) + 1);
-    axis(ax, 'image');
-    hold(ax, 'on')
-    nTargets = 4;
-    nFrames = length(traj(iExp).t);
-    targetNames = ["contra-out", "contra-front", "contra-in", "ipsi-front"];
-    h = gobjects(nTargets, 1);
-    for iTarget = 1:nTargets
-        selFrames = nFrames - nt + 1:nFrames;
-        sel = traj(iExp).target == targetNames(iTarget);
-        x = mean(traj(iExp).contra.x(sel, selFrames), 1, 'omitnan');
-        y = mean(traj(iExp).contra.y(sel, selFrames), 1, 'omitnan');
-        z = mean(traj(iExp).contra.z(sel, selFrames), 1, 'omitnan');
-        h(iTarget) = plot3(ax, x, y, z, LineWidth=1.5, Color=getColor(iTarget, 4, 0.8), DisplayName=targetNames(iTarget));
-        scatter3(ax, x, y, z, 2*(selFrames-selFrames(1)+1).^1.6, getColor(iTarget, 4, 0.8), 'filled', Marker='o', DisplayName=targetNames(iTarget));
-    end
-    ax.ZAxis.Direction = 'reverse';
-    ax.YAxis.Direction = 'reverse';
-    ax.View = p.view;
-
-    xlim(ax, 'auto')
-    ylim(ax, 'auto')
-    zlim(ax, 'auto')
-    xl = ax.XLim; % [-18, 5];
-    yl = ax.YLim; % [-5, 30];
-    zl = ax.ZLim; % [-27, 2];
-    set(ax, XLim=xl, YLim=yl, ZLim=zl)
-    xrange = diff(ax.XLim);
-    yrange = diff(ax.YLim);
-    zrange = diff(ax.ZLim);
-    
-    xticks(ax, ax.XLim + xrange*[0.125, -0.125])
-    yticks(ax, ax.YLim + yrange*[0.125, -0.125])
-    zticks(ax, ax.ZLim + zrange*[0.125, -0.125])
-    xticklabels(ax, ["med", "lat"])
-    yticklabels(ax, ["back", "front"])
-    zticklabels(ax, ["up", "down"])
-    set(ax, XMinorGrid='on', YMinorGrid='on', ZMinorGrid='on', Box='off')
-    ax.XAxis.MinorTickValues=ax.XLim(1) + xrange*[0.375, 0.625];
-    ax.YAxis.MinorTickValues=ax.YLim(1) + yrange*[0.375, 0.625];
-    ax.ZAxis.MinorTickValues=ax.ZLim(1) + zrange*[0.375, 0.625];
-    
-    % Draw trajectories (ipsi)
-    ax = subplot(nExp, 2, 2*(iExp - 1) + 2);
-    axis(ax, 'image');
-    hold(ax, 'on')
-    nTargets = 4;
-    nFrames = length(traj(iExp).t);
-    targetNames = ["contra-out", "contra-front", "contra-in", "ipsi-front"];
-    h = gobjects(nTargets, 1);
-    for iTarget = 1:nTargets
-        selFrames = nFrames - nt + 1:nFrames;
-        sel = traj(iExp).target == targetNames(iTarget);
-        x = mean(traj(iExp).ipsi.x(sel, selFrames), 1, 'omitnan');
-        y = mean(traj(iExp).ipsi.y(sel, selFrames), 1, 'omitnan');
-        z = mean(traj(iExp).ipsi.z(sel, selFrames), 1, 'omitnan');
-        h(iTarget) = plot3(ax, x, y, z, LineWidth=1.5, Color=getColor(iTarget, 4, 0.8), DisplayName=targetNames(iTarget));
-        scatter3(ax, x, y, z, 2*(selFrames-selFrames(1)+1).^1.6, getColor(iTarget, 4, 0.8), 'filled', Marker='o', DisplayName=targetNames(iTarget));
-    end
-    ax.ZAxis.Direction = 'reverse';
-    ax.YAxis.Direction = 'reverse';
-    ax.View = p.view;
-
-    set(ax, XLim=flip(-xl), YLim=yl, ZLim=zl)
-    
-    xticks(ax, ax.XLim + xrange*[0.125, -0.125])
-    yticks(ax, ax.YLim + yrange*[0.125, -0.125])
-    zticks(ax, ax.ZLim + zrange*[0.125, -0.125])
-    ax.XAxis.MinorTickValues=ax.XLim(1) + xrange*[0.375, 0.625];
-    ax.YAxis.MinorTickValues=ax.YLim(1) + yrange*[0.375, 0.625];
-    ax.ZAxis.MinorTickValues=ax.ZLim(1) + zrange*[0.375, 0.625];
-    xticklabels(ax, ["med", "lat"])
-    yticklabels(ax, ["back", "front"])
-    zticklabels(ax, ["up", "down"])
-    set(ax, XMinorGrid='on', YMinorGrid='on', ZMinorGrid='on', Box='off')
-end

@@ -32,8 +32,10 @@ classdef CompleteExperiment3 < CompleteExperiment
             animalName = animalName{1};
 
             deepLabCutFiles = dir(sprintf('C:\\SERVER\\%s\\%s\\%s_%g*.csv', animalName, expName, expName, sidenum));
+            % Deep lab cut
             if ~isempty(deepLabCutFiles)
                 vtd = obj.readVideoTrackingData(expName, side);
+            % Pawnalyzer2 manually labeled
             else
                 vidFile = dir(sprintf('C:\\SERVER\\%s\\%s\\%s*_%g.mp4', animalName, expName, expName, sidenum));
                 vid = VideoReader(sprintf('%s\\%s', vidFile.folder, vidFile.name));

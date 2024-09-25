@@ -1514,12 +1514,14 @@ classdef EphysUnit < handle
             p.addParameter('maxTrials', Inf, @isnumeric)
             p.addParameter('maxTrialsMethod', 'trim', @(x) ismember(lower(x), {'trim', 'randomsample', 'uniformsample'}))
             p.addParameter('sz', 2.5, @isnumeric)
+            p.addParameter('everyNth', 1, @isnumeric)
             p.parse(varargin{:})
             rd = p.Results.rd;
             isSimpleStim = ismember(lower(rd.trialType), {'stim', 'stimtrain', 'stimfirstpulse'});
             isTwoColorStim = strcmpi(rd.trialType, 'stimtwocolor');
             timeUnit = p.Results.timeUnit;
             maxTrials = p.Results.maxTrials;
+            everyNth = p.Results.everyNth;
 
             assert(length(rd) == 1);
 
@@ -1569,6 +1571,7 @@ classdef EphysUnit < handle
                     case 'uniformsample'
                         sel = floor(linspace(1, nTrials, maxTrials));
                     case 'randomsample'
+                        rng(42)
                         sel = randsample(nTrials, maxTrials);
                     otherwise
                         error()
@@ -1594,11 +1597,11 @@ classdef EphysUnit < handle
             if ~isSimpleStim && ~isTwoColorStim
 %                 ax.Parent.Position(4) = ax.Parent.Position(4)*nTrials/300;
                 h = gobjects(2, 1);
-                h(1) = scatter(ax, rd.t .* timescale, rd.I, sz, 'k', 'filled', DisplayName='spikes');
+                h(1) = scatter(ax, rd.t(1:everyNth:end) .* timescale, rd.I(1:everyNth:end), sz, 'k', 'filled', DisplayName='spikes');
                 h(2) = scatter(ax, tEvent .* timescale, 1:length(tEvent), sz*2, 'r', 'filled', DisplayName=eventName);
             elseif isSimpleStim
                 h = gobjects(2, 1);
-                h(1) = scatter(ax, rd.t * timescale, rd.I, sz, 'k', 'filled', DisplayName='spikes');
+                h(1) = scatter(ax, rd.t(1:everyNth:end) * timescale, rd.I(1:everyNth:end), sz, 'k', 'filled', DisplayName='spikes');
                 uniqueDurations = unique(rd.duration);
                 if length(uniqueDurations) == 1
                     h(2) = patch(ax, [0, uniqueDurations, uniqueDurations, 0].*timescale, [0, 0, nTrials+1, nTrials+1], 'b', FaceAlpha=0.25, EdgeAlpha=0, DisplayName='opto');
@@ -1611,7 +1614,7 @@ classdef EphysUnit < handle
                 end
             elseif isTwoColorStim
                 h = gobjects(1, 1);
-                h(1) = scatter(ax, rd.t * timescale, rd.I, sz, 'k', 'filled', DisplayName='spikes');
+                h(1) = scatter(ax, rd.t(1:everyNth:end) * timescale, rd.I(1:everyNth:end), sz, 'k', 'filled', DisplayName='spikes');
                 stimLog = rd.tce.stimLog;
                 trainOrder = rd.tce.trainOrder;
                 pulseOrder = rd.tce.pulseOrder;
@@ -1651,7 +1654,7 @@ classdef EphysUnit < handle
             end
 
             hold(ax, 'off')
-            ax.YAxis.Direction = 'reverse';
+            ax.YAxis(1).Direction = 'reverse';
             xlim(ax, p.Results.xlim);
             ylim(ax, [min(rd.I) - 1, max(rd.I) + 1]);
 %             if nTrials <= maxTrials

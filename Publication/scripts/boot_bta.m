@@ -1,18 +1,25 @@
 p.bootAlpha = 0.01;
 %% 3. Compare ETA (binned by trial length) (euclidean distance, bootstrap). To show there is no baseline/ramp slope/peak differences
+p.binnedTrialEdges = 2:2:10;
+[bta.pressUpRaw.X, bta.pressUpRaw.T, bta.pressUpRaw.N, bta.pressUpRaw.S, bta.pressUpRaw.B] = eu(c.isPressUp).getBinnedTrialAverage('count', p.binnedTrialEdges, 'press', 'window', [-10, 1], 'normalize', false, 'resolution', 0.100);
+[bta.pressDownRaw.X, bta.pressDownRaw.T, bta.pressDownRaw.N, bta.pressDownRaw.S, bta.pressDownRaw.B] = eu(c.isPressDown).getBinnedTrialAverage('count', p.binnedTrialEdges, 'press', 'window', [-10, 1], 'normalize', false, 'resolution', 0.100);
 
-[bta.pressUpRaw.X, bta.pressUpRaw.T, bta.pressUpRaw.N, bta.pressUpRaw.S, bta.pressUpRaw.B] = eu(c.isPressUp).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'press', 'window', [-10, 1], 'normalize', false);
-[bta.pressDownRaw.X, bta.pressDownRaw.T, bta.pressDownRaw.N, bta.pressDownRaw.S, bta.pressDownRaw.B] = eu(c.isPressDown).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'press', 'window', [-10, 1], 'normalize', false);
-
-[bta.lickUpRaw.X, bta.lickUpRaw.T, bta.lickUpRaw.N, bta.lickUpRaw.S, bta.lickUpRaw.B] = eu(c.isLickUp).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'lick', 'window', [-10, 1], 'normalize', false);
-[bta.lickDownRaw.X, bta.lickDownRaw.T, bta.lickDownRaw.N, bta.lickDownRaw.S, bta.lickDownRaw.B] = eu(c.isLickDown).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'lick', 'window', [-10, 1], 'normalize', false);
+[bta.lickUpRaw.X, bta.lickUpRaw.T, bta.lickUpRaw.N, bta.lickUpRaw.S, bta.lickUpRaw.B] = eu(c.isLickUp).getBinnedTrialAverage('count', p.binnedTrialEdges, 'lick', 'window', [-10, 1], 'normalize', false, 'resolution', 0.100);
+[bta.lickDownRaw.X, bta.lickDownRaw.T, bta.lickDownRaw.N, bta.lickDownRaw.S, bta.lickDownRaw.B] = eu(c.isLickDown).getBinnedTrialAverage('count', p.binnedTrialEdges, 'lick', 'window', [-10, 1], 'normalize', false, 'resolution', 0.100);
 
 %
-binEdges = 2:2:10;
-bootBTA = bootstrapBTA(10000, eu, c.isPressResponsive, alpha=p.bootAlpha, trialType='press', binEdges=binEdges, distWindow=[-2, 0]);
+bootBTA = bootstrapBTA(10000, eu, c.isPressResponsive, alpha=p.bootAlpha, trialType='press', binEdges=p.binnedTrialEdges, distWindow=[-2, 0]);
 c.isPressBTADifferent = reshape(bootBTA.distH == 1, 1, []);
 fprintf(1, '\n\nOf %d press responsive units, %d showed significantly different responses for different length trials (p<0.01).\n', nnz(c.isPressResponsive), nnz(c.isPressBTADifferent))
 
+%% Make individual figures for the significantly different units
+
+[btaSig.X, btaSig.T, btaSig.N, btaSig.S, btaSig.B] = eu(c.isPressBTADifferent).getBinnedTrialAverage('count', p.binnedTrialEdges, 'press', 'window', [-8, 0], 'normalize', false, 'resolution', 0.100);
+[btaNul.X, btaNul.T, btaNul.N, btaNul.S, btaNul.B] = eu(c.isPressResponsive & ~c.isPressBTADifferent).getBinnedTrialAverage('count', p.binnedTrialEdges, 'press', 'window', [-8, 0], 'normalize', false, 'resolution', 0.100);
+btaSig.X = btaSig.X./0.1;
+btaSig.S = btaSig.S./0.1;
+btaNul.X = btaNul.X./0.1;
+btaNul.S = btaNul.S./0.1;
 
 %% Functions
 function boot = bootstrapBTA(nboot, eu, varargin)
@@ -42,6 +49,8 @@ function boot = bootstrapBTA(nboot, eu, varargin)
     else
         euIndices = reshape(sel, 1, []);
     end
+
+    rng(42)
 
     ii = 0;
     boot.distH = NaN(length(eu), 1);
