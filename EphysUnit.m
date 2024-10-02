@@ -1649,7 +1649,7 @@ classdef EphysUnit < handle
                 h(2) = scatter(ax, tEvent .* timescale, 1:length(tEvent), sz*2, 'r', 'filled', DisplayName=eventName);
                 if ~isnan(timingCriterion)
                     longestIncorrectTrial = find(rd.duration < timingCriterion, 1, 'last') + 0.5;
-                    plot(ax, p.Results.xlim, longestIncorrectTrial .* [1, 1], Color=[0.2, 0.6, 0.2], LineStyle='--', LineWidth=1)
+                    plot(ax, p.Results.xlim, longestIncorrectTrial .* [1, 1], Color=[0.2, 0.6, 0.2], LineStyle='--', LineWidth=1.5)
                 end
 
             elseif isSimpleStim

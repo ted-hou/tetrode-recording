@@ -47,7 +47,6 @@ l = layout.middle.right.tl; l.Layout.Tile = 1 + layout.middle.left.w; l.Layout.T
 layout.bottom.tl = tiledlayout(layout.tl, 1, 3, TileSpacing='compact', Padding='compact');
 l = layout.bottom.tl; l.Layout.Tile = 1 + layout.top.h + layout.middle.h; l.Layout.TileSpan = [layout.bottom.h, 1];
 
-
 % 5a. Double rasters (reach vs lick) 4 example units
 unitNames = { ...
     'desmond24_20220510_Channel44_Unit1'; ...
@@ -99,7 +98,7 @@ for iEu = 1:nEgUnits
         delete(ax.Legend)
         title(ax, TITLE(i))
         xlabel(ax, XLABEL{i})
-        plot(ax, [0, 0], [0, 100], 'k--')
+        plot(ax, [0, 0], [0, 100], 'k--', LineWidth=1)
         ylim(ax, YLIM{iEu})
         fontsize(ax, p.fontSize, 'points')
     end
@@ -251,11 +250,51 @@ h = colorbar(axc);
 h.Layout.Tile = 'east';
 h.Label.String = 'normalized spike rate (a.u.)';
 copygraphics(fig, ContentType='vector')
+%%
+
+% Mean ETA grouped by press/reach up/down
+SEL_HASTRIAL = c.hasPress & c.hasLick;
+SEL_I = {c.isPressUp; ~c.isPressResponsive; c.isPressDown};
+SEL_J = {c.isLickDown; ~c.isLickResponsive; c.isLickUp};
+
+fig = figure(Units='inches', Position=[1, 1, 4, 3]);
+tl = tiledlayout(fig, length(SEL_I), length(SEL_J), TileSpacing='tight', Padding='compact');
+h = gobjects(2, 1);
+for i = 1:length(SEL_I)
+    for j = 1:length(SEL_J)
+        ax = nexttile(tl);
+        sel = SEL_HASTRIAL & SEL_I{i} & SEL_J{j};
+        assert(numel(sel) == numel(eu))
+        hold(ax, 'on')
+        h(1) = plot(ax, eta.press.t, mean(eta.press.X(sel, :), 1, 'omitnan'), 'r', LineWidth=1.5, DisplayName='reach');
+        h(2) = plot(ax, eta.lick.t, mean(eta.lick.X(sel, :), 1, 'omitnan'), 'b', LineWidth=1.5, DisplayName='lick');
+        text(ax, -3.8, 2, sprintf('n = %i', nnz(sel)), fontSize=p.fontSize, VerticalAlignment='top')
+        hold(ax, 'off')
+        xlim(ax, [-4, 0.5])
+        ylim(ax, [-2, 2])
+        fontsize(ax, p.fontSize, 'points')
+        ax.XGrid = 'on';
+        ax.YGrid = 'on';
+        xticks(ax, [-4, -2, 0])
+        yticks(ax, [-2, 0, 2])
+        if i < length(SEL_I)
+            ax.XTickLabel = [];
+        end
+        if j > 1
+            ax.YTickLabel = [];
+        end
+        fontsize(ax, p.fontSize, 'points')
+    end
+end
+lgd = legend(h, Orientation='horizontal');
+lgd.Layout.Tile = 'north';
+xlabel(tl, 'Time to bar/spout contact (s)', FontSize=p.fontSize)
+ylabel(tl, 'Normalized spike rate (a.u.)', FontSize=p.fontSize)
 
 %% Supplement S5
-close all
 % All sign-changing units
 p.fontSize = 9;
+%%
 signChangingUnitIndices = [find(c.isPressUp & c.isLickDown), find(c.isPressDown & c.isLickUp)];
 nRows = 7;
 nCols = 5;
@@ -271,54 +310,15 @@ for i = signChangingUnitIndices
     plot(ax, eta.lickRaw.t, eta.lickRaw.X(i, :)./0.1, 'b', LineWidth=1.5)
     plot(ax, [0, 0], [0, 100], 'k:')
     hold(ax, 'off')
-    xlim(ax, [-4, 0])
+    xlim(ax, [-4, 0.5])
     ymedian = median([mean(eta.pressRaw.X(i, :), 1, 'omitnan')./0.1, mean(eta.lickRaw.X(i, :), 1, 'omitnan')./0.1]);
     ylim(ax, ymedian + [-40, 40])
     yticks(ax, round(ymedian/10)*10 + [-30, 0, 30])
+    ax.XGrid = 'on';
+    ax.XMinorTick = 'on';
+    ax.XMinorGrid = 'on';
+    ax.XAxis.MinorTickValues = -0.2:0.1:0.1;
     fontsize(ax, p.fontSize, 'points')
 end
-xlabel(tl, 'Time to bar/spout contact (s)', FontSize=p.fontSize)
-ylabel(tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
-
-% Mean ETA grouped by press/reach up/down
-SEL_HASTRIAL = c.hasPress & c.hasLick;
-SEL_I = {c.isPressUp; ~c.isPressResponsive; c.isPressDown};
-SEL_J = {c.isLickDown; ~c.isLickResponsive; c.isLickUp};
-
-fig = figure(Units='inches', Position=[1, 1, 4, 3]);
-tl = tiledlayout(fig, length(SEL_I), length(SEL_J), TileSpacing='compact', Padding='compact');
-h = gobjects(2, 1);
-for i = 1:length(SEL_I)
-    for j = 1:length(SEL_J)
-        ax = nexttile(tl);
-        sel = SEL_HASTRIAL & SEL_I{i} & SEL_J{j};
-        assert(numel(sel) == numel(eu))
-        hold(ax, 'on')
-        h(1) = plot(ax, eta.pressRaw.t, mean(eta.pressRaw.X(sel, :), 1, 'omitnan')./0.1, 'r', LineWidth=1.5, DisplayName='reach');
-        h(2) = plot(ax, eta.lickRaw.t, mean(eta.lickRaw.X(sel, :), 1, 'omitnan')./0.1, 'b', LineWidth=1.5, DisplayName='lick');
-        plot(ax, [0, 0], [0, 100], 'k:')
-        hold(ax, 'off')
-        title(ax, sprintf('n = %i', nnz(sel)))
-        xlim(ax, [-4, 0.5])
-        ylim(ax, [0, 80])
-        fontsize(ax, p.fontSize, 'points')
-        if i < length(SEL_I)
-%             xticks(ax, [])
-        else
-%             xticks(ax, [-2, 0])
-        end
-        ax.XGrid = 'on';
-        ax.XMinorTick = 'on';
-        ax.XMinorGrid = 'on';
-        ax.XAxis.MinorTickValues = -0.5:0.1:0.5;
-        if j > 1
-            yticks(ax, [])
-        else
-            yticks(ax, [10, 40, 70])
-        end
-    end
-end
-lgd = legend(h, Orientation='horizontal');
-lgd.Layout.Tile = 'north';
 xlabel(tl, 'Time to bar/spout contact (s)', FontSize=p.fontSize)
 ylabel(tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
