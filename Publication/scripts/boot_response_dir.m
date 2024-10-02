@@ -1,14 +1,18 @@
 
 p.bootAlpha = 0.01;
 p.nboot = 100000;
+p.responseWindowPress = p.metaWindowPress;
+p.responseWindowLick = p.metaWindowLick;
+assert(isequal(p.responseWindowPress, [-0.2, 0.1]))
+assert(isequal(p.responseWindowLick, [-0.2, 0.1]))
 boot.press = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muDiffObs', NaN(length(eu), 1));
 boot.lick = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muDiffObs', NaN(length(eu), 1));
 [boot.press.h(c.hasPress), boot.press.muDiffCI(c.hasPress, :), boot.press.muDiffObs(c.hasPress)] = bootstrapMoveResponse( ...
     eu(c.hasPress), 'press', nboot=p.nboot, alpha=p.bootAlpha, withReplacement=false, oneSided=false, ...
-    responseWindow=[-0.5, -0.2]);
+    responseWindow=p.responseWindowPress);
 [boot.lick.h(c.hasLick), boot.lick.muDiffCI(c.hasLick, :), boot.lick.muDiffObs(c.hasLick)] = bootstrapMoveResponse( ...
     eu(c.hasLick), 'lick', nboot=p.nboot, alpha=p.bootAlpha, withReplacement=false, oneSided=false, ...
-    responseWindow=[-0.3, 0]);
+    responseWindow=p.responseWindowLick);
 fprintf(1, '\nAll done\n')
 
 % Report bootstraped movement response direction
@@ -69,3 +73,5 @@ fprintf('05 Calculate: Of %i: %i (%i%%) showed modulation for BOTH, %i (%i%%) sh
     nnz(sel & c.isPressResponsive & ~c.isLickResponsive), round(nnz(sel & c.isPressResponsive & ~c.isLickResponsive)/nnz(sel)*100), ...
     nnz(sel & ~c.isPressResponsive & ~c.isLickResponsive), round(nnz(sel & ~c.isPressResponsive & ~c.isLickResponsive)/nnz(sel)*100) ...
     )
+
+

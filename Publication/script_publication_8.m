@@ -9,8 +9,9 @@ Done
 %%
 % read_spontaneous; % This takes a while because of boostrapping, also does
 % drift/multiunit/duplicate removal
+clear
 euSpontaneous = EphysUnit.load('C:\SERVER\Units\acute_spontaneous_reach\SNr_SingleUnit_NonDuplicate_NonDrift');
-load('C:\SERVER\Units\acute_spontaneous_reach\meta\SNr_SingleUnit_NonDuplicate_NonDrift.mat', 'bootSpontaneous', 'cSpontaneous', 'etaSpontaneous', 'etaSpontaneousRaw', '-v7.3')
+load('C:\SERVER\Units\acute_spontaneous_reach\meta\SNr_SingleUnit_NonDuplicate_NonDrift.mat')
 
 %%
 p.fontSize = 9;
@@ -73,18 +74,24 @@ iMin = IDIFF(2);
 iMax = IDIFF(end-4);
 
 exampleUnitNames = { ...
-        euSpontaneous(iMax).getName, ...
-        euSpontaneous(iMin).getName, ...
-%         'desmond31_20230804_Channel85_Unit1', ... % Up at -1, 40sp/s
-%         'daisy18_20230728_Channel109_Unit1', ... % Down at -1.5, wierd for 4-8s trials
+%         euSpontaneous(iMax).getName, ...
+%         euSpontaneous(iMin).getName, ...
+        'desmond31_20230804_Channel49_Unit1', ... % Up at -1, 40sp/s
+        'daisy18_20230802_Channel66_Unit1', ... % Down at -1.5, wierd for 4-8s trials
     };
 YLIMS = {[20, 80], [0, 80]};
 NSKIP = [5, 5];
 
+% PETH Rasster
 for i = 1:length(exampleUnitNames)
     iEu = find(strcmpi(euSpontaneous.getName(), exampleUnitNames{i}));
+    iExp = find(strcmpi(euSpontaneous(iEu).ExpName, {expSpontaneous.name}));
     ax = nexttile(layout.left.bottom.tl);
-    thisRd = euSpontaneous(iEu).getRasterData('press', window=[-0, 2], sort=false, MinTrialDuration=6);
+    nnz(isnan(onset(iExp).contra))
+    trials = euSpontaneous(iEu).getTrials('press');
+    selTrials = onset(iExp).contra >= onsetThreshold;
+    thisRd = euSpontaneous(iEu).getRasterData('press', window=[-0, 2], sort=false, MinTrialDuration=6, ...
+        correction=onset(iExp).contra(selTrials), trials=trials(selTrials));
     hold(ax, 'on')
     yyaxis(ax, 'right')
     EphysUnit.plotRaster(ax, thisRd, xlim=[-4, 2], sz=1, iti=false, ...
@@ -128,16 +135,14 @@ for i = 1:2
     xticks(ax, [-4, -2, 0, 1])
     xlim(ax, [-4, 0.5])
 end
-
-xlabel(layout.left.bottom.tl, 'Time to bar contact (s)', FontSize=p.fontSize, FontName='Arial')
-
+xlabel(layout.left.bottom.tl, 'Time to reach onset (s)', FontSize=p.fontSize, FontName='Arial')
 
 % 8d. Plot ETA (touch time)
 ax = nexttile(layout.right.tl, 1 + layout.right.top.h, [layout.right.bottom.h, 1]);
-EphysUnit.plotETA(ax, etaSpontaneous, xlim=[-4,0], clim=[-1.5, 1.5], sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.25, negativeSortThreshold=0.25);
+EphysUnit.plotETA(ax, etaSpontaneous, xlim=[-4,0.5], clim=[-1.5, 1.5], sortWindow=[-2, 0.5], signWindow=[-0.3, 0.2], sortThreshold=0.25, negativeSortThreshold=0.25);
 title(ax, '')
 yticks(ax, [1, 20:20:length(euSpontaneous), length(euSpontaneous)])
-xlabel(ax, 'Time to bar contact (s)')
+xlabel(ax, 'Time to reach onset (s)')
 fontsize(ax, p.fontSize, 'points')
 fontname(ax, 'Arial')
 

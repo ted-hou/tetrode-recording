@@ -65,8 +65,30 @@ eta.circLick = eu.getETA('count', 'circlick', window=[0, 2*pi], resolution=2*pi/
 [magH, magCI] = bootCircLick(eta.circLick, alpha=0.01, nBoot=100000, replace=false, seed=42);
 
 c.isLick = magH(:)';
+%% Calculate peri-lick lick frequency histograms
+[~, expEuIndices] = unique({eu.ExpName});
+FsLick = 500;
+lickHistEdges = 0.01:1/FsLick:2;
+lickHistCenters = 0.5*(lickHistEdges(2:end) + lickHistEdges(1:end-1));
 
-%%
+lickHistCounts = zeros(size(lickHistCenters));
+lickHistNLicks = 0;
+for iExp = 1:length(expEuIndices)
+    iEu = expEuIndices(iExp);
+    firstLickTimes = [eu(iEu).makeTrials('firstlick').Stop];
+    allLickTimes = eu(iEu).EventTimes.Lick;
+    for iLick = 1:length(firstLickTimes)
+        edgesGlobal = firstLickTimes(iLick) + lickHistEdges;
+        n = histcounts(allLickTimes, edgesGlobal);
+        lickHistCounts = lickHistCounts + n;
+        lickHistNLicks = lickHistNLicks + 1;
+    end
+end
+lickHistCountsNorm = lickHistCounts ./ lickHistNLicks;
+
+
+
+
 eta.lickBout = eu.getETA('count', 'lickbout', window=[0, 2*pi*maxBoutCycles], resolution=2*pi/30, normalize='none', trials=bouts);
 
 function [magH, magCI] = bootCircLick(eta, varargin)

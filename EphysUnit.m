@@ -723,6 +723,7 @@ classdef EphysUnit < handle
             p.addParameter('sort', true, @islogical);
             p.addParameter('trials', [], @(x) isa(x, 'Trial'))
             p.addParameter('shutterDelay', 0, @isnumeric)
+            p.addParameter('correction', [], @isnumeric)
             p.parse(trialType, varargin{:})
             trialType = p.Results.trialType;
             window = p.Results.window;
@@ -730,6 +731,7 @@ classdef EphysUnit < handle
             maxTrialDuration = p.Results.maxTrialDuration;
             durErr = p.Results.durErr;
             alignTo = p.Results.alignTo;
+            correction = p.Results.correction;
 
             if strcmp(alignTo, 'default')
                 switch trialType
@@ -747,13 +749,22 @@ classdef EphysUnit < handle
                     trials = p.Results.trials;
                 end
                 dur = round(trials.duration ./ durErr) * durErr;
-                trials = trials(dur >= minTrialDuration & dur <= maxTrialDuration);
+                selTrials = dur >= minTrialDuration & dur <= maxTrialDuration;
+                if ~isempty(correction)
+                    selTrials = selTrials & reshape(~isnan(correction), size(selTrials));
+                end
+                trials = trials(selTrials);
                 [~, t, I] = trials.inTrial(obj.SpikeTimes, window);
                 switch alignTo
                     case 'start'
                         tRef = [trials.Start];
                     case 'stop'
                         tRef = [trials.Stop];
+                end
+                if ~isempty(correction)
+                    correction = correction(selTrials);
+                    assert(length(tRef) == length(correction))
+                    tRef = tRef + reshape(correction, size(tRef));
                 end
                 t = t - tRef(I);
                 dur = round(trials.duration ./ durErr) * durErr;
@@ -1208,10 +1219,8 @@ classdef EphysUnit < handle
                 end
             end
         end
-
-        
     end
-    
+
     % static methods
     methods (Static)
         function obj = load(varargin)
@@ -1274,6 +1283,8 @@ classdef EphysUnit < handle
             p.addParameter('signWindow', [-.5, 0], @(x) isnumeric(x) && length(x) == 2)
             p.addParameter('sortThreshold', 1, @isnumeric)
             p.addParameter('negativeSortThreshold', [], @isnumeric)
+            p.addParameter('onsetPattern', [0, 1, 1], @isnumeric)
+            p.addParameter('onsetDirection', 'reverse', @(x) ismember(x, {'reverse', 'forward'}))
             p.addParameter('hidecolorbar', false, @islogical)
             p.addParameter('timeUnit', 's', @(x) ismember('s', 'ms'))
             p.parse(varargin{:})
@@ -1297,6 +1308,9 @@ classdef EphysUnit < handle
                 X = X(p.Results.sel, :);
                 N = N(p.Results.sel);
             end
+            onsetPattern = p.Results.onsetPattern;
+            onsetDirection = p.Results.onsetDirection;
+            onsetOffset = find(onsetPattern, 1, 'first');
 
             if isempty(p.Results.order)
                 % Sort by first significant response
@@ -1307,31 +1321,63 @@ classdef EphysUnit < handle
 %                 etaSign(meta >= -negativeSortThreshold & meta <= 0) = -Inf;
 %                 etaSign(meta <= sortThreshold & meta >= 0) = Inf;
                 assert(size(etaSign, 2) == 1);
-                isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
-                [~, iPeak] = max(flip(isAboveThreshold, 2), [], 2);
-                nSignBins = nnz(t >= signWindow(1) & t <= signWindow(2) & t >= sortWindow(1) & t <= sortWindow(2));
-                for i = 1:size(isAboveThreshold, 1)
-                    if iPeak(i) <= nSignBins
-                        isAboveThreshold(i, end-iPeak(i)+1:end) = true;
-                    end
-                end
-                isAboveThresholdConseq = isAboveThreshold & [diff(isAboveThreshold')', zeros(size(X, 1), 1)] == 0;
-                [~, Ilate] = min(flip(isAboveThresholdConseq, 2), [], 2, 'omitnan');
-                Ilate = size(isAboveThresholdConseq, 2) + 2 - Ilate;
-%                 [~, Ilate] = min(~isAboveThresholdConseq, [], 2, 'omitnan');
-                
-%                 min(Ilate)
-%                 max(Ilate)
 
-                nonSig = Ilate==size(isAboveThresholdConseq, 2) + 1;
-                Ilate(nonSig) = size(isAboveThresholdConseq, 2);
-%                 [~, order] = sort(Ilate .* etaSign + 0.1*abs(meta), 'descend');
-                sortVal = Ilate .* etaSign;
+                %% New sort (more readable, slower, but results should be identical)
+                % Not because I didn't have anything bette to do.
+                nTrials = size(XSort, 1);
+                onset = NaN(nTrials, 1);
+                sortVal = NaN(nTrials, 1);
+                isAbove = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
+                for iTrial = 1:nTrials
+                    if any(isnan(XSort(iTrial, :)))
+                        continue
+                    end
+                    iLastAbove = find(isAbove(iTrial, :), 1, 'last');
+                    if isempty(iLastAbove)
+                        continue
+                    end
+                    iOnset = strfind(isAbove(iTrial, 1:iLastAbove), onsetPattern) + onsetOffset;
+                    if isempty(iOnset)
+                        continue
+                    end
+                    switch onsetDirection
+                        case 'reverse'
+                            iOnset = iOnset(end);
+                        case 'forward'
+                            iOnset = iOnset(1);
+                    end
+                    onset(iTrial) = tSort(iOnset);
+                    sortVal(iTrial) = iOnset;
+                end
+
+
+                nonSig = isnan(sortVal);
+                sortVal(nonSig) = max(sortVal, [], 'omitnan') + 1;
+                sortVal = sortVal .* etaSign;
                 sortVal(nonSig) = sortVal(nonSig) + meta(nonSig);
+                
+                %% Old sort
+%                 isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
+%                 [~, iPeak] = max(flip(isAboveThreshold, 2), [], 2);
+%                 nSignBins = nnz(t >= signWindow(1) & t <= signWindow(2) & t >= sortWindow(1) & t <= sortWindow(2));
+%                 for i = 1:size(isAboveThreshold, 1)
+%                     if iPeak(i) <= nSignBins
+%                         isAboveThreshold(i, end-iPeak(i)+1:end) = true;
+%                     end
+%                 end
+%                 isAboveThresholdConseq = isAboveThreshold & [diff(isAboveThreshold')', zeros(size(X, 1), 1)] == 0;
+%                 [~, Ilate] = min(flip(isAboveThresholdConseq, 2), [], 2, 'omitnan');
+%                 Ilate = size(isAboveThresholdConseq, 2) + 2 - Ilate;
+%                 nonSig = Ilate==size(isAboveThresholdConseq, 2) + 1;
+%                 Ilate(nonSig) = size(isAboveThresholdConseq, 2);
+
+                %%
+%                 sortVal = Ilate .* etaSign;
+%                 sortVal(nonSig) = sortVal(nonSig) + meta(nonSig);
                 [~, order] = sort(sortVal, 'ascend');
                 meta = meta(order);
-                latency = tSort(Ilate);
-                assert(all(~isnan(latency)))
+                latency = onset;
+%                 assert(all(~isnan(latency)))
 %                 latency = latency(order);
                 varargout = {ax, order(:), meta(:), latency(:)};
             else
@@ -1515,6 +1561,7 @@ classdef EphysUnit < handle
             p.addParameter('maxTrialsMethod', 'trim', @(x) ismember(lower(x), {'trim', 'randomsample', 'uniformsample'}))
             p.addParameter('sz', 2.5, @isnumeric)
             p.addParameter('everyNth', 1, @isnumeric)
+            p.addParameter('timingCriterion', NaN, @isnumeric) % 4s for self timed movements, will plot horizontal line dividing trials into correct/incorrect
             p.parse(varargin{:})
             rd = p.Results.rd;
             isSimpleStim = ismember(lower(rd.trialType), {'stim', 'stimtrain', 'stimfirstpulse'});
@@ -1522,6 +1569,7 @@ classdef EphysUnit < handle
             timeUnit = p.Results.timeUnit;
             maxTrials = p.Results.maxTrials;
             everyNth = p.Results.everyNth;
+            timingCriterion = p.Results.timingCriterion;
 
             assert(length(rd) == 1);
 
@@ -1599,6 +1647,11 @@ classdef EphysUnit < handle
                 h = gobjects(2, 1);
                 h(1) = scatter(ax, rd.t(1:everyNth:end) .* timescale, rd.I(1:everyNth:end), sz, 'k', 'filled', DisplayName='spikes');
                 h(2) = scatter(ax, tEvent .* timescale, 1:length(tEvent), sz*2, 'r', 'filled', DisplayName=eventName);
+                if ~isnan(timingCriterion)
+                    longestIncorrectTrial = find(rd.duration < timingCriterion, 1, 'last') + 0.5;
+                    plot(ax, p.Results.xlim, longestIncorrectTrial .* [1, 1], Color=[0.2, 0.6, 0.2], LineStyle='--', LineWidth=1)
+                end
+
             elseif isSimpleStim
                 h = gobjects(2, 1);
                 h(1) = scatter(ax, rd.t(1:everyNth:end) * timescale, rd.I(1:everyNth:end), sz, 'k', 'filled', DisplayName='spikes');
@@ -2050,6 +2103,10 @@ classdef EphysUnit < handle
             end
             if ~isempty(correction)
                 assert(length(correction) == length(trials))
+                isBadTrial = isnan(correction);
+                trials(isBadTrial) = [];
+                correction(isBadTrial) = [];
+%                 fprintf('\n\tRemoved %i bad trials out of %i.\n', nnz(isBadTrial), length(isBadTrial));
                 trials = Trial([trials.Start], [trials.Stop] + correction(:)');
             end
             if ~strcmpi(trialType, 'stimfirstpulse')

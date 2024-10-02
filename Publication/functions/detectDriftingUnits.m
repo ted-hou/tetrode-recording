@@ -16,9 +16,16 @@ ax = axes(figure);
 hold(ax, 'on')
 isDrifting = false(size(eu));
 for iEu = 1:length(eu)
-    sampleRate = 1./eu(iEu).SpikeCountStats.resolution;
-    t = eu(iEu).SpikeCountTimestamps;
-    x = smoothdata(eu(iEu).SpikeCounts.*sampleRate, 'movmean', smoothWindow.*sampleRate);
+    if isempty(eu(iEu).SpikeCountTimestamps)
+        sampleRate = 1/0.1;
+        [sc, t] = eu(iEu).getSpikeCounts(0.1);
+        [t, sc, ~] = eu(iEu).cullITIData(t, sc, 'all', 'extendedWindow', [0, 0]);
+    else
+        sampleRate = 1./eu(iEu).SpikeCountStats.resolution;
+        t = eu(iEu).SpikeCountTimestamps;
+        sc = eu(iEu).SpikeCounts;
+    end
+    x = smoothdata(sc.*sampleRate, 'movmean', smoothWindow.*sampleRate);
     if nnz(x < spikeRateThreshold)/length(x) > tolerance
         plot(t, x)
         isDrifting(iEu) = true;

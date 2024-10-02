@@ -11,9 +11,16 @@ function [h, muDiffCI, muDiffObs] = bootstrapMoveResponse(eu, trialType, varargi
     p.addParameter('alpha', 0.01, @isnumeric)
     p.addParameter('withReplacement', false, @islogical)
     p.addParameter('oneSided', false, @islogical)
+    p.addParameter('correction', {}, @iscell) % correction for movement onset time
     p.parse(eu, trialType, varargin{:});
     r = p.Results;
     eu = r.eu;
+    if isempty(r.correction)
+        correction = cell(length(eu), 1);
+    else
+        correction = r.correction;
+        assert(length(correction) == length(eu));
+    end
 
     rng(42);
 
@@ -31,7 +38,7 @@ function [h, muDiffCI, muDiffObs] = bootstrapMoveResponse(eu, trialType, varargi
 
         [sr, t] = eu(iEu).getTrialAlignedData('count', dataWindow, r.trialType, alignTo=r.alignTo, ...
             allowedTrialDuration=r.allowedTrialDuration, trialDurationError=r.trialDurationError, ...
-            includeInvalid=false, resolution=0.1);
+            includeInvalid=false, resolution=0.1, correction=correction{iEu});
 
         if isempty(sr)
             warning('Spike rate for %d - %s is empty.', iEu, eu(iEu).getName('_'));

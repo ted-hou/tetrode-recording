@@ -3,7 +3,7 @@ function [h, p, ci, obs] = bootstrapPressVsLick(eu, varargin)
     p.addRequired('eu', @(x) length(x) >=1 && isa(x, 'EphysUnit'))
     p.addParameter('nboot', 100000, @isnumeric)
     p.addParameter('baselineWindow', [-4, -2], @(x) isnumeric(x) && length(x) == 2)
-    p.addParameter('pressWindow', [-0.5, -0.2]);
+    p.addParameter('pressWindow', [-0.3, -0]);
     p.addParameter('lickWindow', [-0.3, 0]);
     p.addParameter('allowedTrialDuration', [2, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) >= x(1))
     p.addParameter('withReplacement', false, @islogical)
