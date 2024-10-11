@@ -418,7 +418,7 @@ classdef EphysUnit < handle
         
         function trials = getTrials(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous2', 'press_spontaneous_medial', 'press_spontaneous_lateral'})));
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lick+lickbout', 'press+lickbout', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous2', 'press_spontaneous_medial', 'press_spontaneous_lateral'})));
             p.addOptional('sorted', true, @islogical);
             p.addParameter('minBoutCycles', 2)
             p.addParameter('maxBoutCycles', 4)
@@ -466,8 +466,12 @@ classdef EphysUnit < handle
                             trials{itt} = obj.makeTrials('firstlick');
                         case 'circlick'
                             trials{itt} = obj.makeTrials('circlick');
-                        case 'lickbout'
-                            trials{itt} = obj.makeTrials('lickbout', ...
+                        case {'lickbout', 'press+lickbout', 'lick+lickbout'}
+                            if sorted
+                                sorted = false;
+%                                 warning('Parameter "sorted" must be set to false for when trialType="%s". I shall do it for you this time.', trialType{itt})
+                            end
+                            trials{itt} = obj.makeTrials(trialType{itt}, ...
                                 minBoutCycles=p.Results.minBoutCycles, maxBoutCycles=p.Results.maxBoutCycles, ...
                                 minInterval=p.Results.minInterval, maxInterval=p.Results.maxInterval);
                     end
@@ -578,30 +582,41 @@ classdef EphysUnit < handle
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
             p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', ...
-                'firstlick', 'circlick', 'lickbout', 'press_spontaneous', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
+                'firstlick', 'circlick', 'lickbout', 'press+lickbout', 'lick+lickbout', 'press_spontaneous', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('findSingleTrialDuration', 'off', @(x) ismember(x, {'off', 'min', 'max'}))
-            p.addParameter('resolution', [], @(x) isnumeric(x) && length(x)==1 && x>=0)
+            p.addParameter('resolution', [], @isnumeric)
             p.addParameter('normalize', 'none', @(x) isstruct(x) || isnumeric(x) || ismember(lower(x), {'none', 'iti', 'all'}))
             p.addParameter('alignTo', 'default', @(x) ismember(x, {'default', 'start', 'stop'}))
             p.addParameter('includeInvalid', [], @islogical)
             p.addParameter('correction', [], @isnumeric)
             p.addParameter('trials', [], @(x) isempty(x) || iscell(x) || isa(x, 'Trial'))
+            p.addParameter('kernel', struct([]), @isstruct)
+            p.addParameter('minBoutCycles', 2)
+            p.addParameter('maxBoutCycles', 4)
+            p.addParameter('minInterval', 0.05);
+            p.addParameter('maxInterval', 0.25);
             p.parse(data, event, varargin{:})
-            data = lower(p.Results.data);
-            event = p.Results.event;
-            window = p.Results.window;
-            minTrialDuration = p.Results.minTrialDuration;
-            maxTrialDuration = p.Results.maxTrialDuration;
-            findSingleTrialDuration = p.Results.findSingleTrialDuration;
-            resolution = p.Results.resolution;
-            normalize = p.Results.normalize;
-            alignTo = p.Results.alignTo;
-            includeInvalid = p.Results.includeInvalid;
-            correction = p.Results.correction;
-            trials = p.Results.trials;
+            r = p.Results;
+            data = lower(r.data);
+            event = r.event;
+            window = r.window;
+            minTrialDuration = r.minTrialDuration;
+            maxTrialDuration = r.maxTrialDuration;
+            findSingleTrialDuration = r.findSingleTrialDuration;
+            resolution = r.resolution;
+            normalize = r.normalize;
+            alignTo = r.alignTo;
+            includeInvalid = r.includeInvalid;
+            correction = r.correction;
+            trials = r.trials;
+            kernel = p.Results.kernel;
+            minBoutCycles = p.Results.minBoutCycles;
+            maxBoutCycles = p.Results.maxBoutCycles;
+            minInterval = p.Results.minInterval;
+            maxInterval = p.Results.maxInterval;
             
             % Use default resolutions
             if isempty(resolution)
@@ -612,10 +627,16 @@ classdef EphysUnit < handle
                         resolution = obj(1).SpikeRateStats.resolution;
                 end
             end
-                
-            edges = window(1):resolution:window(2);
+
+            switch lower(event)
+                case {'lick+lickbout', 'press+lickbout'}
+                    assert(window(2) == 0)
+                    edges = [window(1):resolution(1):window(2)-resolution(1), 0:resolution(2):(1+maxBoutCycles)*2*pi];
+                otherwise
+                    edges = window(1):resolution:window(2);
+            end
             t = (edges(1:end-1) + edges(2:end)) / 2;
-            X = zeros(length(obj), length(t));
+            X = NaN(length(obj), length(t));
             N = zeros(length(obj), 1);
             D = zeros(length(obj), 1);
 
@@ -651,7 +672,7 @@ classdef EphysUnit < handle
                 end
 
                 [x, ~, d] = obj(i).getTrialAlignedData(data, window, event, trials=theseTrials, alignTo=alignTo, allowedTrialDuration=[minTrialDuration, maxTrialDuration], ...
-                    findSingleTrialDuration=findSingleTrialDuration, resolution=resolution, includeInvalid=includeInvalid, correction=correction);
+                    findSingleTrialDuration=findSingleTrialDuration, resolution=resolution, includeInvalid=includeInvalid, correction=correction, kernel=kernel, minBoutCycles=minBoutCycles, maxBoutCycles=maxBoutCycles, minInterval=minInterval, maxInterval=maxInterval);
                 
                 if isempty(x)
                     % warning('EventTriggeredAverage cannot be calculated for Unit %i (%s), likely because trial count is zero.', i, obj(i).getName())
@@ -1545,7 +1566,6 @@ classdef EphysUnit < handle
             else
                 legend(ax, h, Location='northwest')
             end
-                
         end
         
         function ax = plotRaster(varargin)
@@ -1844,6 +1864,22 @@ classdef EphysUnit < handle
                     case 'circlick'
                         lickTimes = unique(obj.EventTimes.Lick);
                         trials = Trial(lickTimes(1:end-1), lickTimes(2:end), advancedValidation=false);
+                    case 'circlickbaseline'
+                        interLickInterval = 1/6.9886; % Empirical lick frequency
+                        nCycles = 4;
+                        moveTrials = [obj.getTrials('lick'); obj.getTrials('press')];
+                        moveTrials = moveTrials(moveTrials.duration() >= nCycles*interLickInterval + 2); % Baseline window ends at -2s
+                        if isempty(moveTrials)
+                            disp(moveTrials.duration())
+                        end
+                        moveTimes = vertcat(moveTrials.Stop);
+                        startTimes = zeros(nCycles, length(moveTrials));
+                        endTimes = zeros(nCycles, length(moveTrials));
+                        for iCycle = 1:nCycles
+                            startTimes(iCycle, :) = moveTimes - 2 - iCycle * interLickInterval;
+                            endTimes(iCycle, :) = moveTimes - 2 - (iCycle - 1) * interLickInterval;
+                        end
+                        trials = Trial(startTimes(:), endTimes(:), advancedValidation=false);
                     case 'lickbout'
                         p = inputParser();
                         p.addParameter('minBoutCycles', 2) % shorter bouts are discarded entirely.
@@ -1887,6 +1923,75 @@ classdef EphysUnit < handle
                         for iBout = 1:length(boutStarts)
                             trials(iBout, 1:boutCycles(iBout)) = circTrials(boutStarts(iBout):boutEnds(iBout));
                         end
+                    case {'lick+lickbout', 'press+lickbout'}
+                        p = inputParser();
+                        p.addParameter('minBoutCycles', 1) % shorter bouts are discarded entirely.
+                        p.addParameter('maxBoutCycles', 4) % longer bouts are truncated, shorter bouts are padded with Empty Trial objects.
+                        p.addParameter('maxInterval', 0.25) % interlick intervals longer than maxInterval breaks bouts
+                        p.addParameter('minInterval', 0.05) % interlick intervals shorter than minInterval are considered artefacts with lick detection
+                        p.parse(varargin{:})
+                        minBoutCycles = p.Results.minBoutCycles;
+                        maxBoutCycles = p.Results.maxBoutCycles;
+                        maxInterval = p.Results.maxInterval;
+                        minInterval = p.Results.minInterval;
+
+                        % Column of operant trials
+                        operantTrialType = strsplit(trialType, '+');
+                        operantTrialType = operantTrialType{1};
+                        trials = obj.makeTrials(operantTrialType);
+                        trials = trials(:);
+                        if isempty(trials)
+                            return
+                        end
+
+                        % Append columns of lick bout trials
+                        % Find the first n licks after each movement
+                        lickTimes = unique(obj.EventTimes.Lick);
+                        edges = [...
+                            horzcat(trials.Stop); ...
+                            [horzcat(trials(2:end).Start), Inf]...
+                            ];
+                        edges = edges(:);
+                        [nLicks, ~, bin] = histcounts(lickTimes, edges);
+                        toRemove = mod(bin, 2) == 0;
+                        bin(toRemove) = [];
+                        lickTimes(toRemove) = [];
+                        lickToTrialIndex = (bin + 1) / 2;% Which trial does each lick belong to
+                        nLicks = nLicks(1:2:end);
+                        
+                        switch operantTrialType
+                            case 'press'
+                                trials = horzcat(trials, repmat(Trial(), [length(trials), maxBoutCycles + 1]));
+                            case 'lick'
+                                trials = horzcat(trials, repmat(Trial(), [length(trials), maxBoutCycles]));
+                        end
+                        for iTrial = 1:size(trials, 1)
+                            nCycles = nLicks(iTrial) - 1;
+                            if nCycles < minBoutCycles
+                                continue
+                            end
+                            nCycles = min(nCycles, maxBoutCycles);
+                            
+                            lickTimesInTrial = lickTimes(lickToTrialIndex == iTrial);
+                            lickTrials = Trial(lickTimesInTrial(1:nCycles), lickTimesInTrial(2:nCycles+1), advancedValidation=false);
+                            isGoodInterval = lickTrials.duration() >= minInterval & lickTrials.duration <= maxInterval;
+                            iFirstBad = find(~isGoodInterval, 1);
+                            if isempty(iFirstBad)
+                                iFirstBad = length(isGoodInterval) + 1;
+                            end
+                            nCycles = iFirstBad - 1;
+                            if nCycles < minBoutCycles
+                                continue
+                            end
+                            switch operantTrialType
+                                case 'press'
+                                    trials(iTrial, 2) = Trial(trials(iTrial, 1).Stop, lickTrials(1).Start, advancedValidation=false);
+                                    trials(iTrial, 3:nCycles+2) = lickTrials(1:nCycles);
+                                case 'lick'
+                                    trials(iTrial, 2:nCycles+1) = lickTrials(1:nCycles);
+                            end
+                        end
+
                 end
             else
                 trials = cell(length(obj), 1);
@@ -2064,15 +2169,21 @@ classdef EphysUnit < handle
                 useResampleMethod = false;
             end
             p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
-            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', 'firstlick', 'circlick', 'lickbout', 'press_spontaneous', 'press_spontaneous2', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
+            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', 'firstlick', 'circlick', 'lickbout', 'press+lickbout', 'lick+lickbout', 'press_spontaneous', 'press_spontaneous2', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
-            p.addParameter('resolution', 0.001, @(x) isnumeric(x) && x > 0)
+            p.addParameter('resolution', 0.001, @isnumeric)
             p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) >= x(1))
             p.addParameter('findSingleTrialDuration', 'off', @(x) ismember(x, {'off', 'min', 'max'})) % Used for opto, 'min' finds the shortest trial duration allowed by 'allowedTrialDuration', and only averages those trials.
             p.addParameter('trialDurationError', 1e-3, @isnumeric) % Used for opto, error allowed when finding identical trial durations.
             p.addParameter('includeInvalid', true, @islogical) % Whether to include unaligned ITI data for averaging. When alignTo='stop', pre-trial-start data is discarded. When alignTo='start', post-trial-end data is discarded. When 'stim', data after next opto-onset is discarded
             p.addParameter('correction', [], @isnumeric)
             p.addParameter('trials', [], @(x) isempty(x) || isa(x, 'Trial'))
+            p.addParameter('lickArtifactLength', 1, @isnumeric)
+            p.addParameter('kernel', struct([]), @isstruct)
+            p.addParameter('minBoutCycles', 2)
+            p.addParameter('maxBoutCycles', 4)
+            p.addParameter('minInterval', 0.05);
+            p.addParameter('maxInterval', 0.25);
             p.parse(varargin{:})
             if useResampleMethod
                 x = p.Results.x;
@@ -2083,15 +2194,21 @@ classdef EphysUnit < handle
             window = p.Results.window(1:2);
             trialType = lower(p.Results.trialType);
             alignTo = lower(p.Results.alignTo);
-            resolution = p.Results.resolution(1);
+            resolution = p.Results.resolution;
             allowedTrialDuration = p.Results.allowedTrialDuration(1:2);
             includeInvalid = p.Results.includeInvalid;
             err = p.Results.trialDurationError;
             correction = p.Results.correction;
-                        
+            lickArtifactLength = p.Results.lickArtifactLength;
+            kernel = p.Results.kernel;
+            minBoutCycles = p.Results.minBoutCycles;
+            maxBoutCycles = p.Results.maxBoutCycles;
+            minInterval = p.Results.minInterval;
+            maxInterval = p.Results.maxInterval;
+
             % Filter out trials with incorrect lengths
             if isempty(p.Results.trials)
-                trials = obj.getTrials(trialType);
+                trials = obj.getTrials(trialType, minBoutCycles=minBoutCycles, maxBoutCycles=maxBoutCycles, minInterval=minInterval, maxInterval=maxInterval);
             else
                 trials = p.Results.trials;
             end
@@ -2135,10 +2252,18 @@ classdef EphysUnit < handle
             if ismember(lower(trialType), {'circlick', 'lickbout'}) && strcmpi(p.Results.findSingleTrialDuration, 'off')
                 requestedDuration = NaN;
             else
-                durations = round(trials.duration()./err)*err;
-                seltrials = durations >= allowedTrialDuration(1) & durations <= allowedTrialDuration(2);
-                trials = trials(seltrials);
-                durations = durations(seltrials);
+                switch lower(trialType)
+                    case {'press+lickbout', 'lick+lickbout'}
+                        durations = round(trials(:, 1).duration()./err)*err;
+                        seltrials = durations >= allowedTrialDuration(1) & durations <= allowedTrialDuration(2);
+                        trials = trials(seltrials, :);
+                        durations = durations(seltrials);
+                    otherwise
+                        durations = round(trials.duration()./err)*err;
+                        seltrials = durations >= allowedTrialDuration(1) & durations <= allowedTrialDuration(2);
+                        trials = trials(seltrials);
+                        durations = durations(seltrials);
+                end
                 switch p.Results.findSingleTrialDuration
                     case 'min'
                         requestedDuration = allowedTrialDuration(1);
@@ -2167,20 +2292,59 @@ classdef EphysUnit < handle
             switch lower(trialType)
                 case 'circlick'
                     tAligned = 0:resolution:2*pi;
+                    isLickArtifact = false(size(tAligned));
+                    if lickArtifactLength > 0
+                        isLickArtifact(1:lickArtifactLength) = true;
+                    end
                     tAlignedGlobal = zeros(length(trials), length(tAligned));
                     for iTrial = 1:length(trials)
                         tAlignedGlobal(iTrial, :) = linspace(trials(iTrial).Start, trials(iTrial).Stop, length(tAligned));
                     end
                 case 'lickbout'
                     tAligned = 0:resolution:2*pi*size(trials, 2);
-                    binsPerCycle = length(0:resolution:2*pi) - 1;
+                    nBinsPerCycle = length(0:resolution:2*pi) - 1;
+                    isLickArtifact = false(size(tAligned));
+                    if lickArtifactLength > 0
+                        for iCycle = 1:size(trials, 2)
+                            isLickArtifact(nBinsPerCycle*(iCycle-1) + (1:lickArtifactLength)) = true;
+                        end
+                    end
                     tAlignedGlobal = NaN(size(trials, 1), length(tAligned));
                     for iTrial = 1:size(trials, 1)
                         for iCycle = 1:size(trials, 2)
                             if trials(iTrial, iCycle).isEmpty
                                 break;
                             end
-                            tAlignedGlobal(iTrial, 1+(iCycle-1)*binsPerCycle:1+iCycle*binsPerCycle) = linspace(trials(iTrial, iCycle).Start, trials(iTrial, iCycle).Stop, binsPerCycle + 1);
+                            tAlignedGlobal(iTrial, 1+(iCycle-1)*nBinsPerCycle:1+iCycle*nBinsPerCycle) = linspace(trials(iTrial, iCycle).Start, trials(iTrial, iCycle).Stop, nBinsPerCycle + 1);
+                        end
+                    end
+                case {'lick+lickbout', 'press+lickbout'}
+                    assert(length(resolution) == 2, '"resolution" parameter should be two elements [pre-move resolution, circ lick resolution]')
+                    % Rows are self-timed trials
+                    % For self-timed lick, columns are ([Cue, FirstLick], [FirstLick, SecondLick], [SecondLick, ThirdLick], ...)
+                    % For self-timed press, columns are ([Cue, FirstPress], [FirstPress, FirstLick], [FirstLick, SecondLick], ...)
+                    nTrials = size(trials, 1);
+                    nCycles = size(trials, 2) - 1;
+                    assert(window(2) == 0)
+                    tAlignedPre = window(1) : resolution(1) : window(2)-resolution(1);
+                    tAlignedPost = 0 : resolution(2) : 2*pi*size(trials, 2);
+                    tAligned = horzcat(tAlignedPre, tAlignedPost);
+                    nBinsPerCycle = length(0:resolution(2):2*pi) - 1;
+                    nBinsPreMove = length(tAlignedPre);
+                    isLickArtifact = false(size(tAligned));
+                    if lickArtifactLength > 0
+                        for iCycle = 1:nCycles
+                            isLickArtifact(nBinsPreMove + nBinsPerCycle*(iCycle-1) + (1:lickArtifactLength)) = true;
+                        end
+                    end
+                    tAlignedGlobal = NaN(nTrials, length(tAligned));
+                    tAlignedGlobal(:, 1:nBinsPreMove) = tAlignedPre + vertcat(trials(:, 1).Stop);
+                    for iTrial = 1:nTrials
+                        for iCycle = 1:nCycles
+                            if trials(iTrial, iCycle+1).isEmpty
+                                break;
+                            end
+                            tAlignedGlobal(iTrial, nBinsPreMove+1+(iCycle-1)*nBinsPerCycle : nBinsPreMove+1+iCycle*nBinsPerCycle) = linspace(trials(iTrial, iCycle+1).Start, trials(iTrial, iCycle+1).Stop, nBinsPerCycle + 1);
                         end
                     end
                 otherwise
@@ -2226,9 +2390,53 @@ classdef EphysUnit < handle
                             case 'rate'
                                 error('Not implemented: "rate" for circlick')
                             case 'count'
-                                for iTrial = 1:length(trials)
+                                if ismember(lower(trialType), {'lickbout', 'press+lickbout', 'lick+lickbout'})
+                                    nTrials = size(trials, 1);
+                                else
+                                    nTrials = length(trials);
+                                end
+                                for iTrial = 1:nTrials
                                     sel = ~isnan(tAlignedGlobal(iTrial, :));
+                                    binWidth = diff(tAlignedGlobal(iTrial, sel));
                                     [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, sel));
+                                    xx = double(xx);
+                                    xx = xx./binWidth;
+                                    xx(isLickArtifact(1:end-1)) = NaN;
+                                    % Interpolate over the nans
+                                    assert(size(xx, 1) == 1)
+                                    xxxx = [xx, xx];
+                                    ii = 1:length(xx);
+                                    iiii = 1:length(xxxx);
+                                    selnan = isnan(xxxx);
+                                    xxxx(selnan) = interp1(iiii(~selnan), xxxx(~selnan), iiii(selnan));
+                                    xxq = xxxx(length(xx) + 1:end);
+                                    xAligned(iTrial, 1:length(xx)) = xxq;
+                                end
+                        end
+                    case {'press+lickbout', 'lick+lickbout'}
+                        tAligned = (tAligned(1:end-1) + tAligned(2:end)) / 2;
+                        xAligned = NaN(length(trials), length(tAligned));
+                        switch data
+                            case 'rate'
+                                error('Not implemented: "rate" for circlick')
+                            case 'count'
+                                if ismember(lower(trialType), {'lickbout', 'press+lickbout', 'lick+lickbout'})
+                                    nTrials = size(trials, 1);
+                                else
+                                    nTrials = length(trials);
+                                end
+                                for iTrial = 1:nTrials
+                                    sel = ~isnan(tAlignedGlobal(iTrial, :));
+                                    binWidth = diff(tAlignedGlobal(iTrial, sel));
+                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, sel));
+                                    xx = double(xx);
+                                    xx = xx./binWidth;
+                                    xx(isLickArtifact(sel)) = NaN;
+                                    selnan = isnan(xx);
+                                    % Interpolate over the nans
+                                    assert(size(xx, 1) == 1)
+                                    ii = 1:length(xx);
+                                    xx(selnan) = interp1(ii(~selnan), xx(~selnan), ii(selnan));
                                     xAligned(iTrial, 1:length(xx)) = xx;
                                 end
                         end
@@ -2237,7 +2445,9 @@ classdef EphysUnit < handle
                         xAligned = NaN(length(trials), length(tAligned));
                         switch data
                             case 'rate'
-                                kernel = obj.SpikeRateKernel;
+                                if isempty(kernel)
+                                    kernel = obj.SpikeRateKernel;
+                                end
                                 width = kernel.params.width;
                                 if strcmpi(kernel.type, 'gaussian')
                                     sigma = kernel.params.sigma;
