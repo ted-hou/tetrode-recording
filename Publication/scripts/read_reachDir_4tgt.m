@@ -189,7 +189,7 @@ for iExp = 1:nExp
                     trials=paReachDir4Tgt.exp(iExp).eu(1).Trials.Press(selTrials), correction=onsetExp.(pawNames(iPaw))(selTrials));
             else
                 t = (-4:0.1:0.4)+0.05;
-                traj(iExp).eta(iTarget, iPaw) = struct(X=NaN(length(paReachDir4Tgt.exp(iExp).eu), length(t)), t=t, N=nnz(selTrials), D=[], stats=[]);
+                traj(iExp).eta(iTarget, iPaw) = struct(X=NaN(length(paReachDir4Tgt.exp(iExp).eu), length(t)), t=t, N=repmat(nnz(selTrials), [length(paReachDir4Tgt.exp(iExp).eu), 1]), D=[], stats=[]);
             end
         end
     end
@@ -228,20 +228,20 @@ for iTarget = 1:4
 end
 
 %% Calc METAs
-trajCombined.meta = cell(8, 3);
+trajCombined.meta = cell(4, 3);
 for iTarget = 1:4
     for iPaw = 1:3
         eta = trajCombined.eta(iTarget, iPaw);
         X = eta.X;
         t = eta.t;
-        trajCombined.meta{iTarget, iPaw} = mean(X(:, t>=-0.2 & t<= 0), 2, 'omitnan');
+        trajCombined.meta{iTarget, iPaw} = mean(X(:, t>=-0.2 & t<= 0.2), 2, 'omitnan');
     end
 end
 
 %% Plot METAs
 close all
 skippedPairs = [13, 23, 41, 12, 22, 32, 42];
-fig = figure(Units='inches', Position=[-10.2188   -1.2083   10.6771   10.4896]);
+fig = figure(Units='inches', Position=[0   0   10.6771   10.4896]);
 N = 12 - length(skippedPairs);
 tl = tiledlayout(fig, N, N, TileSpacing='none', Padding=['none' ...
     '']);

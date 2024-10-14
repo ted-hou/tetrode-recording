@@ -2,7 +2,7 @@
 read_reachDir_4tgt;
 read_reachDir_2tgt;
 
-%% Lever-4-pos
+%% Lever-2-pos
 p.fontSize = 9;
 p.view = [0, 90];
 p.etaWindow = [-4, 0.5];
@@ -101,8 +101,8 @@ end
 
 ax = AX; clear AX;
 yticklabels(ax(2), [])
-hLegend = legend(hDummy, Location='layout', Orientation='horizontal');
-hLegend.Layout.Tile = 'south';
+% hLegend = legend(hDummy, Location='layout', Orientation='horizontal');
+% hLegend.Layout.Tile = 'south';
 
 
 hLetters(1) = text(ax(1), 0, 0, 'a', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
@@ -204,30 +204,37 @@ fontsize(hLetters, 16, 'points')
 fontname(hLetters, 'Arial')
 
 copygraphics(fig, ContentType='vector')
-%%
+%% S7
 % 7g. 4tgt trajectories (contra, ipsi)
-ax = nexttile(layout.middle.right.tl);
+DOTFACTOR = 1;
+DOTPOWER = 1.25;
+fig = figure(Units='inches', Position=[1 1 5/3*2, 5]);
+tl = tiledlayout(fig, 3, 2);
+ax = nexttile(tl);
 title(ax, 'Contra paw')
 axis(ax, 'image');
 hold(ax, 'on')
 nTargets = 4;
 nFrames = length(trajCombined.t);
 targetNames = ["contra-out", "contra-front", "contra-in", "ipsi-front"];
+pawNames = ["contra", "contra", "contra", "ipsi"];
+nTrials = zeros(1, 4);
 for iTarget = 1:nTargets
     selFrames = nFrames - nt + 1:nFrames;
-    selTrials = trajCombined.target == targetNames(iTarget);
+    selTrials = trajCombined.target == targetNames(iTarget) & trajCombined.paw == pawNames(iTarget);
+    nTrials(iTarget) = nnz(selTrials);
     x = mean(trajCombined.contra.x(selTrials, selFrames), 1, 'omitnan');
     y = mean(trajCombined.contra.y(selTrials, selFrames), 1, 'omitnan');
     z = mean(trajCombined.contra.z(selTrials, selFrames), 1, 'omitnan');
     plot3(ax, x, y, z, LineWidth=1.5, Color=getColor(iTarget, 4, 0.8), DisplayName=targetNames(iTarget));
-    scatter3(ax, x, y, z, p.trajDotMultiplier*(selFrames-selFrames(1)+1).^p.trajDotPower, getColor(iTarget, 4, 0.8), Marker='o', DisplayName=targetNames(iTarget));
+    scatter3(ax, x, y, z, DOTFACTOR*(selFrames-selFrames(1)+1).^DOTPOWER, getColor(iTarget, 4, 0.8), Marker='o', DisplayName=targetNames(iTarget));
 end
 ax.ZAxis.Direction = 'reverse';
 ax.YAxis.Direction = 'reverse';
 ax.View = p.view;
 
 xl = [-25, 10];
-yl = [-5, 30];
+yl = [-5, 40];
 zl = [-100, 100];
 set(ax, XLim=xl, YLim=yl, ZLim=zl)
 xrange = diff(ax.XLim);
@@ -237,7 +244,7 @@ zrange = diff(ax.ZLim);
 xticks(ax, ax.XLim + xrange*[0.125, -0.125])
 yticks(ax, ax.YLim + yrange*[0.125, -0.125])
 zticks(ax, ax.ZLim + zrange*[0.125, -0.125])
-xticklabels(ax, ["lat", "lat"])
+xticklabels(ax, ["lat", "med"])
 yticklabels(ax, ["back", "front"])
 zticklabels(ax, ["up", "down"])
 set(ax, XMinorGrid='on', YMinorGrid='on', ZMinorGrid='on', Box='off')
@@ -247,7 +254,7 @@ ax.ZAxis.MinorTickValues=ax.ZLim(1) + zrange*[0.375, 0.625];
 % legend(h, Orientation='horizontal', Location='northoutside', Parent=layout.middle.right.tl)
 
 % ipsi
-ax = nexttile(layout.middle.right.tl);
+ax = nexttile(tl);
 title(ax, 'Ipsi paw')
 axis(ax, 'image');
 hold(ax, 'on')
@@ -262,10 +269,10 @@ for iTarget = 1:nTargets
     y = mean(trajCombined.ipsi.y(selTrials, selFrames), 1, 'omitnan');
     z = mean(trajCombined.ipsi.z(selTrials, selFrames), 1, 'omitnan');
     plot3(ax, x, y, z, LineWidth=1.5, Color=getColor(iTarget, 4, 0.8));
-    scatter3(ax, x, y, z, p.trajDotMultiplier*(selFrames-selFrames(1)+1).^p.trajDotPower, getColor(iTarget, 4, 0.8), Marker='o');
+    scatter3(ax, x, y, z, DOTFACTOR*(selFrames-selFrames(1)+1).^DOTPOWER, getColor(iTarget, 4, 0.8), Marker='o');
     h(iTarget) = plot(NaN, NaN, LineStyle='-', LineWidth=1.5, Marker='o', Color=getColor(iTarget, 4, 0.8), DisplayName=targetNames(iTarget));    
 end
-hLegend = legend(h, NumColumns=2, Location='southoutside');
+% hLegend = legend(h, NumColumns=2, Location='southoutside');
 ax.ZAxis.Direction = 'reverse';
 ax.YAxis.Direction = 'reverse';
 ax.View = p.view;
@@ -284,15 +291,19 @@ zticklabels(ax, ["up", "down"])
 set(ax, XMinorGrid='on', YMinorGrid='on', ZMinorGrid='on', Box='off')
 
 % 7c. Plot population ETAs, 4 pos side by side
-for iTarget = 1:4
-    ax = nexttile(layout.bottom.tl);
-    if iTarget == 1
-        [~, order] = EphysUnit.plotETA(ax, trajCombined.eta(iTarget), event='reach onset', ...
+N = arrayfun(@(eta) eta.N, trajCombined.eta, 'UniformOutput', false);
+IPAW = [1, 1, 1, 3];
+assert(minNumTrials == 4)
+selUnit = N{1, 1} >= minNumTrials & N{2, 1} >= minNumTrials & N{3, 1} >= minNumTrials & N{4, 3} >= minNumTrials;
+for iTarget = [2 4 1 3]
+    ax = nexttile(tl);
+    if iTarget == 2
+        [~, order] = EphysUnit.plotETA(ax, trajCombined.eta(iTarget, IPAW(iTarget)), selUnit, event='reach onset', ...
             clim=[-1.5, 1.5], xlim=p.etaWindow, sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
-            sortThreshold=0.3, negativeSortThreshold=0.15);
-        yticks(ax, unique([1, 50:50:size(trajCombined.eta(1).X, 1), size(trajCombined.eta(1).X, 1)]))
+            sortThreshold=0.25, negativeSortThreshold=0.25);
+        yticks(ax, unique([1, 50:50:nnz(selUnit), nnz(selUnit)]))
     else
-        EphysUnit.plotETA(ax, trajCombined.eta(iTarget), event='reach onset', order=order, clim=[-1.5, 1.5], xlim=p.etaWindow);
+        EphysUnit.plotETA(ax, trajCombined.eta(iTarget, IPAW(iTarget)), selUnit, event='reach onset', order=order, clim=[-1.5, 1.5], xlim=p.etaWindow);
         yticks(ax, []);
     end
     ylabel(ax, '');
@@ -307,19 +318,69 @@ for iTarget = 1:4
     fontsize(ax, p.fontSize, 'points')
     fontname(ax, 'Arial')
 end
-xlabel(layout.bottom.tl, 'Time from reach onset (s)', FontSize=p.fontSize, FontName='Arial')
-ylabel(layout.bottom.tl, 'Unit', FontSize=p.fontSize, FontName='Arial')
-
-
-% 7c. Histogram of movement latency
-ax = nexttile(layout.top.tl, 1 + layout.top.left.w + layout.top.middle.w, [1, layout.top.right.w]);
-
-hold(ax, 'on')
-histogram(ax, cat(1, trueStartTime2tgts{:}), DisplayName='2tgt', Normalization='probability')
-histogram(ax, cat(1, trueStartTime4tgts{:}), DisplayName='4tgt', Normalization='probability')
-xlabel('Reach onset latency (s)'), ylabel('Probability')
-legend(ax, Location='northwest')
-hold(ax, 'off')
-
+xlabel(tl, 'Time from reach onset (s)', FontSize=p.fontSize, FontName='Arial')
+ylabel(tl, 'Unit', FontSize=p.fontSize, FontName='Arial')
 
 copygraphics(fig, ContentType='vector')
+
+% Scatter
+fig = figure(Units='inches', Position=[1, 1, 6, 1.5]);
+tl = tiledlayout(fig, 1, 4);
+ax = nexttile(tl);
+sel = c.hasPress & c.hasLick;
+scatter(ax, meta.press(sel), meta.lick(sel), 5, 'black'), hold(ax, 'on')
+plot(ax, [0 0], [-2 4], 'k:')
+plot(ax, [-2 4], [0 0], 'k:')
+plot(ax, [-2 4], [-2 4], 'k:')
+axis(ax, 'equal')
+xlim(ax, [-2, 4])
+ylim(ax, [-2, 4])
+xlabel(ax, 'Reach')
+ylabel(ax, 'Lick')
+
+ax = nexttile(tl);
+assert(minNumTrials == 4)
+N = arrayfun(@(eta) eta.N, trajCombined.eta, 'UniformOutput', false);
+selUnit = N{1, 1} >= minNumTrials & N{2, 1} >= minNumTrials & N{3, 1} >= minNumTrials & N{4, 3} >= minNumTrials;
+scatter(ax, trajCombined.meta{2, 1}(selUnit), trajCombined.meta{4, 3}(selUnit), 5, 'black'), hold(ax, 'on')
+plot(ax, [0 0], [-2 4], 'k:')
+plot(ax, [-2 4], [0 0], 'k:')
+plot(ax, [-2 4], [-2 4], 'k:')
+axis(ax, 'equal')
+xlim(ax, [-2, 4])
+ylim(ax, [-2, 4])
+xlabel(ax, 'Contra-front')
+ylabel(ax, 'Ipsi-front')
+
+ax = nexttile(tl);
+assert(minNumTrials == 4)
+N = arrayfun(@(eta) eta.N, trajCombined.eta, 'UniformOutput', false);
+selUnit = N{1, 1} >= minNumTrials & N{2, 1} >= minNumTrials & N{3, 1} >= minNumTrials & N{4, 3} >= minNumTrials;
+scatter(ax, trajCombined.meta{1, 1}(selUnit), trajCombined.meta{3, 1}(selUnit), 5, 'black'), hold(ax, 'on')
+plot(ax, [0 0], [-2 4], 'k:')
+plot(ax, [-2 4], [0 0], 'k:')
+plot(ax, [-2 4], [-2 4], 'k:')
+axis(ax, 'equal')
+xlim(ax, [-2, 4])
+ylim(ax, [-2, 4])
+xlabel(ax, 'Contra-out')
+ylabel(ax, 'Contra-in')
+
+
+ax = nexttile(tl);
+ETA = trajCombined2tgt.eta;
+N = horzcat(ETA.N);
+selUnits = all(N >= p.minNumTrials, 2);
+ex = trajCombined2tgt.eta(1);
+ey = trajCombined2tgt.eta(2);
+metaX = mean(ex.X(selUnits, ex.t > -0.2 & ex.t < 0.2), 2);
+metaY = mean(ey.X(selUnits, ey.t > -0.2 & ey.t < 0.2), 2);
+scatter(ax, metaX, metaY, 5, 'black'), hold(ax, 'on')
+plot(ax, [0 0], [-2 4], 'k:')
+plot(ax, [-2 4], [0 0], 'k:')
+plot(ax, [-2 4], [-2 4], 'k:')
+axis(ax, 'equal')
+xlim(ax, [-2, 4])
+ylim(ax, [-2, 4])
+xlabel(ax, 'Contra-out')
+ylabel(ax, 'Contra-in')

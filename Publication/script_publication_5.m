@@ -3,12 +3,11 @@
 %% Load all units
 load_ephysunits;
 % find_osci_lick_circ;
-% [bootPressVsLick.h, bootPressVsLick.p, bootPressVsLick.ci, bootPressVsLick.obs] = bootstrapPressVsLick(eu(c.hasLick & c.hasPress), ...
-%     pressWindow=p.metaWindowPress, lickWindow=p.metaWindowLick);
+% [boot.pressVsLick.h, boot.pressVsLick.p, boot.pressVsLick.ci, boot.pressVsLick.obs] = bootstrapAmplitude(eu(c.hasLick & c.hasPress), 'press', 'lick', ...
+%     responseWindowA=p.metaWindowPress, responseWindowB=p.metaWindowLick, allowedTrialDuration=[2, Inf], withReplacement=false, alpha=0.01);
 % c.isPressVsLickSelective = false(1, length(eu));
-% c.isPressVsLickSelective(c.hasLick & c.hasPress) = bootPressVsLick.h;
-% save('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift.mat', 'ai', 'boot', 'c', 'eta', 'etaSmooth', 'euPos', 'meta', 'msr', 'onset', 'p', ...
-%     'bootPressVsLick', 'bouts', 'trialsCircLick', 'trialsCircLickBaseline', 'bootCLick', 'lickHist', 'durations')
+% c.isPressVsLickSelective(c.hasLick & c.hasPress) = boot.pressVsLick.h;
+% save('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift.mat', 'ai', 'boot', 'c', 'eta', 'etaSmooth', 'euPos', 'meta', 'msr', 'onset', 'p', 'bouts', 'trialsCircLick', 'trialsCircLickBaseline', 'bootCLick', 'lickHist', 'durations')
 
 %% plot params
 nEgUnits = 3;
