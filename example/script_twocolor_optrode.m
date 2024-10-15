@@ -23,9 +23,9 @@ clear iExp
 %% Load EU
 eu = EphysUnit.load('Y:\Units\TwoColor_Optrode\NonDuplicate_SingleUnit_Good');
 
+%% Make rasters
+rd = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-2, shutterDelay=0.01);
 %% Make rasters and save to disk
-rd = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-2, shutterDelay=0);
-%%
 fig = figure(Units='inches', Position=[0, 0, 6, 8]);
 ax = axes(fig);
 if ~exist('Y:\Figures\TwoColor_Optrode', 'dir')
@@ -70,9 +70,8 @@ for iEu = 1:length(eu)
     print(ax.Parent, sprintf('%s\\%s.png', p.path, eu(iEu).getName), '-dpng')
     close(ax.Parent)
 end
-%% Create plot across units
+%% 'wavelength', 'power', 'location'
 for iEu = 1:length(eu)
-% for iEu = 1:length(eu)
     ax = axes(figure(Units='inches', Position=[0, 0, 6, 8]));
     groups = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'location'});
     isi = NaN(length(groups), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)));
@@ -96,107 +95,174 @@ for iEu = 1:length(eu)
     % close(ax.Parent)
 end
 
-%% Plot 
+
+%% {'wavelength', 'power'} plot for all units merged
+p.isiWindow = [-0.5, 0.5];
+p.isiRes = 1e-3;
+p.xlim = [-0.1, 0.1];
+
+GROUPS = cell(length(eu), 1);
+ISI = cell(length(eu), 1);
+NORMSR = [];
+for iEu = 1:length(eu)
+    groups = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power'}, selectBy=struct(wavelength=[], location=[], duration=[], power=[25, 50, 100]*1e-6));
+    
+    % Make a custom group containing all powers >500uW, group by wavelength
+    % groupsHighPower473 = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power'}, selectBy=struct(wavelength=473, location=[], duration=[], power=[500, 1000, 2000]*1e-6));
+    % groupsHighPower593 = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power'}, selectBy=struct(wavelength=593, location=[], duration=[], power=[500, 1000, 2000]*1e-6));
+    % 
+    % groups(end + 1) = struct( ...
+    %     trials=[groupsHighPower473.trials], ...
+    %     pulseIndices=[groupsHighPower473.pulseIndices], ...
+    %     label=' 473nm 500+uW', ...
+    %     wavelength=473, ...
+    %     power=500e-6);
+    % groups(end + 1) = struct( ...
+    %     trials=[groupsHighPower593.trials], ...
+    %     pulseIndices=[groupsHighPower593.pulseIndices], ...
+    %     label=' 593nm 500+uW', ...
+    %     wavelength=593, ...
+    %     power=500e-6);
+    % [A, I] = sort([groups.wavelength] + [groups.power]);
+    % groups = groups(I);
+
+    isi = NaN(length(groups), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)));
+    normSR = NaN(length(groups), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)));
+    for iGrp = 1:length(groups)
+        [isi(iGrp, :), t] = eu(iEu).getMeanPEISI('stimtwocolor', groups(iGrp).trials, window=p.isiWindow, resolution=p.isiRes, shutterDelay=0.01);
+        normSR(iGrp, :) = 1./isi(iGrp, :) - mean(1./isi(iGrp, t<0&t>-0.1), 'omitnan');
+    end
+    GROUPS{iEu} = groups;
+    ISI{iEu} = isi;
+    if isempty(NORMSR)
+        NORMSR = NaN(length(groups), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)), length(eu));
+    end
+    NORMSR(:, :, iEu) = normSR;
+end
 
 
-%  tr = TetrodeRecording.BatchLoadSimple();
-%  % Try daisy19_20240411, Chn15, Cluster 2
-% %% Load two color experiment and validate stim pulse timing
-% file = dir(sprintf('%s\\..\\%s.mat', tr.Path, tr.GetExpName(includeSuffix=false)));
-% assert(~isempty(file))
-% 
-% tce = load(sprintf('%s\\%s', file.folder, file.name));
-% tce = tce.obj;
-% assert(isa(tce, 'TwoColorExperiment'))
-% clear file
-% 
-% tOn = tr.DigitalEvents.StimOn;
-% tOff = tr.DigitalEvents.StimOff;
-% 
-% nPulsesPerTrain = arrayfun(@(log) log.params.nPulses, tce.Log);
-% pulseWidth = arrayfun(@(log) repmat(log.params.pulseWidth, [1, log.params.nPulses]), tce.Log, UniformOutput=false);
-% % pulseWidth = cat(2, pulseWidth{:});
-% 
-% % Verify congruence between Intan shutter events and TwoColorExperiment.Log
-% assert(sum(nPulsesPerTrain) == nnz(tOn), 'Intan recorded %i shutterOn events while TwoColorExperiment.Log has %i.', nnz(tOn), sum(nPulsesPerTrain));
-% assert(sum(nPulsesPerTrain) == nnz(tOff), 'Intan recorded %i shutterOn events while TwoColorExperiment.Log has %i.', nnz(tOn), sum(nPulsesPerTrain));
-% nPulses = nnz(tOn);
-% fprintf('Intan & TwoColorExperiment.Log both recorded %i shutter pulses.\n', nnz(tOn))
-% 
-% % Pulse durations should match between Intan and TCE as well.
-% pulseWidthErrorMargin = 1e-3;
-% assert(all(abs(tOff - tOn - pulseWidth) < pulseWidthErrorMargin), 'Only %i/%i pulseWidths agree (df<%gs).', nnz(abs(tOff - tOn - pulseWidth) < pulseWidthErrorMargin), nPulses, pulseWidthErrorMargin)
-% fprintf('All %i pulseWidths agree (df<%gs).\n', nPulses, pulseWidthErrorMargin)
-% 
-% % Generate pulse->train map
-% iPulse = 0;
-% pulseToTrain = NaN(1, nPulses);
-% for iTrain = 1:length(tce.Log)
-%     pulseToTrain(iPulse + 1:iPulse + nPulsesPerTrain(iTrain)) = iTrain;
-%     iPulse = iPulse + nPulsesPerTrain(iTrain);
-% end
-% 
-% clear iPulse iTrain pulseWidth
-% 
-% %% Make one raster
-% iChn = 15;
-% iUnit = [3];
-% % Stim condition has
-% % 1000000*wavelength (1, 2) + 100000*location (1, 2, 3, 4) + 1000*duration (1, 2, 4, 6, 10, 20, 40) + 1*nominalpower (1, 2, 4, 20, 80, 320)
-% 
-% trainHash = tce.getStimHash();
-% pulseHash = trainHash(pulseToTrain);
-% 
-% [~, trainOrder] = sort(trainHash, 'ascend');
-% [~, pulseOrder] = sort(pulseHash, 'ascend');
-% 
-% % Get pulse on/pulse off times, sorted by hash
-% % edges = [tOn(pulseOrder); tOff(pulseOrder)];
-% 
-% % assert(sizes(edges, 2) == nPulses)
-% % assert(size(edges, 1) == 2)
-% tOnSorted = tOn(pulseOrder);
-% tOffSorted = tOff(pulseOrder);
-% 
-% st = tr.Spikes(iChn).Timestamps(ismember(tr.Spikes(iChn).Cluster.Classes, iUnit));
-% stAligned = st;
-% I = NaN(size(st));
-% for iPulse = 1:nPulses
-%     sel = st >= tOnSorted(iPulse) - 0.25 & st <= tOnSorted(iPulse) + 0.5;
-%     I(sel) = iPulse;
-%     stAligned(sel) = st(sel) - tOnSorted(iPulse);
-% end
-% 
-% close all
-% fig = figure();
-% ax = axes(fig);
-% hold(ax, 'on')
-% scatter(ax, stAligned, I, 5, 'k', 'filled');
-% ylim(ax, [0, nPulses + 1])
-% ax.YAxis.Direction = 'reverse';
-% 
-% for iTrain = 1:length(tce.Log)
-%     selPulse = pulseToTrain == iTrain;
-%     iPulseStart = strfind(selPulse, [0, 1]) + 1;
-%     iPulseEnd = strfind(selPulse, [1, 0]);
-%     if isempty(iPulseStart)
-%         iPulseStart = 1;
-%     end
-%     if isempty(iPulseEnd)
-%         iPulseEnd = nPulses;
-%     end
-%     iPulseStart = find(pulseOrder == iPulseStart);
-%     iPulseEnd = find(pulseOrder == iPulseEnd);
-%     pulseWidth = tce.Log(iTrain).params.pulseWidth;
-%     switch tce.Log(iTrain).wavelength
-%         case 473
-%             color = [0.2, 0.2, 0.8];
-%         case 593
-%             color = [0.8, 0.2, 0.2];
-%     end
-%     alpha = 0.2 + 0.6*((tce.Log(iTrain).params.iPower - 1)./(length(tce.Params.targetPowers) - 1));
-%     % assert(tce.Log(iTrain).targetPower == 25e-6)
-%     patch(ax, [0, pulseWidth, pulseWidth, 0], [iPulseStart, iPulseStart, iPulseEnd, iPulseEnd], color, ...
-%         FaceAlpha=alpha, EdgeColor='none')
-% end
-% hold(ax, 'off')
+%%
+p.fontSize=9;
+
+animalNames = eu.getAnimalName();
+c.isA2AChrimsonR = ismember(animalNames, {'daisy19', 'daisy20'});
+c.isD1ChR2 = ismember(animalNames, {'desmond36', 'desmond37'});
+minDeltaSR = 5;
+
+egUnitNames = { ...
+    'daisy19_20240411_Channel78_Unit1', ...
+    % 'desmond36_20240419_Channel47_Unit2', ...
+    'desmond37_20240415_Channel119_Unit1', ...
+    };
+
+SEL = {c.isA2AChrimsonR, c.isD1ChR2};
+LABEL = {'A2A-ChrimsonR', 'D1-ChR2'};
+YTINC = [50, 100];
+fig = figure(Units='inches', Position=[0, 0, 6, 3.5]);
+
+layout.top.h = 3;
+layout.bottom.h = 2;
+
+tl = tiledlayout(fig, layout.top.h + layout.bottom.h, 1);
+tlTop = tiledlayout(tl, 1, 2);
+tlTop.Layout.Tile = 1; tlTop.Layout.TileSpan = [layout.top.h, 1];
+
+tlBottom = tiledlayout(tl, 1, 2);
+tlBottom.Layout.Tile = 1 + layout.top.h; tlBottom.Layout.TileSpan = [layout.bottom.h, 1];
+
+for i = 1:2
+    iEu = find(strcmpi(eu.getName(), egUnitNames{i}));
+    assert(~isempty(iEu) && length(iEu) == 1)
+    ax = nexttile(tlTop);
+    rd = eu(iEu).getRasterData('stimtwocolor', window=[-0.5, 0.5], durErr=1e-2, shutterDelay=0.01, sort=false);
+    groups = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, ...
+        selectBy=struct(wavelength=[], location=[], duration=[0.2], power=[25, 50, 100]*1e-6));
+    hold(ax, 'on')
+    everyNth = 1;
+    timescale = 1e3;
+    sz = 2.5;
+    
+    iPulseStart = 1;
+    sortedI = rd.I;
+    hPatch = gobjects(length(groups), 1);
+    for iGrp = 1:length(groups)
+        inGroup = ismember(rd.I, groups(iGrp).pulseIndices);
+        uniqueI = unique(rd.I(inGroup));
+        iPulseEnd = iPulseStart + length(uniqueI) - 1;
+        newI = iPulseStart:iPulseEnd;
+        newI = newI(randperm(length(newI)));
+        sortedI(inGroup) = changem(rd.I(inGroup), newI, uniqueI);
+    
+        switch groups(iGrp).wavelength
+            case 473
+                color = [0.2, 0.2, 0.8];
+            case 593
+                color = [0.8, 0.2, 0.2];
+        end
+        powers = sort(unique([groups.power]), 'ascend');
+        iPower = find(powers == groups(iGrp).power);
+        alpha = 0.1 + 0.5*((iPower - 1)./(length(powers) - 1));
+        partialDesc = sprintf('%inm, %gµW', groups(iGrp).wavelength, groups(iGrp).power*1e6);
+    
+        scatter(ax, rd.t(inGroup) * timescale, sortedI(inGroup), sz, 'k', 'filled', DisplayName='spikes')
+        hPatch(iGrp) = patch(ax, [0, groups(iGrp).duration*1e3, groups(iGrp).duration*1e3, 0], [iPulseStart, iPulseStart, iPulseEnd, iPulseEnd], color, ...
+                                FaceAlpha=alpha, EdgeColor=color, EdgeAlpha=alpha, DisplayName=partialDesc);
+        iPulseStart = iPulseEnd + 1;
+    end
+    if i == 2
+        lgd = legend(ax, hPatch);
+        lgd.Layout.Tile = 'east';
+    end
+    xlim(ax, [-50, 100])
+    ylabel('Trial')
+    ylim(ax, [0, iPulseEnd+1])
+
+    yt = 0:YTINC(i):iPulseEnd;
+    yt(1) = 1;
+    if round(yt(end)./100) == round(iPulseEnd./100)
+        yt(end) = iPulseEnd;
+    else
+        yt(end + 1) = iPulseEnd;
+    end
+    yticks(ax, yt)
+    
+    ax.YAxis.Direction = 'reverse';
+    title(ax, sprintf('%s (example unit)', LABEL{i}), Interpreter="none")
+
+    % imagesc(ax, 1e3*t, [], NORMSR(:, :, iEu))
+    % xlim(ax, [-50, 100])
+    % clim(ax, [0, 50])
+    % ax.YAxisLocation = 'right';
+    % colormap(ax, 'hot')
+    % % h = colorbar(ax, 'westoutside');
+    % % h.Label.String = '\Deltasp/s';
+    % yticks(ax, 1:length(groups));
+    % yticklabels(ax, {groups.label})
+    % % xlabel(ax, 'Time from opto onset (ms)')
+    % title(ax, sprintf('%s (example unit)', LABEL{i}), Interpreter="none")
+    % fontsize(ax, p.fontSize, 'points')
+end
+
+for i = 1:2
+    ax = nexttile(tlBottom);
+    selOpsin = SEL{i}(:);
+    selResponsive = squeeze(any(abs(max(NORMSR(:, t>0.01&t<0.05, :), [], 2)) > minDeltaSR, 1));
+    selResponsive = selResponsive(:);
+    imagesc(ax, 1e3*t, [], mean(NORMSR(:, :, selResponsive & selOpsin), 3, 'omitnan'))
+    xlim(ax, [-50, 100])
+    clim(ax, [0, 50])
+    ax.YAxisLocation = 'right';
+    colormap(ax, 'hot')
+    if i == 2
+        h = colorbar(ax, 'westoutside');
+        h.Label.String = '\Deltasp/s';
+        h.Layout.Tile = 'east';
+    end
+    yticks(ax, 1:length(GROUPS{1}));
+    label = arrayfun(@(grp) sprintf('%inm, %gµW', grp.wavelength, grp.power*1e6), GROUPS{1}, UniformOutput=false);
+    yticklabels(ax, {GROUPS{1}.label})
+    % xlabel(ax, 'Time from opto onset (ms)')
+    title(ax, sprintf('%s (%i/%i responsive)', LABEL{i}, nnz(selResponsive & selOpsin), nnz(selOpsin)), Interpreter="none")
+    fontsize(ax, p.fontSize, 'points')
+end
+xlabel(tlBottom, 'Time from opto onset (ms)', FontSize=p.fontSize)

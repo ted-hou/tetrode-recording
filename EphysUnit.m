@@ -1236,7 +1236,7 @@ classdef EphysUnit < handle
                 end
                 if ~isempty(selectBy.power)
                     assert(ismember('power', groupBy))
-                    groups = groups(ismember([groups.power], selectBy.power));
+                    groups = groups(ismember(round(1e6*[groups.power]), round(1e6*selectBy.power)));
                 end
             end
         end
@@ -1582,6 +1582,7 @@ classdef EphysUnit < handle
             p.addParameter('sz', 2.5, @isnumeric)
             p.addParameter('everyNth', 1, @isnumeric)
             p.addParameter('timingCriterion', NaN, @isnumeric) % 4s for self timed movements, will plot horizontal line dividing trials into correct/incorrect
+            p.addParameter('twoColorGroups', struct([]), @(x) isstruct(x) && all(isfield(x, {'trials', 'pulseIndices', 'label', 'wavelength', 'power'})))
             p.parse(varargin{:})
             rd = p.Results.rd;
             isSimpleStim = ismember(lower(rd.trialType), {'stim', 'stimtrain', 'stimfirstpulse'});
@@ -1590,6 +1591,7 @@ classdef EphysUnit < handle
             maxTrials = p.Results.maxTrials;
             everyNth = p.Results.everyNth;
             timingCriterion = p.Results.timingCriterion;
+            twoColorGroups = p.Results.twoColorGroups;
 
             assert(length(rd) == 1);
 
@@ -1696,30 +1698,36 @@ classdef EphysUnit < handle
                 tceParams = rd.tce.params;
                 % Draw a box to mark the stim window
                 stimBoxDict = dictionary();
-                for iTrain = 1:length(stimLog)
-                    selPulse = trainIndices == iTrain;
-                    iPulseStart = strfind(selPulse, [0, 1]) + 1;
-                    iPulseEnd = strfind(selPulse, [1, 0]);
-                    if isempty(iPulseStart)
-                        iPulseStart = 1;
+                if isempty(twoColorGroups)
+                    for iTrain = 1:length(stimLog)
+                        selPulse = trainIndices == iTrain;
+                        iPulseStart = strfind(selPulse, [0, 1]) + 1;
+                        iPulseEnd = strfind(selPulse, [1, 0]);
+                        if isempty(iPulseStart)
+                            iPulseStart = 1;
+                        end
+                        if isempty(iPulseEnd)
+                            iPulseEnd = nPulses;
+                        end
+                        iPulseStart = find(pulseOrder == iPulseStart);
+                        iPulseEnd = find(pulseOrder == iPulseEnd);
+                        pulseWidth = stimLog(iTrain).params.pulseWidth;
+                        switch stimLog(iTrain).wavelength
+                            case 473
+                                color = [0.2, 0.2, 0.8];
+                            case 593
+                                color = [0.8, 0.2, 0.2];
+                        end
+                        alpha = 0.2 + 0.6*((stimLog(iTrain).params.iPower - 1)./(length(tceParams.targetPowers) - 1));
+                        partialHash = stimLog(iTrain).params.iPower + stimLog(iTrain).wavelength*10;
+                        partialDesc = sprintf('%guW \t%inm', tceParams.targetPowers(stimLog(iTrain).params.iPower)*1e6, stimLog(iTrain).wavelength);
+                        stimBoxDict(partialHash) = patch(ax, [0, pulseWidth, pulseWidth, 0], [iPulseStart, iPulseStart, iPulseEnd, iPulseEnd], color, ...
+                            FaceAlpha=alpha, EdgeColor=color, EdgeAlpha=alpha, DisplayName=partialDesc);
                     end
-                    if isempty(iPulseEnd)
-                        iPulseEnd = nPulses;
+                else
+                    for iGroup = 1:length(twoColorGroups)
+                        
                     end
-                    iPulseStart = find(pulseOrder == iPulseStart);
-                    iPulseEnd = find(pulseOrder == iPulseEnd);
-                    pulseWidth = stimLog(iTrain).params.pulseWidth;
-                    switch stimLog(iTrain).wavelength
-                        case 473
-                            color = [0.2, 0.2, 0.8];
-                        case 593
-                            color = [0.8, 0.2, 0.2];
-                    end
-                    alpha = 0.2 + 0.6*((stimLog(iTrain).params.iPower - 1)./(length(tceParams.targetPowers) - 1));
-                    partialHash = stimLog(iTrain).params.iPower + stimLog(iTrain).wavelength*10;
-                    partialDesc = sprintf('%guW \t%inm', tceParams.targetPowers(stimLog(iTrain).params.iPower)*1e6, stimLog(iTrain).wavelength);
-                    stimBoxDict(partialHash) = patch(ax, [0, pulseWidth, pulseWidth, 0], [iPulseStart, iPulseStart, iPulseEnd, iPulseEnd], color, ...
-                        FaceAlpha=alpha, EdgeColor=color, EdgeAlpha=alpha, DisplayName=partialDesc);
                 end
                 [~, I] = sort(stimBoxDict.keys);
                 handles = stimBoxDict.values;
