@@ -227,7 +227,7 @@ xlim(ax, [0, 1/9*4]); % Assuming 9 Hz, 5 licks (4 cycles)
 xticks(ax, 0:0.2:0.5)
 yticks(ax, [])
 xlabel(ax, 'Time from first lick (s)')
-ylabel(ax, 'p(lick)')
+ylabel(ax, ' lick\newlineprob', HorizontalAlignment='center')
 fontsize(ax, p.fontSize, 'points')
 hold(ax, 'off')
 hLetter = text(ax, 0, 0, 'e', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
@@ -292,15 +292,15 @@ y = meta.press;
 subselResp = sel & c.isLick;
 subselNone = sel & ~c.isLick;
 h = gobjects(2, 1);
-h(1) = scatter(ax, x(subselResp), y(subselResp), sz, [0.8, 0.67, 0], 'filled', Marker='o', MarkerFaceAlpha=0.5, DisplayName=sprintf('lick-entrained (%i)', nnz(subselResp)));
-h(2) = scatter(ax, x(subselNone), y(subselNone), sz, 'black', 'filled', Marker='o', MarkerFaceAlpha=0.5, DisplayName=sprintf('others (%i)', nnz(subselNone)));   
+h(2) = scatter(ax, x(subselNone), y(subselNone), sz, 'black', 'filled', Marker='o', MarkerFaceAlpha=0.5, MarkerEdgeAlpha=0.5, DisplayName=sprintf('others (%i)', nnz(subselNone)));   
+h(1) = scatter(ax, x(subselResp), y(subselResp), sz, [0, 0.5, 0.5], 'filled', Marker='o', MarkerFaceAlpha=0.5, MarkerEdgeAlpha=0.5, DisplayName=sprintf('lick-entrained (%i)', nnz(subselResp)));
 
 plot(ax, [-10, 10], [0, 0], 'k:');
 plot(ax, [0, 0], [-10, 10], 'k:');
 plot(ax, [-10, 10], [-10, 10], 'k:')
 
-xlabel(ax, 'Lick response (a.u.)')
-ylabel(ax, 'Reach response (a.u.)')
+xlabel(ax, 'Peri-lick activity (a.u.)')
+ylabel(ax, 'Peri-reach activity (a.u.)')
 % axis(ax, 'equal')
 xlim(ax, [-2, 5])
 ylim(ax, [-2, 5])
@@ -335,15 +335,16 @@ close all
 p.fontSize = 9;
 clear layout
 layout.w = 6;
-layout.h = 9;
-layout.top.h = 4;
-layout.middle.h = 1;
-layout.bottom.h = 4;
+layout.h = 10;
+layout.top.h = 8;
+layout.middle.h = 2;
+layout.bottom.h = 8;
 layout.left.w = 4;
 layout.right.w = 2;
+layout.psbottom.h = 3;
 
-fig = figure(Units='inches', Position=[1 1 layout.w layout.h]); 
-layout.tl = tiledlayout(fig, layout.top.h + layout.middle.h + layout.bottom.h, 1, TileSpacing='loose', Padding='loose');
+fig = figure(Units='inches', Position=[0.2 0.2 layout.w layout.h]); 
+layout.tl = tiledlayout(fig, layout.top.h + layout.middle.h + layout.bottom.h + layout.psbottom.h, 1, TileSpacing='loose', Padding='loose');
 
 nRows = 6;
 nCols = 6;
@@ -361,6 +362,10 @@ l = layout.bottom.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.lef
 
 layout.bottom.right.tl = tiledlayout(layout.bottom.tl, 4, 1, TileSpacing='compact', Padding='tight');
 l = layout.bottom.right.tl; l.Layout.Tile = 1 + layout.left.w; l.Layout.TileSpan = [1, layout.right.w];
+
+layout.psbottom.tl = tiledlayout(layout.tl, 1, 1, TileSpacing='tight', Padding='tight');
+l = layout.psbottom.tl; l.Layout.Tile = 1 + layout.top.h + layout.middle.h + layout.bottom.h; l.Layout.TileSpan = [layout.psbottom.h, 1];
+
 
 signChangingUnitIndices = [find(c.isPressUp & c.isLickDown), find(c.isPressDown & c.isLickUp)];
 assert(length(signChangingUnitIndices) <= nRows*nCols)
@@ -444,7 +449,7 @@ hold(ax, 'on')
 for iLoc = 1:length(locs)
     plot(ax, locs(iLoc)*[1, 1], ax.YLim, 'k:')
 end
-ylabel(ax, 'p(lick)')
+ylabel(ax, ' lick\newlineprob')
 xlabel(ax, 'Time from first lick (s)')
 xticks(ax, -1:0.5:2)
 xlim(ax, [-0.5, 1/8*nBoutsDisp])
@@ -466,6 +471,7 @@ xlabel('Lick phase')
 ylabel('# units')
 
 ID = {idInPhase; idFirstQuarterPhase; idAntiPhase; idThirdQuarterPhase};
+PHASENAME = ["2\pi", "1/2\pi", "\pi", "3/2\pi"];
 ICOLOR = [1, 2, 4, 3];
 
 for iAx = 1:4
@@ -510,45 +516,73 @@ ylabel(layout.bottom.left.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
 xlabel(layout.bottom.right.tl, 'Lick phase', FontSize=p.fontSize)
 ylabel(layout.bottom.right.tl, 'Normalized spike rate (a.u.)', FontSize=p.fontSize)
 
-copygraphics(fig, ContentType='vector')
-%% Single unit PETHs (pre and post first lick)
-IS = {isInPhase; isFirstQuarterPhase; isAntiPhase; isThirdQuarterPhase};
-ID = {idInPhase; idFirstQuarterPhase; idAntiPhase; idThirdQuarterPhase};
-ICOLOR = [1, 2, 4, 3];
-IEU = cell(1, 4);
-nEg = 15;
+% Additional plot, scatter press vs lick META, color by lick entrainment phase: 
+sz = 3;
+% 1. Reach vs. Lick scatter
+ax = nexttile(layout.psbottom.tl, [1, 1]);
+hold(ax, 'on')
+x = meta.lick;
+y = meta.press;
+sel = c.hasLick & c.hasPress & ~c.isLick;
+h = gobjects(4, 1);
 for i = 1:4
-    isThisPhase = IS{i};
-    [SORTEDAMP{i}, I] = sort(amp(isThisPhase), 'descend');
-    IEU{i} = ID{i}(I);
+    sel = ID{i};
+    h(i) = scatter(ax, x(sel), y(sel), sz, colors(ICOLOR(i), :), 'filled', Marker='o', MarkerFaceAlpha=0.5, MarkerEdgeAlpha=0.75, DisplayName=PHASENAME(i));
 end
 
-fig = figure(Units='inches', Position=[1 1 8 4]);
-tl = tiledlayout(fig, nEg, 2, TileSpacing='tight', Padding='compact');
-for iEg = 1:nEg
-    for i = [1, 3]
-        ax = nexttile(tl);
-        iEu = IEU{i}(iEg);
-        t = eta.correctLickBout.t;
-        t(t>0) = t(t>0) ./ (2*pi) / 8;
-        X = eta.correctLickBout.X(iEu, :);
-        X = smoothdata(X, 2, 'gaussian', 5);
-        plot(ax, t, X, LineWidth=1.5, Color=colors(ICOLOR(i), :))
-        xlim(ax, [-0.5, nBoutsDisp/8])
-%         ylim(ax, [0, 200])
-        text(ax, 0.05, 0.95, eu(iEu).getName(), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize)
-        xticks(ax, [-1:0.5:0, (1:nBoutsDisp)/8])
-        xticklabels(ax, [{'-1', '-0.5', '0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2*(1:nBoutsDisp), UniformOutput=false)]);
-        ax.XGrid = 'on';
-        fontsize(ax, p.fontSize, 'points')
-    end
-end
+plot(ax, [-10, 10], [0, 0], 'k:');
+plot(ax, [0, 0], [-10, 10], 'k:');
+plot(ax, [-10, 10], [-10, 10], 'k:')
+
+xlabel(ax, '    Peri-lick\newlineresponse (a.u.)', HorizontalAlignment='center')
+ylabel(ax, '    Peri-reach\newlineresponse (a.u.)', HorizontalAlignment='center')
+axis(ax, 'equal')
+xlim(ax, [-2, 5])
+ylim(ax, [-2, 5])
+legend(ax, h, Location='eastoutside')
+fontsize(ax, p.fontSize, 'points')
+
+copygraphics(fig, ContentType='vector')
 
 
-%% circlicks, bouts, trials analysis
-nCirclicks = cellfun(@length, trials);
-nBouts = cellfun(@(x) size(x, 1), bouts);
-nCorrectLickTrials = arrayfun(@(eu) nnz(eu.Trials.Lick.duration()>=4), eu(:));
-nCorrectPressTrials = arrayfun(@(eu) nnz(eu.Trials.Press.duration()>=4), eu(:));
-nCorrectTrials = nCorrectLickTrials + nCorrectPressTrials;
-tbl = table(nCirclicks, nBouts, nCorrectTrials, nCorrectLickTrials, nCorrectPressTrials);
+% %% Single unit PETHs (pre and post first lick)
+% IS = {isInPhase; isFirstQuarterPhase; isAntiPhase; isThirdQuarterPhase};
+% ID = {idInPhase; idFirstQuarterPhase; idAntiPhase; idThirdQuarterPhase};
+% ICOLOR = [1, 2, 4, 3];
+% IEU = cell(1, 4);
+% nEg = 15;
+% for i = 1:4
+%     isThisPhase = IS{i};
+%     [SORTEDAMP{i}, I] = sort(amp(isThisPhase), 'descend');
+%     IEU{i} = ID{i}(I);
+% end
+% 
+% fig = figure(Units='inches', Position=[1 1 8 4]);
+% tl = tiledlayout(fig, nEg, 2, TileSpacing='tight', Padding='compact');
+% for iEg = 1:nEg
+%     for i = [1, 3]
+%         ax = nexttile(tl);
+%         iEu = IEU{i}(iEg);
+%         t = eta.correctLickBout.t;
+%         t(t>0) = t(t>0) ./ (2*pi) / 8;
+%         X = eta.correctLickBout.X(iEu, :);
+%         X = smoothdata(X, 2, 'gaussian', 5);
+%         plot(ax, t, X, LineWidth=1.5, Color=colors(ICOLOR(i), :))
+%         xlim(ax, [-0.5, nBoutsDisp/8])
+% %         ylim(ax, [0, 200])
+%         text(ax, 0.05, 0.95, eu(iEu).getName(), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize)
+%         xticks(ax, [-1:0.5:0, (1:nBoutsDisp)/8])
+%         xticklabels(ax, [{'-1', '-0.5', '0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2*(1:nBoutsDisp), UniformOutput=false)]);
+%         ax.XGrid = 'on';
+%         fontsize(ax, p.fontSize, 'points')
+%     end
+% end
+% 
+% 
+% %% circlicks, bouts, trials analysis
+% nCirclicks = cellfun(@length, trials);
+% nBouts = cellfun(@(x) size(x, 1), bouts);
+% nCorrectLickTrials = arrayfun(@(eu) nnz(eu.Trials.Lick.duration()>=4), eu(:));
+% nCorrectPressTrials = arrayfun(@(eu) nnz(eu.Trials.Press.duration()>=4), eu(:));
+% nCorrectTrials = nCorrectLickTrials + nCorrectPressTrials;
+% tbl = table(nCirclicks, nBouts, nCorrectTrials, nCorrectLickTrials, nCorrectPressTrials);

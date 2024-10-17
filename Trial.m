@@ -32,7 +32,11 @@ classdef Trial
                 [~, start, stop] = Trial.findEdges(start, stop, stopMode, exclude);
             else
                 assert(length(start) == length(stop), 'When advancedValidation=false, must supply equal number of start (%i) and stop (%i) events.', length(start), length(stop))
-                assert(all(stop - start >= 0), 'When advancedValidation=false, each start event should preceed its corresponding stop event (%i execeptions detected).', nnz(stop - start < 0))
+                try
+                    assert(all(stop - start >= 0), 'When advancedValidation=false, each start event should preceed its corresponding stop event (%i execeptions detected).', nnz(stop - start < 0))
+                catch
+                    warning('When advancedValidation=false, each start event should preceed its corresponding stop event (%i execeptions detected).', nnz(stop - start < 0))
+                end
             end
             nTrials = length(start);
             

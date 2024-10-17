@@ -164,7 +164,6 @@ for iTrial = 1:nTrials
 end
 onset.both = min(onset.contra, onset.ipsi, 'omitnan');
 
-
 clear t iTrial posContra posIpsi distContra distIpsi distContraNorm distIpsiNorm isAbove iLastAbove iOnset
 
 %% Calculate ETA using movement intiation correction
@@ -172,6 +171,8 @@ minNumTrials = 4;
 targetNames = ["contra-out", "contra-front", "contra-in", "ipsi-front"];
 pawNames = ["contra", "both", "ipsi"];
 sessionEdges = cumsum([0, cellfun(@length, {traj.target})]);
+nExp = paReachDir4Tgt.getLength('exp');
+
 for iExp = 1:nExp
     iTrialsInExp = sessionEdges(iExp)+1:sessionEdges(iExp+1);
     targetExp = trajCombined.target(iTrialsInExp);
@@ -187,15 +188,20 @@ for iExp = 1:nExp
             if nnz(selTrials) >= minNumTrials
                 traj(iExp).eta(iTarget, iPaw) = paReachDir4Tgt.exp(iExp).eu.getETA('count', 'press', window=[-4, 0.5], resolution=0.1, normalize=[-4, -2], alignTo='stop', includeInvalid=true, ...
                     trials=paReachDir4Tgt.exp(iExp).eu(1).Trials.Press(selTrials), correction=onsetExp.(pawNames(iPaw))(selTrials));
+                traj(iExp).trials{iTarget, iPaw} = paReachDir4Tgt.exp(iExp).eu(1).Trials.Press(selTrials);
+                traj(iExp).correction{iTarget, iPaw} = onsetExp.(pawNames(iPaw))(selTrials);
             else
                 t = (-4:0.1:0.4)+0.05;
                 traj(iExp).eta(iTarget, iPaw) = struct(X=NaN(length(paReachDir4Tgt.exp(iExp).eu), length(t)), t=t, N=repmat(nnz(selTrials), [length(paReachDir4Tgt.exp(iExp).eu), 1]), D=[], stats=[]);
+                traj(iExp).trials{iTarget, iPaw} = [];
+                traj(iExp).correction{iTarget, iPaw} = [];                
             end
         end
     end
 end
 
 % Combine ETAs across sessions
+[~, euExpIndices] = ismember({euReachDir4Tgt.ExpName}, {paReachDir4Tgt.exp.name});
 for iTarget = 1:4
     for iPaw = 1:3
         X = arrayfun(@(traj) traj.eta(iTarget, iPaw).X, traj, 'UniformOutput', false);
@@ -207,6 +213,10 @@ for iTarget = 1:4
         trajCombined.eta(iTarget, iPaw).stats = cat(2, stats{:});
         trajCombined.eta(iTarget, iPaw).target = targetNames{iTarget};
         trajCombined.eta(iTarget, iPaw).paw = pawNames{iPaw};
+        trialsByExp = arrayfun(@(traj) traj.trials{iTarget, iPaw}, traj, UniformOutput=false);
+        correctionByExp = arrayfun(@(traj) traj.correction{iTarget, iPaw}, traj, UniformOutput=false);
+        trajCombined.trials{iTarget, iPaw} = trialsByExp(euExpIndices);
+        trajCombined.correction{iTarget, iPaw} = correctionByExp(euExpIndices);
     end
 end
 
@@ -234,7 +244,7 @@ for iTarget = 1:4
         eta = trajCombined.eta(iTarget, iPaw);
         X = eta.X;
         t = eta.t;
-        trajCombined.meta{iTarget, iPaw} = mean(X(:, t>=-0.2 & t<= 0.2), 2, 'omitnan');
+        trajCombined.meta{iTarget, iPaw} = mean(X(:, t>=-0.2 & t<= 0.1), 2, 'omitnan');
     end
 end
 

@@ -91,6 +91,7 @@ clear b ax h
 
 %% Calculate ETA using movement intiation correction
 % Calculate trueStartTime
+nExp = pa2tgt.getLength('exp');
 onsetThreshold = 0.25;
 targetNames = {'contra-out', 'contra-in'};
 trueStartTime2tgts = cell(nExp, 1);
@@ -136,15 +137,21 @@ for iExp = 1:nExp
         selTrials = targetIndex==iTarget & ~usedIpsiPawInSession';
         traj2tgt(iExp).eta(iTarget) = pa2tgt.exp(iExp).eu.getETA('count', 'press_spontaneous', window=[-4, 0.5], resolution=0.1, normalize=[-4, -2], alignTo='stop', includeInvalid=true, ...
             trials=pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials), correction=trueStartTime2tgts{iExp}(selTrials));
+        traj2tgt(iExp).trials{iTarget} = pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials);
+        traj2tgt(iExp).correction{iTarget} = trueStartTime2tgts{iExp}(selTrials);
 
         selTrials = targetIndex==iTarget & usedIpsiPawInSession';
         traj2tgt(iExp).etaIpsiPaw(iTarget) = pa2tgt.exp(iExp).eu.getETA('count', 'press_spontaneous', window=[-4, 0.5], resolution=0.1, normalize=[-4, -2], alignTo='stop', includeInvalid=true, ...
-            trials=pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials), correction=trueStartTime2tgts{iExp}(selTrials));        
+            trials=pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials), correction=trueStartTime2tgts{iExp}(selTrials)); 
+        traj2tgt(iExp).trialsIpsiPaw{iTarget} = pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials);
+        traj2tgt(iExp).correctionIpsiPaw{iTarget} = trueStartTime2tgts{iExp}(selTrials);       
     end
 end
 clear usedIpsiPawInSession targetIndex iTarget selTrials iExp sessionEdges dist distNorm iTrial isAbove iLastAbove iOnset
 
-%% Combine ETAs across sessions
+% Combine ETAs across sessions
+[~, euExpIndices] = ismember({euReachDir2Tgt.ExpName}, {pa2tgt.exp.name});
+
 for iTarget = 1:2
     X = arrayfun(@(traj) traj.eta(iTarget).X, traj2tgt, 'UniformOutput', false);
     N = arrayfun(@(traj) traj.eta(iTarget).N, traj2tgt, 'UniformOutput', false);
@@ -154,6 +161,10 @@ for iTarget = 1:2
     trajCombined2tgt.eta(iTarget).N = cat(1, N{:});
     trajCombined2tgt.eta(iTarget).stats = cat(2, stats{:});
     trajCombined2tgt.eta(iTarget).target = targetNames{iTarget};
+    trialsByExp = arrayfun(@(traj) traj.trials{iTarget}, traj2tgt, UniformOutput=false);
+    correctionByExp = arrayfun(@(traj) traj.correction{iTarget}, traj2tgt, UniformOutput=false);
+    trajCombined2tgt.trials{iTarget} = trialsByExp(euExpIndices);
+    trajCombined2tgt.correction{iTarget} = correctionByExp(euExpIndices);
 end
 
 for iTarget = 1:2

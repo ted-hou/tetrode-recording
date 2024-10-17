@@ -21,7 +21,7 @@ for iExp = 2:length(sessionInfo)
 end
 clear iExp
 %% Load EU
-eu = EphysUnit.load('Y:\Units\TwoColor_Optrode\NonDuplicate_SingleUnit_Good');
+eu = EphysUnit.load('C:\SERVER\Units\TwoColor_Optrode\NonDuplicate_SingleUnit_Good');
 
 %% Make rasters
 rd = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-2, shutterDelay=0.01);

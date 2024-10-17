@@ -2185,6 +2185,7 @@ classdef EphysUnit < handle
             p.addParameter('trialDurationError', 1e-3, @isnumeric) % Used for opto, error allowed when finding identical trial durations.
             p.addParameter('includeInvalid', true, @islogical) % Whether to include unaligned ITI data for averaging. When alignTo='stop', pre-trial-start data is discarded. When alignTo='start', post-trial-end data is discarded. When 'stim', data after next opto-onset is discarded
             p.addParameter('correction', [], @isnumeric)
+            p.addParameter('correctionAdvancedValidation', true, @islogical)
             p.addParameter('trials', [], @(x) isempty(x) || isa(x, 'Trial'))
             p.addParameter('lickArtifactLength', 1, @isnumeric)
             p.addParameter('kernel', struct([]), @isstruct)
@@ -2207,6 +2208,7 @@ classdef EphysUnit < handle
             includeInvalid = p.Results.includeInvalid;
             err = p.Results.trialDurationError;
             correction = p.Results.correction;
+            correctionAdvancedValidation = p.Results.correctionAdvancedValidation;
             lickArtifactLength = p.Results.lickArtifactLength;
             kernel = p.Results.kernel;
             minBoutCycles = p.Results.minBoutCycles;
@@ -2232,7 +2234,7 @@ classdef EphysUnit < handle
                 trials(isBadTrial) = [];
                 correction(isBadTrial) = [];
 %                 fprintf('\n\tRemoved %i bad trials out of %i.\n', nnz(isBadTrial), length(isBadTrial));
-                trials = Trial([trials.Start], [trials.Stop] + correction(:)');
+                trials = Trial([trials.Start], [trials.Stop] + correction(:)', advancedValidation=correctionAdvancedValidation);
             end
             if ~strcmpi(trialType, 'stimfirstpulse')
                 iti = trials.iti();
