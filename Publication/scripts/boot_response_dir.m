@@ -1,10 +1,10 @@
 
 p.bootAlpha = 0.01;
 p.nboot = 100000;
-p.responseWindowPress = p.metaWindowPress;
-p.responseWindowLick = p.metaWindowLick;
-assert(isequal(p.responseWindowPress, [-0.2, 0.1]))
-assert(isequal(p.responseWindowLick, [-0.2, 0.1]))
+p.responseWindowPress = [-0.3, 0];
+p.responseWindowLick = [-0.3, 0];
+assert(isequal(p.responseWindowPress, [-0.3, 0]))
+assert(isequal(p.responseWindowLick, [-0.3, 0]))
 boot.press = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muDiffObs', NaN(length(eu), 1));
 boot.lick = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muDiffObs', NaN(length(eu), 1));
 [boot.press.h(c.hasPress), boot.press.muDiffCI(c.hasPress, :), boot.press.muDiffObs(c.hasPress)] = bootstrapMoveResponse( ...
