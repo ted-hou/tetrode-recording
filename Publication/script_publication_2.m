@@ -7,7 +7,8 @@ close all
 %% Load all units
 load_ephysunits;
 % boot_response_dir;
-load('C:\SERVER\bootMoveResponse_20240830.mat')
+load('C:\SERVER\Units\boot_20241021_perimovement_0.3_0.mat')
+% load('C:\SERVER\bootMoveResponse_20240830.mat')
 %% Load example units
 unitNames = { ... 
     'daisy13_20220106_Electrode39_Unit1'; ... % Down
@@ -96,10 +97,21 @@ delete(legend(ax))
 % fig = figure(Units='inches', Position=[0, 0, 4, 5]);
 ax = nexttile(layout.bottom.tl, [1, layout.bottom.left.w]);
 [~, order, ~, lat] = EphysUnit.plotETA(ax, eta.press, c.hasPress, xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.3, 0], sortThreshold=0.25, negativeSortThreshold=0.25); 
+
+yt = 0:100:nnz(c.hasPress);
+yt(1) = 1;
+if round(yt(end)./100) == round(nnz(c.hasPress)./100)
+    yt(end) = nnz(c.hasPress);
+else
+    yt(end + 1) = nnz(c.hasPress);
+end
+yt = unique(yt);
+yticks(ax, yt)
+
 % hold(ax, 'on')
 % plot(lat(order), 1:nnz(c.hasPress))
 ax.Colorbar.Label.Position = [-0.995833372448878, 0.033151078619351, 0];
-title(ax, 'Pre-reach PETH')
+title(ax, 'Reach PETH')
 xlabel(ax, 'Time to bar-contact (s)')
 fontsize(ax, p.fontSize, 'points');
 fontname(ax, 'Arial')
@@ -137,7 +149,7 @@ hHist2 = histogram(ax, meta.pressRaw(c.hasPress)./0.1 - meta.pressRawBaseline(c.
 histogram(ax, meta.pressRaw(c.isPressUp)./0.1 - meta.pressRawBaseline(c.isPressUp)./0.1, hHist2.BinEdges, FaceColor='red', EdgeColor='none')
 histogram(ax, meta.pressRaw(c.isPressDown)./0.1 - meta.pressRawBaseline(c.isPressDown)./0.1, hHist2.BinEdges, FaceColor='blue', EdgeColor='none')
 hold(ax, 'off')
-xlabel(ax, 'Pre-move response (\Deltasp/s)'), ylabel(ax, 'Count')
+xlabel(ax, 'Peri-reach response (\Deltasp/s)'), ylabel(ax, 'Count')
 fontsize(ax, p.fontSize, 'points');
 fontname(ax, 'Arial')
 h = text(ax, 0, 0, 'd', FontSize=16, FontName='Arial', FontWeight='bold');
@@ -148,11 +160,11 @@ h.Position = [-0.5, ax.Position(4)+0.1, 0];
 
 ax = nexttile(layout.bottom.right.tl);
 hold(ax, 'on')
-hHist3 = histogram(ax, meta.press(c.hasPress), 30, FaceColor='white');
+hHist3 = histogram(ax, meta.press(c.hasPress), 40, FaceColor='white');
 histogram(ax, meta.press(c.isPressUp), hHist3.BinEdges, FaceColor='red', EdgeColor='none')
 histogram(ax, meta.press(c.isPressDown), hHist3.BinEdges, FaceColor='blue', EdgeColor='none')
 hold(ax, 'off')
-xlabel(ax, 'Normalized pre-move response (a.u.)'), ylabel(ax, 'Count')
+xlabel(ax, 'Peri-reach response (a.u.)'), ylabel(ax, 'Count')
 fontsize(ax, p.fontSize, 'points');
 fontname(ax, 'Arial')
 h = text(ax, 0, 0, 'e', FontSize=16, FontName='Arial', FontWeight='bold');
@@ -160,3 +172,5 @@ ax.Units = 'inches'; h.Units = 'inches';
 h.HorizontalAlignment = 'right';
 h.VerticalAlignment = 'top';
 h.Position = [-0.5, ax.Position(4)+0.1, 0];
+
+copygraphics(fig, ContentType='vector')

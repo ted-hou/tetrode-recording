@@ -1,28 +1,34 @@
 % Load acute EU objects (duplicates already removed)
 euAcute = EphysUnit.load('C:\SERVER\Units\acute_2cam'); 
-%%
-clear ISI isi st prcLowISI cat
-% Remove multiunit detected by ISI test.
-p.ISIThreshold = 0.0015;
-for iEu = 1:length(euAcute)
-    st = euAcute(iEu).SpikeTimes;
-    isi = [NaN, diff(st)];
-    st(isi == 0) = [];
-    isi = [NaN, diff(st)];
-    euAcute(iEu).SpikeTimes = st;
-    ISI{iEu} = isi;
-end
 
-for iEu = 1:length(euAcute)
-    prcLowISI(iEu) = nnz(ISI{iEu} < p.ISIThreshold) ./ length(ISI{iEu});
-end
+% This is the list of good single units, without duplicates, no drifting
+assert(length(eu) == 814);
+cat.isGoodUnit = ismember(euAcute.getName(), eu.getName());
+euAcute = euAcute(cat.isGoodUnit);
 
-histogram(prcLowISI, 0:0.01:1)
-cat.isMultiUnit = prcLowISI > 0.05;
-cat.isSingleUnit = prcLowISI <= 0.05;
-euAcute = euAcute(cat.isSingleUnit);
-
-euAcute = euAcute';
+% %%
+% clear ISI isi st prcLowISI cat
+% % Remove multiunit detected by ISI test.
+% p.ISIThreshold = 0.0015;
+% for iEu = 1:length(euAcute)
+%     st = euAcute(iEu).SpikeTimes;
+%     isi = [NaN, diff(st)];
+%     st(isi == 0) = [];
+%     isi = [NaN, diff(st)];
+%     euAcute(iEu).SpikeTimes = st;
+%     ISI{iEu} = isi;
+% end
+% 
+% for iEu = 1:length(euAcute)
+%     prcLowISI(iEu) = nnz(ISI{iEu} < p.ISIThreshold) ./ length(ISI{iEu});
+% end
+% 
+% histogram(prcLowISI, 0:0.01:1)
+% cat.isMultiUnit = prcLowISI > 0.05;
+% cat.isSingleUnit = prcLowISI <= 0.05;
+% euAcute = euAcute(cat.isSingleUnit);
+% 
+% euAcute = euAcute';
 clear cat
 
 %% 1.2. Load Video Tracking Data (vtd) and ArduinoConnection (ac), and group into experiments

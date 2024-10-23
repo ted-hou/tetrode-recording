@@ -119,7 +119,7 @@ end
 
 % 2.3.1  Basic summaries
 % Baseline (median) spike rates
-msr = arrayfun(@(stats) stats.medianITI, [eu.SpikeRateStats]);
+msr = arrayfun(@(stats) stats.median, [eu.SpikeRateStats]);
 
 % Lick/Press responses
 eta.press = eu.getETA('count', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm);
@@ -138,6 +138,18 @@ meta.lickRaw = transpose(mean(eta.lickRaw.X(:, eta.lickRaw.t >= p.metaWindowLick
 meta.pressRawBaseline = transpose(mean(eta.pressRaw.X(:, eta.pressRaw.t >= p.etaNorm(1) & eta.pressRaw.t <= p.etaNorm(2)), 2, 'omitnan'));
 meta.lickRawBaseline = transpose(mean(eta.lickRaw.X(:, eta.lickRaw.t >= p.etaNorm(1) & eta.lickRaw.t <= p.etaNorm(2)), 2, 'omitnan'));
 
+p.metaWindowCue = [-0.7, 0.2];
+meta.pressCue = transpose(mean(eta.pressCue.X(:, eta.pressCue.t >= p.metaWindowCue(1) & eta.pressCue.t <= p.metaWindowCue(2)), 2, 'omitnan'));
+meta.lickCue = transpose(mean(eta.lickCue.X(:, eta.lickCue.t >= p.metaWindowCue(1) & eta.lickCue.t <= p.metaWindowCue(2)), 2, 'omitnan'));
+meta.pressCueRaw = transpose(mean(eta.pressCueRaw.X(:, eta.pressCueRaw.t >= p.metaWindowCue(1) & eta.pressCueRaw.t <= p.metaWindowCue(2)), 2, 'omitnan'));
+meta.lickCueRaw = transpose(mean(eta.lickCueRaw.X(:, eta.lickCueRaw.t >= p.metaWindowCue(1) & eta.lickCueRaw.t <= p.metaWindowCue(2)), 2, 'omitnan'));
+
+% etaSmooth.pressRaw = eu.getETA('rate', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize='none');
+% etaSmooth.lickRaw = eu.getETA('rate', 'lick', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize='none');
+% etaSmooth.pressCueRaw = eu.getETA('rate', 'press', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize='none', includeInvalid=true);
+% etaSmooth.lickCueRaw = eu.getETA('rate', 'lick', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize='none', includeInvalid=true);
+etaSmooth.pressCue = eu.getETA('rate', 'press', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize=etaSmooth.press.stats, includeInvalid=true);
+etaSmooth.lickCue = eu.getETA('rate', 'lick', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize=etaSmooth.lick.stats, includeInvalid=true);
 
 
 % 2.3.2 Basic summaries (fast)

@@ -33,7 +33,7 @@ end
 assert(nnz(muDiffObs==muDiffBoot)==0)
 
 boot.pressBaseline.muDiff.obs = muDiffObs;
-boot.pressBaseline.muDiff.h = muDiffP > alpha;
+boot.pressBaseline.muDiff.h = muDiffP < alpha;
 boot.pressBaseline.muDiff.ci = muDiffCI;
 boot.pressBaseline.muDiff.p = muDiffP;
 boot.pressBaseline.muDiff.alpha = alpha;

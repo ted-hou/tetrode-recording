@@ -179,10 +179,10 @@ pAcute.minTrialDuration = 2;
 pAcute.minNumTrials = 30;
 pAcute.etaNorm = [-4, -2];
 pAcute.etaWindow = [-4, 2];
-pAcute.metaWindowPress = [-0.5, -0.2];
+pAcute.metaWindowPress = [-0.3, 0];
 pAcute.metaWindowLick = [-0.3, 0];
-pAcute.posRespThreshold = 1;
-pAcute.negRespThreshold = -0.5;
+% pAcute.posRespThreshold = 1;
+% pAcute.negRespThreshold = -0.5;
 
 cAcute.hasPress = arrayfun(@(e) nnz(e.getTrials('press').duration() >= pAcute.minTrialDuration) >= pAcute.minNumTrials, euAcute)';
 
@@ -192,7 +192,7 @@ pAcute.bootAlpha = 0.01;
 bootAcute.press = struct('h', NaN(length(euAcute), 1), 'muDiffCI', NaN(length(euAcute), 2), 'muDiffObs', NaN(length(euAcute), 1));
 [bootAcute.press.h(cAcute.hasPress), bootAcute.press.muDiffCI(cAcute.hasPress, :), bootAcute.press.muDiffObs(cAcute.hasPress)] = bootstrapMoveResponse( ...
     euAcute(cAcute.hasPress), 'press', alpha=pAcute.bootAlpha, withReplacement=false, oneSided=false, ...
-    responseWindow=[-0.5, -0.2]);
+    responseWindow=[-0.3, 0]);
 fprintf(1, '\nAll done\n')
 
 % Report bootstraped movement response direction
@@ -279,6 +279,9 @@ msrHatAcute = cat(3, msrHatAcute{:});
 
 clear ax;
 %%
+save('C:\SERVER\acute_glm_20241023.mat', 'R2', 'aiAcute', 'bootAcute', 'cAcute', 'fallCorrect', 'fallIncorrect', ...
+    'mdl', 'modelCriterion', 't', 'msrAcute', 'msrHatAcute', 'msrObs', 'pAcute', 'peakHatAcute', 'srTrialAligned', 'srTrialAlignedHat', 'srt', 'srtHat', 'tOnsetAcute', 'tOnsetHatAcute', 'tPeakAcute', 'tPeakHatAcute');
+
 
 %%
 function [peak, tPeak, tOnset, mu, sd] = getPeakAndOnset(X, t, varargin)

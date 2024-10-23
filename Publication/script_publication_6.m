@@ -27,7 +27,7 @@ SRANGE = { ...
     [0, 5], [0, 5], [0, 5], [0, 2]};
 COLOR = { ...
     [], [0.15, 0.15, 0.15], [], [], ...
-    [0.15, 0.15, 0.15], [0.15, 0.15, 0.15], [0.15, 0.15, 0.15], [0, 0.5, 0.5]; ...
+    [0.15, 0.15, 0.15], [0.15, 0.15, 0.15], [0.15, 0.15, 0.15], [0.15, 0.15, 0.15]; ...
     };
 
 ALPHA = repmat(0.25, 2, 4);
@@ -38,9 +38,9 @@ AX = gobjects(1, 8);
 ax = nexttile(layout.tl); 
 hold(ax, 'on')
 ax.Visible = 'off';
-% hDummy = gobjects(2, 1);
-% hDummy(1) = scatter(ax, 0, 0, 1, [1, 0, 0], 'filled', DisplayName='increase');
-% hDummy(2) = scatter(ax, 0, 0, 1, [0, 0, 1], 'filled', DisplayName='decrease');
+hDummy = gobjects(2, 1);
+hDummy(1) = scatter(ax, 0, 0, 1, [1, 0, 0], 'filled', DisplayName='inc');
+hDummy(2) = scatter(ax, 0, 0, 1, [0, 0, 1], 'filled', DisplayName='dec');
 
 for iAx = 2:8
     ax = nexttile(layout.tl);
@@ -70,10 +70,11 @@ for iAx = 2:8
     fprintf('%i %s modulated units\n', nnz(sel), TITLE{iAx})
 end
 
-% lgd = legend(hDummy, Orientation='horizontal');
-% fontsize(lgd, p.fontSize, 'points');
-% fontname(lgd, 'Arial')
-% lgd.Layout.Tile = 'north';
+lgd = legend(hDummy, Orientation='horizontal');
+fontsize(lgd, p.fontSize, 'points');
+fontname(lgd, 'Arial')
+lgd.Layout.Tile = 'north';
+lgd.Position(1) = lgd.Position(1) + 4;
 
 copygraphics(fig, ContentType='vector')
 

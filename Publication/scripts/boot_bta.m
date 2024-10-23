@@ -7,7 +7,11 @@ p.binnedTrialEdges = 2:2:10;
 [bta.lickUpRaw.X, bta.lickUpRaw.T, bta.lickUpRaw.N, bta.lickUpRaw.S, bta.lickUpRaw.B] = eu(c.isLickUp).getBinnedTrialAverage('count', p.binnedTrialEdges, 'lick', 'window', [-10, 1], 'normalize', false, 'resolution', 0.100);
 [bta.lickDownRaw.X, bta.lickDownRaw.T, bta.lickDownRaw.N, bta.lickDownRaw.S, bta.lickDownRaw.B] = eu(c.isLickDown).getBinnedTrialAverage('count', p.binnedTrialEdges, 'lick', 'window', [-10, 1], 'normalize', false, 'resolution', 0.100);
 
-%
+% Smoothed bta
+[btaSmooth.pressUpRaw.X, btaSmooth.pressUpRaw.T, btaSmooth.pressUpRaw.N, btaSmooth.pressUpRaw.S, btaSmooth.pressUpRaw.B] = eu(c.isPressUp).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'press', 'window', [-4, 0], 'normalize', false);
+[btaSmooth.pressDownRaw.X, btaSmooth.pressDownRaw.T, btaSmooth.pressDownRaw.N, btaSmooth.pressDownRaw.S, btaSmooth.pressDownRaw.B] = eu(c.isPressDown).getBinnedTrialAverage('rate', p.binnedTrialEdges, 'press', 'window', [-4, 0], 'normalize', false);
+
+% Bootstrap
 bootBTA = bootstrapBTA(10000, eu, c.isPressResponsive, alpha=p.bootAlpha, trialType='press', binEdges=p.binnedTrialEdges, distWindow=[-2, 0]);
 c.isPressBTADifferent = reshape(bootBTA.distH == 1, 1, []);
 fprintf(1, '\n\nOf %d press responsive units, %d showed significantly different responses for different length trials (p<0.01).\n', nnz(c.isPressResponsive), nnz(c.isPressBTADifferent))
@@ -20,6 +24,9 @@ btaSig.X = btaSig.X./0.1;
 btaSig.S = btaSig.S./0.1;
 btaNul.X = btaNul.X./0.1;
 btaNul.S = btaNul.S./0.1;
+
+%%
+save('C:\SERVER\boot_bta_20241023.mat', 'p', 'bta', 'bootBTA', 'btaSig', 'btaNul', 'btaSmooth')
 
 %% Functions
 function boot = bootstrapBTA(nboot, eu, varargin)
