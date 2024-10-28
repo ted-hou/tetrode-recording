@@ -15,7 +15,7 @@ boot.lick = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muD
     responseWindow=p.responseWindowLick);
 fprintf(1, '\nAll done\n')
 
-% Report bootstraped movement response direction
+%% Report bootstraped movement response direction
 assert(nnz(isnan(boot.lick.h(c.hasLick))) == 0)
 assert(nnz(isnan(boot.press.h(c.hasPress))) == 0)
 

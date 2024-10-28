@@ -26,7 +26,7 @@ btaNul.X = btaNul.X./0.1;
 btaNul.S = btaNul.S./0.1;
 
 %%
-save('C:\SERVER\boot_bta_20241023.mat', 'p', 'bta', 'bootBTA', 'btaSig', 'btaNul', 'btaSmooth')
+save('C:\SERVER\boot_bta_20241024.mat', 'p', 'bta', 'bootBTA', 'btaSig', 'btaNul', 'btaSmooth')
 
 %% Functions
 function boot = bootstrapBTA(nboot, eu, varargin)

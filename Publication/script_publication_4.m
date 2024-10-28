@@ -248,7 +248,7 @@ layout.bottom.h = 3;
 p.lineWidth = 1.5;
 
 fig = figure(Units='inches', Position=[0, 0, layout.w, layout.h]);
-layout.tl = tiledlayout(fig, layout.top.h + layout.bottom.h, 1, TileSpacing='compact', Padding='compact');
+layout.tl = tiledlayout(fig, layout.top.h + layout.bottom.h, 1, TileSpacing='loose', Padding='compact');
 
 layout.top.tl = tiledlayout(layout.tl, 4, 4, TileSpacing='compact');
 l = layout.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.top.h, 1];
@@ -298,11 +298,7 @@ for ia = find(hasPress(:)' & hasLick(:)')
 %     end
     hold(ax, 'off')
     set(ax, FontSize=p.fontSize, FontName='Arial');
-    if contains(lower(animalNames{ia}), 'daisy')
-        title(ax, sprintf('%d (F)', ia))
-    else
-        title(ax, sprintf('%d (M)', ia))
-    end
+    title(ax, ai(ia).displayName);
     if i == 1
         hLetter = text(ax, 0, 0, 'a', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
         ax.Units = 'inches';
@@ -313,7 +309,7 @@ for ia = find(hasPress(:)' & hasLick(:)')
 
 end
 hLgd = legend(ax, Orientation='horizontal'); hLgd.Layout.Tile = 'north';
-xlabel(layout.top.tl, 'Time to contact (s)', FontSize=p.fontSize);
+xlabel(layout.top.tl, 'Bar/spout-contact time relative to cue (s)', FontSize=p.fontSize);
 ylabel(layout.top.tl, 'Probability', FontSize=p.fontSize);
 
 

@@ -390,7 +390,7 @@ classdef EphysUnit < handle
                     return
                 else
                     name = strsplit(obj.ExpName, '_');
-                    name = name{1};
+                    name = lower(name{1});
                     return
                 end
             else

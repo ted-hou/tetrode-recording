@@ -50,7 +50,7 @@ end
 clear p
 p.minSpikeRate = 15;
 p.minTrialDuration = 2;
-p.minNumTrials = 30;
+p.minNumTrials = 20;
 p.etaNorm = [-4, -2];
 p.etaWindow = [-4, 2];
 p.cueEtaWindow = [-2, 4];
@@ -211,7 +211,9 @@ clear n x I
 
 %% Save metadata and units
 eu.save('C:\SERVER\Units\Lite_NonDuplicate_NonDrift')
-save('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift.mat', 'p', 'c', 'eta', 'etaSmooth', 'euPos', 'meta', 'msr', 'onset')
+
+%%
+save('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift.mat', 'p', 'c', 'eta', 'etaSmooth', 'euPos', 'meta', 'msr', 'onset', 'boot', 'ai')
 
 %%
 function info = getAnimalInfo(eu, ai, field)

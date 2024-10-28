@@ -1,4 +1,4 @@
-
+p.minNumTrials = 20;
 %% 1.1. Load acute EU objects (duplicates already removed)
 euSpontaneous = EphysUnit.load('C:\SERVER\Units\acute_spontaneous_reach');
 % Remove drifting units
@@ -231,12 +231,12 @@ fprintf(1, '\nAll done\n')
 assert(nnz(isnan(bootSpontaneous.press.h(cSpontaneous.hasPress))) == 0)
 
 figure, histogram(bootSpontaneous.press.h)
-cSpontaneous.isPressUp = bootSpontaneous.press.h == 1 & cSpontaneous.hasPress;
-cSpontaneous.isPressDown = bootSpontaneous.press.h == -1 & cSpontaneous.hasPress;
-cSpontaneous.isPressResponsive = cSpontaneous.isPressUp | cSpontaneous.isPressDown;
+cSpontaneous.isPressUp = bootSpontaneous.press.h(:) == 1 & cSpontaneous.hasPress(:);
+cSpontaneous.isPressDown = bootSpontaneous.press.h(:) == -1 & cSpontaneous.hasPress(:);
+cSpontaneous.isPressResponsive = cSpontaneous.isPressUp(:) | cSpontaneous.isPressDown(:);
 
 fprintf(1, ['%g total SNr units:\n' ...
-    '\t%g with 30+ press trials;\n'], ...
+    '\t%g with 20+ press trials;\n'], ...
     length(euSpontaneous), nnz(cSpontaneous.hasPress))
 
 fprintf(1, ['%g units with 30+ press trials (6s or longer):\n' ...

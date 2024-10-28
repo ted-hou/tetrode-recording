@@ -29,12 +29,14 @@ function [h, p, ci, obs] = bootstrapAmplitude(eu, varargin)
         TRIALSA = trialsA;
         useCellTrialsA = true;
     else
+        TRIALSA = trialsA;
         useCellTrialsA = false;
     end
     if iscell(trialsB)
         TRIALSB = trialsB;
         useCellTrialsB = true;
     else
+        TRIALSB = trialsB;
         useCellTrialsB = false;
     end
     if ~isempty(r.correctionA)
@@ -58,9 +60,13 @@ function [h, p, ci, obs] = bootstrapAmplitude(eu, varargin)
 
         if useCellTrialsA
             trialsA = TRIALSA{iEu};
+        else
+            trialsA = TRIALSA;
         end
         if useCellTrialsB
             trialsB = TRIALSB{iEu};
+        else
+            trialsB = TRIALSB;
         end
         if useCellCorrectionA
             correctionA = CORRECTIONA{iEu};

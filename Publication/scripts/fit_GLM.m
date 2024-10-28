@@ -176,7 +176,7 @@ end
 euAcute = vertcat(expAcute.eu);
 pAcute.minSpikeRate = 15;
 pAcute.minTrialDuration = 2;
-pAcute.minNumTrials = 30;
+pAcute.minNumTrials = 20;
 pAcute.etaNorm = [-4, -2];
 pAcute.etaWindow = [-4, 2];
 pAcute.metaWindowPress = [-0.3, 0];
@@ -187,7 +187,7 @@ pAcute.metaWindowLick = [-0.3, 0];
 cAcute.hasPress = arrayfun(@(e) nnz(e.getTrials('press').duration() >= pAcute.minTrialDuration) >= pAcute.minNumTrials, euAcute)';
 
 % to bootstrap significantly movement-modulated units
-
+%%
 pAcute.bootAlpha = 0.01;
 bootAcute.press = struct('h', NaN(length(euAcute), 1), 'muDiffCI', NaN(length(euAcute), 2), 'muDiffObs', NaN(length(euAcute), 1));
 [bootAcute.press.h(cAcute.hasPress), bootAcute.press.muDiffCI(cAcute.hasPress, :), bootAcute.press.muDiffObs(cAcute.hasPress)] = bootstrapMoveResponse( ...
@@ -202,7 +202,7 @@ figure, histogram(bootAcute.press.h)
 cAcute.isPressUp = bootAcute.press.h' == 1 & cAcute.hasPress;
 cAcute.isPressDown = bootAcute.press.h' == -1 & cAcute.hasPress;
 cAcute.isPressResponsive = cAcute.isPressUp | cAcute.isPressDown;
-
+%%
 % ax = axes(figure()); hold on;
 
 assert(length(euAcute) > 1)
@@ -276,11 +276,12 @@ for iEu = 1:length(euAcute)
 end
 msrObs = cat(3, msrAcute{:});
 msrHatAcute = cat(3, msrHatAcute{:});
+tHat = t;
 
 clear ax;
 %%
-save('C:\SERVER\acute_glm_20241023.mat', 'R2', 'aiAcute', 'bootAcute', 'cAcute', 'fallCorrect', 'fallIncorrect', ...
-    'mdl', 'modelCriterion', 't', 'msrAcute', 'msrHatAcute', 'msrObs', 'pAcute', 'peakHatAcute', 'srTrialAligned', 'srTrialAlignedHat', 'srt', 'srtHat', 'tOnsetAcute', 'tOnsetHatAcute', 'tPeakAcute', 'tPeakHatAcute');
+save('C:\SERVER\acute_glm_20241024.mat', 'R2', 'aiAcute', 'bootAcute', 'cAcute', 'fallCorrect', 'fallIncorrect', ...
+    'mdl', 'modelCriterion', 'tHat', 'msrAcute', 'msrHatAcute', 'msrObs', 'pAcute', 'peakHatAcute', 'srTrialAligned', 'srTrialAlignedHat', 'srt', 'srtHat', 'tOnsetAcute', 'tOnsetHatAcute', 'tPeakAcute', 'tPeakHatAcute');
 
 
 %%

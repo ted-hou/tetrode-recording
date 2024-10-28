@@ -2,12 +2,12 @@
 
 %% Load all units
 load_ephysunits;
-% find_osci_lick_circ;
+find_osci_lick_circ;
 % [boot.pressVsLick.h, boot.pressVsLick.p, boot.pressVsLick.ci, boot.pressVsLick.obs] = bootstrapAmplitude(eu(c.hasLick & c.hasPress), 'press', 'lick', ...
 %     responseWindowA=p.metaWindowPress, responseWindowB=p.metaWindowLick, allowedTrialDuration=[2, Inf], withReplacement=false, alpha=0.01);
 % c.isPressVsLickSelective = false(1, length(eu));
 % c.isPressVsLickSelective(c.hasLick & c.hasPress) = boot.pressVsLick.h;
-% save('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift.mat', 'ai', 'boot', 'c', 'eta', 'etaSmooth', 'euPos', 'meta', 'msr', 'onset', 'p', 'bouts', 'trialsCircLick', 'trialsCircLickBaseline', 'bootCLick', 'lickHist', 'durations')
+save('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift.mat', 'ai', 'boot', 'c', 'eta', 'etaSmooth', 'euPos', 'meta', 'msr', 'onset', 'p', 'bouts', 'trialsCircLick', 'trialsCircLickBaseline', 'bootCLick', 'lickHist', 'durations')
 
 %% plot params
 nEgUnits = 3;
@@ -347,7 +347,7 @@ fig = figure(Units='inches', Position=[0.2 0.2 layout.w layout.h]);
 layout.tl = tiledlayout(fig, layout.top.h + layout.middle.h + layout.bottom.h + layout.psbottom.h, 1, TileSpacing='loose', Padding='loose');
 
 nRows = 6;
-nCols = 6;
+nCols = 7;
 layout.top.tl = tiledlayout(layout.tl, nRows, nCols, TileSpacing='tight', Padding='loose');
 l = layout.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.top.h, 1];
 
