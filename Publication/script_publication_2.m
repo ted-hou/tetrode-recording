@@ -7,15 +7,15 @@ close all
 %% Load all units
 load_ephysunits;
 % boot_response_dir;
-load('C:\SERVER\Units\boot_20241024_perimovement_0.3_0.mat')
-% load('C:\SERVER\bootMoveResponse_20240830.mat')
+% load('C:\SERVER\Units\boot_20241024_perimovement_0.3_0.mat')
 %% Load example units
 unitNames = { ... 
     'daisy13_20220106_Electrode39_Unit1'; ... % Down
     'daisy9_20211013_Electrode23_Unit1'; ... % Up
     };
-files = cellfun(@(name) sprintf('C:\\SERVER\\Units\\Lite_NonDuplicate\\%s.mat', name), unitNames, UniformOutput=false);
-euEg = EphysUnit.load(files);
+% files = cellfun(@(name) sprintf('C:\\SERVER\\Units\\Lite_NonDuplicate\\%s.mat', name), unitNames, UniformOutput=false);
+% euEg = EphysUnit.load(files);
+euEg = eu(ismember(eu.getName(), unitNames));
 
 %% 3a,b. Raster/PETH of two example units (turn on vs. turn off)
 clear layout
@@ -96,7 +96,10 @@ delete(legend(ax))
 % 3d. PETH of all units (heatmap)
 % fig = figure(Units='inches', Position=[0, 0, 4, 5]);
 ax = nexttile(layout.bottom.tl, [1, layout.bottom.left.w]);
-[~, order, ~, lat] = EphysUnit.plotETA(ax, eta.press, c.hasPress, xlim=[-4,0], clim=[-2, 2], sortWindow=[-3, 0], signWindow=[-0.3, 0], sortThreshold=0.25, negativeSortThreshold=0.25); 
+EphysUnit.plotETA(ax, etaFine.press, c.hasPress, xlim=[-4,0.5], clim=[-1.5, 1.5], sortWindow=[-3, 0], signWindow=[-0.3, 0], sortThreshold=0.25, negativeSortThreshold=0.25, ...
+    order=onset.pressOrder(c.hasPress)); 
+hold(ax, 'on')
+xline(ax, 0, 'k--')
 
 yt = 0:100:nnz(c.hasPress);
 yt(1) = 1;

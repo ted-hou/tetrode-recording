@@ -5095,8 +5095,10 @@ classdef TetrodeRecording < handle
                 if ~intan
                     thisFile = dir(sprintf('C:\\SERVER\\%s\\SpikeSort\\%s%s*.mat', animalName, prefix, expNameOrFiles));
                 else
-                    sprintf('C:\\SERVER\\%s\\SpikeSort\\%s%s*.mat', animalName, prefix, expNameOrFiles)
                     thisFile = dir(sprintf('C:\\SERVER\\%s\\SpikeSort\\%s%s*.mat', animalName, prefix, expNameOrFiles));
+                    if isempty(thisFile)
+                        thisFile = dir(sprintf('C:\\SERVER\\%s\\%s\\SpikeSort\\%s%s*.mat', animalName, expNameOrFiles, prefix, expNameOrFiles));
+                    end
                 end
                 thisFile = thisFile(~[thisFile.isdir]);
                 if ~isempty(thisFile)

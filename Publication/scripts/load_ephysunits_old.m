@@ -177,6 +177,18 @@ c.isAcute = ismember(eu.getAnimalName, {'daisy14', 'daisy15', 'daisy16', 'desmon
 % Use smooth ETA for better temporal resolution
 etaSmooth.press = eu.getETA('rate', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm);
 etaSmooth.lick = eu.getETA('rate', 'lick', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm);
+%%
+p.kernel = struct(type='gaussian', params= struct(sigma=0.05, window=[-0.05, 0.05], resolution=1e-3, width=0.1));
+etaSmooth.press2 = eu.getETA('rate', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm, kernel=p.kernel);
+etaSmooth.lick2 = eu.getETA('rate', 'lick', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm, kernel=p.kernel);
+etaSmooth.kernel2 = p.kernel;
+
+%%
+etaFine.press = eu.getETA('count', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm, resolution=0.025);
+etaFine.lick = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm, resolution=0.025);
+etaFine.p.minTrialDuration = p.minTrialDuration;
+etaFine.p.norm = p.etaNorm;
+etaFine.p.resolution = 0.025;
 
 %% Calculate onset
 p.etaOnsetThreshold = 0.25;

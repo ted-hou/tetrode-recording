@@ -545,6 +545,46 @@ fontsize(ax, p.fontSize, 'points')
 copygraphics(fig, ContentType='vector')
 
 
+%% END OF LIC  BOUTS
+eta.lickBoutEnd = eu.getETA('count', 'lickboutend', window=[0, 2], resolution=[2*pi/12, 0.01], normalize='none', ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=8);
+eta.lickBoutEndNorm = eu.getETA('count', 'lickboutend', window=[0, 2], resolution=[2*pi/12, 0.01], normalize=[0.5, 1.5], ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=8);
+
+%%
+close all
+
+TITLE = ["Lick Dec", "Lick Inc", "Press Dec", "Press Inc"];
+SEL = {c.isLick & c.hasLick & c.hasPress & c.isLickDown, c.isLick & c.hasLick & c.hasPress & c.isLickUp, c.isLick & c.hasLick & c.hasPress & c.isPressDown, c.isLick & c.hasLick & c.hasPress & c.isPressUp};
+
+
+tl = tiledlayout(figure, 2, 2);
+
+for i = 1:4
+    ax = nexttile(tl);
+    t = eta.lickBoutEnd.t;
+    t(t<0) = t(t<0) ./ (2*pi) / 8;
+    X = eta.lickBoutEnd.X(SEL{i}, :);
+    X = smoothdata(X, 2, 'gaussian', 10);
+    plot(ax, t, mean(X, 1, 'omitnan'), Color='red', LineWidth=1.5)
+    hold(ax, 'on')
+    plot(ax, t, X, Color=[0.15, 0.15, 0.15, 0.1], LineWidth=0.5)
+    yline(ax, 0, 'k')
+    xticks(ax, [(-8:-1)/8, 0:1:2])
+    xticklabels(ax, [arrayfun(@(x) sprintf('%i\\pi', x), 2*(-8:-1), UniformOutput=false), {'0', '1', '2'}]);
+    ax.XGrid = 'on';
+    hold(ax, 'off')
+    ylim(ax, [0, 100]);
+    title(ax, sprintf('%s (%i units)', TITLE(i), nnz(SEL{i})))
+    fontsize(ax, p.fontSize, 'points')
+end
+
+xlabel(tl, 'Time(s)/lick phase from last lick', FontSize=p.fontSize)
+ylabel(tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
+title(tl, 'End of Lick Bout', FontWeight='bold', FontSize=p.fontSize)
+
+
+
 % %% Single unit PETHs (pre and post first lick)
 % IS = {isInPhase; isFirstQuarterPhase; isAntiPhase; isThirdQuarterPhase};
 % ID = {idInPhase; idFirstQuarterPhase; idAntiPhase; idThirdQuarterPhase};
