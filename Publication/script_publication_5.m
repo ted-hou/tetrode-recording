@@ -555,7 +555,7 @@ eta.lickBoutEndNorm = eu.getETA('count', 'lickboutend', window=[0, 2], resolutio
 close all
 
 TITLE = ["Lick Dec", "Lick Inc", "Press Dec", "Press Inc"];
-SEL = {c.isLick & c.hasLick & c.hasPress & c.isLickDown, c.isLick & c.hasLick & c.hasPress & c.isLickUp, c.isLick & c.hasLick & c.hasPress & c.isPressDown, c.isLick & c.hasLick & c.hasPress & c.isPressUp};
+SEL = {c.hasLick & c.hasPress & c.isLickDown, c.hasLick & c.hasPress & c.isLickUp, c.hasLick & c.hasPress & c.isPressDown, c.hasLick & c.hasPress & c.isPressUp};
 
 
 tl = tiledlayout(figure, 2, 2);
@@ -565,7 +565,7 @@ for i = 1:4
     t = eta.lickBoutEnd.t;
     t(t<0) = t(t<0) ./ (2*pi) / 8;
     X = eta.lickBoutEnd.X(SEL{i}, :);
-    X = smoothdata(X, 2, 'gaussian', 10);
+    X = smoothdata(X, 2, 'gaussian', 8);
     plot(ax, t, mean(X, 1, 'omitnan'), Color='red', LineWidth=1.5)
     hold(ax, 'on')
     plot(ax, t, X, Color=[0.15, 0.15, 0.15, 0.1], LineWidth=0.5)

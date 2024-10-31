@@ -173,7 +173,7 @@ for crit = crits
 end
 
 %% Calculate trial-average fitted vs. observed for all units
-euAcute = vertcat(expAcute.eu);
+euAcute = horzcat(expAcute.eu)';
 pAcute.minSpikeRate = 15;
 pAcute.minTrialDuration = 2;
 pAcute.minNumTrials = 20;
@@ -281,7 +281,7 @@ tHat = t;
 clear ax;
 %%
 save('C:\SERVER\acute_glm_20241024.mat', 'R2', 'aiAcute', 'bootAcute', 'cAcute', 'fallCorrect', 'fallIncorrect', ...
-    'mdl', 'modelCriterion', 'tHat', 'msrAcute', 'msrHatAcute', 'msrObs', 'pAcute', 'peakHatAcute', 'srTrialAligned', 'srTrialAlignedHat', 'srt', 'srtHat', 'tOnsetAcute', 'tOnsetHatAcute', 'tPeakAcute', 'tPeakHatAcute');
+    'mdl', 'modelCriterion', 'tHat', 'peakAcute', 'nVariants', 'msrAcute', 'msrHatAcute', 'msrObs', 'pAcute', 'peakHatAcute', 'srTrialAligned', 'srTrialAlignedHat', 'srt', 'srtHat', 'tOnsetAcute', 'tOnsetHatAcute', 'tPeakAcute', 'tPeakHatAcute');
 
 
 %%
