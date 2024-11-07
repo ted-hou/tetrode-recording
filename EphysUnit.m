@@ -629,9 +629,12 @@ classdef EphysUnit < handle
             end
 
             switch lower(event)
-                case {'lick+lickbout', 'press+lickbout'}
+                case 'lick+lickbout'
                     assert(window(2) == 0)
                     edges = [window(1):resolution(1):window(2)-resolution(1), 0:resolution(2):(1+maxBoutCycles)*2*pi];
+                case 'press+lickbout'
+                    assert(window(2) == 0)
+                    edges = [window(1):resolution(1):window(2)-resolution(1), 0:resolution(2):2*pi - resolution(2), 2*pi:resolution(3):(1+maxBoutCycles)*2*pi];                  
                 case 'lickboutend'
                     assert(window(1) == 0)
                     edges = [-(minBoutCycles)*2*pi:resolution(1):0, window(1)+resolution(2):resolution(2):window(2)];
@@ -2027,6 +2030,9 @@ classdef EphysUnit < handle
                             end
                             switch operantTrialType
                                 case 'press'
+                                    if lickTrials(1).Start - trials(iTrial, 1).Stop <= 0.5
+                                        continue
+                                    end
                                     trials(iTrial, 2) = Trial(trials(iTrial, 1).Stop, lickTrials(1).Start, advancedValidation=false);
                                     trials(iTrial, 3:nCycles+2) = lickTrials(1:nCycles);
                                 case 'lick'
@@ -2378,7 +2384,7 @@ classdef EphysUnit < handle
                     nBinsPerCycle = length(0:resolution(1):2*pi) - 1;
                     isLickArtifact = false(size(tAligned));
                     if lickArtifactLength > 0
-                        for iCycle = 1:size(trials, 2)
+                        for iCycle = 1:size(trials, 2) + 1
                             isLickArtifact(nBinsPerCycle*(iCycle-1) + (1:lickArtifactLength)) = true;
                         end
                     end
@@ -2392,7 +2398,7 @@ classdef EphysUnit < handle
                             tAlignedGlobal(iTrial, 1+(iCycle-1)*nBinsPerCycle:1+iCycle*nBinsPerCycle) = linspace(trials(iTrial, iCycle).Start, trials(iTrial, iCycle).Stop, nBinsPerCycle + 1);
                         end
                     end
-                case {'lick+lickbout', 'press+lickbout'}
+                case 'lick+lickbout'
                     assert(length(resolution) == 2, '"resolution" parameter should be two elements [pre-move resolution, circ lick resolution]')
                     % Rows are self-timed trials
                     % For self-timed lick, columns are ([Cue, FirstLick], [FirstLick, SecondLick], [SecondLick, ThirdLick], ...)
@@ -2419,6 +2425,41 @@ classdef EphysUnit < handle
                                 break;
                             end
                             tAlignedGlobal(iTrial, nBinsPreMove+1+(iCycle-1)*nBinsPerCycle : nBinsPreMove+1+iCycle*nBinsPerCycle) = linspace(trials(iTrial, iCycle+1).Start, trials(iTrial, iCycle+1).Stop, nBinsPerCycle + 1);
+                        end
+                    end
+                case 'press+lickbout'
+                    assert(length(resolution) == 3, '"resolution" parameter should be two elements [pre-reach resolution, post-reach-pre-lick resolution, circ lick resolution]')
+                    % Rows are self-timed trials
+                    % For self-timed lick, columns are ([Cue, FirstLick], [FirstLick, SecondLick], [SecondLick, ThirdLick], ...)
+                    % For self-timed press, columns are ([Cue, FirstPress], [FirstPress, FirstLick], [FirstLick, SecondLick], ...)
+                    nTrials = size(trials, 1);
+                    nCycles = size(trials, 2) - 2;
+                    assert(window(2) == 0)
+                    tAlignedPre = window(1) : resolution(1) : window(2)-resolution(1); % Pre press
+                    tAlignedMid = 0 : resolution(2) : 2*pi - resolution(2);
+                    tAlignedPost = 2*pi : resolution(3) : 2*pi*(nCycles+1); % Lick bout
+                    tAligned = horzcat(tAlignedPre, tAlignedMid, tAlignedPost);
+                    nBinsPerCycle = length(0:resolution(3):2*pi) - 1;
+                    nBinsPrePress = length(tAlignedPre);
+                    nBinsPreLick = length(tAlignedMid);
+                    isLickArtifact = false(size(tAligned));
+                    if lickArtifactLength > 0
+                        for iCycle = 1:nCycles
+                            isLickArtifact(nBinsPrePress + nBinsPreLick + nBinsPerCycle*(iCycle-1) + (1:lickArtifactLength)) = true;
+                        end
+                    end
+                    tAlignedGlobal = NaN(nTrials, length(tAligned));
+                    tAlignedGlobal(:, 1:nBinsPrePress) = tAlignedPre + vertcat(trials(:, 1).Stop);
+                    for iTrial = 1:nTrials
+                        for iCycle = 1:nCycles + 1 % Mighty confusing we're being but don't worry 'bout it
+                            if trials(iTrial, iCycle+1).isEmpty
+                                break;
+                            end
+                            if iCycle == 1 % Pre-first lick
+                                tAlignedGlobal(iTrial, nBinsPrePress+1 : nBinsPrePress+1+nBinsPreLick) = linspace(trials(iTrial, iCycle+1).Start, trials(iTrial, iCycle+1).Stop, nBinsPreLick + 1);
+                            else % Cyclical lick
+                                tAlignedGlobal(iTrial, nBinsPrePress+nBinsPreLick+1+(iCycle-2)*nBinsPerCycle : nBinsPrePress+nBinsPreLick+1+(iCycle-1)*nBinsPerCycle) = linspace(trials(iTrial, iCycle+1).Start, trials(iTrial, iCycle+1).Stop, nBinsPerCycle + 1);
+                            end
                         end
                     end
                 otherwise
@@ -2590,7 +2631,11 @@ classdef EphysUnit < handle
                     m = double(stats.mean);
                     s = double(stats.sd);
             end
-            z = (x - m) ./ s;
+            if isempty(m) || isempty(s)
+                z = NaN(size(x));
+            else
+                z = (x - m) ./ s;
+            end
         end
         
         function [mu, ss, k] = combinestats(mu_x, ss_x, m, mu_y, ss_y, n)
