@@ -240,7 +240,7 @@ ETABOUTEND = {eta.lickBoutEndNorm, eta.lickBoutEndNorm};
 CONTACTNAME = ["bar contact", "spout contact"];
 
 fig = figure(Units='inches', Position=[1, 1, 14, 5]);
-sel = c.hasPress(:) & c.hasLick(:);
+sel = c.hasPress(:) & c.hasLick(:) & c.isPressResponsive(:) & c.isLickResponsive(:);
 
 clear layout
 layout.wp = [0, sum([1.8, 2+0.8+6/8, 1+6/8]*100), sum([1.8, 2+6/8, 1+6/8]*100)];
@@ -284,8 +284,14 @@ for iCol = 1:2
     thisETA.N = thisETA.N(sel);
     thisETA.D = thisETA.D(sel);
     thisETA.stats = thisETA.stats(sel);
+    groupVar = NaN(length(sel), 1);
+    groupVar(c.isPressDown & c.isLickDown) = 1;
+    groupVar(c.isPressUp & c.isLickDown) = 0;
+    groupVar(c.isPressDown & c.isLickUp) = 3;
+    groupVar(c.isPressUp & c.isLickUp) = 2;
+    groupVar = groupVar(sel);
     if ~exist('order', 'var')
-        [~, order] = EphysUnit.plotETA(ax, thisETA, clim=CLIM, signWindow=[-0.3, 0], sortWindow=[-3, -0.1], sortThreshold=0.25);
+        [~, order] = EphysUnit.plotETA(ax, thisETA, clim=CLIM, signWindow=[-0.3, 0], sortWindow=[-3, -0.1], sortThreshold=0.25, sortGroup=groupVar);
     else
         EphysUnit.plotETA(ax, thisETA, clim=[-2, 2], order=order);
     end
@@ -383,3 +389,267 @@ end
 title(AX, '')
 title(AX(1, 2), 'Self-timed Reach')
 title(AX(2, 2), 'Self-timed Lick (same order)')
+
+%% Heatmap (w/o time warping/lick bouts)
+close all
+clear order
+
+for iMoveType = 1:3
+    CLIM = [-2, 2];
+    ETACUE = {eta.pressCueNorm, eta.lickCueNorm};
+    XLCUE = {[-0.95, 0.5], [-0.95, 0.5]};
+    XLPERIMOVE = {[-2, 2], [-2, 2]};
+    switch iMoveType
+        case 1
+            ETAPERIMOVE = {etaFine.press, etaFine.lick};
+            TITLE = ["Self-timed reach", "Self-timed lick"];
+        case 2
+            ETAPERIMOVE = {etaFine.correctPress, etaFine.correctLick};
+            TITLE = ["Self-timed reach (rewarded)", "Self-timed lick (rewarded)"];
+        case 3
+            ETAPERIMOVE = {etaFine.incorrectPress, etaFine.incorrectLick};
+            TITLE = ["Self-timed reach (unrewarded)", "Self-timed lick (unrewarded)"];
+    end
+    CONTACTNAME = ["bar contact", "spout contact"];
+    
+    fig = figure(Units='normalized', Position=[0, 0.025 + (iMoveType-1)*0.3, 0.5, 0.3]);
+    sel = c.hasPress(:) & c.hasLick(:);
+    
+    clear layout
+    layout.wp = [0, sum([sum(abs(XLCUE{1})), sum(abs(XLPERIMOVE{1}))]*100), sum([sum(abs(XLCUE{2})), sum(abs(XLPERIMOVE{2}))]*100)];
+    layout.w{1} = [sum(abs(XLCUE{1})), sum(abs(XLPERIMOVE{1}))]*100;
+    layout.w{2} = [sum(abs(XLCUE{2})), sum(abs(XLPERIMOVE{2}))]*100;
+    layout.gap = 2*10;
+    
+    tlp = tiledlayout(fig, 1, sum(layout.wp), TileSpacing='compact', Padding='compact');
+    
+    AX = gobjects(iCol, 2);
+    for iCol = 1:2
+        tl = tiledlayout(tlp, 1, sum(layout.w{iCol}) + sum(layout.gap), TileSpacing='none', Padding='tight');
+        tl.Layout.Tile = 1 + sum(layout.wp(1:iCol));
+        tl.Layout.TileSpan = [1, layout.wp(iCol + 1)];
+        
+        bgAx = axes(tl, XTick=[], YTick=[], Box='off');
+        bgAx.Layout.Tile = 1;
+        bgAx.Layout.TileSpan = [1, sum(layout.w{iCol})];
+        if iRow == 1
+            title(bgAx, TITLE(iCol));
+        end
+        
+        % 2. Peri-move
+        ax = axes(tl); AX(iCol, 2) = ax;
+        ax.Layout.Tile = sum(layout.w{iCol}(1)) + 1 + layout.gap(1);
+        ax.Layout.TileSpan = [1, layout.w{iCol}(2)];
+        hold(ax, 'on')
+    
+        thisETA = ETAPERIMOVE{iCol};
+        t = thisETA.t;
+        thisETA.t = t;
+        thisETA.X = thisETA.X(sel, :);
+        thisETA.N = thisETA.N(sel);
+        thisETA.D = thisETA.D(sel);
+        thisETA.stats = thisETA.stats(sel);
+        groupVar = NaN(length(sel), 1);
+        groupVar(c.isPressUnresponsiveButDown & c.isLickUp) = 0;
+        groupVar(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButUp) = 0;
+        groupVar(c.isPressDown & c.isLickUp) = 0;
+        groupVar(c.isPressDown & c.isLickUnresponsiveButUp) = 0;
+        groupVar(c.isPressUp & c.isLickUnresponsiveButDown) = 1;
+        groupVar(c.isPressUp & c.isLickDown) = 1;
+        groupVar(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButDown) = 1;
+        groupVar(c.isPressUnresponsiveButUp & c.isLickDown) = 1;
+
+        groupVar(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButDown) = 2;
+        groupVar(c.isPressUnresponsiveButDown & c.isLickDown) = 2;
+        groupVar(c.isPressDown & c.isLickUnresponsiveButDown) = 2;
+        groupVar(c.isPressDown & c.isLickDown) = 2;
+        groupVar(c.isPressUp & c.isLickUp) = 3;
+        groupVar(c.isPressUp & c.isLickUnresponsiveButUp) = 3;
+        groupVar(c.isPressUnresponsiveButUp & c.isLickUp) = 3;
+        groupVar(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButUp) = 3;
+        groupVar = groupVar(sel);
+        N = histcounts(groupVar, -0.5:2:3.5);
+        yline(ax, cumsum(N(1:end-1)) + 1, '--');
+        if ~exist('order', 'var')
+            [~, order] = EphysUnit.plotETA(ax, thisETA, clim=CLIM, signWindow=[-0.3, 0], sortWindow=[-3, -0.1], sortThreshold=0.25, sortGroup=groupVar);
+        else
+            EphysUnit.plotETA(ax, thisETA, clim=CLIM, order=order);
+        end
+    
+        ax.Box = 'off';
+        ax.YAxis.Visible = 'off';
+        colorbar(ax, 'off')
+        xlim(ax, XLPERIMOVE{iCol})
+    
+        xlabel(ax, 'Time (s) or lick phase')
+        xline(ax, 0, '-')
+        ax.XAxis.TickLabelRotation = 0;
+        ax.YAxis.Direction = 'reverse';
+        colorbar(ax, 'off')
+    
+        % 1. Peri-cue
+        ax = axes(tl); AX(iCol, 1) = ax;
+        ax.Layout.Tile = 1;
+        ax.Layout.TileSpan = [1, layout.w{iCol}(1)];
+        
+        thisETA = ETACUE{iCol};
+        thisETA.X = thisETA.X(sel, :);
+        thisETA.N = thisETA.N(sel);
+        thisETA.D = thisETA.D(sel);
+        EphysUnit.plotETA(ax, thisETA, clim=CLIM, order=order)
+    
+        ax.Box = 'off';
+        xlim(ax, XLCUE{iCol})
+        xticks(ax, [-0.8, 0, 1])
+        xline(ax, 0, '-')
+        xlabel(ax, 'start cue')
+        ax.XAxis.TickLabelRotation = 0;
+        ax.YAxis.Direction = 'reverse';
+        yticks(ax, [1, 50:50:427, 427])
+    
+    
+        ylim(AX(iCol, :), [1, nnz(sel)+1])
+        linkaxes(AX(iCol, :), 'y')
+        if iCol == 1
+            colorbar(ax, 'off')
+        else
+            ax.Colorbar.Layout.Tile = 'east';
+        end
+    end
+    
+    title(AX, '')
+    title(AX(1, 2), TITLE(1))
+    title(AX(2, 2), TITLE(2))
+end
+
+% Heatmap (w/o time warping/lick bouts)
+% close all
+clear order
+
+for iMoveType = 1:3
+    CLIM = [-2, 2];
+    ETACUE = {eta.pressCueNorm, eta.lickCueNorm};
+    XLCUE = {[-0.95, 0.5], [-0.95, 0.5]};
+    XLPERIMOVE = {[-2, 2], [-2, 2]};
+    switch iMoveType
+        case 1
+            ETAPERIMOVE = {etaFine.press, etaFine.lick};
+            TITLE = ["Self-timed reach", "Self-timed lick"];
+        case 2
+            ETAPERIMOVE = {etaFine.correctPress, etaFine.correctLick};
+            TITLE = ["Self-timed reach (rewarded)", "Self-timed lick (rewarded)"];
+        case 3
+            ETAPERIMOVE = {etaFine.incorrectPress, etaFine.incorrectLick};
+            TITLE = ["Self-timed reach (unrewarded)", "Self-timed lick (unrewarded)"];
+    end
+    CONTACTNAME = ["bar contact", "spout contact"];
+    
+    fig = figure(Units='normalized', Position=[0.5, 0.025 + (iMoveType-1)*0.3, 0.5, 0.3]);
+    sel = c.hasPress(:) & c.hasLick(:);
+    
+    clear layout
+    layout.wp = [0, sum([sum(abs(XLCUE{1})), sum(abs(XLPERIMOVE{1}))]*100), sum([sum(abs(XLCUE{2})), sum(abs(XLPERIMOVE{2}))]*100)];
+    layout.w{1} = [sum(abs(XLCUE{1})), sum(abs(XLPERIMOVE{1}))]*100;
+    layout.w{2} = [sum(abs(XLCUE{2})), sum(abs(XLPERIMOVE{2}))]*100;
+    layout.gap = 2*10;
+    
+    tlp = tiledlayout(fig, 1, sum(layout.wp), TileSpacing='compact', Padding='compact');
+    
+    AX = gobjects(iCol, 2);
+    for iCol = 2:-1:1
+        tl = tiledlayout(tlp, 1, sum(layout.w{iCol}) + sum(layout.gap), TileSpacing='none', Padding='tight');
+        tl.Layout.Tile = 1 + sum(layout.wp(1:iCol));
+        tl.Layout.TileSpan = [1, layout.wp(iCol + 1)];
+        
+        bgAx = axes(tl, XTick=[], YTick=[], Box='off');
+        bgAx.Layout.Tile = 1;
+        bgAx.Layout.TileSpan = [1, sum(layout.w{iCol})];
+        if iRow == 1
+            title(bgAx, TITLE(iCol));
+        end
+        
+        % 2. Peri-move
+        ax = axes(tl); AX(iCol, 2) = ax;
+        ax.Layout.Tile = sum(layout.w{iCol}(1)) + 1 + layout.gap(1);
+        ax.Layout.TileSpan = [1, layout.w{iCol}(2)];
+        hold(ax, 'on')
+    
+        thisETA = ETAPERIMOVE{iCol};
+        t = thisETA.t;
+        thisETA.t = t;
+        thisETA.X = thisETA.X(sel, :);
+        thisETA.N = thisETA.N(sel);
+        thisETA.D = thisETA.D(sel);
+        thisETA.stats = thisETA.stats(sel);
+        groupVar = NaN(length(sel), 1);
+        groupVar(c.isLickUnresponsiveButDown & c.isPressUp) = 0;
+        groupVar(c.isLickUnresponsiveButDown & c.isPressUnresponsiveButUp) = 0;
+        groupVar(c.isLickDown & c.isPressUp) = 0;
+        groupVar(c.isLickDown & c.isPressUnresponsiveButUp) = 0;
+        groupVar(c.isLickUp & c.isPressUnresponsiveButDown) = 1;
+        groupVar(c.isLickUp & c.isPressDown) = 1;
+        groupVar(c.isLickUnresponsiveButUp & c.isPressUnresponsiveButDown) = 1;
+        groupVar(c.isLickUnresponsiveButUp & c.isPressDown) = 1;
+
+        groupVar(c.isLickUnresponsiveButDown & c.isPressUnresponsiveButDown) = 2;
+        groupVar(c.isLickUnresponsiveButDown & c.isPressDown) = 2;
+        groupVar(c.isLickDown & c.isPressUnresponsiveButDown) = 2;
+        groupVar(c.isLickDown & c.isPressDown) = 2;
+        groupVar(c.isLickUp & c.isPressUp) = 3;
+        groupVar(c.isLickUp & c.isPressUnresponsiveButUp) = 3;
+        groupVar(c.isLickUnresponsiveButUp & c.isPressUp) = 3;
+        groupVar(c.isLickUnresponsiveButUp & c.isPressUnresponsiveButUp) = 3;
+        groupVar = groupVar(sel);
+        N = histcounts(groupVar, -0.5:2:3.5);
+        yline(ax, cumsum(N(1:end-1)) + 1, '--');
+        if ~exist('order', 'var')
+            [~, order] = EphysUnit.plotETA(ax, thisETA, clim=CLIM, signWindow=[-0.3, 0], sortWindow=[-3, -0.1], sortThreshold=0.25, sortGroup=groupVar);
+        else
+            EphysUnit.plotETA(ax, thisETA, clim=CLIM, order=order);
+        end
+    
+        ax.Box = 'off';
+        ax.YAxis.Visible = 'off';
+        colorbar(ax, 'off')
+        xlim(ax, XLPERIMOVE{iCol})
+    
+        xlabel(ax, 'Time (s) or lick phase')
+        xline(ax, 0, '-')
+        ax.XAxis.TickLabelRotation = 0;
+        ax.YAxis.Direction = 'reverse';
+        colorbar(ax, 'off')
+    
+        % 1. Peri-cue
+        ax = axes(tl); AX(iCol, 1) = ax;
+        ax.Layout.Tile = 1;
+        ax.Layout.TileSpan = [1, layout.w{iCol}(1)];
+        
+        thisETA = ETACUE{iCol};
+        thisETA.X = thisETA.X(sel, :);
+        thisETA.N = thisETA.N(sel);
+        thisETA.D = thisETA.D(sel);
+        EphysUnit.plotETA(ax, thisETA, clim=CLIM, order=order)
+    
+        ax.Box = 'off';
+        xlim(ax, XLCUE{iCol})
+        xticks(ax, [-0.8, 0, 1])
+        xline(ax, 0, '-')
+        xlabel(ax, 'start cue')
+        ax.XAxis.TickLabelRotation = 0;
+        ax.YAxis.Direction = 'reverse';
+        yticks(ax, [1, 50:50:427, 427])
+    
+    
+        ylim(AX(iCol, :), [1, nnz(sel)+1])
+        linkaxes(AX(iCol, :), 'y')
+        if iCol == 1
+            colorbar(ax, 'off')
+        else
+            ax.Colorbar.Layout.Tile = 'east';
+        end
+    end
+    
+    title(AX, '')
+    title(AX(1, 2), TITLE(1))
+    title(AX(2, 2), TITLE(2))
+end

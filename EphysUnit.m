@@ -1310,6 +1310,7 @@ classdef EphysUnit < handle
             p.addParameter('signWindow', [-.5, 0], @(x) isnumeric(x) && length(x) == 2)
             p.addParameter('sortThreshold', 1, @isnumeric)
             p.addParameter('negativeSortThreshold', [], @isnumeric)
+            p.addParameter('sortGroup', [], @isnumeric)
             p.addParameter('onsetPattern', [0, 1, 1], @isnumeric)
             p.addParameter('onsetDirection', 'reverse', @(x) ismember(x, {'reverse', 'forward'}))
             p.addParameter('hidecolorbar', false, @islogical)
@@ -1322,6 +1323,7 @@ classdef EphysUnit < handle
             if isempty(negativeSortThreshold)
                 negativeSortThreshold = sortThreshold;
             end
+            sortGroup = p.Results.sortGroup;
             if isfield(p.Results, 'ax')
                 ax = p.Results.ax;
             else
@@ -1354,6 +1356,9 @@ classdef EphysUnit < handle
                 nTrials = size(XSort, 1);
                 onset = NaN(nTrials, 1);
                 sortVal = NaN(nTrials, 1);
+                if isempty(sortGroup)
+                    sortGroup = zeros(size(sortVal));
+                end
                 isAbove = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
                 for iTrial = 1:nTrials
                     if any(isnan(XSort(iTrial, :)))
@@ -1382,6 +1387,8 @@ classdef EphysUnit < handle
                 sortVal(nonSig) = max(sortVal, [], 'omitnan') + 1;
                 sortVal = sortVal .* etaSign;
                 sortVal(nonSig) = sortVal(nonSig) + meta(nonSig);
+                base = ceil(range(sortVal))*10; % Def safe
+                sortVal = sortVal + sortGroup*base;
                 
                 %% Old sort
 %                 isAboveThreshold = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
@@ -1433,7 +1440,7 @@ classdef EphysUnit < handle
                 case 'ms'
                     timescale = 1000;
             end
-            imagesc(ax, t.*timescale, 1:length(N), X(order, :))
+            imagesc(ax, t.*timescale, 1:length(N), X(order, :), AlphaData=~isnan(X(order, :)))
             if ~isempty(p.Results.clim)
                 clim(ax, p.Results.clim);
             end

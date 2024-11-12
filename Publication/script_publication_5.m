@@ -42,7 +42,7 @@ l = layout.bottom.tl; l.Layout.Tile = 1 + layout.top.h; l.Layout.TileSpan = [lay
 layout.bottom.left.tl = tiledlayout(layout.bottom.tl, layout.bottom.left.top.h + layout.bottom.left.bottom.h, 1, TileSpacing='compact', Padding='compact');
 l = layout.bottom.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.bottom.left.w];
 
-layout.bottom.left.top.tl = tiledlayout(layout.bottom.left.tl, 1, 2, TileSpacing='compact', Padding='compact');
+layout.bottom.left.top.tl = tiledlayout(layout.bottom.left.tl, 1, 3, TileSpacing='compact', Padding='compact');
 l = layout.bottom.left.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.bottom.left.top.h, 1];
 
 layout.bottom.left.bottom.tl = tiledlayout(layout.bottom.left.tl, 3, 3, TileSpacing='tight', Padding='compact');
@@ -128,26 +128,48 @@ clear thisRD ax iEu AX
 ax = gobjects(1, 3);
 ax(1) = nexttile(layout.bottom.left.top.tl);
 ax(2) = nexttile(layout.bottom.left.top.tl);
-ax(3) = nexttile(layout.bottom.right.tl, [layout.bottom.right.top.h, 1]);
-EphysUnit.plotETA(ax(1), eta.press, c.hasPress & c.hasLick, ...
-    clim=[-2, 2], xlim=[-4, 0.5], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+ax(3) = nexttile(layout.bottom.left.top.tl);
+ax(4) = nexttile(layout.bottom.right.tl, [layout.bottom.right.top.h, 1]);
+
+
+sel = c.hasPress & c.hasLick & c.isPressResponsive & c.isLickResponsive;
+
+c.isLickUnresponsiveButUp = ~c.isLickResponsive & meta.lick > 0;
+c.isLickUnresponsiveButDown = ~c.isLickResponsive & meta.lick < 0;
+c.isPressUnresponsiveButUp = ~c.isPressResponsive & meta.press > 0;
+c.isPressUnresponsiveButDown = ~c.isPressResponsive & meta.press < 0;
+
+groupVar = NaN(length(c.hasLick), 1);
+% groupVar(~c.isPressResponsive | ~c.isLickResponsive) = 4;
+groupVar(c.isPressDown & c.isLickDown) = 0;
+groupVar(c.isPressDown & ~c.isLickResponsive) = 1;
+groupVar(c.isPressDown & c.isLickUp) = 2;
+groupVar(c.isPressUp & c.isLickUp) = 4;
+groupVar(c.isPressUp & ~c.isLickResponsive) = 4;
+groupVar(c.isPressUp & c.isLickDown) = 5;
+groupVar = groupVar(sel);
+
+[~, order] = EphysUnit.plotETA(ax(1), eta.press, sel, ...
+    clim=[-2, 2], xlim=[-2.5, 0.5], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, sortGroup=groupVar, hidecolorbar=true);
+EphysUnit.plotETA(ax(3), eta.lick, sel, ...
+    clim=[-2, 2], xlim=[-2.5, 0.5], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
     sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=true);
-EphysUnit.plotETA(ax(2), eta.lick, c.hasPress & c.hasLick, ...
-    clim=[-2, 2], xlim=[-4, 0.5], sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
-    sortThreshold=p.etaLatencyThresholdPos, negativeSortThreshold=p.etaLatencyThresholdNeg, hidecolorbar=true);
-hold(ax(1:2), 'on')
-plot(ax(1), [0, 0], [0, nnz(c.hasPress & c.hasLick)], 'k--')
-plot(ax(2), [0, 0], [0, nnz(c.hasPress & c.hasLick)], 'k--')
-ylim(ax(1:2), [0, nnz(c.hasPress & c.hasLick)+1])
-yt = 0:100:nnz(c.hasPress & c.hasLick);
+EphysUnit.plotETA(ax(2), eta.lick, sel, ...
+    clim=[-2, 2], xlim=[-2.5, 0.5], order=order, hidecolorbar=true);
+xline(ax(1), 0, 'k--')
+xline(ax(2), 0, 'k--')
+xline(ax(3), 0, 'k--')
+ylim(ax(1:3), [0, nnz(sel)+1])
+yt = 0:100:nnz(sel);
 yt(1) = 1;
-if round(yt(end)./100) == round(nnz(c.hasPress & c.hasLick)./100)
-    yt(end) = nnz(c.hasPress & c.hasLick);
+if round(yt(end)./100) == round(nnz(sel)./100)
+    yt(end) = nnz(sel);
 else
-    yt(end + 1) = nnz(c.hasPress & c.hasLick);
+    yt(end + 1) = nnz(sel);
 end
 yt = unique(yt);
-yticks(ax(1:2), yt)
+yticks(ax(1:3), yt)
 
 % Visualize onset
 % hold(ax(1:2), 'on')
@@ -178,21 +200,22 @@ sel = c.hasPress & c.hasLick & c.isLick;
 phase = angle(meanZ(sel));
 phase(phase < 0) = phase(phase < 0) + 2*pi;
 [sortedPhase, I] = sort(phase);
-[~, ~] = EphysUnit.plotETA(ax(3), eta.lickBoutNorm, sel, order=I, ...
+[~, ~] = EphysUnit.plotETA(ax(4), eta.lickBoutNorm, sel, order=I, ...
     clim=[-2, 2], xlim=[0, 2*pi*maxBoutCycles], hidecolorbar=true);
-xticks (ax(3), (0:2:8).*pi);
-xticklabels(ax(3), [{'0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2:2:8, UniformOutput=false)]);
+xticks (ax(4), (0:2:8).*pi);
+xticklabels(ax(4), [{'0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2:2:8, UniformOutput=false)]);
 title(ax(1), 'Pre-reach')
 title(ax(2), 'Pre-lick')
-title(ax(3), 'Lick-entrained')
+title(ax(3), 'Pre-lick')
+title(ax(4), 'Lick-entrained')
 ylabel(layout.bottom.left.top.tl, 'Unit', FontSize=p.fontSize)
-ylabel(ax(3), 'Unit')
+ylabel(ax(4), 'Unit')
 ylabel(ax(1:2), '')
 xlabel(ax(1), 'Time to bar contact (s)')
 xlabel(ax(2), 'Time to spout contact (s)')
-xlabel(ax(3), 'Lick phase')
-xlim(ax(3), [0, 2*pi*maxBoutCycles])
-ylim(ax(3), [0, nnz(sel)+1])
+xlabel(ax(4), 'Lick phase')
+xlim(ax(4), [0, 2*pi*maxBoutCycles])
+ylim(ax(4), [0, nnz(sel)+1])
 yt = 0:100:nnz(sel);
 yt(1) = 1;
 if round(yt(end)./100) == round(nnz(sel)./100)
@@ -201,10 +224,10 @@ else
     yt(end + 1) = nnz(sel);
 end
 yt = unique(yt);
-yticks(ax(3), yt)
+yticks(ax(4), yt)
 fontsize(ax, p.fontSize, 'points')
 fontname(ax, 'Arial')
-axc = ax(3);
+axc = ax(4);
 
 hLetter = text(ax(1), 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
 ax(1).Units = 'inches';
@@ -212,11 +235,11 @@ hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
 hLetter.Position = [-0.3, ax(1).Position(4) + 0.1, 0];
 
-hLetter = text(ax(3), 0, 0, 'd', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
-ax(3).Units = 'inches';
+hLetter = text(ax(4), 0, 0, 'd', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax(4).Units = 'inches';
 hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
-hLetter.Position = [-0.2, ax(3).Position(4) + 0.2, 0];
+hLetter.Position = [-0.2, ax(4).Position(4) + 0.2, 0];
 
 clear yt
 
@@ -340,6 +363,14 @@ eta.incorrectLickBout = euMixed.getETA('count', 'lick+lickbout', window=[-4, 0],
 eta.pressCueRaw = eu.getETA('count', 'press', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize='none', includeInvalid=true, resolution=0.025);
 eta.lickCueRaw = eu.getETA('count', 'lick', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize='none', includeInvalid=true, resolution=0.025);
 
+
+etaFine.press = eu.getETA('count', 'press', [-4, 2], minTrialDuration=2, normalize=[-4, -2], resolution=0.025);
+etaFine.lick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=2, normalize=[-4, -2], resolution=0.025);
+
+etaFine.correctPress = eu.getETA('count', 'press', [-4, 2], minTrialDuration=4, normalize=[-4, -2], resolution=0.025);
+etaFine.correctLick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=4, normalize=[-4, -2], resolution=0.025);
+etaFine.incorrectPress = eu.getETA('count', 'press', [-4, 2], minTrialDuration=2, maxTrialDuration=4, normalize=[-4, -2], resolution=0.025);
+etaFine.incorrectLick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=2, maxTrialDuration=4, normalize=[-4, -2], resolution=0.025);
 
 etaFine.lickCorrectRaw = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=4, normalize='none', resolution=0.025);
 etaFine.lickIncorrectRaw = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=2, maxTrialDuration=4, normalize='none', resolution=0.025);
