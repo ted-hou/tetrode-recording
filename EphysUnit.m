@@ -418,12 +418,13 @@ classdef EphysUnit < handle
         
         function trials = getTrials(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'lick+lickbout', 'press+lickbout', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous2', 'press_spontaneous_medial', 'press_spontaneous_lateral'})));
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'lick+lickbout', 'press+lickbout', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_medial', 'press_spontaneous_lateral'})));
             p.addOptional('sorted', true, @islogical);
             p.addParameter('minBoutCycles', 2)
             p.addParameter('maxBoutCycles', 4)
             p.addParameter('minInterval', 0.05);
             p.addParameter('maxInterval', 0.25);
+            p.addParameter('minSpontaneousTrialDuration', 0);
             p.parse(trialType, varargin{:});
             trialType = p.Results.trialType;
             sorted = p.Results.sorted;
@@ -438,13 +439,13 @@ classdef EphysUnit < handle
                         case 'press'
                             trials{itt} = obj.Trials.Press(:);
                         case 'press_spontaneous'
-                            trials{itt} = obj.Trials.PressSpontaneous(:);
+                            trials{itt} = obj.makeTrials('press_spontaneous', minSpontaneousTrialDuration=p.Results.minSpontaneousTrialDuration);
+                        case 'press_spontaneous_correct'
+                        case 'press_spontaneous_incorrect'
                         case 'press_spontaneous_medial'
                             trials{itt} = obj.Trials.PressSpontaneousMedial(:);
                         case 'press_spontaneous_lateral'
                             trials{itt} = obj.Trials.PressSpontaneousLateral(:);
-                        case 'press_spontaneous2'
-                            trials{itt} = obj.makeTrials('press_spontaneous2');
                         case 'lick'
                             trials{itt} = obj.Trials.Lick(:);
                         case 'stim'
@@ -582,7 +583,7 @@ classdef EphysUnit < handle
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
             p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', ...
-                'firstlick', 'circlick', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press_spontaneous', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
+                'firstlick', 'circlick', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -741,7 +742,7 @@ classdef EphysUnit < handle
 
         function rd = getRasterData(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous2'})))
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'press_spontaneous'})))
             p.addOptional('window', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -1857,11 +1858,42 @@ classdef EphysUnit < handle
                     case 'press'
                         trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Press, 'first', obj.EventTimes.Lick);
                     case 'press_spontaneous'
-                        trials = Trial(obj.EventTimes.PressOff, obj.EventTimes.Press, 'first');
-                    case 'press_spontaneous2'
+                        p = inputParser();
+                        p.addParameter('minSpontaneousTrialDuration', 0)
+                        p.parse(varargin{:})
+                        minSpontaneousTrialDuration = p.Results.minSpontaneousTrialDuration;
+
+                        % trials = Trial(obj.EventTimes.PressOff, obj.EventTimes.Press, 'first');
                         trials = Trial(obj.EventTimes.Press(1:end-1), obj.EventTimes.Press(2:end), advancedValidation=false);
+                        trials = trials(trials.duration >= minSpontaneousTrialDuration);
                     case 'press_spontaneous_correct'
-                        trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Press, 'first');                        
+                        p = inputParser();
+                        p.addParameter('minSpontaneousTrialDuration', 0)
+                        p.parse(varargin{:})
+                        minSpontaneousTrialDuration = p.Results.minSpontaneousTrialDuration;
+
+                        % trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Press, 'first');
+                        rewardTrials = Trial([obj.EventTimes.Press, Inf], obj.EventTimes.RewardTimes(1:end), 'first');
+                        rewardedPressTimes = [rewardTrials.Start];
+
+                        [~, rewardedPressIndices] = find(rewardedPressTimes, obj.EventTimes.Press);
+                        if rewardedPressIndices(1) == 1
+                            rewardedPressIndices = rewardedPressIndices(2:end);
+                            warning('had to remove first rewarded trial');
+                        end
+                        assert(rewardedPressIndices(1) > 1)
+                        trials = Trial(obj.EventTimes.Press(rewardedPressIndices - 1), obj.EventTimes.Press(rewardedPressIndices), advancedValidation=false);
+                        trials = trials(trials.duration >= minSpontaneousTrialDuration);
+                    case 'press_spontaneous_incorrect'
+                        p = inputParser();
+                        p.addParameter('minSpontaneousTrialDuration', 0)
+                        p.parse(varargin{:})
+                        minSpontaneousTrialDuration = p.Results.minSpontaneousTrialDuration;
+
+                        allTrials = obj.makeTrials('press_spontaneous', minSpontaneousTrialDuration=minSpontaneousTrialDuration);
+                        correctTrials = obj.makeTrials('press_spontaneous_correct', minSpontaneousTrialDuration=minSpontaneousTrialDuration);
+                        isCorrect = ismember([allTrials.Stop], [correctTrials.Stop]);
+                        trials = allTrials(~isCorrect);
                     case 'lick'
                         trials = Trial(obj.EventTimes.Cue, obj.EventTimes.Lick, 'first', obj.EventTimes.Press);
                     case 'stim'
@@ -2224,7 +2256,7 @@ classdef EphysUnit < handle
                 useResampleMethod = false;
             end
             p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
-            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press_spontaneous', 'press_spontaneous2', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
+            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
             p.addParameter('resolution', 0.001, @isnumeric)
             p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) >= x(1))
