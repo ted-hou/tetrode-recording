@@ -418,7 +418,7 @@ classdef EphysUnit < handle
         
         function trials = getTrials(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'lick+lickbout', 'press+lickbout', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_medial', 'press_spontaneous_lateral'})));
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'lick+lickbout', 'press+lickbout', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral'})));
             p.addOptional('sorted', true, @islogical);
             p.addParameter('minBoutCycles', 2)
             p.addParameter('maxBoutCycles', 4)
@@ -438,10 +438,8 @@ classdef EphysUnit < handle
                     switch lower(trialType{itt})
                         case 'press'
                             trials{itt} = obj.Trials.Press(:);
-                        case 'press_spontaneous'
-                            trials{itt} = obj.makeTrials('press_spontaneous', minSpontaneousTrialDuration=p.Results.minSpontaneousTrialDuration);
-                        case 'press_spontaneous_correct'
-                        case 'press_spontaneous_incorrect'
+                        case {'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect'}
+                            trials{itt} = obj.makeTrials(lower(trialType{itt}), minSpontaneousTrialDuration=p.Results.minSpontaneousTrialDuration);
                         case 'press_spontaneous_medial'
                             trials{itt} = obj.Trials.PressSpontaneousMedial(:);
                         case 'press_spontaneous_lateral'
@@ -1876,10 +1874,10 @@ classdef EphysUnit < handle
                         rewardTrials = Trial([obj.EventTimes.Press, Inf], obj.EventTimes.RewardTimes(1:end), 'first');
                         rewardedPressTimes = [rewardTrials.Start];
 
-                        [~, rewardedPressIndices] = find(rewardedPressTimes, obj.EventTimes.Press);
+                        [~, rewardedPressIndices] = ismember(rewardedPressTimes, obj.EventTimes.Press);
                         if rewardedPressIndices(1) == 1
                             rewardedPressIndices = rewardedPressIndices(2:end);
-                            warning('had to remove first rewarded trial');
+%                             warning('had to remove first rewarded trial');
                         end
                         assert(rewardedPressIndices(1) > 1)
                         trials = Trial(obj.EventTimes.Press(rewardedPressIndices - 1), obj.EventTimes.Press(rewardedPressIndices), advancedValidation=false);
@@ -2297,7 +2295,14 @@ classdef EphysUnit < handle
 
             % Filter out trials with incorrect lengths
             if isempty(p.Results.trials)
-                trials = obj.getTrials(trialType, minBoutCycles=minBoutCycles, maxBoutCycles=maxBoutCycles, minInterval=minInterval, maxInterval=maxInterval);
+                switch trialType
+                    case {'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect'}
+                        trials = obj.getTrials(trialType, minSpontaneousTrialDuration=allowedTrialDuration(1));
+                    case {'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout'}
+                        trials = obj.getTrials(trialType, minBoutCycles=minBoutCycles, maxBoutCycles=maxBoutCycles, minInterval=minInterval, maxInterval=maxInterval);
+                    otherwise
+                        trials = obj.getTrials(trialType);
+                end
             else
                 trials = p.Results.trials;
             end

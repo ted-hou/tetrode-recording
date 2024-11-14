@@ -1,8 +1,43 @@
-%%% Figure 6. Lick vs. Reach ephys + Osci lick and somatotopy
+%%% Figure 5. Lick vs. Reach ephys
 
 %% Load all units
 load_ephysunits;
 find_osci_lick_circ;
+
+% Plot ETA from peri-move to cyclick
+eta.lickBoutEnd = eu.getETA('count', 'lickboutend', window=[0, 2], resolution=[2*pi/5, 0.025], normalize='none', ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=6);
+
+eta.correctLickBout = eu.getETA('count', 'lick+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/5], normalize='none', minTrialDuration=4, ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
+
+
+eta.correctPressBout = eu.getETA('count', 'press+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/32, 2*pi/5], normalize='none', minTrialDuration=4, ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
+
+
+eta.incorrectLickBout = eu.getETA('count', 'lick+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/5], normalize='none', minTrialDuration=2, maxTrialDuration=4, ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
+
+eta.pressCueRaw = eu.getETA('count', 'press', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize='none', includeInvalid=true, resolution=0.025);
+eta.lickCueRaw = eu.getETA('count', 'lick', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize='none', includeInvalid=true, resolution=0.025);
+
+
+etaFine.press = eu.getETA('count', 'press', [-4, 2], minTrialDuration=2, normalize=[-4, -2], resolution=0.025);
+etaFine.lick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=2, normalize=[-4, -2], resolution=0.025);
+
+etaFine.correctPress = eu.getETA('count', 'press', [-4, 2], minTrialDuration=4, normalize=[-4, -2], resolution=0.025);
+etaFine.correctLick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=4, normalize=[-4, -2], resolution=0.025);
+etaFine.incorrectPress = eu.getETA('count', 'press', [-4, 2], minTrialDuration=2, maxTrialDuration=4, normalize=[-4, -2], resolution=0.025);
+etaFine.incorrectLick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=2, maxTrialDuration=4, normalize=[-4, -2], resolution=0.025);
+
+etaFine.lickCorrectRaw = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=4, normalize='none', resolution=0.025);
+etaFine.lickIncorrectRaw = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=2, maxTrialDuration=4, normalize='none', resolution=0.025);
+etaFine.p.minTrialDuration = p.minTrialDuration;
+etaFine.p.norm = p.etaNorm;
+etaFine.p.resolution = 0.025;
+
+%%
 % [boot.pressVsLick.h, boot.pressVsLick.p, boot.pressVsLick.ci, boot.pressVsLick.obs] = bootstrapAmplitude(eu(c.hasLick & c.hasPress), 'press', 'lick', ...
 %     responseWindowA=p.metaWindowPress, responseWindowB=p.metaWindowLick, allowedTrialDuration=[2, Inf], withReplacement=false, alpha=0.01);
 % c.isPressVsLickSelective = false(1, length(eu));
@@ -354,38 +389,6 @@ copygraphics(fig, ContentType='vector')
 
 
 %% Supplement S5
-%% Plot ETA from peri-move to cyclick
-eta.lickBoutEnd = eu.getETA('count', 'lickboutend', window=[0, 2], resolution=[2*pi/5, 0.025], normalize='none', ...
-    maxInterval=0.2, minInterval=0.05, minBoutCycles=6);
-
-eta.correctLickBout = eu.getETA('count', 'lick+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/5], normalize='none', minTrialDuration=4, ...
-    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
-
-
-eta.correctPressBout = eu.getETA('count', 'press+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/32, 2*pi/5], normalize='none', minTrialDuration=4, ...
-    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
-
-
-eta.incorrectLickBout = eu.getETA('count', 'lick+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/5], normalize='none', minTrialDuration=2, maxTrialDuration=4, ...
-    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
-
-eta.pressCueRaw = eu.getETA('count', 'press', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize='none', includeInvalid=true, resolution=0.025);
-eta.lickCueRaw = eu.getETA('count', 'lick', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize='none', includeInvalid=true, resolution=0.025);
-
-
-etaFine.press = eu.getETA('count', 'press', [-4, 2], minTrialDuration=2, normalize=[-4, -2], resolution=0.025);
-etaFine.lick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=2, normalize=[-4, -2], resolution=0.025);
-
-etaFine.correctPress = eu.getETA('count', 'press', [-4, 2], minTrialDuration=4, normalize=[-4, -2], resolution=0.025);
-etaFine.correctLick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=4, normalize=[-4, -2], resolution=0.025);
-etaFine.incorrectPress = eu.getETA('count', 'press', [-4, 2], minTrialDuration=2, maxTrialDuration=4, normalize=[-4, -2], resolution=0.025);
-etaFine.incorrectLick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=2, maxTrialDuration=4, normalize=[-4, -2], resolution=0.025);
-
-etaFine.lickCorrectRaw = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=4, normalize='none', resolution=0.025);
-etaFine.lickIncorrectRaw = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=2, maxTrialDuration=4, normalize='none', resolution=0.025);
-etaFine.p.minTrialDuration = p.minTrialDuration;
-etaFine.p.norm = p.etaNorm;
-etaFine.p.resolution = 0.025;
 
 %% Supplement S5
 minBoutCycles = 4;
@@ -394,16 +397,11 @@ close all
 p.fontSize = 9;
 clear layout
 layout.w = 7.5;
-layout.h = 10;
+layout.h = 4;
 layout.top.h = 12;
-layout.middle.h = 4;
-layout.bottom.h = 12;
-layout.left.w = 4;
-layout.right.w = 2;
-layout.psbottom.h = 10;
 
 fig = figure(Units='inches', Position=[0.2 0.2 layout.w layout.h]); 
-layout.tl = tiledlayout(fig, layout.top.h + layout.middle.h + layout.bottom.h + layout.psbottom.h, 1, TileSpacing='compact', Padding='compact');
+layout.tl = tiledlayout(fig, layout.top.h, 1, TileSpacing='compact', Padding='compact');
 
 yl = [0, 120];
 selCommon = c.hasPress & c.hasLick;
@@ -425,46 +423,6 @@ layout.wp = [0, sum([1.8, 2+0.8+6/8, 1+6/8]*100), sum([1.8, 2+6/8, 1+6/8]*100)];
 
 layout.top.tl = tiledlayout(layout.tl, nRows, sum(layout.wp), TileSpacing='compact', Padding='none');
 l = layout.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.top.h, 1];
-
-layout.middle.tl = tiledlayout(layout.tl, 1, layout.left.w + layout.right.w, TileSpacing='compact', Padding='compact');
-l = layout.middle.tl; l.Layout.Tile = 1 + layout.top.h; l.Layout.TileSpan = [layout.middle.h, 1];
-
-layout.bottom.tl = tiledlayout(layout.tl, 1, layout.left.w + layout.right.w, TileSpacing='tight', Padding='tight');
-l = layout.bottom.tl; l.Layout.Tile = 1 + layout.top.h + layout.middle.h; l.Layout.TileSpan = [layout.bottom.h, 1];
-
-layout.bottom.left.tl = tiledlayout(layout.bottom.tl, 4, 1, TileSpacing='compact', Padding='tight');
-l = layout.bottom.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.left.w];
-
-layout.bottom.right.tl = tiledlayout(layout.bottom.tl, 4, 1, TileSpacing='compact', Padding='tight');
-l = layout.bottom.right.tl; l.Layout.Tile = 1 + layout.left.w; l.Layout.TileSpan = [1, layout.right.w];
-
-layout.psbottom.tl = tiledlayout(layout.tl, 1, layout.left.w + layout.right.w, TileSpacing='tight', Padding='tight');
-l = layout.psbottom.tl; l.Layout.Tile = 1 + layout.top.h + layout.middle.h + layout.bottom.h; l.Layout.TileSpan = [layout.psbottom.h, 1];
-
-% 
-% signChangingUnitIndices = [find(c.isPressUp & c.isLickDown), find(c.isPressDown & c.isLickUp)];
-% assert(length(signChangingUnitIndices) <= nRows*nCols)
-% iAx = 0;
-% for i = signChangingUnitIndices
-%     ax = nexttile(layout.top.tl);
-%     iAx = iAx + 1;
-%     hold(ax, 'on')
-%     plot(ax, eta.pressRaw.t, eta.pressRaw.X(i, :)./0.1, 'r', LineWidth=1.5, DisplayName='reach')
-%     plot(ax, eta.lickRaw.t, eta.lickRaw.X(i, :)./0.1, 'b', LineWidth=1.5, DisplayName='lick')
-% %     plot(ax, [0, 0], [0, 100], 'k:')
-%     hold(ax, 'off')
-%     xlim(ax, [-4, 0.5])
-%     ymedian = median([mean(eta.pressRaw.X(i, :), 1, 'omitnan')./0.1, mean(eta.lickRaw.X(i, :), 1, 'omitnan')./0.1]);
-%     ylim(ax, ymedian + [-40, 40])
-%     yticks(ax, round(ymedian/10)*10 + [-30, 0, 30])
-%     ax.YGrid = 'on';
-%     ax.XGrid = 'on';
-%     fontsize(ax, p.fontSize, 'points')
-% end
-% xlabel(layout.top.tl, 'Time to bar/spout contact (s)', FontSize=p.fontSize)
-% ylabel(layout.top.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
-% lgd = legend(ax, Orientation='horizontal');
-% lgd.Layout.Tile = 'north';
 
 % Plot ETA aligned to cue (i.e. flinchiness) vs. aligned to lever touch
 % close all
@@ -629,165 +587,6 @@ ylabel(layout.top.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
 fontsize(AX(:), p.fontSize, 'points')
 
 
-
-
-nBoutsDisp = 6;
-sel = find(c.isLick & c.hasPress & c.hasLick);
-amp = abs(meanZ(sel));
-phase = angle(meanZ(sel));
-rectifiedPhase = phase;
-rectifiedPhase(phase < 0) = rectifiedPhase(phase < 0) + 2*pi;
-ampThreshold = 0;
-isInPhase = abs(phase) <= 0.25*pi;
-isAntiPhase = abs(phase) >= 0.75*pi;
-isFirstQuarterPhase = phase > 0.25*pi & phase < 0.75*pi;
-isThirdQuarterPhase = phase > -0.75*pi & phase < -0.25*pi;
-isHighAmp = amp >= quantile(amp, ampThreshold);
-idInPhase = sel(isInPhase & isHighAmp);
-idAntiPhase = sel(isAntiPhase & isHighAmp);
-idFirstQuarterPhase = sel(isFirstQuarterPhase & isHighAmp);
-idThirdQuarterPhase = sel(isThirdQuarterPhase & isHighAmp);
-colors = getColor(1:4, 4, 0.6);
-
-euSel = eu(sel);
-[~, expEuIndices] = unique({euSel.ExpName});
-FsLick = 500;
-lickHistEdges = 0.01:1/FsLick:2;
-lickHistCenters = 0.5*(lickHistEdges(2:end) + lickHistEdges(1:end-1));
-
-lickHistCounts = zeros(size(lickHistCenters));
-lickHistNLicks = 0;
-for iExp = 1:length(expEuIndices)
-    iEu = expEuIndices(iExp);
-    trials = euSel(iEu).getTrials('lick');
-    trials = trials(trials.duration() >= 4);
-    firstLickTimes = [trials.Stop];
-    allLickTimes = euSel(iEu).EventTimes.Lick;
-    for iLick = 1:length(firstLickTimes)
-        edgesGlobal = firstLickTimes(iLick) + lickHistEdges;
-        n = histcounts(allLickTimes, edgesGlobal);
-        lickHistCounts = lickHistCounts + n;
-        lickHistNLicks = lickHistNLicks + 1;
-    end
-end
-
-lickHist.correctLickOsci.count = lickHistCounts;
-lickHist.correctLickOsci.pdf = lickHistCounts ./ lickHistNLicks;
-lickHist.correctLickOsci.t = lickHistCenters;
-lickHist.correctLickOsci.edges = lickHistEdges;
-
-% clear trials expEuIndices FsLick lickHistEdges lickHistCenters lickHistNLicks lickHistCounts iExp iEu firstLickTimes allLickTimes iLick edgesGlobal n
-
-% Correct lick bout
-ax = nexttile(layout.middle.tl, [1, layout.left.w]);
-counts = lickHist.correctLickOsci.count;
-smoothedCounts = smoothdata(counts, 'gaussian', 25);
-[pks, locs] = findpeaks(smoothedCounts, lickHist.correctLickOsci.t, MinPeakProminence=0.5);
-locs = [0, locs];
-histogram(ax, BinEdges=lickHist.correctLickOsci.edges, BinCounts=counts, Normalization='probability', EdgeColor='none', FaceColor='black', FaceAlpha=1)
-hold(ax, 'on')
-for iLoc = 1:length(locs)
-    plot(ax, locs(iLoc)*[1, 1], ax.YLim, 'k:')
-end
-ylabel(ax, ' lick\newlineprob')
-xlabel(ax, 'Time from first lick (s)')
-xticks(ax, -1:0.5:2)
-xlim(ax, [-0.5, 1/8*nBoutsDisp])
-yticks(ax, [])
-fontsize(ax, p.fontSize, 'points')
-
-% Osci lick phase distribution histogram
-ax = nexttile(layout.middle.tl, [1, layout.right.w]);
-hold(ax, 'on')
-edges = 0:2*pi/30:2*pi;
-histogram(ax, rectifiedPhase(isInPhase), edges, FaceColor=colors(1, :));
-histogram(ax, rectifiedPhase(isFirstQuarterPhase), edges, FaceColor=colors(2, :));
-histogram(ax, rectifiedPhase(isAntiPhase), edges, FaceColor=colors(4, :));
-histogram(ax, rectifiedPhase(isThirdQuarterPhase), edges, FaceColor=colors(3, :));
-xticks(ax, 0:pi:2*pi)
-xlim(ax, pi*[0, 2])
-xticklabels(ax, {'0', '\pi', '2\pi'});
-xlabel('Lick phase')
-ylabel('# units')
-
-ID = {idInPhase; idFirstQuarterPhase; idAntiPhase; idThirdQuarterPhase};
-PHASENAME = ["2\pi", "1/2\pi", "\pi", "3/2\pi"];
-ICOLOR = [1, 2, 4, 3];
-
-for iAx = 1:4
-    iEu = ID{iAx};
-    % First lick
-    ax = nexttile(layout.bottom.left.tl);
-    t = eta.correctLickBout.t;
-    t(t>0) = t(t>0) ./ (2*pi) / 8;
-    X = eta.correctLickBout.X(iEu, :);
-%     X = smoothdata(X, 2, 'gaussian', 5);
-    plot(ax, t, mean(X, 1, 'omitnan'), Color=colors(ICOLOR(iAx), :), LineWidth=1.5)
-    hold(ax, 'on')
-    plot(ax, t, X, Color=[0.15, 0.15, 0.15, 0.025], LineWidth=0.5)
-    xlim(ax, [-0.5, nBoutsDisp/8])
-    ylim(ax, [30, 110])
-    yticks(ax, [40, 100])
-    text(ax, 0.05, 0.95, sprintf('n=%i', nnz(iEu)), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='top', Interpreter='none', FontSize=p.fontSize)
-    xticks(ax, [-1:0.5:0, (1:nBoutsDisp)/8])
-    xticklabels(ax, [{'-1', '-0.5', '0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2*(1:nBoutsDisp), UniformOutput=false)]);
-    
-    ax.XGrid = 'on';
-    hold(ax, 'off')
-    fontsize(ax, p.fontSize, 'points')
-    if iAx == 4
-        text(ax, 0, -0.5, 'Time before first lick (s)', Units='normalized', VerticalAlignment='top', FontSize=p.fontSize)
-        text(ax, 0.55, -0.55, 'Lick phase', Units='normalized', VerticalAlignment='top', FontSize=p.fontSize)
-    end
-
-    % Any bout
-    ax = nexttile(layout.bottom.right.tl);
-    X = eta.lickBoutNorm.X(iEu, :);
-%     X = smoothdata(X, 2, 'gaussian', 3);
-    plot(ax, eta.lickBoutNorm.t, mean(X, 1, 'omitnan'), Color=colors(ICOLOR(iAx), :), LineWidth=1.5)
-    hold(ax, 'on')
-    plot(ax, eta.lickBoutNorm.t, X, Color=[0.15, 0.15, 0.15, 0.025], LineWidth=0.5)
-    xticks(ax, 0:2*pi:8*pi)
-    xticklabels(ax, [{'0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2:2:8, UniformOutput=false)]);
-    xlim(ax, [0, 8*pi])
-    ylim(ax, [-4, 4])
-    yticks(ax, [-3, 0, 3])
-    ax.XGrid = 'on';
-end
-% h = xlabel(layout.bottom.left.tl, 'Time from first lick (s)       Lick Phase', FontSize=p.fontSize, HorizontalAlignment='left');
-ylabel(layout.bottom.left.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
-xlabel(layout.bottom.right.tl, 'Lick phase', FontSize=p.fontSize)
-ylabel(layout.bottom.right.tl, 'Normalized spike rate (a.u.)', FontSize=p.fontSize)
-
-% Additional plot, scatter press vs lick META, color by lick entrainment phase: 
-sz = 7;
-% 1. Reach vs. Lick scatter
-ax = nexttile(layout.psbottom.tl, 1 + layout.left.w, [1, layout.right.w]);
-hold(ax, 'on')
-x = meta.lick;
-y = meta.press;
-sel = c.hasLick & c.hasPress & ~c.isLick;
-h = gobjects(4, 1);
-for i = 1:4
-    sel = ID{i};
-    h(i) = scatter(ax, x(sel), y(sel), sz, colors(ICOLOR(i), :), 'filled', Marker='o', MarkerFaceAlpha=0.75, MarkerEdgeAlpha=1, DisplayName=PHASENAME(i));
-end
-
-plot(ax, [-10, 10], [0, 0], 'k:');
-plot(ax, [0, 0], [-10, 10], 'k:');
-plot(ax, [-10, 10], [-10, 10], 'k:')
-
-xlabel(ax, 'peri-lick response (a.u.)', HorizontalAlignment='center')
-ylabel(ax, 'peri-reach response (a.u.)', HorizontalAlignment='center')
-axis(ax, 'equal')
-xlim(ax, [-2, 5])
-ylim(ax, [-2, 5])
-% lgd = legend(ax, h);
-% lgd.Layout.Tile = 'north';
-
-fontsize(ax, p.fontSize, 'points')
-
-
 hLineDummy = gobjects(2, 1);
 lgdPositions = {[0.08,0.925,0.18,0.033], [0.58,0.925,0.18,0.033]; ...
     [0.08,0.79,0.18,0.033], [0.58,0.79,0.18,0.033]};
@@ -806,86 +605,3 @@ end
 
 
 copygraphics(fig, ContentType='vector')
-
-
-%% END OF LIC  BOUTS
-eta.lickBoutEnd = eu.getETA('count', 'lickboutend', window=[0, 2], resolution=[2*pi/12, 0.01], normalize='none', ...
-    maxInterval=0.2, minInterval=0.05, minBoutCycles=8);
-% eta.lickBoutEndNorm = eu.getETA('count', 'lickboutend', window=[0, 2], resolution=[2*pi/12, 0.01], normalize=[0.5, 1.5], ...
-%     maxInterval=0.2, minInterval=0.05, minBoutCycles=8);
-
-%%
-close all
-
-TITLE = ["Lick Dec", "Lick Inc", "Press Dec", "Press Inc"];
-SEL = {c.hasLick & c.hasPress & c.isLickDown, c.hasLick & c.hasPress & c.isLickUp, c.hasLick & c.hasPress & c.isPressDown, c.hasLick & c.hasPress & c.isPressUp};
-
-
-tl = tiledlayout(figure, 2, 2);
-
-for i = 1:4
-    ax = nexttile(tl);
-    t = eta.lickBoutEnd.t;
-    t(t<0) = t(t<0) ./ (2*pi) / 8;
-    X = eta.lickBoutEnd.X(SEL{i}, :);
-    X = smoothdata(X, 2, 'gaussian', 8);
-    plot(ax, t, mean(X, 1, 'omitnan'), Color='red', LineWidth=1.5)
-    hold(ax, 'on')
-    plot(ax, t, X, Color=[0.15, 0.15, 0.15, 0.1], LineWidth=0.5)
-    yline(ax, 0, 'k')
-    xticks(ax, [(-8:-1)/8, 0:1:2])
-    xticklabels(ax, [arrayfun(@(x) sprintf('%i\\pi', x), 2*(-8:-1), UniformOutput=false), {'0', '1', '2'}]);
-    ax.XGrid = 'on';
-    hold(ax, 'off')
-    ylim(ax, [0, 100]);
-    title(ax, sprintf('%s (%i units)', TITLE(i), nnz(SEL{i})))
-    fontsize(ax, p.fontSize, 'points')
-end
-
-xlabel(tl, 'Time(s)/lick phase from last lick', FontSize=p.fontSize)
-ylabel(tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
-title(tl, 'End of Lick Bout', FontWeight='bold', FontSize=p.fontSize)
-
-
-
-% %% Single unit PETHs (pre and post first lick)
-% IS = {isInPhase; isFirstQuarterPhase; isAntiPhase; isThirdQuarterPhase};
-% ID = {idInPhase; idFirstQuarterPhase; idAntiPhase; idThirdQuarterPhase};
-% ICOLOR = [1, 2, 4, 3];
-% IEU = cell(1, 4);
-% nEg = 15;
-% for i = 1:4
-%     isThisPhase = IS{i};
-%     [SORTEDAMP{i}, I] = sort(amp(isThisPhase), 'descend');
-%     IEU{i} = ID{i}(I);
-% end
-% 
-% fig = figure(Units='inches', Position=[1 1 8 4]);
-% tl = tiledlayout(fig, nEg, 2, TileSpacing='tight', Padding='compact');
-% for iEg = 1:nEg
-%     for i = [1, 3]
-%         ax = nexttile(tl);
-%         iEu = IEU{i}(iEg);
-%         t = eta.correctLickBout.t;
-%         t(t>0) = t(t>0) ./ (2*pi) / 8;
-%         X = eta.correctLickBout.X(iEu, :);
-%         X = smoothdata(X, 2, 'gaussian', 5);
-%         plot(ax, t, X, LineWidth=1.5, Color=colors(ICOLOR(i), :))
-%         xlim(ax, [-0.5, nBoutsDisp/8])
-% %         ylim(ax, [0, 200])
-%         text(ax, 0.05, 0.95, eu(iEu).getName(), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize)
-%         xticks(ax, [-1:0.5:0, (1:nBoutsDisp)/8])
-%         xticklabels(ax, [{'-1', '-0.5', '0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2*(1:nBoutsDisp), UniformOutput=false)]);
-%         ax.XGrid = 'on';
-%         fontsize(ax, p.fontSize, 'points')
-%     end
-% end
-% 
-% 
-% %% circlicks, bouts, trials analysis
-% nCirclicks = cellfun(@length, trials);
-% nBouts = cellfun(@(x) size(x, 1), bouts);
-% nCorrectLickTrials = arrayfun(@(eu) nnz(eu.Trials.Lick.duration()>=4), eu(:));
-% nCorrectPressTrials = arrayfun(@(eu) nnz(eu.Trials.Press.duration()>=4), eu(:));
-% nCorrectTrials = nCorrectLickTrials + nCorrectPressTrials;
-% tbl = table(nCirclicks, nBouts, nCorrectTrials, nCorrectLickTrials, nCorrectPressTrials);
