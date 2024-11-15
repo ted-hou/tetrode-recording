@@ -4,38 +4,44 @@
 load_ephysunits;
 find_osci_lick_circ;
 
-% Plot ETA from peri-move to cyclick
-eta.lickBoutEnd = eu.getETA('count', 'lickboutend', window=[0, 2], resolution=[2*pi/5, 0.025], normalize='none', ...
-    maxInterval=0.2, minInterval=0.05, minBoutCycles=6);
-
-eta.correctLickBout = eu.getETA('count', 'lick+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/5], normalize='none', minTrialDuration=4, ...
-    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
-
-
-eta.correctPressBout = eu.getETA('count', 'press+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/32, 2*pi/5], normalize='none', minTrialDuration=4, ...
-    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
-
-
-eta.incorrectLickBout = eu.getETA('count', 'lick+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/5], normalize='none', minTrialDuration=2, maxTrialDuration=4, ...
-    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
-
-eta.pressCueRaw = eu.getETA('count', 'press', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize='none', includeInvalid=true, resolution=0.025);
-eta.lickCueRaw = eu.getETA('count', 'lick', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize='none', includeInvalid=true, resolution=0.025);
-
 
 etaFine.press = eu.getETA('count', 'press', [-4, 2], minTrialDuration=2, normalize=[-4, -2], resolution=0.025);
 etaFine.lick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=2, normalize=[-4, -2], resolution=0.025);
 
-etaFine.correctPress = eu.getETA('count', 'press', [-4, 2], minTrialDuration=4, normalize=[-4, -2], resolution=0.025);
-etaFine.correctLick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=4, normalize=[-4, -2], resolution=0.025);
-etaFine.incorrectPress = eu.getETA('count', 'press', [-4, 2], minTrialDuration=2, maxTrialDuration=4, normalize=[-4, -2], resolution=0.025);
-etaFine.incorrectLick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=2, maxTrialDuration=4, normalize=[-4, -2], resolution=0.025);
+etaFine.correctPress = eu.getETA('count', 'press', [-4, 2], minTrialDuration=4, normalize=etaFine.press.stats, resolution=0.025);
+etaFine.correctLick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=4, normalize=etaFine.lick.stats, resolution=0.025);
+etaFine.incorrectPress = eu.getETA('count', 'press', [-4, 2], minTrialDuration=2, maxTrialDuration=4, normalize=etaFine.press.stats, resolution=0.025);
+etaFine.incorrectLick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=2, maxTrialDuration=4, normalize=etaFine.lick.stats, resolution=0.025);
 
 etaFine.lickCorrectRaw = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=4, normalize='none', resolution=0.025);
 etaFine.lickIncorrectRaw = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=2, maxTrialDuration=4, normalize='none', resolution=0.025);
 etaFine.p.minTrialDuration = p.minTrialDuration;
 etaFine.p.norm = p.etaNorm;
 etaFine.p.resolution = 0.025;
+
+% Plot ETA from peri-move to cyclick
+eta.lickBoutEnd = eu.getETA('count', 'lickboutend', window=[0, 2], resolution=[2*pi/5, 0.025], normalize='none', ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=6);
+
+eta.correctLickBout = eu.getETA('count', 'lick+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/5], normalize='none', minTrialDuration=4, ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
+eta.correctLickBoutNorm = eu.getETA('count', 'lick+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/5], normalize=[-4, -2], minTrialDuration=4, ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
+
+eta.correctPressBout = eu.getETA('count', 'press+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/32, 2*pi/5], normalize='none', minTrialDuration=4, ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
+eta.correctPressBoutNorm = eu.getETA('count', 'press+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/32, 2*pi/5], normalize=etaFine.press.stats, minTrialDuration=4, ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
+
+
+% eta.incorrectLickBout = eu.getETA('count', 'lick+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/5], normalize='none', minTrialDuration=2, maxTrialDuration=4, ...
+%     maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
+
+eta.pressCueRaw = eu.getETA('count', 'press', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize='none', includeInvalid=true, resolution=0.025);
+eta.lickCueRaw = eu.getETA('count', 'lick', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize='none', includeInvalid=true, resolution=0.025);
+
+eta.pressCueNorm = eu.getETA('count', 'press', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize=etaFine.press.stats, includeInvalid=true, resolution=0.025);
+eta.lickCueNorm = eu.getETA('count', 'lick', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize=etaFine.lick.stats, includeInvalid=true, resolution=0.025);
 
 %%
 % [boot.pressVsLick.h, boot.pressVsLick.p, boot.pressVsLick.ci, boot.pressVsLick.obs] = bootstrapAmplitude(eu(c.hasLick & c.hasPress), 'press', 'lick', ...
@@ -63,7 +69,7 @@ layout.bottom.left.w = 3;
 layout.bottom.right.w = 3;
 layout.bottom.right.ww = [(2+0.8+6/8)*100, (2+6/8)*100];
 
-close all
+% close all
 fig = figure(Units='inches', Position=[0, 0, layout.w, layout.h]);
 layout.tl = tiledlayout(fig, layout.top.h + layout.middle.h + layout.bottom.h, 1, TileSpacing='loose');
 
@@ -89,15 +95,23 @@ l = layout.bottom.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.bot
 layout.bottom.right.tl = tiledlayout(layout.bottom.tl, 2, sum(layout.bottom.right.ww), TileSpacing='compact', Padding='compact');
 l = layout.bottom.right.tl; l.Layout.Tile = 1 + layout.bottom.left.w; l.Layout.TileSpan = [1, layout.bottom.right.w];
 
-% 5a. Double rasters (reach vs lick) 4 example units
+% 5a. Double rasters (reach vs lick) 3 example units
+
+% selI = find(c.hasPress & c.hasLick & c.isPressResponsive & c.isLickResponsive);
+% [~, downI] = sort(meta.press(selI) + meta.lick(selI), 'ascend');
+% [~, upI] = sort(meta.press(selI) + meta.lick(selI), 'descend');
+% [~, oppositeI] = sort(meta.press(selI) .* meta.lick(selI), 'ascend');
+% downI = selI(downI);
+% upI = selI(upI);
+% oppositeI = selI(oppositeI);
+
 unitNames = { ...
-    'desmond24_20220510_Channel44_Unit1'; ...
-    'Daisy2_20180420_Channel14_Unit1'; ...
-    'daisy13_20220106_Electrode97_Unit1'; ...
-%     'daisy8_20210709_Channel7_Unit1'; ...
+    'desmond25_20220430_Channel24_Unit1' % eu(downI(7)).getName(); ...
+    'Daisy2_20180422_Channel21_Unit1' % eu(upI(4)).getName(); ...
+    'daisy14_20220506_Channel14_Unit1' % eu(oppositeI(10)).getName(); ...
     };
-files = cellfun(@(name) sprintf('C:\\SERVER\\Units\\Lite_NonDuplicate\\%s.mat', name), unitNames, UniformOutput=false);
-euEg = EphysUnit.load(files);
+[~, locb] = ismember(unitNames, eu.getName());
+euEg = eu(locb);
 assert(nEgUnits == length(unitNames))
 
 AX = gobjects(2, nEgUnits);
@@ -117,9 +131,9 @@ MAXTRIALDURATION = [...
         Inf, Inf, Inf; ...
         Inf, Inf, Inf; ...
     ];
-EVERYNTH = [4, 4, 4];
-YLIM = {[0, 30], [20, 140], [20, 80]};
-YTICKS = {0:15:30, 20:60:140, 20:30:80};
+EVERYNTH = [5, 5, 5];
+% YLIM = {[20, 80], [20, 140], [20, 80]};
+% YTICKS = {20:30:80, 20:60:140, 20:30:80};
 
 for iEu = 1:nEgUnits
     for i = 1:2
@@ -130,23 +144,30 @@ for iEu = 1:nEgUnits
         thisETA = euEg(iEu).getETA('count', TRIALTYPE{i}, p.etaWindow, normalize='none', trials=theseTrials, includeInvalid=false);
         yyaxis(ax, 'right')
         EphysUnit.plotRaster(ax, thisRD, xlim=[-4, 2], iti=false, sz=1, maxTrials=40, maxTrialsMethod='uniformsample', ...
-            sz=1, everyNth=EVERYNTH(iEu), timingCriterion=4);
+            everyNth=EVERYNTH(iEu), timingCriterion=4);
+        hRaster = ax.Children(3);
+        hRaster.MarkerFaceAlpha = 0.5;
         ylabel(ax, '')
         yticks(ax, [])
         ax.YAxis(2).Direction = 'reverse';
         yyaxis(ax, 'left')
-        plot(ax, thisETA.t, thisETA.X./0.1, LineWidth=1.5, Color='black')
+        plot(ax, thisETA.t, thisETA.X./0.1, LineWidth=1.5, Color=[0.2, 0.2, 0.8, 1.0])
         hold(ax, 'on')
         set(ax.YAxis, FontSize=p.fontSize, Color=[0.15, 0.15, 0.15]);
         ylabel(ax, 'Spike rate (sp/s)')
         delete(ax.Legend)
         title(ax, TITLE(i))
         xlabel(ax, XLABEL{i})
-        plot(ax, [0, 0], [0, 100], 'k--', LineWidth=1)
-        ylim(ax, YLIM{iEu})
-        yticks(ax, YTICKS{iEu})
+        xline(ax, 0, 'k--', LineWidth=1)
+        ylim(ax, 'auto')
+        % ylim(ax, YLIM{iEu})
+        % yticks(ax, YTICKS{iEu})
         fontsize(ax, p.fontSize, 'points')
     end
+    yl1 = AX(1, iEu).YLim;
+    yl2 = AX(2, iEu).YLim;
+    yl = [min(yl1(1), yl2(1)), max(yl1(2), yl2(2))];
+    ylim(AX(:, iEu), yl);
 end
 
 ax = AX(1, 1);
