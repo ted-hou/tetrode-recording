@@ -227,7 +227,7 @@ for iRow = 1:2
     end
 end
 
-copygraphics(fig, ContentType='vector')
+copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
 
 %% Heatmap

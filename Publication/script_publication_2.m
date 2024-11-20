@@ -1,4 +1,4 @@
-%%% Figure 3
+%%% Figure 2
 p.fontSize = 9;
 p.lineWidth = 1.5;
 close all
@@ -17,7 +17,7 @@ unitNames = { ...
 % euEg = EphysUnit.load(files);
 euEg = eu(ismember(eu.getName(), unitNames));
 
-%% 3a,b. Raster/PETH of two example units (turn on vs. turn off)
+%% 2a,b. Raster/PETH of two example units (turn on vs. turn off)
 clear layout
 layout.w = 7;
 layout.h = 8;
@@ -93,7 +93,7 @@ xlabel(layout.top.bottom.tl, 'Time to bar-contact (s)', FontSize=p.fontSize)
 delete(legend(ax))
 
 
-% 3d. PETH of all units (heatmap)
+% 2d. PETH of all units (heatmap)
 % fig = figure(Units='inches', Position=[0, 0, 4, 5]);
 ax = nexttile(layout.bottom.tl, [1, layout.bottom.left.w]);
 EphysUnit.plotETA(ax, etaFine.press, c.hasPress, xlim=[-4,0.5], clim=[-1.5, 1.5], sortWindow=[-3, 0], signWindow=[-0.3, 0], sortThreshold=0.25, negativeSortThreshold=0.25, ...
@@ -125,7 +125,7 @@ h.HorizontalAlignment = 'right';
 h.VerticalAlignment = 'top';
 h.Position = [-0.4, ax.Position(4)+0.4, 0];
 
-% 3e,f,g Baseline spike rates, pre-move response, normalized pre-move response
+% 2e,f,g Baseline spike rates, pre-move response, normalized pre-move response
 % fig = figure(Units='inches', Position=[5, 0, 2.5, 5], DefaultAxesFontSize=p.fontSize);
 ax = nexttile(layout.bottom.right.tl);
 hold(ax, 'on')
@@ -176,4 +176,4 @@ h.HorizontalAlignment = 'right';
 h.VerticalAlignment = 'top';
 h.Position = [-0.5, ax.Position(4)+0.1, 0];
 
-copygraphics(fig, ContentType='vector')
+copygraphics(fig, ContentType='vector', BackgroundColor='none')

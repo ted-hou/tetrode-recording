@@ -1,7 +1,9 @@
 %% Load EphysUnits
 euReachDir2Tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction_2tgts\SingleUnits_NonDuplicate');
+
+%%
 for iEu = 1:length(euReachDir2Tgt)
-    trials = euReachDir2Tgt(iEu).makeTrials('press_spontaneous2');
+    trials = euReachDir2Tgt(iEu).makeTrials('press_spontaneous');
     goodTrials = trials(trials.duration() > 4);
     euReachDir2Tgt(iEu).Trials.PressSpontaneous = goodTrials;
 end
@@ -50,21 +52,22 @@ trajCombined2tgt = struct(contra=contra, ipsi=ipsi, target=[traj2tgt.target], t=
 %% Determine which paw was used
 close all
 clear r
-r.contra = [...
-    range(trajCombined2tgt.contra.x, 2), ...
-    range(trajCombined2tgt.contra.y, 2), ...
-    range(trajCombined2tgt.contra.z, 2), ...
-    ];
+r.contra = cat(3, ...
+    diff(trajCombined2tgt.contra.x, 1, 2), ...
+    diff(trajCombined2tgt.contra.y, 1, 2), ...
+    diff(trajCombined2tgt.contra.z, 1, 2) ...
+    );
 r.ipsi = [...
-    range(trajCombined2tgt.ipsi.x, 2), ...
-    range(trajCombined2tgt.ipsi.y, 2), ...
-    range(trajCombined2tgt.ipsi.z, 2), ...
+    diff(trajCombined2tgt.ipsi.x, 1, 2), ...
+    diff(trajCombined2tgt.ipsi.y, 1, 2), ...
+    diff(trajCombined2tgt.ipsi.z, 1, 2) ...
     ];
-r.contra = sqrt(sum(r.contra.^2, 2));
-r.ipsi = sqrt(sum(r.ipsi.^2, 2));
+r.contra = sum(sqrt(sum(r.contra.^2, 3)), 2);
+r.ipsi = sum(sqrt(sum(r.ipsi.^2, 3)), 2);
 
 
-ax = axes(figure);
+tl = tiledlayout(figure(Units='inches', Position=[1 1 2 7]), 3, 1);
+ax = nexttile(tl);
 hold(ax, 'on')
 h = gobjects(2, 1);
 h(1) = scatter(ax, r.contra(trajCombined2tgt.target=="contra-out"), r.ipsi(trajCombined2tgt.target=="contra-out"), 10, getColor(1, 4, 0.8), DisplayName="contra-out");
@@ -74,12 +77,30 @@ ylabel(ax, 'ipsi range')
 axis(ax, 'equal')
 set(ax, XLim=[0, 150], YLim=[0, 150])
 
+ipsiThreshold = quantile(r.ipsi, 0.5);
+contraThreshold = quantile(r.contra', 0.5);
 mdl = fitlm(r.contra, r.ipsi);
 plot(ax, [0, 300], mdl.predict([0; 300]), 'k--', DisplayName='LM')
+plot(ax, [0, 300], [0; 300], 'k--', DisplayName='y=x')
+yline(ax, ipsiThreshold)
+xline(ax, contraThreshold)
+legend(h, Location='northoutside')
 
-legend(ax)
+ax = nexttile(tl);
+histogram(ax, r.contra, 0:10:150);
+xline(ax, contraThreshold)
+title(ax, 'contra range')
 
-trajCombined2tgt.usedIpsiPaw = r.ipsi' > mdl.predict(r.contra)';
+ax = nexttile(tl);
+histogram(ax, r.ipsi, 0:10:150);
+xline(ax, ipsiThreshold)
+title(ax, 'ipsi range')
+
+
+
+% trajCombined2tgt.usedIpsiPaw = r.ipsi' > mdl.predict(r.contra)';
+trajCombined2tgt.usedIpsiPaw = r.ipsi' > r.contra';
+% trajCombined2tgt.usedIpsiPaw = r.ipsi' > ipsiThreshold;
 fprintf('Out of %i trials:\n', length(trajCombined2tgt.target));
 selPaw = trajCombined2tgt.usedIpsiPaw;
 selTarget = trajCombined2tgt.target == "contra-out";
@@ -87,7 +108,7 @@ fprintf('%i trials when target was at "contra-out", we estimate %i (%.1f%%) used
 selTarget = trajCombined2tgt.target == "contra-in";
 fprintf('%i trials when target was at "contra-in", we estimate %i (%.1f%%) used contra paw, %i (%.1f%%) used ipsi paw.\n', nnz(selTarget), nnz(selTarget & ~selPaw), nnz(selTarget & ~selPaw)./nnz(selTarget).*100, nnz(selTarget & selPaw), nnz(selTarget & selPaw)./nnz(selTarget).*100);
 
-clear b ax h
+clear b ax h tl
 
 %% Calculate ETA using movement intiation correction
 % Calculate trueStartTime
@@ -135,16 +156,22 @@ for iExp = 1:nExp
     targetIndex = targetIndex';
     for iTarget = 1:2
         selTrials = targetIndex==iTarget & ~usedIpsiPawInSession';
-        traj2tgt(iExp).eta(iTarget) = pa2tgt.exp(iExp).eu.getETA('count', 'press_spontaneous', window=[-4, 0.5], resolution=0.1, normalize=[-4, -2], alignTo='stop', includeInvalid=true, ...
-            trials=pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials), correction=trueStartTime2tgts{iExp}(selTrials));
-        traj2tgt(iExp).trials{iTarget} = pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials);
-        traj2tgt(iExp).correction{iTarget} = trueStartTime2tgts{iExp}(selTrials);
+        fprintf('%s, contra paw = %i trials\n', targetNames{iTarget}, nnz(selTrials))
+        if nnz(selTrials) > 1
+            traj2tgt(iExp).eta(iTarget) = pa2tgt.exp(iExp).eu.getETA('count', 'press_spontaneous', window=[-4, 0.5], resolution=0.1, normalize=[-4, -2], alignTo='stop', includeInvalid=true, ...
+                trials=pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials), correction=trueStartTime2tgts{iExp}(selTrials));
+            traj2tgt(iExp).trials{iTarget} = pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials);
+            traj2tgt(iExp).correction{iTarget} = trueStartTime2tgts{iExp}(selTrials);
+        end
 
         selTrials = targetIndex==iTarget & usedIpsiPawInSession';
-        traj2tgt(iExp).etaIpsiPaw(iTarget) = pa2tgt.exp(iExp).eu.getETA('count', 'press_spontaneous', window=[-4, 0.5], resolution=0.1, normalize=[-4, -2], alignTo='stop', includeInvalid=true, ...
-            trials=pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials), correction=trueStartTime2tgts{iExp}(selTrials)); 
-        traj2tgt(iExp).trialsIpsiPaw{iTarget} = pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials);
-        traj2tgt(iExp).correctionIpsiPaw{iTarget} = trueStartTime2tgts{iExp}(selTrials);       
+        fprintf('%s, ipsi paw = %i trials.\n', targetNames{iTarget}, nnz(selTrials))
+        if nnz(selTrials) > 1
+            traj2tgt(iExp).etaIpsiPaw(iTarget) = pa2tgt.exp(iExp).eu.getETA('count', 'press_spontaneous', window=[-4, 0.5], resolution=0.1, normalize=[-4, -2], alignTo='stop', includeInvalid=true, ...
+                trials=pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials), correction=trueStartTime2tgts{iExp}(selTrials)); 
+            traj2tgt(iExp).trialsIpsiPaw{iTarget} = pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials);
+            traj2tgt(iExp).correctionIpsiPaw{iTarget} = trueStartTime2tgts{iExp}(selTrials);       
+        end
     end
 end
 clear usedIpsiPawInSession targetIndex iTarget selTrials iExp sessionEdges dist distNorm iTrial isAbove iLastAbove iOnset

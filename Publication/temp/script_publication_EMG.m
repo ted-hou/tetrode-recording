@@ -172,4 +172,4 @@ xlim(ax(3), [-2, 0])
 ylabel(ax(3), 'No. units')
 % legend(ax(3), Location='north', Orientation='vertical')
 
-copygraphics(fig, ContentType='vector')
+copygraphics(fig, ContentType='vector', BackgroundColor='none')

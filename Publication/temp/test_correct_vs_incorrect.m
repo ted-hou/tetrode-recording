@@ -47,7 +47,7 @@ for iRow = 1:3
 end
 xlabel(tl, 'Time to bar contact (s)', FontSize=p.fontSize)
 
-copygraphics(fig, ContentType='vector')
+copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
 clear ETA TITLE fig tl iRow order iLine ax
 
@@ -93,7 +93,7 @@ for iRow = 1:3
 end
 xlabel(tl, 'Time to bar contact (s)', FontSize=p.fontSize)
 
-copygraphics(fig, ContentType='vector')
+copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
 clear ETA TITLE fig tl iRow order iLine ax
 
@@ -133,6 +133,6 @@ fontsize(ax, p.fontSize, 'points')
 
 xlabel(tl, 'Time to bar contact (s)', FontSize=p.fontSize)
 
-copygraphics(fig, ContentType='vector')
+copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
 clear ETA TITLE fig tl iRow order iLine ax sel

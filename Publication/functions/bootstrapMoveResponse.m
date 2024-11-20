@@ -1,7 +1,7 @@
 function [h, muDiffCI, muDiffObs] = bootstrapMoveResponse(eu, trialType, varargin)
     p = inputParser();
     p.addRequired('eu', @(x) length(x) >= 1 && isa(x, 'EphysUnit'));
-    p.addRequired('trialType', @(x) ismember(x, {'press', 'lick'}));
+    p.addRequired('trialType');
     p.addParameter('nboot', 100000, @isnumeric)
     p.addParameter('baselineWindow', [-4, -2], @(x) isnumeric(x) && length(x) == 2)
     p.addParameter('responseWindow', [-0.5, -0.2], @(x) isnumeric(x) && length(x) == 2)
@@ -12,6 +12,7 @@ function [h, muDiffCI, muDiffObs] = bootstrapMoveResponse(eu, trialType, varargi
     p.addParameter('withReplacement', false, @islogical)
     p.addParameter('oneSided', false, @islogical)
     p.addParameter('correction', {}, @iscell) % correction for movement onset time
+    p.addParameter('trials', {}, @iscell) 
     p.parse(eu, trialType, varargin{:});
     r = p.Results;
     eu = r.eu;
@@ -20,6 +21,12 @@ function [h, muDiffCI, muDiffObs] = bootstrapMoveResponse(eu, trialType, varargi
     else
         correction = r.correction;
         assert(length(correction) == length(eu));
+    end
+    if isempty(r.trials) 
+        trials = cell(length(eu), 1);
+    else
+        trials = r.trials;
+        assert(length(trials) == length(eu))
     end
 
     rng(42);
@@ -38,7 +45,7 @@ function [h, muDiffCI, muDiffObs] = bootstrapMoveResponse(eu, trialType, varargi
 
         [sr, t] = eu(iEu).getTrialAlignedData('count', dataWindow, r.trialType, alignTo=r.alignTo, ...
             allowedTrialDuration=r.allowedTrialDuration, trialDurationError=r.trialDurationError, ...
-            includeInvalid=false, resolution=0.1, correction=correction{iEu});
+            includeInvalid=false, resolution=0.1, correction=correction{iEu}, trials=trials{iEu});
 
         if isempty(sr)
             warning('Spike rate for %d - %s is empty.', iEu, eu(iEu).getName('_'));

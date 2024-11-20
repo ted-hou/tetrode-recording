@@ -1,149 +1,197 @@
-%%
-% 8a. Spontaneous reach task, trial structure
-Done
-% 8b. Distribution of Inter-touch-intervals
-% 8c. Example units (raster vs ETA)
-
-% 8d. Heatmap PETH for all units
-
-%%
-% read_spontaneous; % This takes a while because of boostrapping, also does
-% drift/multiunit/duplicate removal
-clear
-euSpontaneous = EphysUnit.load('C:\SERVER\Units\acute_spontaneous_reach\SNr_SingleUnit_NonDuplicate_NonDrift');
-load('C:\SERVER\Units\acute_spontaneous_reach\meta\SNr_SingleUnit_NonDuplicate_NonDrift.mat')
-
-%%
 p.fontSize = 9;
 
-clear layout
-layout.w = 7;
-layout.h = 4.5;
-layout.left.w = 4;
-layout.right.w = 3;
-layout.left.top.h = 3;
-layout.left.bottom.h = 6;
-layout.right.top.h = 3;
-layout.right.bottom.h = 5;
+%% Load all units
+load_ephysunits;
+% boot_response_dir;
 
+%% 6b-h. 
 close all
-fig = figure(Units='inches', Position=[0, 0, layout.w, layout.h]);
-layout.tl = tiledlayout(fig, 1, layout.left.w + layout.right.w, TileSpacing='loose', Padding='loose');
-layout.left.tl = tiledlayout(layout.tl, layout.left.top.h + layout.left.bottom.h, 1, TileSpacing='loose', Padding='loose');
-l = layout.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.left.w];
 
-layout.right.tl = tiledlayout(layout.tl, layout.right.top.h + layout.right.bottom.h, 1, TileSpacing='loose', Padding='loose');
-l = layout.right.tl; l.Layout.Tile = 1 + layout.left.w; l.Layout.TileSpan = [1, layout.right.w];
+layout.w = 5/3*4;
+layout.h = 4;
+fig = figure(Units='inches', Position=[0, 0, layout.w, layout.h], DefaultAxesFontSize=p.fontSize);
+layout.tl = tiledlayout(fig, 2, 4, TileSpacing='compact', Padding='loose');
 
-layout.left.bottom.tl = tiledlayout(layout.left.tl, 2, 2, TileSpacing='compact', Padding='loose');
-l = layout.left.bottom.tl; l.Layout.Tile = 1 + layout.left.top.h; l.Layout.TileSpan = [layout.left.bottom.h, 1];
+TITLE = ["", "all", "reach-modulated", "lick-modulated", ...
+    "reach-dec\newlinelick-inc", "reach-inc\newlinelick-dec", "reach\neqlick", "lick-entrained"];
 
-% 8b. Distribution of Inter-touch-intervals
-ax = nexttile(layout.right.tl, 1, [layout.right.top.h, 1]);
-interTouchIntervals = cell(length(expSpontaneous), 1);
-for iExp = 1:length(expSpontaneous)
-    touchTimes = [expSpontaneous(iExp).eu(1).Trials.Press.Stop];
-    interTouchIntervals{iExp} = diff(touchTimes);
-end
-interTouchIntervals = cat(2, interTouchIntervals{:});
-% edges = 0:2:max(ceil(interTouchIntervals/2)*2);
-edges = 0.5:0.5:15;
-histogram(ax, interTouchIntervals, edges, Normalization='probability', ...
-    EdgeAlpha=1, FaceColor='black')
-xlabel(ax, 'Inter-reach interval (s)')
-ylabel(ax, 'Probability')
-yticks(ax, 0:0.1:0.2)
-xticks(ax, [0.5, 5, 10, 15])
-fontsize(ax, p.fontSize, 'points')
-fontname(ax, 'Arial')
-% copygraphics(fig)
-
-% 8c. Example unit Raster (maybe ETA overlayed)
-% Let's try to find two examples by how much spike rate increases relative
-% to baseline
-t = etaSpontaneousRaw.t;
-X = etaSpontaneousRaw.X;
-xBase = mean(X(:, t < -2 & t > -4), 2, 'omitnan');
-xMove = mean(X(:, t < -0 & t > -0.5), 2, 'omitnan');
-xDiff = xMove - xBase;
-[~, IDIFF] = sort(xDiff, 'ascend');
-[~, IMOVE] = sort(xMove, 'ascend');
-[~, IDIFFMOVE] = sort(xMove + xDiff, 'ascend');
-[~, IZ] = sort(bootSpontaneous.press.muDiffObs, 'ascend');
-iMin = IDIFF(2);
-iMax = IDIFF(end-4);
-
-exampleUnitNames = { ...
-%         euSpontaneous(iMax).getName, ...
-%         euSpontaneous(iMin).getName, ...
-        'desmond31_20230804_Channel49_Unit1', ... % Up at -1, 40sp/s
-        'daisy18_20230802_Channel66_Unit1', ... % Down at -1.5, wierd for 4-8s trials
+selCommon = c.hasPress & c.hasLick & c.hasPos;
+SEL = { ...
+    [], selCommon, selCommon & c.isPressResponsive, selCommon & c.isLickResponsive, ...
+    selCommon & c.isPressDown & c.isLickUp, selCommon & c.isPressUp & c.isLickDown, selCommon & c.isPressVsLickSelective, selCommon & c.isLick};
+STATS = { ...
+    [], repmat(0.5, size(SEL{2})), meta.press, meta.lick, ...
+    repmat(0.5, size(SEL{7})), repmat(0.5, size(SEL{7})), repmat(0.5, size(SEL{7})), abs(meanZ)'./arrayfun(@(eu) eu.SpikeRateStats.mad, eu)};
+SRANGE = { ...
+    [], [0, 5], [0, 5], [0, 5], ...
+    [0, 5], [0, 5], [0, 5], [0, 2]};
+COLOR = { ...
+    [], [0.15, 0.15, 0.15], [], [], ...
+    [0.15, 0.15, 0.15], [0.15, 0.15, 0.15], [0.15, 0.15, 0.15], [0.15, 0.15, 0.15]; ...
     };
-YLIMS = {[20, 80], [0, 80]};
-NSKIP = [5, 5];
 
-% PETH Rasster
-for i = 1:length(exampleUnitNames)
-    iEu = find(strcmpi(euSpontaneous.getName(), exampleUnitNames{i}));
-    iExp = find(strcmpi(euSpontaneous(iEu).ExpName, {expSpontaneous.name}));
-    ax = nexttile(layout.left.bottom.tl);
-    nnz(isnan(onset(iExp).contra))
-    trials = euSpontaneous(iEu).getTrials('press');
-    selTrials = onset(iExp).contra >= onsetThreshold;
-    thisRd = euSpontaneous(iEu).getRasterData('press', window=[-0, 2], sort=false, MinTrialDuration=6, ...
-        correction=onset(iExp).contra(selTrials), trials=trials(selTrials));
-    hold(ax, 'on')
-    yyaxis(ax, 'right')
-    EphysUnit.plotRaster(ax, thisRd, xlim=[-4, 2], sz=1, iti=false, ...
-        maxTrials=50, maxTrialsMethod='randomsample', everyNth=NSKIP(i));
-    ylabel(ax, 'Trial')
-    yticks(ax, [1, 25, 50])
-    ax.YAxis(2).Direction = 'reverse';
-    yyaxis(ax, 'left')
-    plot(ax, etaSpontaneousRaw.t, etaSpontaneousRaw.X(iEu, :)./0.1, LineWidth=1.5, Color='black')
-    set(ax.YAxis, FontSize=p.fontSize, Color=[0.15, 0.15, 0.15]);
-    ylabel(ax, 'Spike rate (sp/s)')
-    yticks(ax, YLIMS{i}(1):20:YLIMS{i}(end))
-    ylim(ax, YLIMS{i})
-    title(ax, '')
-    legend(ax, 'off')
-    hold(ax, 'on')
-    plot(ax, [0, 0], [0, 100], 'k--')
-    hold(ax, 'off')
-    fontsize(ax, p.fontSize, 'points')
-    xlabel(ax, '')
-    xticks(ax, [-4, -2, 0, 1])
-    xlim(ax, [-4, 0.5])
-end
+ALPHA = repmat(0.25, 2, 4);
 
-SEL = {cSpontaneous.isPressUp, cSpontaneous.isPressDown};
-AX = gobjects(1, 2);
-for i = 1:2
-    ax = nexttile(layout.left.bottom.tl);
-    AX(i) = ax;
-    plot(ax, etaSpontaneousRaw.t, mean(etaSpontaneousRaw.X(SEL{i}, :)./0.1, 1, 'omitnan'), 'k', LineWidth=1.5)
-    hold(ax, 'on')
-    iSel = find(SEL{i});
-    for iTrial = iSel(:)'
-        plot(ax, etaSpontaneousRaw.t, etaSpontaneousRaw.X(iTrial, :)./0.1, Color=[0 0 0 0.1])
+AX = gobjects(1, 8);
+
+% Make a dummy axes for the legends (red, blue, yellow circles)
+ax = nexttile(layout.tl); 
+hold(ax, 'on')
+ax.Visible = 'off';
+hDummy = gobjects(2, 1);
+hDummy(1) = scatter(ax, 0, 0, 1, [1, 0, 0], 'filled', DisplayName='inc');
+hDummy(2) = scatter(ax, 0, 0, 1, [0, 0, 1], 'filled', DisplayName='dec');
+
+for iAx = 2:8
+    ax = nexttile(layout.tl);
+    sel = SEL{iAx};
+    coords = euPos(sel, :);
+    stats = STATS{iAx}(sel);
+    
+    AcuteRecording.plotMap(ax, coords, stats, SRANGE{iAx}, 0, UseSignedML=false, BubbleSize=[1, 5], MarkerAlpha=ALPHA(iAx), ...
+        MarkerEdgeAlpha=0.8, Color=COLOR{iAx});
+
+    title(ax, TITLE(iAx))
+    axis(ax, 'image')
+    xlim(ax, [0.9, 1.7])
+    ylim(ax, [-4.8, -3.7])
+    xticks(ax, [1, 1.6])
+    yticks(ax, [-4.7, -3.8])
+
+    xlabel(ax, 'ML')
+    if ismember(iAx, [2, 5])
+        ylabel(ax, 'DV')
+    else
+        ylabel(ax, '')
     end
-    plot(ax, [0, 0], [0, 100], 'k--')
-    ylim(ax, [0, 80])
-    delete(legend(ax))
-    set(ax, FontSize=p.fontSize, FontName='Arial')
-    ylabel(ax, 'Spike rate (sp/s)', FontSize=p.fontSize, FontName='Arial')
-    xticks(ax, [-4, -2, 0, 1])
-    xlim(ax, [-4, 0.5])
+
+    fontsize(ax, p.fontSize, 'points');
+    fontname(ax, 'Arial')
+    fprintf('%i %s modulated units\n', nnz(sel), TITLE{iAx})
 end
-xlabel(layout.left.bottom.tl, 'Time to reach onset (s)', FontSize=p.fontSize, FontName='Arial')
 
-% 8d. Plot ETA (touch time)
-ax = nexttile(layout.right.tl, 1 + layout.right.top.h, [layout.right.bottom.h, 1]);
-EphysUnit.plotETA(ax, etaSpontaneous, xlim=[-4,0.5], clim=[-1.5, 1.5], sortWindow=[-2, 0.5], signWindow=[-0.3, 0.2], sortThreshold=0.25, negativeSortThreshold=0.25);
-title(ax, '')
-yticks(ax, [1, 20:20:length(euSpontaneous), length(euSpontaneous)])
-xlabel(ax, 'Time to reach onset (s)')
-fontsize(ax, p.fontSize, 'points')
-fontname(ax, 'Arial')
+lgd = legend(hDummy, Orientation='horizontal');
+fontsize(lgd, p.fontSize, 'points');
+fontname(lgd, 'Arial')
+lgd.Layout.Tile = 'north';
+lgd.Position(1) = lgd.Position(1) + 4;
 
-copygraphics(fig, ContentType='vector')
+copygraphics(fig, ContentType='vector', BackgroundColor='none')
+
+
+%%
+% %6b Salt and pepper map (lick vs. reach vs. osci lick)
+% MOVETYPE = {'press', 'lick', 'lickosci'};
+% SEL = {c.hasPos & c.isPressResponsive & c.hasPress & c.hasLick; c.hasPos & c.isLickResponsive & c.hasPress & c.hasLick; c.hasPos & c.isLick & c.hasPress & c.hasLick};
+% % SEL = {c.isPressResponsive; c.isLickResponsive; c.isLick};
+% sd = arrayfun(@(eu) eu.SpikeRateStats.mad, eu);
+% STATS = {meta.press, meta.lick, abs(meanZ)'./sd};%pi - abs(phase(freq==8, :)), meta.anyLickNorm};
+% SRANGE = {[0, 5], [0, 5], [0, 2]};
+% TITLE = {'Pre-reach', 'Pre-lick', 'Lick-entrained'};
+% COLOR = {[], [], hsl2rgb([50/360, 1, 0.4])};
+% ALPHA = {0.25, 0.25, 0.25};
+% POS = { ...
+%         [0.05,0.18,0.8/3,0.6], ...
+%         [0.10+0.8/3,0.18,0.8/3,0.6], ...
+%         [0.15+0.8/3*2,0.18,0.8/3,0.6], ...
+%     };
+% 
+% fprintf('%i units from %i animals %i sessions. (posinfo, %i+ trials for both reach and lick):\n', nnz(c.hasPos & c.hasPress & c.hasLick), length(unique(eu(c.hasPos & c.hasPress & c.hasLick).getAnimalName())), length(unique({eu(c.hasPos & c.hasPress & c.hasLick).ExpName})), p.minNumTrials)
+% 
+% for iMove = 1:length(MOVETYPE)
+% %     ax = subplot(1, length(MOVETYPE), iMove);
+%     ax = axes(fig, Position=POS{iMove});
+%     sel = SEL{iMove};
+%     coords = euPos(sel, :);
+%     stats = STATS{iMove}(sel);
+%     AcuteRecording.plotMap(ax, coords, stats, SRANGE{iMove}, 0, UseSignedML=false, BubbleSize=[1, 5], MarkerAlpha=ALPHA{iMove}, MarkerEdgeAlpha=0.8, Color=COLOR{iMove});
+%     title(ax, TITLE{iMove})
+%     axis(ax, 'image')
+%     xlim(ax, [0.9, 1.7])
+%     ylim(ax, [-4.8, -3.7])
+%     xticks(ax, [1, 1.6])
+%     yticks(ax, [-4.7, -3.8])
+%     if iMove > 1
+%         ylabel(ax, "");
+%     end
+%     xlabel(ax, 'ML');
+% %     fontsize(fig, p.fontSize, 'points');
+% %     fontname(fig, 'Arial')
+%     fontsize(ax, p.fontSize, 'points');
+%     fontname(ax, 'Arial')
+%     fprintf('%i %s modulated units\n', nnz(sel), TITLE{iMove})
+% end
+% 
+% % Make a dummy axes for the legends (red, blue, yellow circles)
+% ax = axes(fig, Position=[0.5, 0.8, 0, 0]); hold(ax, 'on')
+% ax.Visible = 'off';
+% scatter(ax, 0, 0, 1, [1, 0, 0], 'filled', DisplayName='excited')
+% scatter(ax, 0, 0, 1, [0, 0, 1], 'filled', DisplayName='suppressed')
+% scatter(ax, 0, 0, 1, COLOR{3}, 'filled', DisplayName='lick-entrained')
+% h = legend(ax, Position=[0.181886578916949,0.868923612275264,0.643749990314244,0.098958331005027], Orientation='horizontal');
+% fontsize(h, p.fontSize, 'points');
+% fontname(h, 'Arial')
+% 
+% copygraphics(fig, ContentType='vector')
+% 
+% cellfun(@(s) nnz(s), SEL)
+% 
+% 
+% 
+% %% 6c. Salt and pepper map (reach selective vs. press selective vs. pure oscilick)
+% close all
+% MOVETYPE = {'press', 'lick', 'lickosci'};
+% SEL = {c.hasPos & c.isPressDown & c.isLickUp & c.hasPress & c.hasLick; 
+%     c.hasPos & c.isLickDown & c.isPressUp & c.hasPress & c.hasLick; 
+%     c.hasPos & c.isLick & c.hasPress & c.hasLick & ~c.isPressResponsive & ~c.isLickResponsive};
+% % SEL = {c.isPressResponsive; c.isLickResponsive; c.isLick};
+% sd = arrayfun(@(eu) eu.SpikeRateStats.mad, eu);
+% STATS = {meta.press, meta.lick, abs(meanZ)'./sd};%pi - abs(phase(freq==8, :)), meta.anyLickNorm};
+% SRANGE = {[0, 5], [0, 5], [0, 2]};
+% TITLE = {'Reach-selective', 'Lick-selective', 'Pure lick-entrained'};
+% COLOR = {[], [], hsl2rgb([50/360, 1, 0.4])};
+% ALPHA = {0.25, 0.25, 0.25};
+% POS = { ...
+%         [0.05,0.18,0.8/3,0.6], ...
+%         [0.10+0.8/3,0.18,0.8/3,0.6], ...
+%         [0.15+0.8/3*2,0.18,0.8/3,0.6], ...
+%     };
+% 
+% fig = figure(Units='inches', Position=[0, 0, p.width, p.height], DefaultAxesFontSize=p.fontSize);
+% for iMove = 1:length(MOVETYPE)
+% %     ax = subplot(1, length(MOVETYPE), iMove);
+%     ax = axes(fig, Position=POS{iMove});
+%     sel = SEL{iMove};
+%     coords = euPos(sel, :);
+%     stats = STATS{iMove}(sel);
+%     AcuteRecording.plotMap(ax, coords, stats, SRANGE{iMove}, 0, UseSignedML=false, BubbleSize=[1, 5], MarkerAlpha=ALPHA{iMove}, MarkerEdgeAlpha=0.8, Color=COLOR{iMove});
+%     title(ax, TITLE{iMove})
+%     axis(ax, 'image')
+%     xlim(ax, [0.9, 1.7])
+%     ylim(ax, [-4.8, -3.7])
+%     xticks(ax, [1, 1.6])
+%     yticks(ax, [-4.7, -3.8])
+%     if iMove > 1
+%         ylabel(ax, "");
+%     end
+%     xlabel(ax, 'ML');
+% %     fontsize(fig, p.fontSize, 'points');
+% %     fontname(fig, 'Arial')
+%     fontsize(ax, p.fontSize, 'points');
+%     fontname(ax, 'Arial')
+%     fprintf('%i %s modulated units\n', nnz(sel), TITLE{iMove})
+% end
+% 
+% % Make a dummy axes for the legends (red, blue, yellow circles)
+% ax = axes(fig, Position=[0.5, 0.8, 0, 0]); hold(ax, 'on')
+% ax.Visible = 'off';
+% scatter(ax, 0, 0, 1, [1, 0, 0], 'filled', DisplayName='excited')
+% scatter(ax, 0, 0, 1, [0, 0, 1], 'filled', DisplayName='suppressed')
+% scatter(ax, 0, 0, 1, COLOR{3}, 'filled', DisplayName='lick-entrained')
+% h = legend(ax, Position=[0.181886578916949,0.868923612275264,0.643749990314244,0.098958331005027], Orientation='horizontal');
+% fontsize(h, p.fontSize, 'points');
+% fontname(h, 'Arial')
+% 
+% copygraphics(fig, ContentType='vector')
+% 
+% cellfun(@(s) nnz(s), SEL)

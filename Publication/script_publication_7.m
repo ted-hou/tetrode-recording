@@ -1,13 +1,16 @@
  %% 
 read_reachDir_4tgt;
 read_reachDir_2tgt;
-
-%% Lever-2-pos
+%% S7
+load('meta_Lite_NonDuplicate_NonDrift.mat')
+load('boot_20241118_Figure7.mat')
+% boot_amplitude_difference;
+%% Fig7. Lever-2-pos
 p.fontSize = 9;
 p.view = [0, 90];
-p.etaWindow = [-4, 0.5];
-p.etaSortWindow = [-2, 0.5];
-p.etaSignWindow = [-0.2, 0.2];
+p.etaWindow = [-3.5, 0.5];
+p.etaSortWindow = [-2.5, 0.5];
+p.etaSignWindow = [-0.1, 0.2];
 p.minNumTrials = 4;
 
 hLetters = gobjects(1, 3);
@@ -46,7 +49,7 @@ PAWNAME = ["contra", "ipsi"];
 SELTRIALS = {~trajCombined2tgt.usedIpsiPaw, ~trajCombined2tgt.usedIpsiPaw};
 XL = {[-35, 20], [-20, 35]};
 XTICKLABELS = {["L", "M"], ["M", "L"]};
-TITLES = ["contra paw", "ipsi paw"];
+TITLES = ["Contra paw", "Ipsi paw"];
 DOTFACTOR = [1, 1];
 DOTPOWER = [1.25, 1.25];
 AX = gobjects(1, 2);
@@ -99,6 +102,7 @@ for iCol = 1:2
     ax.ZAxis.MinorTickValues=ax.ZLim(1) + zrange*[0.375, 0.625];
 end
 
+axl = AX(1);
 ax = AX; clear AX;
 yticklabels(ax(2), [])
 % hLegend = legend(hDummy, Location='layout', Orientation='horizontal');
@@ -112,7 +116,7 @@ hLetters(1).VerticalAlignment = 'top';
 hLetters(1).Position = [-0.2, ax(1).Position(4)+0.3, 0];
 
 
-clear PAWNAME SELTRIALS XL XTICKLABELS DOTFACTOR DOTPOWER AX hDummy iRow iCol ax nTargets nFrames iTarget selFrames selTrials x y z hLegend
+clear PAWNAME SELTRIALS XL XTICKLABELS DOTFACTOR DOTPOWER AX iRow iCol ax nTargets nFrames iTarget selFrames selTrials x y z hLegend
 
 
 % 7b. Scatter META
@@ -121,14 +125,17 @@ ETA = trajCombined2tgt.eta;
 N = horzcat(ETA.N);
 selUnits = all(N >= p.minNumTrials, 2);
 
-metaWindow = [-0.2, 0.2];
+metaWindow = [-0.1, 0.2];
 ax = nexttile(layout.top.right.tl);
 hold(ax, 'on')
 ex = trajCombined2tgt.eta(1);
 ey = trajCombined2tgt.eta(2);
-metaX = mean(ex.X(selUnits, ex.t > metaWindow(1) & ex.t < metaWindow(2)), 2);
-metaY = mean(ey.X(selUnits, ey.t > metaWindow(1) & ey.t < metaWindow(2)), 2);
-scatter(ax, metaX, metaY, 5, 'k')
+metaX = mean(ex.X(:, ex.t > metaWindow(1) & ex.t < metaWindow(2)), 2);
+metaY = mean(ey.X(:, ey.t > metaWindow(1) & ey.t < metaWindow(2)), 2);
+scatter(ax, metaX(selUnits), metaY(selUnits), 5, 'k', MarkerEdgeAlpha=0.5)
+scatter(ax, metaX(selUnits & any(cat(2, c.isPressResponsive2tgt{:}), 2)), metaY(selUnits & any(cat(2, c.isPressResponsive2tgt{:}), 2)), 5, 'k', 'filled')
+% scatter(ax, metaX(selUnits & c.isSelective.contraOutVsContraIn2tgt), metaY(selUnits & c.isSelective.contraOutVsContraIn2tgt), 5, 'r', 'filled')
+size(selUnits & all(cat(2, c.isPressResponsive2tgt{:}), 2))
 plot(ax, [-1, 3], [-1, 3], 'k:')
 plot(ax, [-1, 3], [0, 0], 'k:')
 plot(ax, [0, 0], [-1, 3], 'k:')
@@ -145,7 +152,7 @@ hLetters(2).HorizontalAlignment = 'right';
 hLetters(2).VerticalAlignment = 'top';
 hLetters(2).Position = [-0.2, ax.Position(4)+0.4, 0];
 
-clear metaWindow ETAX ETAY iRow iCol ax ex ey metaX metaY
+clear metaWindow ETAX ETAY iRow iCol ax ex ey
 
 % 7c ETA HEATMAPS
 TARGETNAME = ["contra-out", "contra-in"];
@@ -157,21 +164,30 @@ AX = gobjects(1, 2);
 
 targetNamesDisp = ["lat", "med"];
 nUnits = nnz(selUnits);%size(trajCombined2tgt.eta(1).X, 1);
+
+% groupVar = NaN(nUnits, 1);
+% groupVar(metaX(selUnits) < 0 & metaY(selUnits) > 0) = 0;
+% groupVar(metaX(selUnits) > 0 & metaY(selUnits) < 0) = 1;
+% groupVar(metaX(selUnits) < 0 & metaY(selUnits) < 0) = 2;
+% groupVar(metaX(selUnits) > 0 & metaY(selUnits) > 0) = 3;
+CL = [-1.5, 1.5];
+
 for iCol = 1:2
     ax = nexttile(layout.bottom.left.tl);
     AX(iCol) = ax;
     iTarget = ITARGET(iCol);
     if iCol == 1
         [~, order] = EphysUnit.plotETA(ax, trajCombined2tgt.(FIELDNAME(iCol))(iTarget), selUnits, event='reach onset', ...
-            clim=[-2, 2], xlim=p.etaWindow, sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
+            clim=CL, sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
             sortThreshold=0.25, negativeSortThreshold=0.25);
         yticks(ax, unique([1, 50:50:nUnits, nUnits]))
     else
-        EphysUnit.plotETA(ax, trajCombined2tgt.(FIELDNAME(iCol))(iTarget), selUnits, event='reach onset', order=order, clim=[-1, 1], xlim=p.etaWindow);
+        EphysUnit.plotETA(ax, trajCombined2tgt.(FIELDNAME(iCol))(iTarget), selUnits, event='reach onset', order=order, clim=CL);
         yticks(ax, []);
     end
     hold(ax, 'on')
-    plot(ax, [0, 0], [0, size(trajCombined2tgt.(FIELDNAME(iCol))(1).X, 1)], 'k')
+    xline(ax, 0, 'k--')
+%     yline(ax, nnz(groupVar <= 1), 'k--')
     ylim(ax, [0, nUnits])
     xlim(ax, p.etaWindow)
     ylabel(ax, '');
@@ -203,20 +219,22 @@ fontname(fig, 'Arial')
 fontsize(hLetters, 16, 'points')
 fontname(hLetters, 'Arial')
 
-copygraphics(fig, ContentType='vector')
-%% S7
-boot_amplitude_difference;
-%%
+lgd = legend(hDummy, Orientation='horizontal');
+lgd.Layout.Tile = 'south';
+
+copygraphics(fig, ContentType='vector', BackgroundColor='none')
+
+%% Fig S7. Lever-4-pos and scatter META comparisons for any A vs. B movement
 close all
 % 7g. 4tgt trajectories (contra, ipsi)
 DOTFACTOR = 1;
 DOTPOWER = 1.25;
 
 clear layout
-layout.w = 4.5;
+layout.w = 6.5;
 layout.h = 5;
 layout.left.w = 2;
-layout.right.w = 1;
+layout.right.w = 3;
 
 fig = figure(Units='inches', Position=[1 1 layout.w, layout.h]);
 
@@ -225,11 +243,11 @@ layout.tl = tiledlayout(fig, 1, layout.left.w + layout.right.w);
 layout.left.tl = tiledlayout(layout.tl, 3, 2);
 l = layout.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.left.w];
 
-layout.right.tl = tiledlayout(layout.tl, 4, 1);
+layout.right.tl = tiledlayout(layout.tl, 2, 2);
 l = layout.right.tl; l.Layout.Tile = 1 + layout.left.w; l.Layout.TileSpan = [1, layout.right.w];
 
 ax = nexttile(layout.left.tl);
-title(ax, 'contra paw')
+title(ax, 'Contra paw')
 axis(ax, 'image');
 hold(ax, 'on')
 nTargets = 4;
@@ -273,7 +291,7 @@ fontsize(ax, p.fontSize, 'points')
 
 % ipsi
 ax = nexttile(layout.left.tl);
-title(ax, 'ipsi paw')
+title(ax, 'Ipsi paw')
 axis(ax, 'image');
 hold(ax, 'on')
 nTargets = 4;
@@ -334,6 +352,7 @@ for iTarget = [2 4 1 3]
     end
     hold(ax, 'on')
     plot(ax, [0, 0], [0, nnz(selUnit)+1], 'k--');
+    xlim(ax, [-2.5, 0.5])
     ylim(ax, [0, nnz(selUnit)+1])
     xlabel(ax, '');    
     title(ax, targetNames{iTarget})
@@ -351,12 +370,94 @@ fontsize(ax, p.fontSize, 'points')
 
 % Scatter
 sz = 5;
+
+ax = nexttile(layout.right.tl);
+assert(minNumTrials == 4)
+minNumTrialsDisp = 4;
+N = arrayfun(@(eta) eta.N, trajCombined.eta, 'UniformOutput', false);
+sel = N{1, 1} >= minNumTrials & N{2, 1} >= minNumTrialsDisp & N{3, 1} >= minNumTrials & N{4, 3} >= minNumTrialsDisp;
+subselSign = sel(:) & (c.isPressResponsive4tgt{2}(:) | c.isPressResponsive4tgt{4}(:));
+subselAmp = sel(:) & c.isSelective.contraFrontVsIpsiFront4tgt(:);
+subselAll = sel(:) & ~subselSign & ~subselAmp;
+ss = [N{2, 1}, N{4, 3}];
+ss = max(ss, [], 2) ./ min(ss, [], 2);
+ss = 10./ss;
+scatter(ax, trajCombined.meta{2, 1}(subselAll), trajCombined.meta{4, 3}(subselAll), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
+scatter(ax, trajCombined.meta{2, 1}(subselAmp), trajCombined.meta{4, 3}(subselAmp), sz, 'red')
+scatter(ax, trajCombined.meta{2, 1}(subselSign), trajCombined.meta{4, 3}(subselSign), sz, 'black', 'filled')
+plot(ax, [0 0], [-2 4], 'k:')
+plot(ax, [-2 4], [0 0], 'k:')
+plot(ax, [-2 4], [-2 4], 'k:')
+axis(ax, 'equal')
+xlim(ax, [-2, 4])
+ylim(ax, [-2, 4])
+xlabel(ax, 'Contra-front (4tgt)')
+ylabel(ax, 'Ipsi-front (4tgt)')
+fontsize(ax, p.fontSize, 'points')
+fprintf('4tgt contra-front vs. ipsi-front: %i total, %i sign-change, %i amplitude change.\n', nnz(sel), nnz(subselSign), nnz(subselAmp))
+
+ax = nexttile(layout.right.tl);
+% assert(minNumTrials == 4)
+minNumTrialsDisp = 4;
+N = arrayfun(@(eta) eta.N, trajCombined.eta, 'UniformOutput', false);
+sel = N{1, 1} >= minNumTrialsDisp & N{2, 1} >= minNumTrials & N{3, 1} >= minNumTrialsDisp & N{4, 3} >= minNumTrials;
+subselSign = sel(:) & (c.isPressResponsive4tgt{1}(:) | c.isPressResponsive4tgt{3}(:));
+subselAmp = sel(:) & c.isSelective.contraOutVsContraIn4tgt(:);
+subselAll = sel(:) & ~subselSign & ~subselAmp;
+ss = [N{1, 1}, N{3, 1}];
+ss = max(ss, [], 2) ./ min(ss, [], 2);
+ss = 10./ss;
+scatter(ax, trajCombined.meta{1, 1}(subselAll), trajCombined.meta{3, 1}(subselAll), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
+scatter(ax, trajCombined.meta{1, 1}(subselAmp), trajCombined.meta{3, 1}(subselAmp), sz, 'red')
+scatter(ax, trajCombined.meta{1, 1}(subselSign), trajCombined.meta{3, 1}(subselSign), sz, 'black', 'filled')
+plot(ax, [0 0], [-2 4], 'k:')
+plot(ax, [-2 4], [0 0], 'k:')
+plot(ax, [-2 4], [-2 4], 'k:')
+axis(ax, 'equal')
+xlim(ax, [-2, 4])
+ylim(ax, [-2, 4])
+xlabel(ax, 'Contra-out (4tgt)')
+ylabel(ax, 'Contra-in (4tgt)')
+fontsize(ax, p.fontSize, 'points')
+fprintf('4tgt contra-out vs. contra-in: %i total, %i sign-change, %i amplitude change.\n', nnz(sel), nnz(subselSign), nnz(subselAmp))
+
+
+ax = nexttile(layout.right.tl);
+ETA = trajCombined2tgt.eta;
+N = horzcat(ETA.N);
+sel = all(N >= p.minNumTrials, 2);
+subselAmp = sel(:) & c.isSelective.contraOutVsContraIn2tgt(:);
+subselSign = sel(:) & (c.isPressResponsive2tgt{1}(:) | c.isPressResponsive2tgt{2}(:));
+subselAll = sel(:) & ~subselSign & ~subselAmp;
+ex = trajCombined2tgt.eta(1);
+ey = trajCombined2tgt.eta(2);
+metaX = mean(ex.X(:, ex.t > -0.1 & ex.t < 0.2), 2);
+metaY = mean(ey.X(:, ey.t > -0.1 & ey.t < 0.2), 2);
+ss = N;
+ss = max(ss, [], 2) ./ min(ss, [], 2);
+ss = 10./ss;
+scatter(ax, metaX(subselAll), metaY(subselAll), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
+scatter(ax, metaX(subselAmp), metaY(subselAmp), sz, 'red')
+scatter(ax, metaX(subselSign), metaY(subselSign), sz, 'black', 'filled')
+yline(ax, 0, 'k:')
+xline(ax, 0, 'k:')
+plot(ax, [-2 4], [-2 4], 'k:')
+axis(ax, 'equal')
+xlim(ax, [-2, 4])
+ylim(ax, [-2, 4])
+xlabel(ax, 'Lateral (2tgt)')
+ylabel(ax, 'Medial (2tgt)')
+fontsize(ax, p.fontSize, 'points')
+fprintf('2tgt: %i total, %i sign-change, %i amplitude change.\n', nnz(sel), nnz(subselSign), nnz(subselAmp))
+
 ax = nexttile(layout.right.tl);
 sel = c.hasPress & c.hasLick;
-subselResp = sel & c.isSelective.pressVsLick;
-subselNone = sel & ~c.isSelective.pressVsLick;
-scatter(ax, meta.lick(subselNone), meta.press(subselNone), sz, 'black'), hold(ax, 'on')
-scatter(ax, meta.lick(subselResp), meta.press(subselResp), sz, 'red')
+subselSign = sel & (c.isPressResponsive | c.isLickResponsive);
+subselAmp = sel & c.isPressVsLickSelective;
+subselAll = sel & ~subselSign & ~subselAmp;
+scatter(ax, meta.lick(subselAll), meta.press(subselAll), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
+scatter(ax, meta.lick(subselAmp), meta.press(subselAmp), sz, 'red')
+scatter(ax, meta.lick(subselSign), meta.press(subselSign), sz, 'black', 'filled')
 plot(ax, [0 0], [-2 4], 'k:')
 plot(ax, [-2 4], [0 0], 'k:')
 plot(ax, [-2 4], [-2 4], 'k:')
@@ -366,83 +467,10 @@ ylim(ax, [-2, 4])
 xlabel(ax, 'Peri-lick')
 ylabel(ax, 'Peri-reach')
 fontsize(ax, p.fontSize, 'points')
-fprintf('%i total, %i responsive.\n', nnz(subselNone) + nnz(subselResp), nnz(subselResp))
+fprintf('press vs. lick: %i total, %i sign-change, %i amplitude change.\n', nnz(sel), nnz(subselSign), nnz(subselAmp))
 
-ax = nexttile(layout.right.tl);
-assert(minNumTrials == 4)
-minNumTrialsDisp = 4;
-N = arrayfun(@(eta) eta.N, trajCombined.eta, 'UniformOutput', false);
-sel = N{1, 1} >= minNumTrials & N{2, 1} >= minNumTrialsDisp & N{3, 1} >= minNumTrials & N{4, 3} >= minNumTrialsDisp;
-subselResp = sel(:) & c.isSelective.contraFrontVsIpsiFront4tgt(:);
-subselNone = sel(:) & ~c.isSelective.contraFrontVsIpsiFront4tgt(:);
-ss = [N{2, 1}, N{4, 3}];
-ss = max(ss, [], 2) ./ min(ss, [], 2);
-ss = 10./ss;
-scatter(ax, trajCombined.meta{2, 1}(subselNone), trajCombined.meta{4, 3}(subselNone), sz, 'black'), hold(ax, 'on')
-scatter(ax, trajCombined.meta{2, 1}(subselResp), trajCombined.meta{4, 3}(subselResp), sz, 'red')
-plot(ax, [0 0], [-2 4], 'k:')
-plot(ax, [-2 4], [0 0], 'k:')
-plot(ax, [-2 4], [-2 4], 'k:')
-axis(ax, 'equal')
-xlim(ax, [-2, 4])
-ylim(ax, [-2, 4])
-xlabel(ax, 'Contra-front')
-ylabel(ax, 'Ipsi-front')
-fontsize(ax, p.fontSize, 'points')
-fprintf('%i total, %i responsive.\n', nnz(subselNone) + nnz(subselResp), nnz(subselResp))
-
-ax = nexttile(layout.right.tl);
-% assert(minNumTrials == 4)
-minNumTrialsDisp = 4;
-N = arrayfun(@(eta) eta.N, trajCombined.eta, 'UniformOutput', false);
-sel = N{1, 1} >= minNumTrialsDisp & N{2, 1} >= minNumTrials & N{3, 1} >= minNumTrialsDisp & N{4, 3} >= minNumTrials;
-subselResp = sel(:) & c.isSelective.contraOutVsContraIn4tgt(:);
-subselNone = sel(:) & ~c.isSelective.contraOutVsContraIn4tgt(:);
-ss = [N{1, 1}, N{3, 1}];
-ss = max(ss, [], 2) ./ min(ss, [], 2);
-ss = 10./ss;
-scatter(ax, trajCombined.meta{1, 1}(subselNone), trajCombined.meta{3, 1}(subselNone), sz, 'black'), hold(ax, 'on')
-scatter(ax, trajCombined.meta{1, 1}(subselResp), trajCombined.meta{3, 1}(subselResp), sz, 'red')
-plot(ax, [0 0], [-2 4], 'k:')
-plot(ax, [-2 4], [0 0], 'k:')
-plot(ax, [-2 4], [-2 4], 'k:')
-axis(ax, 'equal')
-xlim(ax, [-2, 4])
-ylim(ax, [-2, 4])
-xlabel(ax, 'Contra-out')
-ylabel(ax, 'Contra-in')
-fontsize(ax, p.fontSize, 'points')
-fprintf('%i total, %i responsive.\n', nnz(subselNone) + nnz(subselResp), nnz(subselResp))
-
-
-ax = nexttile(layout.right.tl);
-ETA = trajCombined2tgt.eta;
-N = horzcat(ETA.N);
-minNumTrialsDisp = 4;
-sel = all(N >= minNumTrialsDisp, 2);
-subselResp = sel(:) & c.isSelective.contraOutVsContraIn2tgt(:);
-subselNone = sel(:) & ~c.isSelective.contraOutVsContraIn2tgt(:);
-ex = trajCombined2tgt.eta(1);
-ey = trajCombined2tgt.eta(2);
-metaX = mean(ex.X(:, ex.t > -0.2 & ex.t < 0.1), 2);
-metaY = mean(ey.X(:, ey.t > -0.2 & ey.t < 0.1), 2);
-ss = N;
-ss = max(ss, [], 2) ./ min(ss, [], 2);
-ss = 10./ss;
-scatter(ax, metaX(subselNone), metaY(subselNone), sz, 'black'), hold(ax, 'on')
-scatter(ax, metaX(subselResp), metaY(subselResp), sz, 'red')
-plot(ax, [0 0], [-2 4], 'k:')
-plot(ax, [-2 4], [0 0], 'k:')
-plot(ax, [-2 4], [-2 4], 'k:')
-axis(ax, 'equal')
-xlim(ax, [-2, 4])
-ylim(ax, [-2, 4])
-xlabel(ax, 'Lateral (2tgt)')
-ylabel(ax, 'Medial (2tgt)')
-fontsize(ax, p.fontSize, 'points')
-fprintf('%i total, %i responsive.\n', nnz(subselNone) + nnz(subselResp), nnz(subselResp))
 
 lgd = legend(h, Orientation='horizontal', NumColumns=2);
 lgd.Layout.Tile = 'north';
 
-copygraphics(fig, ContentType='vector')
+copygraphics(fig, ContentType='vector', BackgroundColor='none')
