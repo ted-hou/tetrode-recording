@@ -475,13 +475,18 @@ ax = nexttile(layout.left.top.tl, [layout.left.h(2), 1]);
 eta.circLick.Z = eta.circLick.X.*exp(eta.circLick.t*1i);
 eta.circLick.Z(:, 1) = mean(eta.circLick.X(:, [2, 30]), 2).*exp(eta.circLick.t(1)*1i);
 meanZ = mean(eta.circLick.Z, 2);
+
 eta.lickBoutNorm = eta.lickBout;
 eta.lickBoutNorm.X = normalize(eta.lickBout.X, 2, 'zscore', 'robust');
 
 maxBoutCycles = 4;
 sel = c.hasPress & c.hasLick & c.isLick; 
-phase = angle(meanZ(sel));
-phase(phase < 0) = phase(phase < 0) + 2*pi;
+% phase = angle(meanZ(sel));
+% phase(phase < 0) = phase(phase < 0) + 2*pi;
+[amp, IModeX] = max(eta.circLick.X(sel, :), [], 2, 'omitnan');
+phase = eta.circLick.t(IModeX);
+amp = amp(:);
+phase = phase(:);
 [sortedPhase, I] = sort(phase);
 [~, ~] = EphysUnit.plotETA(ax, eta.lickBoutNorm, sel, order=I, ...
     clim=[-2, 2], xlim=[0, 2*pi*maxBoutCycles], hidecolorbar=false);
@@ -515,15 +520,19 @@ hLetter.Position = [-0.35, ax.Position(4) + 0.25, 0];
 % Phase calculations
 nBoutsDisp = 6;
 sel = find(c.isLick & c.hasPress & c.hasLick);
-amp = abs(meanZ(sel));
-phase = angle(meanZ(sel));
+% amp = abs(meanZ(sel));
+% phase = angle(meanZ(sel));
+% amp = eta.circLick.
+% phase = eta.circLick.t(IModeX);
+% [sortedPhase, I] = sort(phase);
+
 rectifiedPhase = phase;
 rectifiedPhase(phase < 0) = rectifiedPhase(phase < 0) + 2*pi;
 ampThreshold = 0;
-isInPhase = abs(phase) <= 0.25*pi;
-isAntiPhase = abs(phase) >= 0.75*pi;
-isFirstQuarterPhase = phase > 0.25*pi & phase < 0.75*pi;
-isThirdQuarterPhase = phase > -0.75*pi & phase < -0.25*pi;
+isInPhase = phase < 0.25*pi | phase >= 1.75*pi;
+isAntiPhase = phase >= 0.75*pi & phase < 1.25*pi;
+isFirstQuarterPhase = phase >= 0.25*pi & phase < 0.75*pi;
+isThirdQuarterPhase = phase >= 1.25*pi & phase < 1.75*pi;
 isHighAmp = amp >= quantile(amp, ampThreshold);
 idInPhase = sel(isInPhase & isHighAmp);
 idAntiPhase = sel(isAntiPhase & isHighAmp);
