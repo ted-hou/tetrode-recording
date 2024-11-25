@@ -3,6 +3,7 @@
 clear
 euSpontaneous = EphysUnit.load('C:\SERVER\Units\acute_spontaneous_reach\SNr_SingleUnit_NonDuplicate_NonDrift');
 load('C:\SERVER\Units\acute_spontaneous_reach\meta\SNr_SingleUnit_NonDuplicate_NonDrift.mat')
+expSpontaneous.distributeEphysUnits(euSpontaneous);
 
 %% Fig 4
 p.fontSize = 9;
@@ -37,14 +38,13 @@ for iExp = 1:length(expSpontaneous)
     interTouchIntervals{iExp} = diff(touchTimes);
 end
 interTouchIntervals = cat(2, interTouchIntervals{:});
-% edges = 0:2:max(ceil(interTouchIntervals/2)*2);
-edges = 0.5:0.5:15;
+edges = 1.5:0.5:15;
 histogram(ax, interTouchIntervals, edges, Normalization='probability', ...
     EdgeAlpha=1, FaceColor='black')
 xlabel(ax, 'Inter-reach interval (s)')
 ylabel(ax, 'Probability')
 yticks(ax, 0:0.1:0.2)
-xticks(ax, [0.5, 5, 10, 15])
+xticks(ax, [1.5, 5, 10, 15])
 fontsize(ax, p.fontSize, 'points')
 fontname(ax, 'Arial')
 % copygraphics(fig)
@@ -70,7 +70,6 @@ exampleUnitNames = { ...
         'desmond31_20230804_Channel49_Unit1', ... % Up at -1, 40sp/s
         'daisy18_20230802_Channel66_Unit1', ... % Down at -1.5, wierd for 4-8s trials
     };
-YLIMS = {[20, 80], [0, 80]};
 NSKIP = [5, 5];
 
 % PETH Rasster
@@ -86,16 +85,15 @@ for i = 1:length(exampleUnitNames)
     hold(ax, 'on')
     yyaxis(ax, 'right')
     EphysUnit.plotRaster(ax, thisRd, xlim=[-4, 2], sz=1, iti=false, ...
-        maxTrials=50, maxTrialsMethod='randomsample', everyNth=NSKIP(i));
+        maxTrials=50, maxTrialsMethod='uniformsample', everyNth=NSKIP(i));
     ylabel(ax, 'Trial')
     yticks(ax, [1, 25, 50])
     ax.YAxis(2).Direction = 'reverse';
     yyaxis(ax, 'left')
-    plot(ax, etaSpontaneousRaw.t, etaSpontaneousRaw.X(iEu, :)./0.1, LineWidth=1.5, Color='black')
+    plot(ax, etaSpontaneousRaw.t, etaSpontaneousRaw.X(iEu, :)./0.1, LineWidth=1.5, Color=[0.2, 0.2, 0.8, 1.0])
     set(ax.YAxis, FontSize=p.fontSize, Color=[0.15, 0.15, 0.15]);
-    ylabel(ax, 'Spike rate (sp/s)')
-    yticks(ax, YLIMS{i}(1):20:YLIMS{i}(end))
-    ylim(ax, YLIMS{i})
+    yticks(ax, 20:20:60)
+    ylim(ax, [15 65])
     title(ax, '')
     legend(ax, 'off')
     hold(ax, 'on')
@@ -106,7 +104,6 @@ for i = 1:length(exampleUnitNames)
     xticks(ax, [-4, -2, 0, 1])
     xlim(ax, [-4, 0.5])
 end
-
 SEL = {cSpontaneous.isPressUp, cSpontaneous.isPressDown};
 AX = gobjects(1, 2);
 for i = 1:2
@@ -118,19 +115,20 @@ for i = 1:2
     for iTrial = iSel(:)'
         plot(ax, etaSpontaneousRaw.t, etaSpontaneousRaw.X(iTrial, :)./0.1, Color=[0 0 0 0.1])
     end
-    plot(ax, [0, 0], [0, 100], 'k--')
+    xline(ax, 0, 'k--')
     ylim(ax, [0, 80])
     delete(legend(ax))
     set(ax, FontSize=p.fontSize, FontName='Arial')
-    ylabel(ax, 'Spike rate (sp/s)', FontSize=p.fontSize, FontName='Arial')
     xticks(ax, [-4, -2, 0, 1])
     xlim(ax, [-4, 0.5])
 end
+ylabel(layout.left.bottom.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
 xlabel(layout.left.bottom.tl, 'Time to reach onset (s)', FontSize=p.fontSize, FontName='Arial')
 
 % 4d. Plot ETA (touch time)
 ax = nexttile(layout.right.tl, 1 + layout.right.top.h, [layout.right.bottom.h, 1]);
-EphysUnit.plotETA(ax, etaSpontaneous, xlim=[-4,0.5], clim=[-1.5, 1.5], sortWindow=[-2, 0.5], signWindow=[-0.3, 0.2], sortThreshold=0.25, negativeSortThreshold=0.25);
+EphysUnit.plotETA(ax, etaSpontaneous, xlim=[-4,0.5], clim=[-1.5, 1.5], sortWindow=[-3, 0.5], signWindow=[-0.3, 0.2], sortThreshold=0.25, negativeSortThreshold=0.25);
+xline(ax, 0, 'k--')
 title(ax, '')
 yticks(ax, [1, 20:20:length(euSpontaneous), length(euSpontaneous)])
 xlabel(ax, 'Time to reach onset (s)')
