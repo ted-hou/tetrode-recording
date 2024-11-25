@@ -1,9 +1,12 @@
 classdef CompleteExperiment < handle
     properties
         name = ''
-        eu = []
         vtdL = [] % camera 2, animal's left
         vtdR = [] % camera 1, animal's right
+    end
+
+    properties (Transient)
+        eu = []
         ac = []
     end
 
@@ -27,6 +30,20 @@ classdef CompleteExperiment < handle
                 obj(i).vtdR = obj.readVideoTrackingData(obj(i).name, 'r');
                 obj(i).ac = CompleteExperiment.readArduino(obj(i).name);
             end
+        end
+
+        function distributeEphysUnits(obj, eu)
+            assert(isa(eu, 'EphysUnit'))
+            euExpNames = {eu.ExpName};
+            nAssignedUnits = 0;
+            for iExp = 1:length(obj)
+                expName = obj(iExp).name;
+                selEu = strcmpi(expName, euExpNames);
+                obj(iExp).eu = eu(selEu);
+                nAssignedUnits = nAssignedUnits + nnz(selEu);
+                fprintf('Assigned %3i units to experiment %02i "%s";\n', nnz(selEu), iExp, obj(iExp).name);
+            end
+            fprintf('Total: assigned %i/%i units to %i experiments.\n', nAssignedUnits, length(eu), length(obj))
         end
 
         function name = animalName(obj)
