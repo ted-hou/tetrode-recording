@@ -30,7 +30,7 @@ eta.correctLickBoutNorm = eu.getETA('count', 'lick+lickbout', window=[-4, 0], re
 
 eta.correctPressBout = eu.getETA('count', 'press+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/32, 2*pi/5], normalize='none', minTrialDuration=4, ...
     maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
-eta.correctPressBoutNorm = eu.getETA('count', 'press+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/32, 2*pi/5], normalize=etaFine.press.stats, minTrialDuration=4, ...
+eta.correctPressBoutNorm = eu.getETA('count', 'press+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/32, 2*pi/5], normalize=[-4, -2], minTrialDuration=4, ...
     maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
 
 
@@ -414,12 +414,13 @@ close all
 p.fontSize = 9;
 p.lineWidth = 1.5;
 nBoutsDisp = 6;
+W = [0, 0.5 + nBoutsDisp/8, 0.5 + 0.8+(nBoutsDisp-1)/8]*40;
 
 clear layout l
 layout.w = 7;
 layout.h = 8;
 layout.left.w = 3;
-layout.right.w = 5;
+layout.right.w = 6;
 layout.left.h = [3, 9, 4, 12];
 layout.right.h = [3, 6];
 
@@ -441,12 +442,12 @@ l = layout.left.bottom.tl; l.Layout.Tile = 1 + sum(layout.left.h(1:3)); l.Layout
 layout.right.top.tl = tiledlayout(layout.right.tl, 1, 2, TileSpacing='compact', Padding='compact');
 l = layout.right.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.right.h(1), 1];
 
-layout.right.bottom.tl = tiledlayout(layout.right.tl, 4, 1, TileSpacing='compact', Padding='compact');
+layout.right.bottom.tl = tiledlayout(layout.right.tl, 4, sum(W), TileSpacing='compact', Padding='compact');
 l = layout.right.bottom.tl; l.Layout.Tile = 1 + sum(layout.right.h(1)); l.Layout.TileSpan = [layout.right.h(2), 1];
 
 
-%S5a. Peri-lick lick prob histogram
-% S5f. Correct lick bout lick histogram
+%S6a. Peri-lick lick prob histogram
+% S6f. Correct lick bout lick histogram
 ax = nexttile(layout.left.top.tl, [layout.left.h(1), 1]);
 counts = lickHist.correctLickOsci.count;
 smoothedCounts = smoothdata(counts, 'gaussian', 25);
@@ -469,7 +470,7 @@ hLetter.VerticalAlignment = 'top';
 hLetter.Position = [-0.35, ax.Position(4) + 0.15, 0];
 
 
-% S5b ETA Heatmap osci lick
+% S6b ETA Heatmap osci lick
 ax = nexttile(layout.left.top.tl, [layout.left.h(2), 1]);
 
 eta.circLick.Z = eta.circLick.X.*exp(eta.circLick.t*1i);
@@ -480,11 +481,10 @@ eta.lickBoutNorm = eta.lickBout;
 eta.lickBoutNorm.X = normalize(eta.lickBout.X, 2, 'zscore', 'robust');
 
 maxBoutCycles = 4;
-sel = c.hasPress & c.hasLick & c.isLick; 
-% phase = angle(meanZ(sel));
-% phase(phase < 0) = phase(phase < 0) + 2*pi;
-[amp, IModeX] = max(eta.circLick.X(sel, :), [], 2, 'omitnan');
-phase = eta.circLick.t(IModeX);
+sel = c.hasPress & c.hasLick & c.isLick;
+phase = angle(meanZ(sel));
+amp = abs(meanZ(sel));
+phase(phase < 0) = phase(phase < 0) + 2*pi;
 amp = amp(:);
 phase = phase(:);
 [sortedPhase, I] = sort(phase);
@@ -520,12 +520,6 @@ hLetter.Position = [-0.35, ax.Position(4) + 0.25, 0];
 % Phase calculations
 nBoutsDisp = 6;
 sel = find(c.isLick & c.hasPress & c.hasLick);
-% amp = abs(meanZ(sel));
-% phase = angle(meanZ(sel));
-% amp = eta.circLick.
-% phase = eta.circLick.t(IModeX);
-% [sortedPhase, I] = sort(phase);
-
 rectifiedPhase = phase;
 rectifiedPhase(phase < 0) = rectifiedPhase(phase < 0) + 2*pi;
 ampThreshold = 0;
@@ -535,9 +529,33 @@ isFirstQuarterPhase = phase >= 0.25*pi & phase < 0.75*pi;
 isThirdQuarterPhase = phase >= 1.25*pi & phase < 1.75*pi;
 isHighAmp = amp >= quantile(amp, ampThreshold);
 idInPhase = sel(isInPhase & isHighAmp);
+idInPhaseLickUp = sel(isInPhase & isHighAmp & c.isLickUp(sel)');
+idInPhaseLickFlat = sel(isInPhase & isHighAmp & ~c.isLickResponsive(sel)');
+idInPhaseLickDown = sel(isInPhase & isHighAmp & c.isLickDown(sel)');
+idInPhasePressUp = sel(isInPhase & isHighAmp & c.isPressUp(sel)');
+idInPhasePressFlat = sel(isInPhase & isHighAmp & ~c.isPressResponsive(sel)');
+idInPhasePressDown = sel(isInPhase & isHighAmp & c.isPressDown(sel)');
 idAntiPhase = sel(isAntiPhase & isHighAmp);
+idAntiPhaseLickUp = sel(isAntiPhase & isHighAmp & c.isLickUp(sel)');
+idAntiPhaseLickFlat = sel(isAntiPhase & isHighAmp & ~c.isLickResponsive(sel)');
+idAntiPhaseLickDown = sel(isAntiPhase & isHighAmp & c.isLickDown(sel)');
+idAntiPhasePressUp = sel(isAntiPhase & isHighAmp & c.isPressUp(sel)');
+idAntiPhasePressFlat = sel(isAntiPhase & isHighAmp & ~c.isPressResponsive(sel)');
+idAntiPhasePressDown = sel(isAntiPhase & isHighAmp & c.isPressDown(sel)');
 idFirstQuarterPhase = sel(isFirstQuarterPhase & isHighAmp);
+idFirstQuarterPhaseLickUp = sel(isFirstQuarterPhase & isHighAmp & c.isLickUp(sel)');
+idFirstQuarterPhaseLickFlat = sel(isFirstQuarterPhase & isHighAmp & ~c.isLickResponsive(sel)');
+idFirstQuarterPhaseLickDown = sel(isFirstQuarterPhase & isHighAmp & c.isLickDown(sel)');
+idFirstQuarterPhasePressUp = sel(isFirstQuarterPhase & isHighAmp & c.isPressUp(sel)');
+idFirstQuarterPhasePressFlat = sel(isFirstQuarterPhase & isHighAmp & ~c.isPressResponsive(sel)');
+idFirstQuarterPhasePressDown = sel(isFirstQuarterPhase & isHighAmp & c.isPressDown(sel)');
 idThirdQuarterPhase = sel(isThirdQuarterPhase & isHighAmp);
+idThirdQuarterPhaseLickUp = sel(isThirdQuarterPhase & isHighAmp & c.isLickUp(sel)');
+idThirdQuarterPhaseLickFlat = sel(isThirdQuarterPhase & isHighAmp & ~c.isLickResponsive(sel)');
+idThirdQuarterPhaseLickDown = sel(isThirdQuarterPhase & isHighAmp & c.isLickDown(sel)');
+idThirdQuarterPhasePressUp = sel(isThirdQuarterPhase & isHighAmp & c.isPressUp(sel)');
+idThirdQuarterPhasePressFlat = sel(isThirdQuarterPhase & isHighAmp & ~c.isPressResponsive(sel)');
+idThirdQuarterPhasePressDown = sel(isThirdQuarterPhase & isHighAmp & c.isPressDown(sel)');
 colors = getColor(1:4, 4, 0.6);
 
 euSel = eu(sel);
@@ -590,39 +608,79 @@ hLetter.VerticalAlignment = 'top';
 hLetter.Position = [-0.35, ax.Position(4) + 0.25, 0];
 
 ID = {idInPhase; idFirstQuarterPhase; idAntiPhase; idThirdQuarterPhase};
+IDSplit = { ...
+    {idInPhaseLickUp, idInPhaseLickFlat, idInPhaseLickDown}, {idInPhasePressUp, idInPhasePressFlat, idInPhasePressDown}; ...
+    {idFirstQuarterPhaseLickUp, idFirstQuarterPhaseLickFlat, idFirstQuarterPhaseLickDown}, {idFirstQuarterPhasePressUp, idFirstQuarterPhasePressFlat, idFirstQuarterPhasePressDown}; ...
+    {idAntiPhaseLickUp, idAntiPhaseLickFlat, idAntiPhaseLickDown}, {idAntiPhasePressUp, idAntiPhasePressFlat, idAntiPhasePressDown}; ...
+    {idThirdQuarterPhaseLickUp, idThirdQuarterPhaseLickFlat, idThirdQuarterPhaseLickDown}, {idThirdQuarterPhasePressUp, idThirdQuarterPhasePressFlat, idThirdQuarterPhasePressDown}; ...
+    };
+ETAMOVEBOUT = {eta.correctLickBoutNorm, eta.correctPressBoutNorm};
+TASK = ["lick", "press"];
+TASKTITLE = ["Self-timed lick", "Self-timed reach"];
 PHASENAME = ["2\pi", "1/2\pi", "\pi", "3/2\pi"];
 ICOLOR = [1, 2, 4, 3];
 
-% S5d (left) and S5g (right)
-AX = gobjects(4, 2);
+% S6d (left) and S6g (right)
+AX = gobjects(4, 3);
 for iAx = 1:4
     iEu = ID{iAx};
-    % First lick
-    ax = nexttile(layout.right.bottom.tl); AX(iAx, 2) = ax;
-    t = eta.correctLickBoutNorm.t;
-    t(t>0) = t(t>0) ./ (2*pi) / 8;
-    X = eta.correctLickBoutNorm.X(iEu, :);
-    X = smoothdata(X, 2, 'gaussian', 5);
-    plot(ax, t, mean(X, 1, 'omitnan'), Color=colors(ICOLOR(iAx), :), LineWidth=1.5)
-    hold(ax, 'on')
-    plot(ax, t, X, Color=[0.15, 0.15, 0.15, 4./nnz(iEu)], LineWidth=0.5)
-    xlim(ax, [-1, nBoutsDisp/8])
-    ylim(ax, [-0.5, 1.5])
-    yticks(ax, [0, 1])
-    % yticks(ax, [40, 100])
-    text(ax, 0.05, 0.95, sprintf('n=%i', nnz(iEu)), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='top', Interpreter='none', FontSize=p.fontSize)
-    xticks(ax, [-1:0.5:0, (1:nBoutsDisp)/8])
-    xticklabels(ax, [{'-1', '-0.5', '0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2*(1:nBoutsDisp), UniformOutput=false)]);
-    
-    ax.XGrid = 'on';
-    hold(ax, 'off')
-    fontsize(ax, p.fontSize, 'points')
-    if iAx == 4
-        text(ax, 0, -0.5, 'Time before first lick (s)', Units='normalized', VerticalAlignment='top', FontSize=p.fontSize)
-        text(ax, 0.55, -0.55, 'Lick phase', Units='normalized', VerticalAlignment='top', FontSize=p.fontSize)
+    for iTask = 1:2
+        % First lick
+        ax = nexttile(layout.right.bottom.tl, (iAx-1)*sum(W) + 1 + sum(W(1:iTask)), [1, W(iTask + 1)]); 
+        AX(iAx, iTask + 1) = ax;
+        hold(ax, 'on')
+        t = ETAMOVEBOUT{iTask}.t;
+        switch TASK(iTask)
+            case "press"
+                t(t>0 & t<=2*pi) = t(t>0 & t<=2*pi) / (2*pi) * 0.8;
+                t(t>2*pi) = (t(t>2*pi) - 2*pi) ./ (2*pi) / 8 + 0.8;
+            case "lick"
+                t(t>0) = t(t>0) ./ (2*pi) / 8;
+        end
+
+        for iDir = [1, 3]
+            iEuDir = IDSplit{iAx, iTask}{iDir};
+            X = ETAMOVEBOUT{iTask}.X(iEuDir, :);
+            X = smoothdata(X, 2, 'gaussian', 5);
+            plot(ax, t, mean(X, 1, 'omitnan'), Color=colors(ICOLOR(iAx), :), LineWidth=1.5)
+            plot(ax, t, X, Color=[0.15, 0.15, 0.15, 0.05], LineWidth=0.5)
+        end
+
+%         X = ETAMOVEBOUT{iTask}.X(iEu, :);
+%         X = smoothdata(X, 2, 'gaussian', 5);
+%         plot(ax, t, mean(X, 1, 'omitnan'), Color=colors(ICOLOR(iAx), :), LineWidth=1.5)
+%         plot(ax, t, X, Color=[0.15, 0.15, 0.15, 0.1], LineWidth=0.5)
+
+        ylim(ax, [-1.25, 1.75])
+        yticks(ax, [-1, 0, 1])
+        
+        switch TASK(iTask)
+            case "press"
+                xline(ax, [0.8,  0.8+(1:(nBoutsDisp-1))/8], LineStyle=':')
+                xlim(ax, [-0.5, 0.8+(nBoutsDisp-1)/8])
+                xticks(ax, [-2, -0.5, 0, 0.8,  0.8+(1:(nBoutsDisp-1))/8])
+                xticklabels(ax, {'-2', '-0.5', '0', '2\pi', '', '', '', '', '12\pi'})
+            case "lick"        
+                xline(ax, (1:nBoutsDisp)/8, LineStyle=':')       
+                xlim(ax, [-0.5, nBoutsDisp/8])
+                xticks(ax, [-2, -0.5, 0, (1:nBoutsDisp)/8])
+                xticklabels(ax, {'-2', '-0.5', '0', '', '', '', '', '', '12\pi'}) 
+        end
+        ax.XAxis.TickLabelRotation = 0;
+
+        text(ax, 0.025, 1, sprintf('inc(n=%i)', nnz(IDSplit{iAx, iTask}{1})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='top', Interpreter='none', FontSize=p.fontSize-1)
+        text(ax, 0.025, 0.025, sprintf('dec(n=%i)', nnz(IDSplit{iAx, iTask}{3})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize-1)
+
+        if iAx == 1
+            title(ax, TASKTITLE(iTask))
+        end
+
+        ax.XGrid = 'on';
+        hold(ax, 'off')
+        fontsize(ax, p.fontSize, 'points')
     end
 
-    % Any bout
+    % 6d. Any bout
     ax = nexttile(layout.left.bottom.tl); AX(iAx, 1) = ax;
     X = eta.lickBoutNorm.X(iEu, :);
     X = smoothdata(X, 2, 'gaussian', 5);
@@ -637,7 +695,7 @@ for iAx = 1:4
     yticks(ax, [-3, 0, 3])
     ax.XGrid = 'on';
 end
-h = xlabel(layout.right.bottom.tl, 'Time from first lick (s)                  Lick phase', FontSize=p.fontSize);
+xlabel(layout.right.bottom.tl, 'Time from bar/spout contact (s) & lick phase', FontSize=p.fontSize);
 ylabel(layout.right.bottom.tl, 'Normalized spike rate (a.u.)', FontSize=p.fontSize)
 xlabel(layout.left.bottom.tl, 'Lick phase', FontSize=p.fontSize)
 ylabel(layout.left.bottom.tl, 'Normalized spike rate (a.u.)', FontSize=p.fontSize)
