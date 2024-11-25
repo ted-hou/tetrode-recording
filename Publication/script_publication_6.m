@@ -660,8 +660,8 @@ for iAx = 1:4
                 xlim(ax, [-0.5, 0.8+(nBoutsDisp-1)/8])
                 xticks(ax, [-2, -0.5, 0, 0.8,  0.8+(1:(nBoutsDisp-1))/8])
                 xticklabels(ax, {'-2', '-0.5', '0', '2\pi', '', '', '', '', '12\pi'})
-            case "lick"        
-                xline(ax, (1:nBoutsDisp)/8, LineStyle=':')       
+            case "lick"    
+                xline(ax, (0:nBoutsDisp)/8, LineStyle=':')       
                 xlim(ax, [-0.5, nBoutsDisp/8])
                 xticks(ax, [-2, -0.5, 0, (1:nBoutsDisp)/8])
                 xticklabels(ax, {'-2', '-0.5', '0', '', '', '', '', '', '12\pi'}) 
