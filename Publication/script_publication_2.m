@@ -13,7 +13,14 @@ load_ephysunits;
 bsr = NaN(length(eta.press.stats), 1);
 bsr(c.hasPress) = [eta.press.stats(c.hasPress).mean]./0.1;
 assert(nnz(~isnan(bsr)) == nnz(c.hasPress))
-[~, test.ks2BaselineSpikeRateUpVsDown.p] = kstest2(bsr(c.hasPress & c.isPressUp), bsr(c.hasPress & c.isPressDown));
+[~, test.ks2BaselineSpikeRateUpVsDown.p] = kstest2(bsr(c.hasPress & c.isPressUp), bsr(c.hasPress & c.isPressDown), Tail='larger');
+test.ranksumBaselineSpikeRateUpVsDown.p = ranksum(bsr(c.hasPress & c.isPressUp), bsr(c.hasPress & c.isPressDown), tail='left');
+
+% ROC (using bsr to classify inc/dec)
+roc = rocmetrics(categorical(c.isPressDown(c.isPressResponsive), [false, true], ["inc", "dec"]), bsr(c.isPressResponsive), "dec");
+ax = axes(figure());
+plot(ax, roc);
+clear ax
 
 fprintf('%i SNr units, median baseline spike rate [-4, -2] = %.2f, median absolute deviation = %.2f.\n', nnz(c.hasPress), median(bsr(c.hasPress)), mad(bsr(c.hasPress), 1));
 fprintf(['%i/%i (%i%%) is reach-modulated, ' ...
@@ -22,6 +29,11 @@ fprintf(['%i/%i (%i%%) is reach-modulated, ' ...
     nnz(c.isPressResponsive), nnz(c.hasPress), round(100*nnz(c.isPressResponsive)/nnz(c.hasPress)), ...
     nnz(c.isPressUp), round(100*nnz(c.isPressUp)/nnz(c.isPressResponsive)), ...
     nnz(c.isPressDown), round(100*nnz(c.isPressDown)/nnz(c.isPressResponsive)))
+fprintf(['Baseline spike rate (median+-mad): decrease=%.2f+-%.2f, increase=%.2f+_%.2f;\n' ...
+    'one-tailed ranksum p<%.4f, one-tailed KS p<%.4f, AUC=%.2f.\n'], median(bsr(c.isPressDown)), mad(bsr(c.isPressDown), 1), median(bsr(c.isPressUp)), mad(bsr(c.isPressUp), 1), test.ranksumBaselineSpikeRateUpVsDown.p, test.ks2BaselineSpikeRateUpVsDown.p, roc.AUC)
+
+
+
 %% Load example units
 unitNames = { ... 
     'daisy13_20220106_Electrode39_Unit1'; ... % Down
