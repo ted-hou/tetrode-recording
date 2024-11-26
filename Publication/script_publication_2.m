@@ -8,6 +8,20 @@ close all
 load_ephysunits;
 % boot_response_dir;
 % load('C:\SERVER\Units\boot_20241024_perimovement_0.3_0.mat')
+
+%% Report baseline spike rate tests, stats
+bsr = NaN(length(eta.press.stats), 1);
+bsr(c.hasPress) = [eta.press.stats(c.hasPress).mean]./0.1;
+assert(nnz(~isnan(bsr)) == nnz(c.hasPress))
+[~, test.ks2BaselineSpikeRateUpVsDown.p] = kstest2(bsr(c.hasPress & c.isPressUp), bsr(c.hasPress & c.isPressDown));
+
+fprintf('%i SNr units, median baseline spike rate [-4, -2] = %.2f, median absolute deviation = %.2f.\n', nnz(c.hasPress), median(bsr(c.hasPress)), mad(bsr(c.hasPress), 1));
+fprintf(['%i/%i (%i%%) is reach-modulated, ' ...
+    '%i(%i%%) increase, ' ...
+    '%i(%i%%) decrease.\n'], ...
+    nnz(c.isPressResponsive), nnz(c.hasPress), round(100*nnz(c.isPressResponsive)/nnz(c.hasPress)), ...
+    nnz(c.isPressUp), round(100*nnz(c.isPressUp)/nnz(c.isPressResponsive)), ...
+    nnz(c.isPressDown), round(100*nnz(c.isPressDown)/nnz(c.isPressResponsive)))
 %% Load example units
 unitNames = { ... 
     'daisy13_20220106_Electrode39_Unit1'; ... % Down
@@ -17,7 +31,7 @@ unitNames = { ...
 % euEg = EphysUnit.load(files);
 euEg = eu(ismember(eu.getName(), unitNames));
 
-%% 2a,b. Raster/PETH of two example units (turn on vs. turn off)
+% 2a,b. Raster/PETH of two example units (turn on vs. turn off)
 clear layout
 layout.w = 7;
 layout.h = 8;
@@ -131,9 +145,9 @@ ax = nexttile(layout.bottom.right.tl);
 hold(ax, 'on')
 edges = 0:5:150;
 hHist1 = gobjects(3, 1);
-hHist1(1) = histogram(ax, msr(c.hasPress), edges, FaceColor='white', DisplayName='all');
-hHist1(2) = histogram(ax, msr(c.isPressUp), edges, FaceColor='red', DisplayName='inc', EdgeColor='none');
-hHist1(3) = histogram(ax, msr(c.isPressDown), edges, FaceColor='blue', DisplayName='dec', EdgeColor='none');
+hHist1(1) = histogram(ax, bsr(c.hasPress), edges, FaceColor='white', DisplayName='all');
+hHist1(2) = histogram(ax, bsr(c.isPressUp), edges, FaceColor='red', DisplayName='inc', EdgeColor='none');
+hHist1(3) = histogram(ax, bsr(c.isPressDown), edges, FaceColor='blue', DisplayName='dec', EdgeColor='none');
 hold(ax, 'off')
 xlabel(ax, 'Baseline spike rate (sp/s)'), ylabel(ax, 'Count')
 fontsize(ax, p.fontSize, 'points');
