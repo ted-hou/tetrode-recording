@@ -449,26 +449,26 @@ xlabel(ax, 'Lateral (2tgt)')
 ylabel(ax, 'Medial (2tgt)')
 fontsize(ax, p.fontSize, 'points')
 fprintf('2tgt: %i total, %i sign-change, %i amplitude change.\n', nnz(sel), nnz(subselSign), nnz(subselAmp))
-
-ax = nexttile(layout.right.tl);
-sel = c.hasPress & c.hasLick;
-subselSign = sel & (c.isPressResponsive | c.isLickResponsive);
-subselAmp = sel & c.isPressVsLickSelective;
-subselAll = sel & ~subselSign & ~subselAmp;
-scatter(ax, meta.lick(subselAll), meta.press(subselAll), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
-scatter(ax, meta.lick(subselAmp), meta.press(subselAmp), sz, 'red')
-scatter(ax, meta.lick(subselSign), meta.press(subselSign), sz, 'black', 'filled')
-plot(ax, [0 0], [-2 4], 'k:')
-plot(ax, [-2 4], [0 0], 'k:')
-plot(ax, [-2 4], [-2 4], 'k:')
-axis(ax, 'equal')
-xlim(ax, [-2, 4])
-ylim(ax, [-2, 4])
-xlabel(ax, 'Peri-lick')
-ylabel(ax, 'Peri-reach')
-fontsize(ax, p.fontSize, 'points')
-fprintf('press vs. lick: %i total, %i sign-change, %i amplitude change.\n', nnz(sel), nnz(subselSign), nnz(subselAmp))
-
+% 
+% ax = nexttile(layout.right.tl);
+% sel = c.hasPress & c.hasLick;
+% subselSign = sel & (c.isPressResponsive | c.isLickResponsive);
+% subselAmp = sel & c.isPressVsLickSelective;
+% subselAll = sel & ~subselSign & ~subselAmp;
+% scatter(ax, meta.lick(subselAll), meta.press(subselAll), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
+% scatter(ax, meta.lick(subselAmp), meta.press(subselAmp), sz, 'red')
+% scatter(ax, meta.lick(subselSign), meta.press(subselSign), sz, 'black', 'filled')
+% plot(ax, [0 0], [-2 4], 'k:')
+% plot(ax, [-2 4], [0 0], 'k:')
+% plot(ax, [-2 4], [-2 4], 'k:')
+% axis(ax, 'equal')
+% xlim(ax, [-2, 4])
+% ylim(ax, [-2, 4])
+% xlabel(ax, 'Peri-lick')
+% ylabel(ax, 'Peri-reach')
+% fontsize(ax, p.fontSize, 'points')
+% fprintf('press vs. lick: %i total, %i sign-change, %i amplitude change.\n', nnz(sel), nnz(subselSign), nnz(subselAmp))
+% 
 
 lgd = legend(h, Orientation='horizontal', NumColumns=2);
 lgd.Layout.Tile = 'north';

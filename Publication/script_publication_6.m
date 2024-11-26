@@ -418,10 +418,10 @@ W = [0, 0.5 + nBoutsDisp/8, 0.5 + 0.8+(nBoutsDisp-1)/8]*40;
 
 clear layout l
 layout.w = 7;
-layout.h = 8;
+layout.h = 6;
 layout.left.w = 3;
 layout.right.w = 6;
-layout.left.h = [3, 9, 4, 12];
+layout.left.h = [4, 9, 4, 12];
 layout.right.h = [3, 6];
 
 fig = figure(Units='inches', Position=[1, 1, layout.w, layout.h], DefaultAxesFontSize=p.fontSize);
@@ -467,7 +467,7 @@ hLetter = text(ax, 0, 0, 'a', FontSize=16, FontName='Arial', FontWeight='bold', 
 ax.Units = 'inches';
 hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
-hLetter.Position = [-0.35, ax.Position(4) + 0.15, 0];
+hLetter.Position = [-0.35, ax.Position(4) + 0.1, 0];
 
 
 % S6b ETA Heatmap osci lick
@@ -646,17 +646,12 @@ for iAx = 1:4
             plot(ax, t, X, Color=[0.15, 0.15, 0.15, 0.05], LineWidth=0.5)
         end
 
-%         X = ETAMOVEBOUT{iTask}.X(iEu, :);
-%         X = smoothdata(X, 2, 'gaussian', 5);
-%         plot(ax, t, mean(X, 1, 'omitnan'), Color=colors(ICOLOR(iAx), :), LineWidth=1.5)
-%         plot(ax, t, X, Color=[0.15, 0.15, 0.15, 0.1], LineWidth=0.5)
-
         ylim(ax, [-1.25, 1.75])
         yticks(ax, [-1, 0, 1])
         
         switch TASK(iTask)
             case "press"
-                xline(ax, [0.8,  0.8+(1:(nBoutsDisp-1))/8], LineStyle=':')
+                xline(ax, [0, 0.8,  0.8+(1:(nBoutsDisp-1))/8], LineStyle=':')
                 xlim(ax, [-0.5, 0.8+(nBoutsDisp-1)/8])
                 xticks(ax, [-2, -0.5, 0, 0.8,  0.8+(1:(nBoutsDisp-1))/8])
                 xticklabels(ax, {'-2', '-0.5', '0', '2\pi', '', '', '', '', '12\pi'})
@@ -668,9 +663,6 @@ for iAx = 1:4
         end
         ax.XAxis.TickLabelRotation = 0;
 
-        text(ax, 0.025, 1, sprintf('inc(n=%i)', nnz(IDSplit{iAx, iTask}{1})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='top', Interpreter='none', FontSize=p.fontSize-1)
-        text(ax, 0.025, 0.025, sprintf('dec(n=%i)', nnz(IDSplit{iAx, iTask}{3})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize-1)
-
         if iAx == 1
             title(ax, TASKTITLE(iTask))
         end
@@ -678,6 +670,9 @@ for iAx = 1:4
         ax.XGrid = 'on';
         hold(ax, 'off')
         fontsize(ax, p.fontSize, 'points')
+        text(ax, 0.025, 1, sprintf('inc(n=%i)', nnz(IDSplit{iAx, iTask}{1})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='top', Interpreter='none', FontSize=p.fontSize-1)
+        text(ax, 0.025, 0.025, sprintf('dec(n=%i)', nnz(IDSplit{iAx, iTask}{3})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize-1)
+
     end
 
     % 6d. Any bout
@@ -687,13 +682,14 @@ for iAx = 1:4
     plot(ax, eta.lickBoutNorm.t, mean(X, 1, 'omitnan'), Color=colors(ICOLOR(iAx), :), LineWidth=1.5)
     hold(ax, 'on')
     plot(ax, eta.lickBoutNorm.t, X, Color=[0.15, 0.15, 0.15, 4./nnz(iEu)], LineWidth=0.5)
-    text(ax, 0.05, 0.025, sprintf('n=%i', nnz(iEu)), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize)
     xticks(ax, 0:2*pi:8*pi)
     xticklabels(ax, [{'0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2:2:8, UniformOutput=false)]);
     xlim(ax, [0, 8*pi])
     ylim(ax, [-4, 4])
     yticks(ax, [-3, 0, 3])
     ax.XGrid = 'on';
+    fontsize(ax, p.fontSize, 'points')
+    text(ax, 0.025, 0.025, sprintf('n=%i', nnz(iEu)), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize-1)
 end
 xlabel(layout.right.bottom.tl, 'Time from bar/spout contact (s) & lick phase', FontSize=p.fontSize);
 ylabel(layout.right.bottom.tl, 'Normalized spike rate (a.u.)', FontSize=p.fontSize)
@@ -714,7 +710,7 @@ hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
 hLetter.Position = [-0.3, ax.Position(4) + 1.0, 0];
 
-% S5f. Reach vs. Lick (scatter)
+% S6f. Reach vs. Lick (scatter)
 AX = gobjects(2, 1);
 sz = 7;
 ax = nexttile(layout.right.top.tl); AX(1) = ax;
@@ -733,7 +729,7 @@ plot(ax, [0, 0], [-10, 10], 'k:');
 plot(ax, [-10, 10], [-10, 10], 'k:')
 
 
-% S5e right, Additional plot, scatter press vs lick META, color by lick entrainment phase: 
+% S6e right, Additional plot, scatter press vs lick META, color by lick entrainment phase: 
 sz = 7;
 ax = nexttile(layout.right.top.tl); AX(2) = ax;
 hold(ax, 'on')
@@ -757,7 +753,7 @@ ylim(AX, [-2, 5])
 fontsize(AX, p.fontSize, 'points')
 fontname(AX, 'Arial')
 
-ylabel(layout.right.top.tl, 'Peri-reach activity (a.u.)', FontSize=p.fontSize)
+ylabel(AX, 'Peri-reach activity (a.u.)', FontSize=p.fontSize)
 xlabel(AX, 'Peri-lick activity (a.u.)', FontSize=p.fontSize)
 
 ax = AX(1);
