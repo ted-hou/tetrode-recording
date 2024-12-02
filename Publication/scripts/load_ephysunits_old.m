@@ -194,7 +194,7 @@ etaFine.p.resolution = 0.025;
 p.etaOnsetThreshold = 0.25;
 p.etaSortWindow = [-3, 0];
 p.etaSignWindow = [-0.3, 0];
-p.etaOnsetPattern = [zeros(1, 50), ones(1, 50)];
+p.etaOnsetPattern = [zeros(1, 50), ones(1, 100)];
 
 fig = figure(Units='normalized', Position=[0.1, 0.1, 0.8, 0.8]);
 ax(1) = subplot(1, 2, 1);
