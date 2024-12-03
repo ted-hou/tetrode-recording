@@ -160,7 +160,7 @@ for iTrialType = 1:length(trialTypes)
             yyaxis(ax, axisSide{iFt});
             iVar = find(strcmpi(ftNames{iFt}, fnames));
             col = getColor(iFt, length(ftNames), 0.7);
-            h(iFt) = plot(ax, t, mu(:, iVar), Color=col, LineWidth=1.5, DisplayName=ftNamesDisp{iVar});
+            h(iFt) = plot(ax, t, mu(:, iVar), Color=col, LineWidth=1.5, DisplayName=ftNamesDisp{iFt});
             if ismember(ftNames{iFt}, sdNames)
                 sel = ~isnan(mu(:, iVar)+sd(:, iVar));
                 patch(ax, [t(sel)'; flip(t(sel)')], [mu(sel, iVar)-sd(sel, iVar); flip(mu(sel, iVar)+sd(sel, iVar))], 'r', ...

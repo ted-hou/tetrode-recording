@@ -194,7 +194,7 @@ etaFine.p.resolution = 0.025;
 p.etaOnsetThreshold = 0.25;
 p.etaSortWindow = [-3, 0];
 p.etaSignWindow = [-0.3, 0];
-p.etaOnsetPattern = [zeros(1, 50), ones(1, 100)];
+p.etaOnsetPattern = [zeros(1, 25), ones(1, 50)];
 
 fig = figure(Units='normalized', Position=[0.1, 0.1, 0.8, 0.8]);
 ax(1) = subplot(1, 2, 1);
@@ -219,6 +219,9 @@ plot(ax(2), x(I), 1:length(I))
 
 clim(ax(1), [-1.5, 1.5])
 clim(ax(2), [-1.5, 1.5])
+
+title(ax(1), sprintf('%i NaN', nnz(isnan(onset.press(c.isPressResponsive)))))
+title(ax(2), sprintf('%i NaN (%i NaN)', nnz(isnan(onset.lick(c.isLickResponsive))), nnz(isnan(onset.lick(c.isLickResponsive & c.isPressResponsive)))))
 clear n x I
 
 %% Save metadata and units
