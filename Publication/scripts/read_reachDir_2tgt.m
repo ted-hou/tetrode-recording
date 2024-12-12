@@ -1,6 +1,18 @@
 %% Load EphysUnits
 euReachDir2Tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction_2tgts\SingleUnits_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
 
+%% Find location of units from AR
+ar2tgt = AcuteRecording.load('C:\SERVER\Acute\Reach2tgt\AcuteRecording');
+euPos2tgt = NaN(length(euReachDir2Tgt), 3); % ml dv ap
+for iEu = 1:length(euReachDir2Tgt)
+    iAr = find(strcmpi(euReachDir2Tgt(iEu).ExpName, {ar2tgt.expName}));
+    if ~isempty(iAr)
+        euPos2tgt(iEu, :) = ar2tgt(iAr).getProbeCoords(euReachDir2Tgt(iEu).Channel);
+        c.hasPos(iEu) = true;
+    else
+        fprintf(1, 'Cannot find AR: %s\n', euReachDir2Tgt(iEu).ExpName)
+    end
+end
 %%
 for iEu = 1:length(euReachDir2Tgt)
     trials = euReachDir2Tgt(iEu).makeTrials('press_spontaneous');
