@@ -1,5 +1,5 @@
 %% Load EphysUnits
-euReachDir4Tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction\SingleUnits_NonDuplicate');
+euReachDir4Tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction\SingleUnits_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
 % pa = Pawnalyzer2(eu, refEvent='press');
 
 
@@ -9,52 +9,52 @@ paReachDir4Tgt.getClips(noImage=true, nFramesBefore=15, nFramesAfter=0, keepData
 paReachDir4Tgt.load('C:\SERVER\Units\acute_3cam_reach_direction\Pawnalyzer2\pa.mat')
 
 %% Analysis
-%% Calculate trajectories for each session (traj), then combine across sessions (tarjCombined)
+%% Calculate trajectories for each session (traj4tgt), then combine across sessions (tarjCombined)
 close all
 nExp = paReachDir4Tgt.getLength('exp');
-clear traj
-traj(nExp) = struct(contra=[], ipsi=[], target=[], t=[], pca=[], kmeans=[]);
+clear traj4tgt
+traj4tgt(nExp) = struct(contra=[], ipsi=[], target=[], t=[], pca=[], kmeans=[]);
 nt = 16;
 for iExp = 1:nExp
     nFrames = paReachDir4Tgt.getLength('frame', exp=iExp, trial=1);
-    [traj(iExp).contra, traj(iExp).ipsi, traj(iExp).target, traj(iExp).t] = paReachDir4Tgt.getTrajectories(iExp, zero=nFrames - nt + 1);
+    [traj4tgt(iExp).contra, traj4tgt(iExp).ipsi, traj4tgt(iExp).target, traj4tgt(iExp).t] = paReachDir4Tgt.getTrajectories(iExp, zero=nFrames - nt + 1);
     if ~ismember(paReachDir4Tgt.exp(iExp).animalName, {'desmond29', 'daisy25'})
-        traj(iExp).contra.x = -traj(iExp).contra.x;
-        traj(iExp).ipsi.x = -traj(iExp).ipsi.x;
+        traj4tgt(iExp).contra.x = -traj4tgt(iExp).contra.x;
+        traj4tgt(iExp).ipsi.x = -traj4tgt(iExp).ipsi.x;
     end
 end
 
 % Combine trajectories across sessions
-contraX = arrayfun(@(t) t.contra.x, traj, 'UniformOutput', false);
-contraY = arrayfun(@(t) t.contra.y, traj, 'UniformOutput', false);
-contraZ = arrayfun(@(t) t.contra.z, traj, 'UniformOutput', false);
+contraX = arrayfun(@(t) t.contra.x, traj4tgt, 'UniformOutput', false);
+contraY = arrayfun(@(t) t.contra.y, traj4tgt, 'UniformOutput', false);
+contraZ = arrayfun(@(t) t.contra.z, traj4tgt, 'UniformOutput', false);
 
 contra.x = cat(1, contraX{:});
 contra.y = cat(1, contraY{:});
 contra.z = cat(1, contraZ{:});
 
-ipsiX = arrayfun(@(t) t.ipsi.x, traj, 'UniformOutput', false);
-ipsiY = arrayfun(@(t) t.ipsi.y, traj, 'UniformOutput', false);
-ipsiZ = arrayfun(@(t) t.ipsi.z, traj, 'UniformOutput', false);
+ipsiX = arrayfun(@(t) t.ipsi.x, traj4tgt, 'UniformOutput', false);
+ipsiY = arrayfun(@(t) t.ipsi.y, traj4tgt, 'UniformOutput', false);
+ipsiZ = arrayfun(@(t) t.ipsi.z, traj4tgt, 'UniformOutput', false);
 
 ipsi.x = cat(1, ipsiX{:});
 ipsi.y = cat(1, ipsiY{:});
 ipsi.z = cat(1, ipsiZ{:});
 
-trajCombined = struct(contra=contra, ipsi=ipsi, target=[traj.target]', t=traj(1).t);
+trajCombined4tgt = struct(contra=contra, ipsi=ipsi, target=[traj4tgt.target]', t=traj4tgt(1).t);
 
 %% Determine which paw was used
 close all
 clear r
 r.contra = cat(3, ...
-    diff(trajCombined.contra.x, 1, 2), ...
-    diff(trajCombined.contra.y, 1, 2), ...
-    diff(trajCombined.contra.z, 1, 2) ...
+    diff(trajCombined4tgt.contra.x, 1, 2), ...
+    diff(trajCombined4tgt.contra.y, 1, 2), ...
+    diff(trajCombined4tgt.contra.z, 1, 2) ...
     );
 r.ipsi = [...
-    diff(trajCombined.ipsi.x, 1, 2), ...
-    diff(trajCombined.ipsi.y, 1, 2), ...
-    diff(trajCombined.ipsi.z, 1, 2) ...
+    diff(trajCombined4tgt.ipsi.x, 1, 2), ...
+    diff(trajCombined4tgt.ipsi.y, 1, 2), ...
+    diff(trajCombined4tgt.ipsi.z, 1, 2) ...
     ];
 r.contra = sum(sqrt(sum(r.contra.^2, 3)), 2);
 r.ipsi = sum(sqrt(sum(r.ipsi.^2, 3)), 2);
@@ -63,7 +63,7 @@ r.ipsi = sum(sqrt(sum(r.ipsi.^2, 3)), 2);
 % Draw quadrants to separate trials into (neither, ipsi-only, contra-only,
 % both)
 % Visualize the thresholds
-target = trajCombined.target;
+target = trajCombined4tgt.target;
 contra0 = quantile(r.contra(target=="ipsi-front"), 0.5);
 ipsi0 = quantile(r.ipsi(ismember(target, ["contra-front", "contra-in", "contra-out"])), 0.5);
 
@@ -85,13 +85,13 @@ ylabel(ax, 'ipsi paw movement')
 
 % Categorize trials
 nTrials = length(target);
-trajCombined.paw = repmat("", nTrials, 1);
-trajCombined.paw(r.contra >= contra0 & r.ipsi < ipsi0) = "contra";
-trajCombined.paw(r.contra >= contra0 & r.ipsi >= ipsi0) = "both";
-trajCombined.paw(r.contra < contra0 & r.ipsi >= ipsi0) = "ipsi";
-trajCombined.paw(r.contra < contra0 & r.ipsi < ipsi0) = "neither";
+trajCombined4tgt.paw = repmat("", nTrials, 1);
+trajCombined4tgt.paw(r.contra >= contra0 & r.ipsi < ipsi0) = "contra";
+trajCombined4tgt.paw(r.contra >= contra0 & r.ipsi >= ipsi0) = "both";
+trajCombined4tgt.paw(r.contra < contra0 & r.ipsi >= ipsi0) = "ipsi";
+trajCombined4tgt.paw(r.contra < contra0 & r.ipsi < ipsi0) = "neither";
 
-paw = trajCombined.paw;
+paw = trajCombined4tgt.paw;
 
 PAWS = ["contra", "both", "ipsi"];
 TARGETS = ["contra-out", "contra-front", "contra-in", "ipsi-front"];
@@ -108,18 +108,22 @@ clear target paw
 
 %% Calculate movement initiation time for each paw
 onsetThreshold = 0.25;
-onset = struct(contra=NaN(nTrials, 1), ipsi=NaN(nTrials, 1));
-t = trajCombined.t;
+onsetResolution = 0.025;
+onset4tgt = struct(contra=NaN(nTrials, 1), ipsi=NaN(nTrials, 1));
+nTrials = length(trajCombined4tgt.target);
+t = -0.5:onsetResolution:0;
+distContra = zeros(nTrials, length(t));
+distIpsi = zeros(nTrials, length(t));
 for iTrial = 1:nTrials
     posContra = [ ...
-        trajCombined.contra.x(iTrial, :); ...
-        trajCombined.contra.y(iTrial, :); ...
-        trajCombined.contra.z(iTrial, :); ...
+        interp1(trajCombined4tgt.t, trajCombined4tgt.contra.x(iTrial, :), t, 'linear'); ...
+        interp1(trajCombined4tgt.t, trajCombined4tgt.contra.y(iTrial, :), t, 'linear'); ...
+        interp1(trajCombined4tgt.t, trajCombined4tgt.contra.z(iTrial, :), t, 'linear'); ...
         ];
     posIpsi = [ ...
-        trajCombined.ipsi.x(iTrial, :); ...
-        trajCombined.ipsi.y(iTrial, :); ...
-        trajCombined.ipsi.z(iTrial, :); ...
+        interp1(trajCombined4tgt.t, trajCombined4tgt.ipsi.x(iTrial, :), t, 'linear'); ...
+        interp1(trajCombined4tgt.t, trajCombined4tgt.ipsi.y(iTrial, :), t, 'linear'); ...
+        interp1(trajCombined4tgt.t, trajCombined4tgt.ipsi.z(iTrial, :), t, 'linear'); ...
         ];
     distContra(iTrial, :) = sqrt(sum(posContra.^2, 1));
     distIpsi(iTrial, :) = sqrt(sum(posIpsi.^2, 1));
@@ -142,7 +146,7 @@ for iTrial = 1:nTrials
         continue
     end
     iOnset = iOnset(end);
-    onset.contra(iTrial) = t(iOnset) - t(end);
+    onset4tgt.contra(iTrial) = t(iOnset);
 end
 
 for iTrial = 1:nTrials
@@ -160,41 +164,41 @@ for iTrial = 1:nTrials
         continue
     end
     iOnset = iOnset(end);
-    onset.ipsi(iTrial) = t(iOnset) - t(end);
+    onset4tgt.ipsi(iTrial) = t(iOnset);
 end
-onset.both = min(onset.contra, onset.ipsi, 'omitnan');
+onset4tgt.both = min(onset4tgt.contra, onset4tgt.ipsi, 'omitnan');
 
 clear t iTrial posContra posIpsi distContra distIpsi distContraNorm distIpsiNorm isAbove iLastAbove iOnset
 
-%% Calculate ETA using movement intiation correction
+% Calculate ETA using movement intiation correction
 minNumTrials = 4;
 targetNames = ["contra-out", "contra-front", "contra-in", "ipsi-front"];
 pawNames = ["contra", "both", "ipsi"];
-sessionEdges = cumsum([0, cellfun(@length, {traj.target})]);
+sessionEdges = cumsum([0, cellfun(@length, {traj4tgt.target})]);
 nExp = paReachDir4Tgt.getLength('exp');
 
 for iExp = 1:nExp
     iTrialsInExp = sessionEdges(iExp)+1:sessionEdges(iExp+1);
-    targetExp = trajCombined.target(iTrialsInExp);
-    pawExp = trajCombined.paw(iTrialsInExp);
+    targetExp = trajCombined4tgt.target(iTrialsInExp);
+    pawExp = trajCombined4tgt.paw(iTrialsInExp);
     onsetExp = struct( ...
-        contra=onset.contra(iTrialsInExp), ...
-        ipsi=onset.ipsi(iTrialsInExp), ...
-        both=onset.both(iTrialsInExp) ...
+        contra=onset4tgt.contra(iTrialsInExp), ...
+        ipsi=onset4tgt.ipsi(iTrialsInExp), ...
+        both=onset4tgt.both(iTrialsInExp) ...
         );
     for iTarget = 1:4
         for iPaw = 1:3
             selTrials = targetExp==targetNames(iTarget) & pawExp==pawNames(iPaw);
             if nnz(selTrials) >= minNumTrials
-                traj(iExp).eta(iTarget, iPaw) = paReachDir4Tgt.exp(iExp).eu.getETA('count', 'press', window=[-4, 0.5], resolution=0.1, normalize=[-4, -2], alignTo='stop', includeInvalid=true, ...
+                traj4tgt(iExp).eta(iTarget, iPaw) = paReachDir4Tgt.exp(iExp).eu.getETA('count', 'press', window=[-4, 0.5], resolution=0.1, normalize=[-4, -2], alignTo='stop', includeInvalid=true, ...
                     trials=paReachDir4Tgt.exp(iExp).eu(1).Trials.Press(selTrials), correction=onsetExp.(pawNames(iPaw))(selTrials));
-                traj(iExp).trials{iTarget, iPaw} = paReachDir4Tgt.exp(iExp).eu(1).Trials.Press(selTrials);
-                traj(iExp).correction{iTarget, iPaw} = onsetExp.(pawNames(iPaw))(selTrials);
+                traj4tgt(iExp).trials{iTarget, iPaw} = paReachDir4Tgt.exp(iExp).eu(1).Trials.Press(selTrials);
+                traj4tgt(iExp).correction{iTarget, iPaw} = onsetExp.(pawNames(iPaw))(selTrials);
             else
                 t = (-4:0.1:0.4)+0.05;
-                traj(iExp).eta(iTarget, iPaw) = struct(X=NaN(length(paReachDir4Tgt.exp(iExp).eu), length(t)), t=t, N=repmat(nnz(selTrials), [length(paReachDir4Tgt.exp(iExp).eu), 1]), D=[], stats=[]);
-                traj(iExp).trials{iTarget, iPaw} = [];
-                traj(iExp).correction{iTarget, iPaw} = [];                
+                traj4tgt(iExp).eta(iTarget, iPaw) = struct(X=NaN(length(paReachDir4Tgt.exp(iExp).eu), length(t)), t=t, N=repmat(nnz(selTrials), [length(paReachDir4Tgt.exp(iExp).eu), 1]), D=[], stats=[]);
+                traj4tgt(iExp).trials{iTarget, iPaw} = [];
+                traj4tgt(iExp).correction{iTarget, iPaw} = [];                
             end
         end
     end
@@ -204,20 +208,40 @@ end
 [~, euExpIndices] = ismember({euReachDir4Tgt.ExpName}, {paReachDir4Tgt.exp.name});
 for iTarget = 1:4
     for iPaw = 1:3
-        X = arrayfun(@(traj) traj.eta(iTarget, iPaw).X, traj, 'UniformOutput', false);
-        N = arrayfun(@(traj) traj.eta(iTarget, iPaw).N, traj, 'UniformOutput', false);
-        stats = arrayfun(@(traj) traj.eta(iTarget, iPaw).stats, traj, 'UniformOutput', false);
-        trajCombined.eta(iTarget, iPaw).X = cat(1, X{:});
-        trajCombined.eta(iTarget, iPaw).t = traj(1).eta(iTarget, iPaw).t;
-        trajCombined.eta(iTarget, iPaw).N = cat(1, N{:});
-        trajCombined.eta(iTarget, iPaw).stats = cat(2, stats{:});
-        trajCombined.eta(iTarget, iPaw).target = targetNames{iTarget};
-        trajCombined.eta(iTarget, iPaw).paw = pawNames{iPaw};
-        trialsByExp = arrayfun(@(traj) traj.trials{iTarget, iPaw}, traj, UniformOutput=false);
-        correctionByExp = arrayfun(@(traj) traj.correction{iTarget, iPaw}, traj, UniformOutput=false);
-        trajCombined.trials{iTarget, iPaw} = trialsByExp(euExpIndices);
-        trajCombined.correction{iTarget, iPaw} = correctionByExp(euExpIndices);
+        X = arrayfun(@(traj4tgt) traj4tgt.eta(iTarget, iPaw).X, traj4tgt, 'UniformOutput', false);
+        N = arrayfun(@(traj4tgt) traj4tgt.eta(iTarget, iPaw).N, traj4tgt, 'UniformOutput', false);
+        stats = arrayfun(@(traj4tgt) traj4tgt.eta(iTarget, iPaw).stats, traj4tgt, 'UniformOutput', false);
+        trajCombined4tgt.eta(iTarget, iPaw).X = cat(1, X{:});
+        trajCombined4tgt.eta(iTarget, iPaw).t = traj4tgt(1).eta(iTarget, iPaw).t;
+        trajCombined4tgt.eta(iTarget, iPaw).N = cat(1, N{:});
+        trajCombined4tgt.eta(iTarget, iPaw).stats = cat(2, stats{:});
+        trajCombined4tgt.eta(iTarget, iPaw).target = targetNames{iTarget};
+        trajCombined4tgt.eta(iTarget, iPaw).paw = pawNames{iPaw};
+        trialsByExp = arrayfun(@(traj4tgt) traj4tgt.trials{iTarget, iPaw}, traj4tgt, UniformOutput=false);
+        correctionByExp = arrayfun(@(traj4tgt) traj4tgt.correction{iTarget, iPaw}, traj4tgt, UniformOutput=false);
+        trajCombined4tgt.trials{iTarget, iPaw} = trialsByExp(euExpIndices);
+        trajCombined4tgt.correction{iTarget, iPaw} = correctionByExp(euExpIndices);
     end
+end
+
+trajCombined4tgt.onset = struct(contra=cell(4, 1), both=cell(4, 1), ipsi=cell(4, 1));
+
+tst4tgt = cellfun(@(c) c(:, 1), {traj4tgt.correction}, UniformOutput=false);
+tst4tgt = cat(2, tst4tgt{:});
+for iTarget = 1:4
+    trajCombined4tgt.onset(iTarget).contra = cat(1, tst4tgt{iTarget, :})';
+end
+
+tst4tgt = cellfun(@(c) c(:, 2), {traj4tgt.correction}, UniformOutput=false);
+tst4tgt = cat(2, tst4tgt{:});
+for iTarget = 1:4
+    trajCombined4tgt.onset(iTarget).both = cat(1, tst4tgt{iTarget, :})';
+end
+
+tst4tgt = cellfun(@(c) c(:, 3), {traj4tgt.correction}, UniformOutput=false);
+tst4tgt = cat(2, tst4tgt{:});
+for iTarget = 1:4
+    trajCombined4tgt.onset(iTarget).ipsi = cat(1, tst4tgt{iTarget, :})';
 end
 
 %% Plot ETAs
@@ -226,10 +250,10 @@ for iTarget = 1:4
     for iPaw = 1:3
         ax = subplot(4, 3, 3*(iTarget-1)+iPaw);
         if iTarget == 1 && iPaw == 1
-            [~, order] = EphysUnit.plotETA(ax, trajCombined.eta(iTarget, iPaw), event='reach onset', clim=[-1, 1], xlim=[-4, 0.5], ...
+            [~, order] = EphysUnit.plotETA(ax, trajCombined4tgt.eta(iTarget, iPaw), event='reach onset', clim=[-1, 1], xlim=[-4, 0.5], ...
                 sortWindow=[-2, 0.5], signWindow=[-0.2, 0.2], sortThreshold=0.25, negativeSortThreshold=0.25);
         else
-            EphysUnit.plotETA(ax, trajCombined.eta(iTarget, iPaw), event='reach onset', clim=[-1, 1], xlim=[-4, 0.5], ...
+            EphysUnit.plotETA(ax, trajCombined4tgt.eta(iTarget, iPaw), event='reach onset', clim=[-1, 1], xlim=[-4, 0.5], ...
                 order=order);
         end
         ylabel(ax, targetNames(iTarget))
@@ -238,13 +262,13 @@ for iTarget = 1:4
 end
 
 %% Calc METAs
-trajCombined.meta = cell(4, 3);
+trajCombined4tgt.meta = cell(4, 3);
 for iTarget = 1:4
     for iPaw = 1:3
-        eta = trajCombined.eta(iTarget, iPaw);
+        eta = trajCombined4tgt.eta(iTarget, iPaw);
         X = eta.X;
         t = eta.t;
-        trajCombined.meta{iTarget, iPaw} = mean(X(:, t>=-0.1 & t<= 0.2), 2, 'omitnan');
+        trajCombined4tgt.meta{iTarget, iPaw} = mean(X(:, t>=-0.1 & t<= 0.2), 2, 'omitnan');
     end
 end
 
@@ -269,7 +293,7 @@ for ity = 1:4
                 ax = nexttile(tl);
                 AX(iax) = ax;
                 hold(ax, 'on')
-                scatter(ax, trajCombined.meta{itx, ipx}, trajCombined.meta{ity, ipy}, 5, 'k');
+                scatter(ax, trajCombined4tgt.meta{itx, ipx}, trajCombined4tgt.meta{ity, ipy}, 5, 'k');
                 plot(ax, [-1, 3], [-1, 3], 'k:')
                 plot(ax, [0, 0], [-1, 3], 'k:')
                 plot(ax, [-1, 3], [0, 0], 'k:')

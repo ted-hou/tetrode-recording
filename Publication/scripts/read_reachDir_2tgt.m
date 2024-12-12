@@ -1,5 +1,5 @@
 %% Load EphysUnits
-euReachDir2Tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction_2tgts\SingleUnits_NonDuplicate');
+euReachDir2Tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction_2tgts\SingleUnits_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
 
 %%
 for iEu = 1:length(euReachDir2Tgt)
@@ -114,19 +114,21 @@ clear b ax h tl
 % Calculate trueStartTime
 nExp = pa2tgt.getLength('exp');
 onsetThreshold = 0.25;
+onsetResolution = 0.025;
 targetNames = {'contra-out', 'contra-in'};
 trueStartTime2tgts = cell(nExp, 1);
 sessionEdges = cumsum([0, arrayfun(@(traj) length(traj.target), traj2tgt)]); %Right inclusive trial indices for each session
+t = -0.5:onsetResolution:0;
 for iExp = 1:nExp
     nTrials = length(traj2tgt(iExp).target);
     trueStartTime2tgts{iExp} = NaN(nTrials, 1);
-    t = traj2tgt(iExp).t;
+    % t = traj2tgt(iExp).t;
     dist = zeros(nTrials, length(t));
     for iTrial = 1:nTrials
         pos = [ ...
-            traj2tgt(iExp).contra.x(iTrial, :); ...
-            traj2tgt(iExp).contra.y(iTrial, :); ...
-            traj2tgt(iExp).contra.z(iTrial, :); ...
+            interp1(traj2tgt(iExp).t, traj2tgt(iExp).contra.x(iTrial, :), t, 'linear'); ...
+            interp1(traj2tgt(iExp).t, traj2tgt(iExp).contra.y(iTrial, :), t, 'linear'); ...
+            interp1(traj2tgt(iExp).t, traj2tgt(iExp).contra.z(iTrial, :), t, 'linear'); ...
             ];
         dist(iTrial, :) = sqrt(sum(pos.^2, 1));
     end
@@ -146,7 +148,7 @@ for iExp = 1:nExp
             continue
         end
         iOnset = iOnset(end);
-        trueStartTime2tgts{iExp}(iTrial) = t(iOnset) - t(end);
+        trueStartTime2tgts{iExp}(iTrial) = t(iOnset);
     end
 
     % Calculate ETA for this session
@@ -162,6 +164,10 @@ for iExp = 1:nExp
                 trials=pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials), correction=trueStartTime2tgts{iExp}(selTrials));
             traj2tgt(iExp).trials{iTarget} = pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials);
             traj2tgt(iExp).correction{iTarget} = trueStartTime2tgts{iExp}(selTrials);
+        else
+            traj2tgt(iExp).eta(iTarget) = struct(X=[], t=[], N=[], D=[], stats=[]);
+            traj2tgt(iExp).trials{iTarget} = Trial.empty;
+            traj2tgt(iExp).correction{iTarget} = [];
         end
 
         selTrials = targetIndex==iTarget & usedIpsiPawInSession';
@@ -171,6 +177,10 @@ for iExp = 1:nExp
                 trials=pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials), correction=trueStartTime2tgts{iExp}(selTrials)); 
             traj2tgt(iExp).trialsIpsiPaw{iTarget} = pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials);
             traj2tgt(iExp).correctionIpsiPaw{iTarget} = trueStartTime2tgts{iExp}(selTrials);       
+        else
+            traj2tgt(iExp).etaIpsiPaw(iTarget) = struct(X=[], t=[], N=[], D=[], stats=[]);
+            traj2tgt(iExp).trialsIpsiPaw{iTarget} = Trial.empty;
+            traj2tgt(iExp).correctionIpsiPaw{iTarget} = [];
         end
     end
 end
@@ -203,5 +213,10 @@ for iTarget = 1:2
     trajCombined2tgt.etaIpsiPaw(iTarget).N = cat(1, N{:});
     trajCombined2tgt.etaIpsiPaw(iTarget).stats = cat(2, stats{:});
     trajCombined2tgt.etaIpsiPaw(iTarget).target = targetNames{iTarget};
+end
+
+tst2tgt = vertcat(traj2tgt.correction);
+for iTarget = 1:2
+    trajCombined2tgt.onset{iTarget} = cat(1, tst2tgt{:, iTarget});
 end
 

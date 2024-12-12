@@ -4,7 +4,7 @@
 load_ephysunits;
 find_osci_lick_circ;
 
-
+%%
 etaFine.press = eu.getETA('count', 'press', [-4, 2], minTrialDuration=2, normalize=[-4, -2], resolution=0.025);
 etaFine.lick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=2, normalize=[-4, -2], resolution=0.025);
 
@@ -723,6 +723,9 @@ subselNone = sel & ~c.isLick;
 h = gobjects(2, 1);
 h(2) = scatter(ax, x(subselNone), y(subselNone), sz, 'black', 'filled', Marker='o', MarkerFaceAlpha=0.5, MarkerEdgeAlpha=0.5, DisplayName=sprintf('others (%i)', nnz(subselNone)));   
 h(1) = scatter(ax, x(subselResp), y(subselResp), sz, [0, 0.5, 0.5], 'filled', Marker='o', MarkerFaceAlpha=0.5, MarkerEdgeAlpha=0.5, DisplayName=sprintf('lick-entrained (%i)', nnz(subselResp)));
+
+mdl = fitlm(meta.lick(subselResp), meta.press(subselResp));
+fprintf('press vs. lick (osci): LM slope p<%g.\n', mdl.Coefficients.pValue(2))
 
 plot(ax, [-10, 10], [0, 0], 'k:');
 plot(ax, [0, 0], [-10, 10], 'k:');

@@ -3,7 +3,7 @@ read_reachDir_4tgt;
 read_reachDir_2tgt;
 %% S7
 load('meta_Lite_NonDuplicate_NonDrift.mat')
-load('boot_20241118_Figure7.mat')
+load('C:\SERVER\Units\boot_20241118_Figure7.mat')
 % boot_amplitude_difference;
 %% Fig7. Lever-2-pos
 p.fontSize = 9;
@@ -61,7 +61,7 @@ for iCol = 1:2
     axis(ax, 'equal');
     hold(ax, 'on')
     nTargets = 2;
-    nFrames = length(trajCombined.t);
+    nFrames = length(trajCombined4tgt.t);
     targetNames = ["contra-out", "contra-in"];
     targetNamesDisp = ["Lateral reach", "Medial reach"];
     for iTarget = 1:nTargets
@@ -251,17 +251,17 @@ title(ax, 'Contra paw')
 axis(ax, 'image');
 hold(ax, 'on')
 nTargets = 4;
-nFrames = length(trajCombined.t);
+nFrames = length(trajCombined4tgt.t);
 targetNames = ["contra-out", "contra-front", "contra-in", "ipsi-front"];
 pawNames = ["contra", "contra", "contra", "ipsi"];
 nTrials = zeros(1, 4);
 for iTarget = 1:nTargets
     selFrames = nFrames - nt + 1:nFrames;
-    selTrials = trajCombined.target == targetNames(iTarget) & trajCombined.paw == pawNames(iTarget);
+    selTrials = trajCombined4tgt.target == targetNames(iTarget) & trajCombined4tgt.paw == pawNames(iTarget);
     nTrials(iTarget) = nnz(selTrials);
-    x = mean(trajCombined.contra.x(selTrials, selFrames), 1, 'omitnan');
-    y = mean(trajCombined.contra.y(selTrials, selFrames), 1, 'omitnan');
-    z = mean(trajCombined.contra.z(selTrials, selFrames), 1, 'omitnan');
+    x = mean(trajCombined4tgt.contra.x(selTrials, selFrames), 1, 'omitnan');
+    y = mean(trajCombined4tgt.contra.y(selTrials, selFrames), 1, 'omitnan');
+    z = mean(trajCombined4tgt.contra.z(selTrials, selFrames), 1, 'omitnan');
     plot3(ax, x, y, z, LineWidth=1.5, Color=getColor(iTarget, 4, 0.8), DisplayName=targetNames(iTarget));
     scatter3(ax, x, y, z, DOTFACTOR*(selFrames-selFrames(1)+1).^DOTPOWER, getColor(iTarget, 4, 0.8), Marker='o', DisplayName=targetNames(iTarget));
 end
@@ -295,15 +295,15 @@ title(ax, 'Ipsi paw')
 axis(ax, 'image');
 hold(ax, 'on')
 nTargets = 4;
-nFrames = length(trajCombined.t);
+nFrames = length(trajCombined4tgt.t);
 targetNames = ["contra-out", "contra-front", "contra-in", "ipsi-front"];
 h = gobjects(4, 1);
 for iTarget = 1:nTargets
     selFrames = nFrames - nt + 1:nFrames;
-    selTrials = trajCombined.target == targetNames(iTarget);
-    x = mean(trajCombined.ipsi.x(selTrials, selFrames), 1, 'omitnan');
-    y = mean(trajCombined.ipsi.y(selTrials, selFrames), 1, 'omitnan');
-    z = mean(trajCombined.ipsi.z(selTrials, selFrames), 1, 'omitnan');
+    selTrials = trajCombined4tgt.target == targetNames(iTarget);
+    x = mean(trajCombined4tgt.ipsi.x(selTrials, selFrames), 1, 'omitnan');
+    y = mean(trajCombined4tgt.ipsi.y(selTrials, selFrames), 1, 'omitnan');
+    z = mean(trajCombined4tgt.ipsi.z(selTrials, selFrames), 1, 'omitnan');
     plot3(ax, x, y, z, LineWidth=1.5, Color=getColor(iTarget, 4, 0.8));
     scatter3(ax, x, y, z, DOTFACTOR*(selFrames-selFrames(1)+1).^DOTPOWER, getColor(iTarget, 4, 0.8), Marker='o');
     h(iTarget) = plot(NaN, NaN, LineStyle='-', LineWidth=1.5, Marker='o', Color=getColor(iTarget, 4, 0.8), DisplayName=targetNames(iTarget));    
@@ -326,14 +326,14 @@ set(ax, XMinorGrid='on', YMinorGrid='on', ZMinorGrid='on', Box='off')
 fontsize(ax, p.fontSize, 'points')
 
 % 7c. Plot population ETAs, 4 pos side by side
-N = arrayfun(@(eta) eta.N, trajCombined.eta, 'UniformOutput', false);
+N = arrayfun(@(eta) eta.N, trajCombined4tgt.eta, 'UniformOutput', false);
 IPAW = [1, 1, 1, 3];
 assert(minNumTrials == 4)
 selUnit = N{1, 1} >= minNumTrials & N{2, 1} >= minNumTrials & N{3, 1} >= minNumTrials & N{4, 3} >= minNumTrials;
 for iTarget = [2 4 1 3]
     ax = nexttile(layout.left.tl);
     if iTarget == 2 || iTarget == 1
-        [~, order] = EphysUnit.plotETA(ax, trajCombined.eta(iTarget, IPAW(iTarget)), selUnit, event='reach onset', ...
+        [~, order] = EphysUnit.plotETA(ax, trajCombined4tgt.eta(iTarget, IPAW(iTarget)), selUnit, event='reach onset', ...
             clim=[-2, 2], xlim=p.etaWindow, sortWindow=p.etaSortWindow, signWindow=p.etaSignWindow, ...
             sortThreshold=0.25, negativeSortThreshold=0.25);
         yt = 0:30:nnz(selUnit);
@@ -346,7 +346,7 @@ for iTarget = [2 4 1 3]
         yticks(ax, yt)
         ylabel(ax, 'Unit')
     else
-        EphysUnit.plotETA(ax, trajCombined.eta(iTarget, IPAW(iTarget)), selUnit, event='reach onset', order=order, clim=[-2, 2], xlim=p.etaWindow);
+        EphysUnit.plotETA(ax, trajCombined4tgt.eta(iTarget, IPAW(iTarget)), selUnit, event='reach onset', order=order, clim=[-2, 2], xlim=p.etaWindow);
         yticks(ax, []);
         ylabel(ax, '')
     end
@@ -374,17 +374,17 @@ sz = 5;
 ax = nexttile(layout.right.tl);
 assert(minNumTrials == 4)
 minNumTrialsDisp = 4;
-N = arrayfun(@(eta) eta.N, trajCombined.eta, 'UniformOutput', false);
+N = arrayfun(@(eta) eta.N, trajCombined4tgt.eta, 'UniformOutput', false);
 sel = N{1, 1} >= minNumTrials & N{2, 1} >= minNumTrialsDisp & N{3, 1} >= minNumTrials & N{4, 3} >= minNumTrialsDisp;
 subselSign = sel(:) & (c.isPressResponsive4tgt{2}(:) | c.isPressResponsive4tgt{4}(:));
 subselAmp = sel(:) & c.isSelective.contraFrontVsIpsiFront4tgt(:);
-subselAll = sel(:) & ~subselSign & ~subselAmp;
+subselNone = sel(:) & ~subselSign & ~subselAmp;
 ss = [N{2, 1}, N{4, 3}];
 ss = max(ss, [], 2) ./ min(ss, [], 2);
 ss = 10./ss;
-scatter(ax, trajCombined.meta{2, 1}(subselAll), trajCombined.meta{4, 3}(subselAll), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
-scatter(ax, trajCombined.meta{2, 1}(subselAmp), trajCombined.meta{4, 3}(subselAmp), sz, 'red')
-scatter(ax, trajCombined.meta{2, 1}(subselSign), trajCombined.meta{4, 3}(subselSign), sz, 'black', 'filled')
+scatter(ax, trajCombined4tgt.meta{2, 1}(subselNone), trajCombined4tgt.meta{4, 3}(subselNone), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
+scatter(ax, trajCombined4tgt.meta{2, 1}(subselAmp), trajCombined4tgt.meta{4, 3}(subselAmp), sz, 'red')
+scatter(ax, trajCombined4tgt.meta{2, 1}(subselSign), trajCombined4tgt.meta{4, 3}(subselSign), sz, 'black', 'filled')
 plot(ax, [0 0], [-2 4], 'k:')
 plot(ax, [-2 4], [0 0], 'k:')
 plot(ax, [-2 4], [-2 4], 'k:')
@@ -399,17 +399,17 @@ fprintf('4tgt contra-front vs. ipsi-front: %i total, %i sign-change, %i amplitud
 ax = nexttile(layout.right.tl);
 % assert(minNumTrials == 4)
 minNumTrialsDisp = 4;
-N = arrayfun(@(eta) eta.N, trajCombined.eta, 'UniformOutput', false);
+N = arrayfun(@(eta) eta.N, trajCombined4tgt.eta, 'UniformOutput', false);
 sel = N{1, 1} >= minNumTrialsDisp & N{2, 1} >= minNumTrials & N{3, 1} >= minNumTrialsDisp & N{4, 3} >= minNumTrials;
 subselSign = sel(:) & (c.isPressResponsive4tgt{1}(:) | c.isPressResponsive4tgt{3}(:));
 subselAmp = sel(:) & c.isSelective.contraOutVsContraIn4tgt(:);
-subselAll = sel(:) & ~subselSign & ~subselAmp;
+subselNone = sel(:) & ~subselSign & ~subselAmp;
 ss = [N{1, 1}, N{3, 1}];
 ss = max(ss, [], 2) ./ min(ss, [], 2);
 ss = 10./ss;
-scatter(ax, trajCombined.meta{1, 1}(subselAll), trajCombined.meta{3, 1}(subselAll), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
-scatter(ax, trajCombined.meta{1, 1}(subselAmp), trajCombined.meta{3, 1}(subselAmp), sz, 'red')
-scatter(ax, trajCombined.meta{1, 1}(subselSign), trajCombined.meta{3, 1}(subselSign), sz, 'black', 'filled')
+scatter(ax, trajCombined4tgt.meta{1, 1}(subselNone), trajCombined4tgt.meta{3, 1}(subselNone), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
+scatter(ax, trajCombined4tgt.meta{1, 1}(subselAmp), trajCombined4tgt.meta{3, 1}(subselAmp), sz, 'red')
+scatter(ax, trajCombined4tgt.meta{1, 1}(subselSign), trajCombined4tgt.meta{3, 1}(subselSign), sz, 'black', 'filled')
 plot(ax, [0 0], [-2 4], 'k:')
 plot(ax, [-2 4], [0 0], 'k:')
 plot(ax, [-2 4], [-2 4], 'k:')
@@ -428,7 +428,7 @@ N = horzcat(ETA.N);
 sel = all(N >= p.minNumTrials, 2);
 subselAmp = sel(:) & c.isSelective.contraOutVsContraIn2tgt(:);
 subselSign = sel(:) & (c.isPressResponsive2tgt{1}(:) | c.isPressResponsive2tgt{2}(:));
-subselAll = sel(:) & ~subselSign & ~subselAmp;
+subselNone = sel(:) & ~subselSign & ~subselAmp;
 ex = trajCombined2tgt.eta(1);
 ey = trajCombined2tgt.eta(2);
 metaX = mean(ex.X(:, ex.t > -0.1 & ex.t < 0.2), 2);
@@ -436,7 +436,7 @@ metaY = mean(ey.X(:, ey.t > -0.1 & ey.t < 0.2), 2);
 ss = N;
 ss = max(ss, [], 2) ./ min(ss, [], 2);
 ss = 10./ss;
-scatter(ax, metaX(subselAll), metaY(subselAll), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
+scatter(ax, metaX(subselNone), metaY(subselNone), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
 scatter(ax, metaX(subselAmp), metaY(subselAmp), sz, 'red')
 scatter(ax, metaX(subselSign), metaY(subselSign), sz, 'black', 'filled')
 yline(ax, 0, 'k:')
@@ -449,26 +449,28 @@ xlabel(ax, 'Lateral (2tgt)')
 ylabel(ax, 'Medial (2tgt)')
 fontsize(ax, p.fontSize, 'points')
 fprintf('2tgt: %i total, %i sign-change, %i amplitude change.\n', nnz(sel), nnz(subselSign), nnz(subselAmp))
-% 
-% ax = nexttile(layout.right.tl);
-% sel = c.hasPress & c.hasLick;
-% subselSign = sel & (c.isPressResponsive | c.isLickResponsive);
-% subselAmp = sel & c.isPressVsLickSelective;
-% subselAll = sel & ~subselSign & ~subselAmp;
-% scatter(ax, meta.lick(subselAll), meta.press(subselAll), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
-% scatter(ax, meta.lick(subselAmp), meta.press(subselAmp), sz, 'red')
-% scatter(ax, meta.lick(subselSign), meta.press(subselSign), sz, 'black', 'filled')
-% plot(ax, [0 0], [-2 4], 'k:')
-% plot(ax, [-2 4], [0 0], 'k:')
-% plot(ax, [-2 4], [-2 4], 'k:')
-% axis(ax, 'equal')
-% xlim(ax, [-2, 4])
-% ylim(ax, [-2, 4])
-% xlabel(ax, 'Peri-lick')
-% ylabel(ax, 'Peri-reach')
-% fontsize(ax, p.fontSize, 'points')
-% fprintf('press vs. lick: %i total, %i sign-change, %i amplitude change.\n', nnz(sel), nnz(subselSign), nnz(subselAmp))
-% 
+
+ax = nexttile(layout.right.tl);
+sel = c.hasPress & c.hasLick;
+subselSign = sel & (c.isPressResponsive | c.isLickResponsive);
+subselAmp = sel & c.isPressVsLickSelective;
+subselNone = sel & ~subselSign & ~subselAmp;
+scatter(ax, meta.lick(subselNone), meta.press(subselNone), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
+scatter(ax, meta.lick(subselAmp), meta.press(subselAmp), sz, 'red')
+scatter(ax, meta.lick(subselSign), meta.press(subselSign), sz, 'black', 'filled')
+plot(ax, [0 0], [-2 4], 'k:')
+plot(ax, [-2 4], [0 0], 'k:')
+plot(ax, [-2 4], [-2 4], 'k:')
+axis(ax, 'equal')
+xlim(ax, [-2, 4])
+ylim(ax, [-2, 4])
+xlabel(ax, 'Peri-lick')
+ylabel(ax, 'Peri-reach')
+fontsize(ax, p.fontSize, 'points')
+mdl = fitlm(meta.lick(sel), meta.press(sel));
+fprintf('press vs. lick: %i total, %i sign-change, %i amplitude change (LM slope p<%g).\n', nnz(sel), nnz(subselSign), nnz(subselAmp), mdl.Coefficients.pValue(2))
+
+
 
 lgd = legend(h, Orientation='horizontal', NumColumns=2);
 lgd.Layout.Tile = 'north';

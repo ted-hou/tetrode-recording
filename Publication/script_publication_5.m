@@ -224,6 +224,15 @@ cc.isDownUp = cc.hasTrials & c.isPressDown & c.isLickUp;
 cc.isSame = cc.isBothUp | cc.isBothDown;
 cc.isOpposite = cc.isUpDown | cc.isDownUp;
 
+sel1 = cc.hasTrials & c.isPressResponsive & ~c.isLickResponsive;
+sel2 = cc.hasTrials & ~c.isPressResponsive & c.isLickResponsive;
+sel3 = cc.hasTrials & ~c.isPressResponsive & ~c.isLickResponsive;
+fprintf('%i (%.1f%%) and %i (%.1f%%) units were significantly modulated for only the reach task or the lick task, respectively, while %i (%.1f%%) units were not modulated in either task.\n', ...
+    nnz(sel1), nnz(sel1)./nnz(cc.hasTrials)*100, ...
+    nnz(sel2), nnz(sel2)./nnz(cc.hasTrials)*100, ...
+    nnz(sel3), nnz(sel3)./nnz(cc.hasTrials)*100 ...
+    )
+
 fprintf('%i units with %i+ press and reach trials, %i (%.1f%%) are significantly modulated in both (p<%.2f):\n', nnz(cc.hasTrials), p.minNumTrials, nnz(cc.isBothResponsive), 100*nnz(cc.isBothResponsive)/nnz(cc.hasTrials), p.bootAlpha)
 fprintf('\t%i (%.1f%%) are similarly modulated;\n', nnz(cc.isSame), 100*nnz(cc.isSame)/nnz(cc.isBothResponsive))
 fprintf('\t%i (%.1f%%) are oppositely modulated;\n', nnz(cc.isOpposite), 100*nnz(cc.isOpposite)/nnz(cc.isBothResponsive))
@@ -235,6 +244,8 @@ fprintf('\t%i (%.1f%%) are suppressed in press and excited in lick;\n', nnz(cc.i
 fprintf('In the "modulated-for-both" population (%i units):\n', nnz(cc.isBothResponsive))
 fprintf('\tFor press: %i (%.1f%%) excited and %i (%.1f%%) suppressed;\n', nnz(cc.isBothResponsive & c.isPressUp), 100*nnz(cc.isBothResponsive & c.isPressUp)/nnz(cc.isBothResponsive), nnz(cc.isBothResponsive & c.isPressDown), 100*nnz(cc.isBothResponsive & c.isPressDown)/nnz(cc.isBothResponsive))
 fprintf('\tFor lick: %i (%.1f%%) excited and %i (%.1f%%) suppressed;\n', nnz(cc.isBothResponsive & c.isLickUp), 100*nnz(cc.isBothResponsive & c.isLickUp)/nnz(cc.isBothResponsive), nnz(cc.isBothResponsive & c.isLickDown), 100*nnz(cc.isBothResponsive & c.isLickDown)/nnz(cc.isBothResponsive))
+
+clear sel1 sel2 sel3
 
 %% Supplement Fig S5
 % close all
@@ -410,98 +421,3 @@ xlabel(layout.bottom.tl, 'Time to bar/spout contact (s)', fontSize=p.fontSize)
 
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
-
-% tl = tiledlayout(figure, 2, 2, TileSpacing='compact', Padding='compact');
-% 
-% for iTrialType = 1:length(trialTypes)
-%     for iExp = 1:length(fstats)
-%         ax = nexttile(tl);
-%         hold(ax, 'on')
-% 
-%         trialTypeName = trialTypes{iTrialType};
-%         switch trialTypeName
-%             case {'press', 'lick'}
-%                 mu = table2array(fstats{iExp}.(trialTypeName).mean(:, fnames));
-%                 sd = table2array(fstats{iExp}.(trialTypeName).sd(:, fnames));
-%                 n = fstats{iExp}.(trialTypeName).nTrials;
-%         end
-% 
-%         switch trialTypeName
-%             case 'press'
-%                 ftNames = {'spine_yVel', 'handContra_xVel'};
-%                 sdNames = ftNames;
-%                 colors = ["black", "red"];
-%                 yRanges = {[-5, 5], [-5, 5]};
-%                 yTicks = {[-5, 0, 5], [-5, 0, 5]};
-%                 rightYLabelName = 'Contra hand AP velocity (a.u.)';
-%             case 'lick'
-%                 ftNames = {'spine_yVel', 'tongue'};
-%                 sdNames = ftNames;
-%                 colors = ["black", "blue"];
-%                 yRanges = {[-5, 5], [-1.5, 1.5]};
-%                 yTicks = {[-5, 0, 5], [0, 1]};
-%                 rightYLabelName = 'Lick probability';
-%         end
-%         leftYLabelName = 'Spine DV velocity (a.u.)';
-% 
-%         axisSide = {'left', 'right'};
-% 
-%         h = gobjects(1, length(ftNames));
-%         colororder(ax, colors);
-%         for iFt = 1:length(ftNames)
-%             yyaxis(ax, axisSide{iFt});
-%             iVar = find(strcmpi(ftNames{iFt}, fnames));
-%             h(iFt) = plot(ax, t, mu(:, iVar), Color=colors(iFt), LineWidth=1.5, DisplayName=fnamesDisp{iVar});
-%             if ismember(ftNames{iFt}, sdNames)
-%                 sel = ~isnan(mu(:, iVar)+sd(:, iVar));
-%                 patch(ax, [t(sel)'; flip(t(sel)')], [mu(sel, iVar)-sd(sel, iVar); flip(mu(sel, iVar)+sd(sel, iVar))], 'r', ...
-%                     LineStyle='none', FaceAlpha=0.075, FaceColor=colors(iFt))
-%             end
-%         end
-% 
-%         switch trialTypeName
-%             case 'press'
-%                 trialTypeDispName = 'Reach';
-%             case 'lick'
-%                 trialTypeDispName = 'Lick';
-%         end
-%         plot(ax, [0, 0], [-100, 100], 'k--')
-%         title(ax, sprintf('%s (%s)', trialTypeDispName, resultNames{iExp}));
-%         hold(ax, 'off')
-%         xlim(ax, [-2, 2])
-% 
-%         yyaxis(ax, 'left')
-% %         if iExp == 1 && strcmp(trialTypeName, 'press')
-% %             ylabel(ax, 'Spine velocity (a.u.)', Units='normalized', Position=[-0.20,-0.15,0])
-% %         end
-%         if iExp == 2
-%             yticks(ax, [])
-%         end
-%         ylim(ax, yRanges{1})
-% 
-%         yyaxis(ax, 'right')
-%         ylim(ax, yRanges{2})
-%         if strcmp(trialTypeName, 'press')
-%             xticks(ax, [])
-%         end
-%         if iExp == 1
-%             yticks(ax, [])
-%         else
-%             yticks(ax, yTicks{2});
-%             ylabel(ax, rightYLabelName)
-%         end
-% 
-%         fontsize(ax, p.fontSize, 'points');
-%         fontname(ax, 'Arial');
-% 
-%         if iTrialType == 1 && iExp == 1
-%             hLetter = text(ax, 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
-%             ax.Units = 'inches';
-%             hLetter.HorizontalAlignment = 'right';
-%             hLetter.VerticalAlignment = 'top';
-%             hLetter.Position = [-0.3, ax.Position(4)+0.2, 0];
-%         end
-%     end
-% end
-% ylabel(tl, leftYLabelName, fontSize=p.fontSize)
-% xlabel(tl, 'Time to bar/spout contact (s)', fontSize=p.fontSize)

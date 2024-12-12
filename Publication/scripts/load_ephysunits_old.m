@@ -1,5 +1,5 @@
 %% 1.2Alt Or just load lite version, without non-SNr cells, without waveforms, spikecounts or spikerates.
-eu = EphysUnit.load('C:\SERVER\Units\Lite_NonDuplicate');
+eu = EphysUnit.load('C:\SERVER\Units\Lite_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
 ar = AcuteRecording.load('C:\SERVER\Acute\AcuteRecording');
 
 % 1.3 AnimalInfo
