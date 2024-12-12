@@ -1,4 +1,4 @@
-classdef ProbeMap
+classdef ProbeMap % For UCLA probes
     properties
         site % Struct containing:
             % ml % middle of probe, i.e. craniotomy ML (negative for left, positive for right)
@@ -16,7 +16,7 @@ classdef ProbeMap
             p = inputParser();
             p.addRequired('ml', @isnumeric);
             p.addRequired('ap', @isnumeric);
-            p.addRequired('dv', @(x) isnumeric(x) && x < 0);
+            p.addRequired('dv', @(x) isnumeric(x) && x < 0); % -200
             p.addParameter('duraOffset', 0, @(x) isnumeric(x) && x <= 0);
             p.addParameter('facing', 'front', @(x) isnumeric(x) || ismember(x, {'front', 'back', 'left', 'right'})) % 0, 180, 270, 90
             p.addParameter('model', '128DN', @(x) ismember(x, {'128D', '128DN'}))

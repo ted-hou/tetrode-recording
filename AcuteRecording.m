@@ -33,16 +33,23 @@ classdef AcuteRecording < handle
                     path = ['\', path];
                 end
                 obj.path = path;
-    
+
                 expName = strsplit(tr.GetExpName(), '_');
                 obj.expName = strjoin(expName(1:2), '_');
             else
                 p.addRequired('sessionInfo', @isstruct)
+                p.addParameter('useNewProbeMap', false, @islogical)
                 p.parse(varargin{:})
-                sessionInfo = p.Results.sessionInfo;
-                obj.expName = sessionInfo.expName;
-                obj.strain = sessionInfo.strain;
-                obj.importProbeMap(sessionInfo.orientation, sessionInfo.ml, sessionInfo.dv, sessionInfo.ap);
+                si = p.Results.sessionInfo;
+                useNewProbeMap = p.Results.useNewProbeMap;
+
+                obj.expName = si.expName;
+                obj.strain = si.strain;
+                if ~useNewProbeMap
+                    obj.importProbeMap(si.orientation, si.ml, si.dv, si.ap);
+                else
+                    obj.probeMap = ProbeMap(si.ml, si.ap, si.dv, duraOffset=si.duraOffset, facing=si.facing, model=si.probe);
+                end
             end
             
         end
@@ -271,16 +278,26 @@ classdef AcuteRecording < handle
             else
                 fprintf('Def Good Session, channel count kept, %s\n', obj.expName);
             end
-                    
 
-            map = obj.probeMap;
-            coords = zeros(length(channels), 3);
-            for i = 1:length(channels)
-                I = find(map.channel == channels(i), 1);
-                assert(~isempty(I))
-                coords(i, 1) = map.ml(I);
-                coords(i, 2) = map.dv(I);
-                coords(i, 3) = map.ap(I);
+            if ~isa(obj.probeMap, 'ProbeMap')
+                map = obj.probeMap;
+                coords = zeros(length(channels), 3);
+                for i = 1:length(channels)
+                    I = find(map.channel == channels(i), 1);
+                    assert(~isempty(I))
+                    coords(i, 1) = map.ml(I);
+                    coords(i, 2) = map.dv(I);
+                    coords(i, 3) = map.ap(I);
+                end
+            else
+                map = obj.probeMap.map;
+                coords = zeros(length(channels), 3);
+                for i = 1:length(channels)
+                    I = channels(i);
+                    coords(i, 1) = map.ml(I);
+                    coords(i, 2) = map.dv(I);
+                    coords(i, 3) = map.ap(I);
+                end
             end
         end
 
