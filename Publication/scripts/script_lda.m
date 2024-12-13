@@ -1,5 +1,5 @@
 %%
-% load_ephysunits
+load_ephysunits
 
 %%
 close all
@@ -108,7 +108,7 @@ rng(42); % Woah double-rainbow!
 
 pool = parpool();
 parfor iBoot = 1:pLDA.nBoot
-    fprintf('%i\n', iBoot);
+    % fprintf('%i\n', iBoot);
     df = cell(length(sr), 1);
     for iExp = 1:length(sr)
         nPress = size(resp(iExp).press, 1);
@@ -135,15 +135,46 @@ parfor iBoot = 1:pLDA.nBoot
     end
     dfBoot(:, :, iBoot) = cat(1, df{:});
 end
+
 clear iExp nPress nLick nTrials X Y mdl i press lick XPress XLick score likelihoodBoot df
 
 fprintf('\nDone.\n')
 
-save('E:\DATA\Units\lda_pressVsLick_20241212.mat', 'pLDA', 'dfBoot', 'likelihood', 'sr', 'resp', 't', 'goodExpNames', 'nUnits')
-
 delete(pool)
 
+save('E:\DATA\Units\lda_pressVsLick_20241212.mat', 'pLDA', 'dfBoot', 'likelihood', 'sr', 'resp', 't', 'goodExpNames', 'nUnits', '-v7.3')
+
 clear iBoot t likelihoodBoot
+
+save('E:\DATA\Units\lda_pressVsLick_fullBootData_20241212.mat', 'dfBoot')
+
+%%
+clear dfBootStats;
+
+Y = cell(iExp, 1);
+for iExp = 1:length(sr)
+    nPress = size(resp(iExp).press, 1);
+    nLick = size(resp(iExp).lick, 1);
+    Y{iExp} = vertcat(repmat("press", [nPress, 1]), repmat("lick", [nLick, 1]));
+end
+Y = cat(1, Y{:});
+
+isPress = Y == "press";
+isLick = Y == "lick";
+
+dfBootStats.press.X = transpose(squeeze(mean(dfBoot(isPress, :, :), 1, 'omitnan')));
+dfBootStats.press.mu = mean(dfBootStats.press.X, 1, 'omitnan');
+dfBootStats.press.ci = quantile(dfBootStats.press.X, [0.01, 0.99], 1);
+
+dfBootStats.lick.X = transpose(squeeze(mean(dfBoot(isLick, :, :), 1, 'omitnan')));
+dfBootStats.lick.mu = mean(dfBootStats.lick.X, 1, 'omitnan');
+dfBootStats.lick.ci = quantile(dfBootStats.lick.X, [0.01, 0.99], 1);
+
+dfBootStats.all.X = transpose(squeeze(mean(dfBoot, 1, 'omitnan')));
+dfBootStats.all.mu = mean(dfBootStats.all.X, 1, 'omitnan');
+dfBootStats.all.ci = quantile(dfBootStats.all.X, [0.01, 0.99], 1);
+
+save('E:\DATA\Units\lda_pressVsLick_20241212.mat', 'pLDA', 'likelihood', 'sr', 'resp', 't', 'goodExpNames', 'nUnits', 'dfBootStats', '-v7.3')
 
 %% Plot results (individual sessions)
 fig = figure(Units='normalized', Position=[0.1 0.1 0.8 0.8]);
@@ -202,26 +233,95 @@ DATA = { ...
     pressTrialPress, pressTrialLick; ...
     lickTrialPress, lickTrialLick ...
     };
+BOOT = {dfBootStats.press, dfBootStats.lick};
 COLOR = ["red", "blue"];
 LABEL = ["reach", "lick"];
 
 ax = gobjects(2, 1);
 
+h = gobjects(2, 3);
 for iAx = 1:2
     ax(iAx) = nexttile(tl);
     hold(ax(iAx), 'on')
     h = gobjects(2, 1);
     mu = mean(DATA{iAx, 1} - DATA{iAx, 2}, 1, 'omitnan');
     err = std(DATA{iAx, 1} - DATA{iAx, 2}, 0, 1, 'omitnan');
-    plot(ax(iAx), t, mu, 'black', LineWidth=1.5, DisplayName='obs');
-    % patch(ax(iAx), [t, flip(t)], [mu-err, flip(mu+err)], 'black', FaceAlpha=0.1)
+    h(iAx, 1) = plot(ax(iAx), t, mu, 'black', LineWidth=1.5, DisplayName='observed');
+    h(iAx, 2) = plot(ax(iAx), t, BOOT{iAx}.mu, 'black', LineStyle='--', LineWidth=1.5, DisplayName='shuffle');
+    h(iAx, 3) = patch(ax(iAx), [t, flip(t)], [BOOT{iAx}.ci(1, :), flip(BOOT{iAx}.ci(2, :))], 'black', FaceAlpha=0.1, DisplayName='99% CI');
     hold(ax(iAx), 'off')
     title(ax(iAx), sprintf('%s (%i trials)', LABEL(iAx), size(DATA{iAx, 1}, 1)), Color=COLOR(iAx))
     fontsize(ax(iAx), p.fontSize, 'points')
 end
+
+lgd = legend(ax(1), Orientation='horizontal', FontSize=p.fontSize);
+lgd.Layout.Tile = 'north';
 
 ylim(ax, [-1, 1])
 
 xlabel(tl, 'Time to contact (s)', fontSize=p.fontSize)
 ylabel(tl, 'p(reach) - p(lick)', fontSize=p.fontSize)
 title(tl, sprintf('%i sessions, %i units', length(nUnits), sum(nUnits)), FontWeight='bold', fontSize=p.fontSize)
+
+
+
+
+%% Plot results (average across sessions, same plot for both reach and lick, bootCI is for all trials)
+close all
+
+fig = figure(Units='inches', Position=[1 1 3.5 2]);
+tl = tiledlayout(fig, 1, 1);
+
+t = likelihood(1).t;
+pressTrialPress = arrayfun(@(llh) llh.press(llh.trueLabel=="press", :), likelihood, UniformOutput=false);
+pressTrialLick = arrayfun(@(llh) llh.lick(llh.trueLabel=="press", :), likelihood, UniformOutput=false);
+lickTrialPress = arrayfun(@(llh) llh.press(llh.trueLabel=="lick", :), likelihood, UniformOutput=false);
+lickTrialLick = arrayfun(@(llh) llh.lick(llh.trueLabel=="lick", :), likelihood, UniformOutput=false);
+pressTrialPress = cat(1, pressTrialPress{:});
+pressTrialLick = cat(1, pressTrialLick{:});
+lickTrialPress = cat(1, lickTrialPress{:});
+lickTrialLick = cat(1, lickTrialLick{:});
+
+DATA = { ...
+    pressTrialPress, pressTrialLick; ...
+    lickTrialPress, lickTrialLick ...
+    };
+COLOR = ["red", "blue"];
+LABEL = ["reach", "lick"];
+
+h = gobjects(2, 3);
+ax = nexttile(tl);
+hold(ax, 'on')
+h = gobjects(4, 1);
+for iMove = 1:2
+    mu = mean(DATA{iMove, 1} - DATA{iMove, 2}, 1, 'omitnan');
+    h(iMove) = plot(ax, t, mu, COLOR(iMove), LineWidth=1.5, DisplayName=sprintf('%s', LABEL(iMove)));
+end
+h(3) = plot(ax, t, dfBootStats.all.mu, 'black', LineStyle='--', LineWidth=1.5, DisplayName='shuffle');
+h(4) = patch(ax, [t, flip(t)], [dfBootStats.all.ci(1, :), flip(dfBootStats.all.ci(2, :))], 'black', FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName='99% CI');
+h(5) = patch(ax, [pLDA.responseWindow, flip(pLDA.responseWindow)], [-1, -1, 1, 1], 'yellow', FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName='training');
+fontsize(ax, p.fontSize, 'points')
+
+lgd = legend(ax, Orientation='vertical', Location='eastoutside', FontSize=p.fontSize, AutoUpdate=false);
+
+ylim(ax, [-1, 1])
+xline(ax, 0, ':')
+yline(ax, 0, ':')
+
+hold(ax, 'off')
+
+xlabel(tl, 'Time to bar/spout contact (s)', fontSize=p.fontSize)
+ylabel(tl, 'p(reach) - p(lick)', fontSize=p.fontSize)
+% title(tl, sprintf('%i sessions, %i units', length(nUnits), sum(nUnits)), FontWeight='bold', fontSize=p.fontSize)
+
+nAnimals = length(unique(eu(ismember(string({eu.ExpName}), goodExpNames)).getAnimalName()));
+
+fprintf('\nReach vs. lick decoder:\n');
+fprintf('\t1) Selected %i sessions (%i animals) with >=%i units (mean=%g, total=%i).\n', length(goodExpNames), nAnimals, pLDA.minNumUnits, mean(nUnits), sum(nUnits))
+fprintf('\t\t Units per session (sorted): %s\n', num2str(sort(nUnits)));
+fprintf('\t2) %i reach trials, %i lick trials on aggregate.\n', size(pressTrialPress, 1), size(lickTrialPress, 1))
+fprintf('\t3) Shuffled trial labels %i times to retrain LDA, shuffled mean and 99%%CI is calculated by averaging across all %i trials for each shuffle, then averaging across all shuffles.\n', pLDA.nBoot, size(pressTrialPress, 1)+size(lickTrialPress, 1))
+fprintf('\t4) Training window was chosen at [%g, %g] s.\n', pLDA.responseWindow(1), pLDA.responseWindow(2))
+
+
+copygraphics(fig, ContentType='vector', BackgroundColor='none')
