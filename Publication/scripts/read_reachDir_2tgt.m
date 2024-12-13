@@ -1,26 +1,26 @@
 %% Load EphysUnits
-euReachDir2Tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction_2tgts\SingleUnits_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
+euReachDir2tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction_2tgts\SingleUnits_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
 
 %% Find location of units from AR
 ar2tgt = AcuteRecording.load('C:\SERVER\Acute\Reach2tgt\AcuteRecording');
-euPos2tgt = NaN(length(euReachDir2Tgt), 3); % ml dv ap
-for iEu = 1:length(euReachDir2Tgt)
-    iAr = find(strcmpi(euReachDir2Tgt(iEu).ExpName, {ar2tgt.expName}));
+euPos2tgt = NaN(length(euReachDir2tgt), 3); % ml dv ap
+for iEu = 1:length(euReachDir2tgt)
+    iAr = find(strcmpi(euReachDir2tgt(iEu).ExpName, {ar2tgt.expName}));
     if ~isempty(iAr)
-        euPos2tgt(iEu, :) = ar2tgt(iAr).getProbeCoords(euReachDir2Tgt(iEu).Channel);
+        euPos2tgt(iEu, :) = ar2tgt(iAr).getProbeCoords(euReachDir2tgt(iEu).Channel);
         c.hasPos(iEu) = true;
     else
-        fprintf(1, 'Cannot find AR: %s\n', euReachDir2Tgt(iEu).ExpName)
+        fprintf(1, 'Cannot find AR: %s\n', euReachDir2tgt(iEu).ExpName)
     end
 end
 %%
-for iEu = 1:length(euReachDir2Tgt)
-    trials = euReachDir2Tgt(iEu).makeTrials('press_spontaneous');
+for iEu = 1:length(euReachDir2tgt)
+    trials = euReachDir2tgt(iEu).makeTrials('press_spontaneous');
     goodTrials = trials(trials.duration() > 4);
-    euReachDir2Tgt(iEu).Trials.PressSpontaneous = goodTrials;
+    euReachDir2tgt(iEu).Trials.PressSpontaneous = goodTrials;
 end
 
-pa2tgt = Pawnalyzer2(euReachDir2Tgt, refEvent='press');
+pa2tgt = Pawnalyzer2(euReachDir2tgt, refEvent='press');
 
 
 % Make trajectories
@@ -170,11 +170,13 @@ for iExp = 1:nExp
     targetIndex = targetIndex';
     for iTarget = 1:2
         selTrials = targetIndex==iTarget & ~usedIpsiPawInSession';
+        assert(length(pa2tgt.exp(iExp).eu(1).Trials.PressSpontaneous) == length(selTrials))
         fprintf('%s, contra paw = %i trials\n', targetNames{iTarget}, nnz(selTrials))
         if nnz(selTrials) > 1
+            trials = pa2tgt.exp(iExp).eu(1).Trials.PressSpontaneous(selTrials);
             traj2tgt(iExp).eta(iTarget) = pa2tgt.exp(iExp).eu.getETA('count', 'press_spontaneous', window=[-4, 0.5], resolution=0.1, normalize=[-4, -2], alignTo='stop', includeInvalid=true, ...
-                trials=pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials), correction=trueStartTime2tgts{iExp}(selTrials));
-            traj2tgt(iExp).trials{iTarget} = pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials);
+                trials=trials, correction=trueStartTime2tgts{iExp}(selTrials));
+            traj2tgt(iExp).trials{iTarget} = trials;
             traj2tgt(iExp).correction{iTarget} = trueStartTime2tgts{iExp}(selTrials);
         else
             traj2tgt(iExp).eta(iTarget) = struct(X=[], t=[], N=[], D=[], stats=[]);
@@ -183,11 +185,13 @@ for iExp = 1:nExp
         end
 
         selTrials = targetIndex==iTarget & usedIpsiPawInSession';
+        assert(length(pa2tgt.exp(iExp).eu(1).Trials.PressSpontaneous) == length(selTrials))
         fprintf('%s, ipsi paw = %i trials.\n', targetNames{iTarget}, nnz(selTrials))
         if nnz(selTrials) > 1
+            trials = pa2tgt.exp(iExp).eu(1).Trials.PressSpontaneous(selTrials);
             traj2tgt(iExp).etaIpsiPaw(iTarget) = pa2tgt.exp(iExp).eu.getETA('count', 'press_spontaneous', window=[-4, 0.5], resolution=0.1, normalize=[-4, -2], alignTo='stop', includeInvalid=true, ...
-                trials=pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials), correction=trueStartTime2tgts{iExp}(selTrials)); 
-            traj2tgt(iExp).trialsIpsiPaw{iTarget} = pa2tgt.exp(iExp).eu(1).Trials.Press(selTrials);
+                trials=trials, correction=trueStartTime2tgts{iExp}(selTrials)); 
+            traj2tgt(iExp).trialsIpsiPaw{iTarget} = trials;
             traj2tgt(iExp).correctionIpsiPaw{iTarget} = trueStartTime2tgts{iExp}(selTrials);       
         else
             traj2tgt(iExp).etaIpsiPaw(iTarget) = struct(X=[], t=[], N=[], D=[], stats=[]);
@@ -199,7 +203,7 @@ end
 clear usedIpsiPawInSession targetIndex iTarget selTrials iExp sessionEdges dist distNorm iTrial isAbove iLastAbove iOnset
 
 % Combine ETAs across sessions
-[~, euExpIndices] = ismember({euReachDir2Tgt.ExpName}, {pa2tgt.exp.name});
+[~, euExpIndices] = ismember({euReachDir2tgt.ExpName}, {pa2tgt.exp.name});
 
 for iTarget = 1:2
     X = arrayfun(@(traj) traj.eta(iTarget).X, traj2tgt, 'UniformOutput', false);
