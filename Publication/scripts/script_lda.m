@@ -1,7 +1,13 @@
 %%
 load_ephysunits
+read_reachDir_2tgt
 
-%%
+%% LDA results
+% load('E:\Data\Units\lda_pressVsLick_20241212.mat')
+% load('E:\Data\Units\lda_pressVsLick_fullBootData_20241212.mat')
+
+
+%% Extract peri-move responses for lick vs. reach
 close all
 
 clear pLDA;
@@ -9,7 +15,7 @@ pLDA.window = [-4, 2];
 pLDA.baselineWindow = [-4, -2];
 pLDA.responseWindow = [-0.3, 0];
 pLDA.minTrialDuration = 2;
-pLDA.minNumUnits = 15;
+pLDA.minNumUnits = 10;
 pLDA.res = 0.1;
 pLDA.nBoot = 10000;
 
@@ -28,7 +34,7 @@ t = pLDA.window(1):pLDA.res:pLDA.window(2);
 t = (t(1:end-1) + t(2:end))./2;
 clear sr resp
 sr(length(goodExpNames)) = struct(press=[], lick=[], t=[]);
-resp(length(goodExpNames)) = struct(press=[], lick=[]);
+resp(length(goodExpNames)) = struct(press=[], lick=[], baseline=[]);
 for iExp = 1:length(goodExpNames)
     unitIndicesInExp = allUnitIndices(strcmpi(string({eu(allUnitIndices).ExpName}), goodExpNames{iExp}));
     unitIndicesInExp = unitIndicesInExp(:)';
@@ -60,13 +66,17 @@ for iExp = 1:length(goodExpNames)
 
     resp(iExp).press = squeeze(mean(sr(iExp).press(:, t>=pLDA.responseWindow(1) & t<=pLDA.responseWindow(2), :), 2, 'omitnan'));
     resp(iExp).lick = squeeze(mean(sr(iExp).lick(:, t>=pLDA.responseWindow(1) & t<=pLDA.responseWindow(2), :), 2, 'omitnan'));
+    resp(iExp).baseline = cat(1, ...
+        squeeze(mean(sr(iExp).press(:, t>=pLDA.baselineWindow(1) & t<=pLDA.baselineWindow(2), :), 2, 'omitnan')), ...
+        squeeze(mean(sr(iExp).lick(:, t>=pLDA.baselineWindow(1) & t<=pLDA.baselineWindow(2), :), 2, 'omitnan')) ...
+        );
 end
 
 clear t iExp unitIndicesInExp pressTrials lickTrials i iEu
 
 % Fit LDA
 clear likelihood
-likelihood(length(sr)) = struct(press=[], lick=[]);
+likelihood(length(sr)) = struct(press=[], lick=[], baseline=[]);
 t = sr(1).t;
 
 for iExp = 1:length(sr)
@@ -75,9 +85,9 @@ for iExp = 1:length(sr)
     nTrials = nPress + nLick;
 
     % Fit model using response window
-    X = vertcat(resp(iExp).press, resp(iExp).lick);
-    Y = vertcat(repmat("press", [nPress, 1]), repmat("lick", [nLick, 1]));
-    mdl = fitcdiscr(X, Y, Prior='uniform');
+    X = vertcat(resp(iExp).press, resp(iExp).lick, resp(iExp).baseline);
+    Y = vertcat(repmat("press", [nPress, 1]), repmat("lick", [nLick, 1]), repmat("baseline", [nTrials, 1]));
+    mdl = fitcdiscr(X, Y, Prior='empirical'); % try fitclinear (Eden says need to balance #n trials)
 
     % Predict full timecourse using fitted model
     likelihood(iExp).press = NaN(nTrials, length(t));
@@ -90,10 +100,43 @@ for iExp = 1:length(sr)
         [~, score] = mdl.predict(vertcat(XPress, XLick));
         likelihood(iExp).press(:, i) = score(:, strcmpi('press', mdl.ClassNames));
         likelihood(iExp).lick(:, i) = score(:, strcmpi('lick', mdl.ClassNames));
+        likelihood(iExp).baseline(:, i) = score(:, strcmpi('baseline', mdl.ClassNames));
     end
     likelihood(iExp).df = likelihood(iExp).press - likelihood(iExp).lick; % df = press - lick
 end
 clear iExp nPress nLick nTrials X Y mdl i t XPress XLick score
+
+% Plot results (individual sessions)
+fig = figure(Units='inches', Position=[1 1 14 6]);
+tl = tiledlayout(fig, 3, 5, TileSpacing='tight', Padding='tight', TileIndexing='rowmajor');
+
+t = likelihood(1).t;
+
+for iExp = 1:length(likelihood)
+    isPress = likelihood(iExp).trueLabel == "press";
+    isLick = likelihood(iExp).trueLabel == "lick";
+
+    ax = nexttile(tl);
+
+    hold(ax, 'on')
+    h = gobjects(2, 1);
+    h(1) = plot(ax, t, mean(likelihood(iExp).press(isPress, :) - likelihood(iExp).lick(isPress, :), 1, 'omitnan'), 'red', LineWidth=1.5, DisplayName=sprintf('press (%i trials)', nnz(isPress)));
+    h(2) = plot(ax, t, mean(likelihood(iExp).press(isLick, :) - likelihood(iExp).lick(isLick, :), 1, 'omitnan'), 'blue', LineWidth=1.5, DisplayName=sprintf('lick (%i trials)', nnz(isLick)));
+    hold(ax, 'off')
+    title(ax, sprintf('%s (%i units)', goodExpNames(iExp), nUnits(iExp)), Interpreter='none')
+
+    ylim(ax, [-1, 1])
+    xticks(ax, -4:2:2)
+    xline(ax, 0, 'k:')
+    yline(ax, 0, 'k:')
+
+    legend(ax, h, Location='northoutside', Orientation='horizontal')
+
+    fontsize(ax, p.fontSize, 'points')
+end
+xlabel(tl, 'Time to contact (s)', FontSize=p.fontSize)
+ylabel(tl, 'p(press) - p(lick)', FontSize=p.fontSize)
+
 
 %% Bootstrap LDA (perm test)
 
@@ -118,8 +161,9 @@ parfor iBoot = 1:pLDA.nBoot
         % Fit model using response window
         X = vertcat(resp(iExp).press, resp(iExp).lick);
         X = X(randperm(size(X, 1)), :);
-        Y = vertcat(repmat("press", [nPress, 1]), repmat("lick", [nLick, 1]));
-        mdl = fitcdiscr(X, Y, Prior='uniform');
+        X = vertcat(X, resp(iExp).baseline);
+        Y = vertcat(repmat("press", [nPress, 1]), repmat("lick", [nLick, 1]), repmat("baseline", [nTrials, 1]));
+        mdl = fitcdiscr(X, Y, Prior='empirical');
     
         % Predict full timecourse using fitted model
         press = NaN(nTrials, length(t));
@@ -136,22 +180,17 @@ parfor iBoot = 1:pLDA.nBoot
     dfBoot(:, :, iBoot) = cat(1, df{:});
 end
 
-clear iExp nPress nLick nTrials X Y mdl i press lick XPress XLick score likelihoodBoot df
+delete(pool)
+clear iExp nPress nLick nTrials X Y mdl i press lick XPress XLick score likelihoodBoot df pool iBoot
 
 fprintf('\nDone.\n')
 
-delete(pool)
-
-save('E:\DATA\Units\lda_pressVsLick_20241212.mat', 'pLDA', 'dfBoot', 'likelihood', 'sr', 'resp', 't', 'goodExpNames', 'nUnits', '-v7.3')
-
-clear iBoot t likelihoodBoot
-
-save('E:\DATA\Units\lda_pressVsLick_fullBootData_20241212.mat', 'dfBoot')
+save('E:\DATA\Units\lda_pressVsLick_fullBootData_20241212.mat', 'dfBoot', '-v7.3')
 
 %%
 clear dfBootStats;
 
-Y = cell(iExp, 1);
+Y = cell(length(sr), 1);
 for iExp = 1:length(sr)
     nPress = size(resp(iExp).press, 1);
     nLick = size(resp(iExp).lick, 1);
@@ -174,45 +213,8 @@ dfBootStats.all.X = transpose(squeeze(mean(dfBoot, 1, 'omitnan')));
 dfBootStats.all.mu = mean(dfBootStats.all.X, 1, 'omitnan');
 dfBootStats.all.ci = quantile(dfBootStats.all.X, [0.01, 0.99], 1);
 
-save('E:\DATA\Units\lda_pressVsLick_20241212.mat', 'pLDA', 'likelihood', 'sr', 'resp', 't', 'goodExpNames', 'nUnits', 'dfBootStats', '-v7.3')
+save('E:\DATA\Units\lda_pressVsLick_20241212.mat', 'pLDA', 'likelihood', 'sr', 'resp', 't', 'goodExpNames', 'nUnits', 'dfBootStats')
 
-%% Plot results (individual sessions)
-fig = figure(Units='normalized', Position=[0.1 0.1 0.8 0.8]);
-tlp = tiledlayout(fig, 3, 5, TileSpacing='tight', Padding='tight', TileIndexing='rowmajor');
-
-t = likelihood(1).t;
-
-for iExp = 1:length(likelihood)
-    isPress = likelihood(iExp).trueLabel == "press";
-    isLick = likelihood(iExp).trueLabel == "lick";
-
-    tl = tiledlayout(tlp, 2, 1, TileSpacing='tight', Padding='tight');
-    tl.Layout.Tile = iExp;
-    ax = gobjects(2, 1);
-
-    ax(1) = nexttile(tl);
-    hold(ax(1), 'on')
-    plot(ax(1), t, mean(likelihood(iExp).press(isPress, :), 1, 'omitnan'), 'red', LineWidth=1.5, DisplayName='press')
-    plot(ax(1), t, mean(likelihood(iExp).lick(isPress, :), 1, 'omitnan'), 'blue', LineWidth=1.5, DisplayName='lick')
-    hold(ax(1), 'off')
-    title(ax(1), sprintf('press trials (n=%i)', nnz(isPress)), Color='red')
-
-    ax(2) = nexttile(tl);
-    hold(ax(2), 'on')
-    plot(ax(2), t, mean(likelihood(iExp).press(isLick, :), 1, 'omitnan'), 'red', LineWidth=1.5, DisplayName='press')
-    plot(ax(2), t, mean(likelihood(iExp).lick(isLick, :), 1, 'omitnan'), 'blue', LineWidth=1.5, DisplayName='lick')
-    hold(ax(2), 'off')
-    title(ax(2), sprintf('lick trials (n=%i)', nnz(isLick)), Color='blue')
-
-    ylim(ax, [0, 1])
-    xticks(ax, -4:2:2)
-
-    title(tl, sprintf('%s (%i units)', goodExpNames(iExp), nUnits(iExp)), Interpreter='none')
-    legend(ax(1))
-    legend(ax(2))
-end
-xlabel(tlp, 'Time to contact (s)')
-ylabel(tlp, 'Probability')
 
 
 %% Plot results (average across sessions)
@@ -299,7 +301,7 @@ for iMove = 1:2
 end
 h(3) = plot(ax, t, dfBootStats.all.mu, 'black', LineStyle='--', LineWidth=1.5, DisplayName='shuffle');
 h(4) = patch(ax, [t, flip(t)], [dfBootStats.all.ci(1, :), flip(dfBootStats.all.ci(2, :))], 'black', FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName='99% CI');
-h(5) = patch(ax, [pLDA.responseWindow, flip(pLDA.responseWindow)], [-1, -1, 1, 1], 'yellow', FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName='training');
+h(5) = patch(ax, [pLDA.responseWindow, flip(pLDA.responseWindow)], [-1, -1, 1, 1], 'yellow', FaceAlpha=0.1, EdgeAlpha=0, DisplayName='training');
 fontsize(ax, p.fontSize, 'points')
 
 lgd = legend(ax, Orientation='vertical', Location='eastoutside', FontSize=p.fontSize, AutoUpdate=false);
