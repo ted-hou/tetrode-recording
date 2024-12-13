@@ -2317,7 +2317,7 @@ classdef EphysUnit < handle
                 isBadTrial = isnan(correction);
                 trials(isBadTrial) = [];
                 correction(isBadTrial) = [];
-%                 fprintf('\n\tRemoved %i bad trials out of %i.\n', nnz(isBadTrial), length(isBadTrial));
+                % fprintf('\n\tRemoved %i bad trials out of %i.\n', nnz(isBadTrial), length(isBadTrial));
                 trials = Trial([trials.Start], [trials.Stop] + correction(:)', advancedValidation=correctionAdvancedValidation);
             end
             if ~strcmpi(trialType, 'stimfirstpulse')
