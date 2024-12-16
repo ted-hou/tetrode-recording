@@ -3,8 +3,8 @@ load_ephysunits
 read_reachDir_2tgt
 
 %% LDA results
-% load('E:\Data\Units\lda_pressVsLick_20241212.mat')
-% load('E:\Data\Units\lda_pressVsLick_fullBootData_20241212.mat')
+load('C:\SERVER\Units\lda_pressVsLick_20241212.mat')
+load('C:\SERVER\Units\lda_reach2tgt_20241213.mat')
 
 
 %% Extract peri-move responses for lick vs. reach
@@ -19,6 +19,7 @@ pLDA.minTrialDuration = 2;
 pLDA.minNumUnits = 10;
 pLDA.res = 0.1;
 pLDA.nBoot = 10000;
+pLDA.kFold = 5;
 
 % Select sessions with enough press/lick trials, enough units
 allUnitIndices = find(c.hasPress & c.hasLick);
@@ -71,6 +72,18 @@ for iExp = 1:length(goodExpNames)
         squeeze(mean(sr(iExp).press(:, t>=pLDA.baselineWindow(1) & t<=pLDA.baselineWindow(2), :), 2, 'omitnan')), ...
         squeeze(mean(sr(iExp).lick(:, t>=pLDA.baselineWindow(1) & t<=pLDA.baselineWindow(2), :), 2, 'omitnan')) ...
         );
+
+    % Remove NaNs
+    selPress = all(~isnan(resp(iExp).press), 2);
+    selLick = all(~isnan(resp(iExp).lick), 2);
+    selBaseline = all(~isnan(resp(iExp).baseline), 2);
+
+    resp(iExp).press = resp(iExp).press(selPress, :);
+    resp(iExp).lick = resp(iExp).lick(selLick, :);
+    resp(iExp).baseline = resp(iExp).baseline(selBaseline, :);
+
+    sr(iExp).press = sr(iExp).press(selPress, :, :);
+    sr(iExp).lick = sr(iExp).lick(selLick, :, :);
 end
 
 clear t iExp unitIndicesInExp pressTrials lickTrials i iEu
@@ -83,12 +96,13 @@ t = sr(1).t;
 for iExp = 1:length(sr)
     nPress = size(resp(iExp).press, 1);
     nLick = size(resp(iExp).lick, 1);
+    nBaseline = size(resp(iExp).baseline, 1);
     nTrials = nPress + nLick;
 
     % Fit model using response window
     X = vertcat(resp(iExp).press, resp(iExp).lick, resp(iExp).baseline);
-    Y = vertcat(repmat("press", [nPress, 1]), repmat("lick", [nLick, 1]), repmat("baseline", [nTrials, 1]));
-    mdl = fitcdiscr(X, Y, Prior='empirical'); % try fitclinear (Eden says need to balance #n trials)
+    Y = vertcat(repmat("press", [nPress, 1]), repmat("lick", [nLick, 1]), repmat("baseline", [nBaseline, 1]));
+    mdl = fitcdiscr(X, Y, Prior='empirical', CrossVal='on', KFold=pLDA.kFold);
 
     % Predict full timecourse using fitted model
     likelihood(iExp).press = NaN(nTrials, length(t));
@@ -96,17 +110,29 @@ for iExp = 1:length(sr)
     likelihood(iExp).baseline = NaN(nTrials, length(t));
     likelihood(iExp).trueLabel = Y;
     likelihood(iExp).t = t;
+
+    assert(length(mdl.ClassNames) == 3)
+    [~, iClass] = ismember(["press", "lick", "baseline"], mdl.ClassNames);
     for i = 1:length(t)
         XPress = squeeze(sr(iExp).press(:, i, :));
         XLick = squeeze(sr(iExp).lick(:, i, :));
-        [~, score] = mdl.predict(vertcat(XPress, XLick));
-        likelihood(iExp).press(:, i) = score(:, strcmpi('press', mdl.ClassNames));
-        likelihood(iExp).lick(:, i) = score(:, strcmpi('lick', mdl.ClassNames));
-        likelihood(iExp).baseline(:, i) = score(:, strcmpi('baseline', mdl.ClassNames));
+        XAll = vertcat(XPress, XLick);
+
+        score = NaN(nPress + nLick, 3);
+
+        for iFold = 1:pLDA.kFold
+            testIndices = mdl.Partition.test(iFold);
+            testIndices = testIndices(1:nTrials)';
+            [~, score(testIndices, 1:3)] = mdl.Trained{iFold}.predict(XAll(testIndices, :));
+        end
+
+        likelihood(iExp).press(:, i) = score(:, iClass(1));
+        likelihood(iExp).lick(:, i) = score(:, iClass(2));
+        likelihood(iExp).baseline(:, i) = score(:, iClass(3));
     end
     likelihood(iExp).df = likelihood(iExp).press - likelihood(iExp).lick; % df = press - lick
 end
-clear iExp nPress nLick nTrials X Y mdl i t XPress XLick score
+clear iExp nPress nLick nTrials X Y mdl i t XPress XLick score iFold testIndices trainIndices
 
 % Plot results (individual sessions)
 fig = figure(Units='inches', Position=[1 1 14 6]);
@@ -196,6 +222,18 @@ for iExp = 1:length(goodExpIndices2tgt)
         squeeze(mean(sr2tgt(iExp).contraOut(:, t>=pLDA.baselineWindow(1) & t<=pLDA.baselineWindow(2), :), 2, 'omitnan')), ...
         squeeze(mean(sr2tgt(iExp).contraIn(:, t>=pLDA.baselineWindow(1) & t<=pLDA.baselineWindow(2), :), 2, 'omitnan')) ...
         );
+
+    % Remove NaNs
+    selContraOut = all(~isnan(resp2tgt(iExp).contraOut), 2);
+    selContraIn = all(~isnan(resp2tgt(iExp).contraIn), 2);
+    selBaseline = all(~isnan(resp2tgt(iExp).baseline), 2);
+
+    resp2tgt(iExp).contraOut = resp2tgt(iExp).contraOut(selContraOut, :);
+    resp2tgt(iExp).contraIn = resp2tgt(iExp).contraIn(selContraIn, :);
+    resp2tgt(iExp).baseline = resp2tgt(iExp).baseline(selBaseline, :);
+
+    sr2tgt(iExp).contraOut = sr2tgt(iExp).contraOut(selContraOut, :, :);
+    sr2tgt(iExp).contraIn = sr2tgt(iExp).contraIn(selContraIn, :, :);
 end
 
 clear t iExp iExp unitIndicesInExp contraOutTrials contraInTrials i iEu selT mu sd
@@ -208,12 +246,13 @@ t = sr2tgt(1).t;
 for iExp = 1:length(sr2tgt)
     nContraOut = size(resp2tgt(iExp).contraOut, 1);
     nContraIn = size(resp2tgt(iExp).contraIn, 1);
+    nBaseline = size(resp2tgt(iExp).baseline, 1);
     nTrials = nContraOut + nContraIn;
 
     % Fit model using response window
     X = vertcat(resp2tgt(iExp).contraOut, resp2tgt(iExp).contraIn, resp2tgt(iExp).baseline);
-    Y = vertcat(repmat("lateral", [nContraOut, 1]), repmat("medial", [nContraIn, 1]), repmat("baseline", [nTrials, 1]));
-    mdl = fitcdiscr(X, Y, Prior='empirical'); % try fitclinear (Eden says need to balance #n trials)
+    Y = vertcat(repmat("lateral", [nContraOut, 1]), repmat("medial", [nContraIn, 1]), repmat("baseline", [nBaseline, 1]));
+    mdl = fitcdiscr(X, Y, Prior='empirical', CrossVal='on', KFold=pLDA.kFold);
 
     % Predict full timecourse using fitted model
     likelihood2tgt(iExp).contraOut = NaN(nTrials, length(t));
@@ -221,13 +260,25 @@ for iExp = 1:length(sr2tgt)
     likelihood2tgt(iExp).baseline = NaN(nTrials, length(t));
     likelihood2tgt(iExp).trueLabel = Y;
     likelihood2tgt(iExp).t = t;
+
+    assert(length(mdl.ClassNames) == 3)
+    [~, iClass] = ismember(["lateral", "medial", "baseline"], mdl.ClassNames);
     for i = 1:length(t)
         XContraOut = squeeze(sr2tgt(iExp).contraOut(:, i, :));
         XContraIn = squeeze(sr2tgt(iExp).contraIn(:, i, :));
-        [~, score] = mdl.predict(vertcat(XContraOut, XContraIn));
-        likelihood2tgt(iExp).contraOut(:, i) = score(:, strcmpi('lateral', mdl.ClassNames));
-        likelihood2tgt(iExp).contraIn(:, i) = score(:, strcmpi('medial', mdl.ClassNames));
-        likelihood2tgt(iExp).baseline(:, i) = score(:, strcmpi('baseline', mdl.ClassNames));
+        XAll = vertcat(XContraOut, XContraIn);
+
+        score = NaN(nContraOut + nContraIn, 3);
+
+        for iFold = 1:pLDA.kFold
+            testIndices = mdl.Partition.test(iFold);
+            testIndices = testIndices(1:nTrials)';
+            [~, score(testIndices, 1:3)] = mdl.Trained{iFold}.predict(XAll(testIndices, :));
+        end
+
+        likelihood2tgt(iExp).contraOut(:, i) = score(:, iClass(1));
+        likelihood2tgt(iExp).contraIn(:, i) = score(:, iClass(2));
+        likelihood2tgt(iExp).baseline(:, i) = score(:, iClass(3));
     end
     likelihood2tgt(iExp).df = likelihood2tgt(iExp).contraOut - likelihood2tgt(iExp).contraIn; % df = contraOut - contraIn
 end
@@ -284,24 +335,36 @@ parfor iBoot = 1:pLDA.nBoot
     for iExp = 1:length(sr)
         nPress = size(resp(iExp).press, 1);
         nLick = size(resp(iExp).lick, 1);
+        nBaseline = size(resp(iExp).baseline, 1);
         nTrials = nPress + nLick;
     
         % Fit model using response window
         X = vertcat(resp(iExp).press, resp(iExp).lick);
         X = X(randperm(size(X, 1)), :);
         X = vertcat(X, resp(iExp).baseline);
-        Y = vertcat(repmat("press", [nPress, 1]), repmat("lick", [nLick, 1]), repmat("baseline", [nTrials, 1]));
-        mdl = fitcdiscr(X, Y, Prior='empirical');
+        Y = vertcat(repmat("press", [nPress, 1]), repmat("lick", [nLick, 1]), repmat("baseline", [nBaseline, 1]));
+        mdl = fitcdiscr(X, Y, Prior='empirical', CrossVal='on', KFold=pLDA.kFold);
     
         % Predict full timecourse using fitted model
         press = NaN(nTrials, length(t));
         lick = NaN(nTrials, length(t));
+        assert(length(mdl.ClassNames) == 3)
+        [~, iClass] = ismember(["press", "lick", "baseline"], mdl.ClassNames);
         for i = 1:length(t)
             XPress = squeeze(sr(iExp).press(:, i, :));
             XLick = squeeze(sr(iExp).lick(:, i, :));
-            [~, score] = mdl.predict(vertcat(XPress, XLick));
-            press(:, i) = score(:, strcmpi('press', mdl.ClassNames));
-            lick(:, i) = score(:, strcmpi('lick', mdl.ClassNames));
+            XAll = vertcat(XPress, XLick);
+
+            score = NaN(nPress + nLick, 3);
+    
+            for iFold = 1:pLDA.kFold
+                testIndices = mdl.Partition.test(iFold);
+                testIndices = testIndices(1:nTrials)';
+                [~, score(testIndices, 1:3)] = mdl.Trained{iFold}.predict(XAll(testIndices, :));
+            end
+
+            press(:, i) = score(:, iClass(1));
+            lick(:, i) = score(:, iClass(2));
         end
         df{iExp} = press - lick; % df = press - lick
     end
@@ -314,7 +377,7 @@ clear iExp nPress nLick nTrials X Y mdl i press lick XPress XLick score likeliho
 fprintf('\nDone.\n')
 
 % Save to disk this is a few GBs, but needed to calculate the CI
-save('E:\DATA\Units\lda_pressVsLick_fullBootData_20241212.mat', 'dfBoot', '-v7.3')
+save('C:\SERVER\Units\lda_pressVsLick_fullBootData_20241216.mat', 'dfBoot', '-v7.3')
 
 % Quick summary (99% CI, mean) of bootstrap for lick vs reach
 clear dfBootStats;
@@ -342,10 +405,10 @@ dfBootStats.all.X = transpose(squeeze(mean(dfBoot, 1, 'omitnan')));
 dfBootStats.all.mu = mean(dfBootStats.all.X, 1, 'omitnan');
 dfBootStats.all.ci = quantile(dfBootStats.all.X, [0.01, 0.99], 1);
 
-save('E:\DATA\Units\lda_pressVsLick_20241212.mat', 'pLDA', 'likelihood', 'sr', 'resp', 't', 'goodExpNames', 'nUnits', 'dfBootStats')
+save('C:\SERVER\Units\lda_pressVsLick_20241216.mat', 'pLDA', 'likelihood', 'sr', 'resp', 't', 'goodExpNames', 'nUnits', 'dfBootStats')
 
 
-%% Bootstrap LDA (perm test) for reach 2tgt
+% Bootstrap LDA (perm test) for reach 2tgt
 
 % Fit LDA
 t = sr2tgt(1).t;
@@ -362,24 +425,36 @@ parfor iBoot = 1:pLDA.nBoot
     for iExp = 1:length(sr2tgt)
         nContraOut = size(resp2tgt(iExp).contraOut, 1);
         nContraIn = size(resp2tgt(iExp).contraIn, 1);
+        nBaseline = size(resp2tgt(iExp).baseline, 1);
         nTrials = nContraOut + nContraIn;
     
         % Fit model using response window
         X = vertcat(resp2tgt(iExp).contraOut, resp2tgt(iExp).contraIn);
         X = X(randperm(size(X, 1)), :);
         X = vertcat(X, resp2tgt(iExp).baseline);
-        Y = vertcat(repmat("lateral", [nContraOut, 1]), repmat("medial", [nContraIn, 1]), repmat("baseline", [nTrials, 1]));
-        mdl = fitcdiscr(X, Y, Prior='empirical');
+        Y = vertcat(repmat("lateral", [nContraOut, 1]), repmat("medial", [nContraIn, 1]), repmat("baseline", [nBaseline, 1]));
+        mdl = fitcdiscr(X, Y, Prior='empirical', CrossVal='on', KFold=pLDA.kFold);
     
         % Predict full timecourse using fitted model
         contraOut = NaN(nTrials, length(t));
         contraIn = NaN(nTrials, length(t));
+        assert(length(mdl.ClassNames) == 3)
+        [~, iClass] = ismember(["lateral", "medial", "baseline"], mdl.ClassNames);
         for i = 1:length(t)
             XContraOut = squeeze(sr2tgt(iExp).contraOut(:, i, :));
             XContraIn = squeeze(sr2tgt(iExp).contraIn(:, i, :));
-            [~, score] = mdl.predict(vertcat(XContraOut, XContraIn));
-            contraOut(:, i) = score(:, strcmpi('lateral', mdl.ClassNames));
-            contraIn(:, i) = score(:, strcmpi('medial', mdl.ClassNames));
+            XAll = vertcat(XContraOut, XContraIn);
+
+            score = NaN(nContraOut + nContraIn, 3);
+
+            for iFold = 1:pLDA.kFold
+                testIndices = mdl.Partition.test(iFold);
+                testIndices = testIndices(1:nTrials)';
+                [~, score(testIndices, 1:3)] = mdl.Trained{iFold}.predict(XAll(testIndices, :));
+            end
+
+            contraOut(:, i) = score(:, iClass(1));
+            contraIn(:, i) = score(:, iClass(2));
         end
         df{iExp} = contraOut - contraIn; % df = lateral - medial
     end
@@ -392,7 +467,7 @@ clear iExp nContraOut nContraIn nTrials X Y mdl i contraOut contraIn XContraOut 
 fprintf('\nDone.\n')
 
 % Save to disk this is a few GBs, but needed to calculate the CI
-save('E:\DATA\Units\lda_reach2tgt_fullBootData_20241213.mat', 'dfBoot2tgt', '-v7.3')
+save('C:\SERVER\Units\lda_reach2tgt_fullBootData_20241216.mat', 'dfBoot2tgt', '-v7.3')
 
 % Quick summary (99% CI, mean) of bootstrap for reach 2tgt
 clear dfBootStats2tgt;
@@ -420,7 +495,7 @@ dfBootStats2tgt.all.X = transpose(squeeze(mean(dfBoot2tgt, 1, 'omitnan')));
 dfBootStats2tgt.all.mu = mean(dfBootStats2tgt.all.X, 1, 'omitnan');
 dfBootStats2tgt.all.ci = quantile(dfBootStats2tgt.all.X, [0.01, 0.99], 1);
 
-save('E:\DATA\Units\lda_reach2tgt_20241213.mat', 'pLDA', 'likelihood2tgt', 'sr2tgt', 'resp2tgt', 't', 'expNames2tgt', 'euExpIndex', 'goodExpIndices2tgt', 'nUnits2tgt', 'dfBootStats2tgt')
+save('C:\SERVER\Units\lda_reach2tgt_20241216.mat', 'pLDA', 'likelihood2tgt', 'sr2tgt', 'resp2tgt', 't', 'expNames2tgt', 'euExpIndex', 'goodExpIndices2tgt', 'nUnits2tgt', 'dfBootStats2tgt')
 
 clear Y iExp nContraOut nContraIn Y isContraOut isContraIn
 
