@@ -50,7 +50,9 @@ eta.lickCueNorm = eu.getETA('count', 'lick', p.cueEtaWindow, alignTo='start', mi
 % c.isPressVsLickSelective(c.hasLick & c.hasPress) = boot.pressVsLick.h;
 save('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift.mat', 'ai', 'boot', 'c', 'eta', 'etaSmooth', 'euPos', 'meta', 'msr', 'onset', 'p', 'bouts', 'trialsCircLick', 'trialsCircLickBaseline', 'bootCLick', 'lickHist', 'durations')
 
-%% plot params
+%% Fig 6
+close all
+
 nEgUnits = 3;
 p.fontSize = 9;
 p.etaSortWindow = [-3, 0.1];
@@ -62,12 +64,16 @@ layout.w = 7;
 layout.h = 8;
 layout.top.h = 3;
 layout.middle.h = 3;
-layout.middle.left.w = 1;
-layout.middle.right.w = 1;
+layout.middle.left.w = 4;
+layout.middle.right.w = 4;
+layout.middle.rightMargin.w = 1;
 layout.bottom.h = 3;
-layout.bottom.left.w = 3;
-layout.bottom.right.w = 3;
-layout.bottom.right.ww = [(2+0.8+6/8)*100, (2+6/8)*100];
+layout.bottom.left.w = 2;
+layout.bottom.middle.w = 3;
+layout.bottom.middle.ww = [(2+0.8+6/8)*100, (2+6/8)*100];
+layout.bottom.right.w = 2;
+layout.bottom.right.top.h = 2;
+layout.bottom.right.bottom.h = 3;
 
 % close all
 fig = figure(Units='inches', Position=[0, 0, layout.w, layout.h]);
@@ -77,7 +83,7 @@ layout.top.tl = tiledlayout(layout.tl, 2, nEgUnits, TileSpacing='tight', Padding
 l = layout.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.top.h, 1];
 
 
-layout.middle.tl = tiledlayout(layout.tl, 1, layout.middle.left.w + layout.middle.right.w, TileSpacing='compact', Padding='compact');
+layout.middle.tl = tiledlayout(layout.tl, 1, layout.middle.left.w + layout.middle.right.w + layout.middle.rightMargin.w, TileSpacing='tight', Padding='none');
 l = layout.middle.tl; l.Layout.Tile = 1 + layout.top.h; l.Layout.TileSpan = [layout.middle.h, 1];
 
 layout.middle.left.tl = tiledlayout(layout.middle.tl, 1, 2, TileSpacing='compact', Padding='compact');
@@ -86,14 +92,17 @@ l = layout.middle.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.mid
 layout.middle.right.tl = tiledlayout(layout.middle.tl, 1, 2, TileSpacing='compact', Padding='compact');
 l = layout.middle.right.tl; l.Layout.Tile = 1 + layout.middle.left.w; l.Layout.TileSpan = [1, layout.middle.right.w];
 
-layout.bottom.tl = tiledlayout(layout.tl, 1, layout.bottom.left.w + layout.bottom.right.w, TileSpacing='compact', Padding='compact');
+layout.bottom.tl = tiledlayout(layout.tl, 1, layout.bottom.left.w + layout.bottom.middle.w + layout.bottom.right.w, TileSpacing='loose', Padding='loose');
 l = layout.bottom.tl; l.Layout.Tile = 1 + layout.top.h + layout.middle.h; l.Layout.TileSpan = [layout.bottom.h, 1];
 
-layout.bottom.left.tl = tiledlayout(layout.bottom.tl, 3, 3, TileSpacing='compact', Padding='compact');
+layout.bottom.left.tl = tiledlayout(layout.bottom.tl, 3, 3, TileSpacing='compact', Padding='loose');
 l = layout.bottom.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.bottom.left.w];
 
-layout.bottom.right.tl = tiledlayout(layout.bottom.tl, 2, sum(layout.bottom.right.ww), TileSpacing='compact', Padding='compact');
-l = layout.bottom.right.tl; l.Layout.Tile = 1 + layout.bottom.left.w; l.Layout.TileSpan = [1, layout.bottom.right.w];
+layout.bottom.middle.tl = tiledlayout(layout.bottom.tl, 2, sum(layout.bottom.middle.ww), TileSpacing='compact', Padding='loose');
+l = layout.bottom.middle.tl; l.Layout.Tile = 1 + layout.bottom.left.w; l.Layout.TileSpan = [1, layout.bottom.middle.w];
+
+layout.bottom.right.tl = tiledlayout(layout.bottom.tl, layout.bottom.right.top.h + layout.bottom.right.bottom.h, 1, TileSpacing='loose', Padding='loose');
+l = layout.bottom.right.tl; l.Layout.Tile = 1 + layout.bottom.left.w + layout.bottom.middle.w; l.Layout.TileSpan = [1, layout.bottom.right.w];
 
 % 6a. Double rasters (reach vs lick) 3 example units
 
@@ -141,7 +150,7 @@ for iEu = 1:nEgUnits
         theseTrials = euEg(iEu).getTrials(TRIALTYPE{i});
         theseTrials = theseTrials(theseTrials.duration() >= MINTRIALDURATION(i, iEu) & theseTrials.duration() <= MAXTRIALDURATION(i, iEu));
         thisRD = euEg(iEu).getRasterData(TRIALTYPE{i}, window=[0, 2], sort=true, trials=theseTrials);
-        thisETA = euEg(iEu).getETA('count', TRIALTYPE{i}, p.etaWindow, normalize='none', trials=theseTrials, includeInvalid=false);
+        thisETA = euEg(iEu).getETA('count', TRIALTYPE{i}, [-4, 2], normalize='none', trials=theseTrials, includeInvalid=false);
         yyaxis(ax, 'right')
         EphysUnit.plotRaster(ax, thisRD, xlim=[-4, 2], iti=false, sz=1, maxTrials=40, maxTrialsMethod='uniformsample', ...
             everyNth=EVERYNTH(iEu), timingCriterion=4);
@@ -280,24 +289,26 @@ clear yt
 SEL_HASTRIAL = c.hasPress & c.hasLick;
 SEL_I = {c.isPressUp; ~c.isPressResponsive; c.isPressDown};
 SEL_J = {c.isLickDown; ~c.isLickResponsive; c.isLickUp};
+LABEL_X = ["lick-dec", "", "lick-inc"];
+LABEL_Y = ["reach-inc", "", "reach-dec"];
 
 h = gobjects(2, 1);
 for i = 1:length(SEL_I)
     for j = 1:length(SEL_J)
         ax = nexttile(layout.bottom.left.tl);
+        ax.Box = 'on';
         sel = SEL_HASTRIAL & SEL_I{i} & SEL_J{j};
         assert(numel(sel) == numel(eu))
         hold(ax, 'on')
         h(1) = plot(ax, etaFine.press.t, mean(etaFine.press.X(sel, :), 1, 'omitnan'), 'r', LineWidth=1.5, DisplayName='reach');
         h(2) = plot(ax, etaFine.lick.t, mean(etaFine.lick.X(sel, :), 1, 'omitnan'), 'b', LineWidth=1.5, DisplayName='lick');
-        text(ax, -2.2, -1.8, sprintf('n=%i', nnz(sel)), fontSize=p.fontSize, VerticalAlignment='bottom')
         hold(ax, 'off')
         xlim(ax, [-2.5, 0.5])
         ylim(ax, [-2, 2])
-        fontsize(ax, p.fontSize, 'points')
         ax.XGrid = 'on';
         ax.YGrid = 'on';
         xticks(ax, [-4, -2, 0])
+        xtickangle(ax, 0)
         yticks(ax, [-2, 0, 2])
         if i < length(SEL_I)
             ax.XTickLabel = [];
@@ -306,12 +317,19 @@ for i = 1:length(SEL_I)
             ax.YTickLabel = [];
         end
         fontsize(ax, p.fontSize, 'points')
+        text(ax, -2.4, -1.9, sprintf('n=%i', nnz(sel)), fontSize=p.fontSize-1, VerticalAlignment='bottom')
         if i == 1 && j == 1
             hLetter = text(ax, 0, 0, 'd', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
             ax.Units = 'inches';
             hLetter.HorizontalAlignment = 'right';
             hLetter.VerticalAlignment = 'top';
-            hLetter.Position = [-0.3, ax.Position(4) + 0.3, 0];
+            hLetter.Position = [-0.3, ax.Position(4) + 0.4, 0];
+        end
+        if i == 1
+            title(ax, LABEL_X(j), FontSize=p.fontSize, FontWeight='normal', Color='blue')
+        end
+        if j == 3
+            text(ax, 0.5, 0, LABEL_Y(i), FontSize=p.fontSize, Rotation=90, HorizontalAlignment='center', VerticalAlignment='top', Color='red')
         end
     end
 end
@@ -333,7 +351,7 @@ SUBSEL = {c.isLickUp, c.isLickDown};
 TITLE = ["Self-timed Reach", "Self-timed Lick"];
 LABEL1 = ["Reach Inc", "Reach Inc"; "Reach Dec", "Reach Dec"];
 LABEL2 = ["lick inc", "lick dec"];
-COLORS = {[236, 131, 5]./255, [136, 194, 115]./255};
+COLORS = {[102, 204, 255]./255, [0, 0, 102]./255};
 
 nRows = size(SEL, 1);
 nCols = size(SEL, 2);
@@ -344,8 +362,9 @@ for iRow = 1:nRows
     for iCol = 1:nCols
         sel = SEL{iRow, iCol};
         % Peri-move
-        ax = nexttile(layout.bottom.right.tl); AX(iRow, iCol) = ax;
-        ax.Layout.TileSpan = [1, layout.bottom.right.ww(iCol)];
+        ax = nexttile(layout.bottom.middle.tl); AX(iRow, iCol) = ax;
+        ax.Layout.TileSpan = [1, layout.bottom.middle.ww(iCol)];
+        ax.Box = 'on';
         hold(ax, 'on')
         t = ETAPERIMOVE{iCol}.t;
         switch TASK(iCol)
@@ -385,8 +404,8 @@ for iRow = 1:nRows
     end
 end
 
-xlabel(layout.bottom.right.tl, 'Time (s) or lick phase', FontSize=p.fontSize)
-ylabel(layout.bottom.right.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
+xlabel(layout.bottom.middle.tl, 'Time (s) or lick phase', FontSize=p.fontSize)
+ylabel(layout.bottom.middle.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
 ylim(AX(:), yl)
 yticks(AX(:, 2), [])
 title(AX(1, 1), 'Reach')
@@ -397,16 +416,101 @@ hLetter = text(AX(1, 1), 0, 0, 'e', FontSize=16, FontName='Arial', FontWeight='b
 ax.Units = 'inches';
 hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
-hLetter.Position = [-0.3, AX(1, 1).Position(4) + 0.75, 0];
+hLetter.Position = [-0.2, AX(1, 1).Position(4) + 0.9, 0];
 
 lgd = legend(squeeze(hLine(1, 1, :)), Orientation='horizontal');
 lgd.Layout.Tile = 'north';
 
+% 6f Decoder LDA for lick vs reach
+t = likelihood(1).t;
+pressTrialPress = arrayfun(@(llh) llh.press(llh.trueLabel=="press", :), likelihood, UniformOutput=false); % Press likelihood for true-press trials
+pressTrialLick = arrayfun(@(llh) llh.lick(llh.trueLabel=="press", :), likelihood, UniformOutput=false); % Lick likelihood for true-press trials
+lickTrialPress = arrayfun(@(llh) llh.press(llh.trueLabel=="lick", :), likelihood, UniformOutput=false);
+lickTrialLick = arrayfun(@(llh) llh.lick(llh.trueLabel=="lick", :), likelihood, UniformOutput=false);
+pressTrialPress = cat(1, pressTrialPress{:});
+pressTrialLick = cat(1, pressTrialLick{:});
+lickTrialPress = cat(1, lickTrialPress{:});
+lickTrialLick = cat(1, lickTrialLick{:});   
+
+DATA = { ...
+    pressTrialPress, pressTrialLick; ...
+    lickTrialPress, lickTrialLick ...
+    };
+COLOR = ["red", "blue"];
+LABEL = ["reach", "lick"];
+
+ax = nexttile(layout.bottom.right.tl, 1, [layout.bottom.right.top.h, 1]);
+ax.Box = 'on';
+hold(ax, 'on')
+h = gobjects(3, 1);
+for iMove = 1:2
+    mu = mean(DATA{iMove, 1} - DATA{iMove, 2}, 1, 'omitnan');
+    h(iMove) = plot(ax, t, mu, COLOR(iMove), LineWidth=1.5, DisplayName=sprintf('%s', LABEL(iMove)));
+end
+% h(3) = plot(ax, t, dfBootStats.all.mu, 'black', LineStyle='--', LineWidth=1.5, DisplayName='shuffle');
+patch(ax, [t, flip(t)], [dfBootStats.all.ci(1, :), flip(dfBootStats.all.ci(2, :))], 'black', FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName='99% CI');
+patch(ax, [pLDA.responseWindow, flip(pLDA.responseWindow)], [-1, -1, 1, 1], 'yellow', FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName='training');
+ylim(ax, [-1, 1])
+xlim(ax, [-2.5, 1.5])
+xline(ax, 0, ':')
+yline(ax, 0, ':')
+hold(ax, 'off')
+
+xlabel(ax, 'Time to contact (s)')
+ylabel(ax, 'p(reach)-p(lick)')
+
+fontsize(ax, p.fontSize, 'points')
+lgd = legend(ax, h(1:2), Orientation='horizontal', Location='northoutside', FontSize=p.fontSize-1, AutoUpdate=false);
+
+nAnimals = length(unique(eu(ismember(string({eu.ExpName}), goodExpNames)).getAnimalName()));
+
+fprintf('\nReach vs. lick decoder:\n');
+fprintf('\t1) Selected %i sessions (%i animals) with >=%i units (mean=%g, total=%i).\n', length(goodExpNames), nAnimals, pLDA.minNumUnits, mean(nUnits), sum(nUnits))
+fprintf('\t\t Units per session (sorted): %s\n', num2str(sort(nUnits)));
+
+hLetter = text(ax, 0, 0, 'f', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax.Units = 'inches';
+hLetter.HorizontalAlignment = 'right';
+hLetter.VerticalAlignment = 'top';
+hLetter.Position = [-0.35, ax.Position(4) + 0.5, 0];
+
+% 6g Scatter META for lick vs reach
+sz = 3.5;
+ax = nexttile(layout.bottom.right.tl, 1 + layout.bottom.right.top.h, [layout.bottom.right.bottom.h, 1]);
+ax.Box = 'on';
+sel = c.hasPress & c.hasLick;
+subselSign = sel & (c.isPressResponsive & c.isLickResponsive);
+subselAmp = sel & c.isPressVsLickSelective;
+subselNone = sel & ~subselSign & ~subselAmp;
+scatter(ax, meta.lick(subselNone), meta.press(subselNone), sz, 'black', MarkerEdgeAlpha=0.3), hold(ax, 'on')
+scatter(ax, meta.lick(subselSign), meta.press(subselSign), sz, 'black', 'filled', MarkerEdgeAlpha=0, MarkerFaceAlpha=1)
+scatter(ax, meta.lick(subselAmp), meta.press(subselAmp), sz, 'red', MarkerEdgeAlpha=0.5, LineWidth=0.7)
+plot(ax, [0 0], [-2 4], 'k:')
+plot(ax, [-2 4], [0 0], 'k:')
+plot(ax, [-2 4], [-2 4], 'k:')
+axis(ax, 'equal')
+xlim(ax, [-2, 4])
+ylim(ax, [-2, 4])
+xlabel(ax, 'Lick (a.u.)')
+ylabel(ax, 'Reach (a.u.)')
+fontsize(ax, p.fontSize, 'points')
+mdl = fitlm(meta.lick(sel), meta.press(sel));
+fprintf('press vs. lick: %i total, %i sign-change, %i amplitude change (LM slope p<%g).\n', nnz(sel), nnz(subselSign), nnz(subselAmp), mdl.Coefficients.pValue(2))
+
+hLetter = text(ax, 0, 0, 'g', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax.Units = 'inches';
+hLetter.HorizontalAlignment = 'right';
+hLetter.VerticalAlignment = 'top';
+hLetter.Position = [-0.5, ax.Position(4) + 0.25, 0];
+
+% Colorbar for 6b
 h = colorbar(axc); 
 h.Layout.Tile = 'east';
 h.Label.String = 'Normalized spike rate (a.u.)';
-copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
+lgd.Position = [lgd.Position(1), lgd.Position(2) + 0.05, lgd.Position(3:4)];
+  
+copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
 %% Supplement S6
 

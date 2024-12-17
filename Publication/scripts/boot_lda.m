@@ -395,15 +395,15 @@ isLick = Y == "lick";
 
 dfBootStats.press.X = transpose(squeeze(mean(dfBoot(isPress, :, :), 1, 'omitnan')));
 dfBootStats.press.mu = mean(dfBootStats.press.X, 1, 'omitnan');
-dfBootStats.press.ci = quantile(dfBootStats.press.X, [0.01, 0.99], 1);
+dfBootStats.press.ci = quantile(dfBootStats.press.X, [0.005, 0.995], 1);
 
 dfBootStats.lick.X = transpose(squeeze(mean(dfBoot(isLick, :, :), 1, 'omitnan')));
 dfBootStats.lick.mu = mean(dfBootStats.lick.X, 1, 'omitnan');
-dfBootStats.lick.ci = quantile(dfBootStats.lick.X, [0.01, 0.99], 1);
+dfBootStats.lick.ci = quantile(dfBootStats.lick.X, [0.005, 0.995], 1);
 
 dfBootStats.all.X = transpose(squeeze(mean(dfBoot, 1, 'omitnan')));
 dfBootStats.all.mu = mean(dfBootStats.all.X, 1, 'omitnan');
-dfBootStats.all.ci = quantile(dfBootStats.all.X, [0.01, 0.99], 1);
+dfBootStats.all.ci = quantile(dfBootStats.all.X, [0.005, 0.995], 1);
 
 save('C:\SERVER\Units\lda_pressVsLick_20241216.mat', 'pLDA', 'likelihood', 'sr', 'resp', 't', 'goodExpNames', 'nUnits', 'dfBootStats')
 
@@ -485,15 +485,15 @@ isContraIn = Y == "medial";
 
 dfBootStats2tgt.contraOut.X = transpose(squeeze(mean(dfBoot2tgt(isContraOut, :, :), 1, 'omitnan')));
 dfBootStats2tgt.contraOut.mu = mean(dfBootStats2tgt.contraOut.X, 1, 'omitnan');
-dfBootStats2tgt.contraOut.ci = quantile(dfBootStats2tgt.contraOut.X, [0.01, 0.99], 1);
+dfBootStats2tgt.contraOut.ci = quantile(dfBootStats2tgt.contraOut.X, [0.005, 0.995], 1);
 
 dfBootStats2tgt.contraIn.X = transpose(squeeze(mean(dfBoot2tgt(isContraIn, :, :), 1, 'omitnan')));
 dfBootStats2tgt.contraIn.mu = mean(dfBootStats2tgt.contraIn.X, 1, 'omitnan');
-dfBootStats2tgt.contraIn.ci = quantile(dfBootStats2tgt.contraIn.X, [0.01, 0.99], 1);
+dfBootStats2tgt.contraIn.ci = quantile(dfBootStats2tgt.contraIn.X, [0.005, 0.995], 1);
 
 dfBootStats2tgt.all.X = transpose(squeeze(mean(dfBoot2tgt, 1, 'omitnan')));
 dfBootStats2tgt.all.mu = mean(dfBootStats2tgt.all.X, 1, 'omitnan');
-dfBootStats2tgt.all.ci = quantile(dfBootStats2tgt.all.X, [0.01, 0.99], 1);
+dfBootStats2tgt.all.ci = quantile(dfBootStats2tgt.all.X, [0.005, 0.995], 1);
 
 save('C:\SERVER\Units\lda_reach2tgt_20241216.mat', 'pLDA', 'likelihood2tgt', 'sr2tgt', 'resp2tgt', 't', 'expNames2tgt', 'euExpIndex', 'goodExpIndices2tgt', 'nUnits2tgt', 'dfBootStats2tgt')
 

@@ -9,6 +9,7 @@ load('C:\SERVER\Units\traj_reachDir_4tgt.mat')
 load('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift.mat')
 load('C:\SERVER\Units\boot_20241118_Figure7.mat')
 read_lda
+nt = 16;
 % boot_amplitude_difference;
 %% Fig7. Lever-2-pos
 p.fontSize = 9;
@@ -18,15 +19,17 @@ p.etaSortWindow = [-2.5, 0.5];
 p.etaSignWindow = [-0.1, 0.2];
 p.minNumTrials = 4;
 
-hLetters = gobjects(1, 3);
+hLetters = gobjects(1, 4);
 
 clear layout
 layout.w = 5;
 layout.h = 6;
 layout.top.h = 4;
-layout.bottom.h = 8;
+layout.bottom.h = 4;
 layout.top.left.w = 4;
 layout.top.right.w = 2;
+layout.top.right.top.h = 5;
+layout.top.right.bottom.h = 2;
 
 close all
 fig = figure(Units='inches', Position=[0, 0, layout.w, layout.h]);
@@ -38,8 +41,8 @@ l = layout.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.top.h, 1];
 layout.top.left.tl = tiledlayout(layout.top.tl, 1, 2, TileSpacing='compact', Padding='compact');
 l = layout.top.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.top.left.w];
 
-% Topright (scatter 1x1)
-layout.top.right.tl = tiledlayout(layout.top.tl, 1, 1, TileSpacing='compact');
+% Topright (scatter top, decoder bottom)
+layout.top.right.tl = tiledlayout(layout.top.tl, layout.top.right.top.h + layout.top.right.bottom.h, 1, TileSpacing='compact');
 l = layout.top.right.tl; l.Layout.Tile = 1 + layout.top.left.w; l.Layout.TileSpan = [1, layout.top.right.w];
 
 % Bottom (ETA 1x2)
@@ -131,7 +134,7 @@ N = horzcat(ETA.N);
 selUnits = all(N >= p.minNumTrials, 2);
 
 metaWindow = [-0.1, 0.2];
-ax = nexttile(layout.top.right.tl);
+ax = nexttile(layout.top.right.tl, 1, [layout.top.right.top.h, 1]);
 hold(ax, 'on')
 ex = trajCombined2tgt.eta(1);
 ey = trajCombined2tgt.eta(2);
@@ -151,7 +154,7 @@ axis(ax, 'equal')
 xlim(ax, [-1, 2])
 ylim(ax, [-1, 2])
 
-hLetters(2) = text(ax, 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+hLetters(2) = text(ax, 0, 0, 'c', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
 ax.Units = 'inches';
 hLetters(2).HorizontalAlignment = 'right';
 hLetters(2).VerticalAlignment = 'top';
@@ -159,7 +162,63 @@ hLetters(2).Position = [-0.2, ax.Position(4)+0.4, 0];
 
 clear metaWindow ETAX ETAY iRow iCol ax ex ey
 
-% 7c ETA HEATMAPS
+% 7c Decoder (LDA) for reach2tgt
+t = likelihood2tgt(1).t;
+latTrialLat = arrayfun(@(llh) llh.contraOut(llh.trueLabel=="lateral", :), likelihood2tgt, UniformOutput=false);
+latTrialMed = arrayfun(@(llh) llh.contraIn(llh.trueLabel=="lateral", :), likelihood2tgt, UniformOutput=false);
+medTrialLat = arrayfun(@(llh) llh.contraOut(llh.trueLabel=="medial", :), likelihood2tgt, UniformOutput=false);
+medTrialMed = arrayfun(@(llh) llh.contraIn(llh.trueLabel=="medial", :), likelihood2tgt, UniformOutput=false);
+latTrialLat = cat(1, latTrialLat{:});
+latTrialMed = cat(1, latTrialMed{:});
+medTrialLat = cat(1, medTrialLat{:});
+medTrialMed = cat(1, medTrialMed{:});
+
+DATA = { ...
+    latTrialLat, latTrialMed; ...
+    medTrialLat, medTrialMed ...
+    };
+COLOR = {getColor(1, 4, 0.8), getColor(3, 4, 0.8)};
+LABEL = ["lateral", "medial"];
+
+ax = nexttile(layout.top.right.tl, 1 + layout.top.right.top.h, [layout.top.right.bottom.h, 1]);
+hold(ax, 'on')
+h = gobjects(3, 1);
+for iMove = 1:2
+    mu = mean(DATA{iMove, 1} - DATA{iMove, 2}, 1, 'omitnan');
+    h(iMove) = plot(ax, t, mu, Color=COLOR{iMove}, LineWidth=1.5, DisplayName=sprintf('%s', LABEL(iMove)));
+end
+% h(3) = plot(ax, t, dfBootStats2tgt.all.mu, 'black', LineStyle='--', LineWidth=1.5, DisplayName='shuffle');
+patch(ax, [t, flip(t)], [dfBootStats2tgt.all.ci(1, :), flip(dfBootStats2tgt.all.ci(2, :))], 'black', FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName='99% CI');
+patch(ax, [pLDA.responseWindow2tgt, flip(pLDA.responseWindow2tgt)], [-1, -1, 1, 1], 'yellow', FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName='training');
+ylim(ax, [-0.2, 0.2])
+xline(ax, 0, ':')
+yline(ax, 0, ':')
+xticks(ax, -4:2:2)
+xlim(ax, [-4, 2])
+hold(ax, 'off')
+
+xlabel(ax, 'Time to reach onset (s)')
+ylabel(ax, 'p(lat) - p(med)')
+
+hLetters(3) = text(ax, 0, 0, 'd', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax.Units = 'inches';
+hLetters(3).HorizontalAlignment = 'right';
+hLetters(3).VerticalAlignment = 'top';
+hLetters(3).Position = [-0.2, ax.Position(4)+0.4, 0];
+
+% lgd = legend(ax, h(1:2), Orientation='horizontal', Location='northoutside', FontSize=p.fontSize-1, AutoUpdate=false);
+
+selUnits2tgt = ismember(string({euReachDir2tgt.ExpName}), expNames2tgt(goodExpIndices2tgt));
+nAnimals2tgt = length(unique(euReachDir2tgt(selUnits2tgt).getAnimalName()));
+
+fprintf('\nReach (2tgt) lateral vs. medial decoder:\n');
+fprintf('\t1) Selected %i sessions (%i animals) with >=%i units (mean=%g, total=%i).\n', length(goodExpIndices2tgt), nAnimals2tgt, pLDA.minNumUnits, mean(nUnits2tgt), sum(nUnits2tgt))
+fprintf('\t\t Units per session (sorted): %s\n', num2str(sort(nUnits2tgt)));
+fprintf('\t2) %i lateral trials, %i medial trials on aggregate.\n', size(latTrialLat, 1), size(medTrialLat, 1))
+fprintf('\t3) Shuffled trial labels %i times to retrain LDA, shuffled mean and 99%%CI is calculated by averaging across all %i trials for each shuffle, then averaging across all shuffles.\n', pLDA.nBoot, size(latTrialLat, 1)+size(medTrialLat, 1))
+fprintf('\t4) Training window was chosen at [%g, %g] s.\n', pLDA.responseWindow2tgt(1), pLDA.responseWindow2tgt(2))
+
+% 7d ETA HEATMAPS
 TARGETNAME = ["contra-out", "contra-in"];
 TARGETNAMEDISP = ["Lateral reach", "Medial reach"];
 SELTRIALS = {~trajCombined2tgt.usedIpsiPaw, ~trajCombined2tgt.usedIpsiPaw};
@@ -211,11 +270,12 @@ ax = AX;
 xlabel(layout.bottom.tl, 'Time from reach onset (s)', FontSize=p.fontSize, FontName='Arial')
 ylabel(layout.bottom.tl, 'Unit', FontSize=p.fontSize, FontName='Arial')
 
-hLetters(3) = text(ax(1), 0, 0, 'c', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+hLetters(4) = text(ax(1), 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
 ax(1).Units = 'inches';
-hLetters(3).HorizontalAlignment = 'right';
-hLetters(3).VerticalAlignment = 'top';
-hLetters(3).Position = [-0.2, ax(1).Position(4)+0.3, 0];
+hLetters(4).HorizontalAlignment = 'right';
+hLetters(4).VerticalAlignment = 'top';
+hLetters(4).Position = [-0.2, ax(1).Position(4)+0.3, 0];
+
 
 % Set fontsize
 fontsize(fig, p.fontSize, 'points')
@@ -236,10 +296,10 @@ DOTFACTOR = 1;
 DOTPOWER = 1.25;
 
 clear layout
-layout.w = 6.5;
+layout.w = 3.9;
 layout.h = 5;
 layout.left.w = 2;
-layout.right.w = 3;
+layout.right.w = 1;
 
 fig = figure(Units='inches', Position=[1 1 layout.w, layout.h]);
 
@@ -248,7 +308,7 @@ layout.tl = tiledlayout(fig, 1, layout.left.w + layout.right.w);
 layout.left.tl = tiledlayout(layout.tl, 3, 2);
 l = layout.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.left.w];
 
-layout.right.tl = tiledlayout(layout.tl, 2, 2);
+layout.right.tl = tiledlayout(layout.tl, 2, 1);
 l = layout.right.tl; l.Layout.Tile = 1 + layout.left.w; l.Layout.TileSpan = [1, layout.right.w];
 
 ax = nexttile(layout.left.tl);
@@ -428,53 +488,53 @@ fontsize(ax, p.fontSize, 'points')
 fprintf('4tgt contra-out vs. contra-in: %i total, %i sign-change, %i amplitude change.\n', nnz(sel), nnz(subselSign), nnz(subselAmp))
 
 
-ax = nexttile(layout.right.tl);
-ETA = trajCombined2tgt.eta;
-N = horzcat(ETA.N);
-sel = all(N >= p.minNumTrials, 2);
-subselAmp = sel(:) & c.isSelective.contraOutVsContraIn2tgt(:);
-subselSign = sel(:) & (c.isPressResponsive2tgt{1}(:) | c.isPressResponsive2tgt{2}(:));
-subselNone = sel(:) & ~subselSign & ~subselAmp;
-ex = trajCombined2tgt.eta(1);
-ey = trajCombined2tgt.eta(2);
-metaX = mean(ex.X(:, ex.t > -0.1 & ex.t < 0.2), 2);
-metaY = mean(ey.X(:, ey.t > -0.1 & ey.t < 0.2), 2);
-ss = N;
-ss = max(ss, [], 2) ./ min(ss, [], 2);
-ss = 10./ss;
-scatter(ax, metaX(subselNone), metaY(subselNone), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
-scatter(ax, metaX(subselAmp), metaY(subselAmp), sz, 'red')
-scatter(ax, metaX(subselSign), metaY(subselSign), sz, 'black', 'filled')
-yline(ax, 0, 'k:')
-xline(ax, 0, 'k:')
-plot(ax, [-2 4], [-2 4], 'k:')
-axis(ax, 'equal')
-xlim(ax, [-2, 4])
-ylim(ax, [-2, 4])
-xlabel(ax, 'Lateral (2tgt)')
-ylabel(ax, 'Medial (2tgt)')
-fontsize(ax, p.fontSize, 'points')
-fprintf('2tgt: %i total, %i sign-change, %i amplitude change.\n', nnz(sel), nnz(subselSign), nnz(subselAmp))
+% ax = nexttile(layout.right.tl);
+% ETA = trajCombined2tgt.eta;
+% N = horzcat(ETA.N);
+% sel = all(N >= p.minNumTrials, 2);
+% subselAmp = sel(:) & c.isSelective.contraOutVsContraIn2tgt(:);
+% subselSign = sel(:) & (c.isPressResponsive2tgt{1}(:) | c.isPressResponsive2tgt{2}(:));
+% subselNone = sel(:) & ~subselSign & ~subselAmp;
+% ex = trajCombined2tgt.eta(1);
+% ey = trajCombined2tgt.eta(2);
+% metaX = mean(ex.X(:, ex.t > -0.1 & ex.t < 0.2), 2);
+% metaY = mean(ey.X(:, ey.t > -0.1 & ey.t < 0.2), 2);
+% ss = N;
+% ss = max(ss, [], 2) ./ min(ss, [], 2);
+% ss = 10./ss;
+% scatter(ax, metaX(subselNone), metaY(subselNone), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
+% scatter(ax, metaX(subselAmp), metaY(subselAmp), sz, 'red')
+% scatter(ax, metaX(subselSign), metaY(subselSign), sz, 'black', 'filled')
+% yline(ax, 0, 'k:')
+% xline(ax, 0, 'k:')
+% plot(ax, [-2 4], [-2 4], 'k:')
+% axis(ax, 'equal')
+% xlim(ax, [-2, 4])
+% ylim(ax, [-2, 4])
+% xlabel(ax, 'Lateral (2tgt)')
+% ylabel(ax, 'Medial (2tgt)')
+% fontsize(ax, p.fontSize, 'points')
+% fprintf('2tgt: %i total, %i sign-change, %i amplitude change.\n', nnz(sel), nnz(subselSign), nnz(subselAmp))
 
-ax = nexttile(layout.right.tl);
-sel = c.hasPress & c.hasLick;
-subselSign = sel & (c.isPressResponsive | c.isLickResponsive);
-subselAmp = sel & c.isPressVsLickSelective;
-subselNone = sel & ~subselSign & ~subselAmp;
-scatter(ax, meta.lick(subselNone), meta.press(subselNone), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
-scatter(ax, meta.lick(subselAmp), meta.press(subselAmp), sz, 'red')
-scatter(ax, meta.lick(subselSign), meta.press(subselSign), sz, 'black', 'filled')
-plot(ax, [0 0], [-2 4], 'k:')
-plot(ax, [-2 4], [0 0], 'k:')
-plot(ax, [-2 4], [-2 4], 'k:')
-axis(ax, 'equal')
-xlim(ax, [-2, 4])
-ylim(ax, [-2, 4])
-xlabel(ax, 'Peri-lick')
-ylabel(ax, 'Peri-reach')
-fontsize(ax, p.fontSize, 'points')
-mdl = fitlm(meta.lick(sel), meta.press(sel));
-fprintf('press vs. lick: %i total, %i sign-change, %i amplitude change (LM slope p<%g).\n', nnz(sel), nnz(subselSign), nnz(subselAmp), mdl.Coefficients.pValue(2))
+% ax = nexttile(layout.right.tl);
+% sel = c.hasPress & c.hasLick;
+% subselSign = sel & (c.isPressResponsive & c.isLickResponsive);
+% subselAmp = sel & c.isPressVsLickSelective;
+% subselNone = sel & ~subselSign & ~subselAmp;
+% scatter(ax, meta.lick(subselNone), meta.press(subselNone), sz, 'black', MarkerEdgeAlpha=0.5), hold(ax, 'on')
+% scatter(ax, meta.lick(subselAmp), meta.press(subselAmp), sz, 'red')
+% scatter(ax, meta.lick(subselSign), meta.press(subselSign), sz, 'black', 'filled')
+% plot(ax, [0 0], [-2 4], 'k:')
+% plot(ax, [-2 4], [0 0], 'k:')
+% plot(ax, [-2 4], [-2 4], 'k:')
+% axis(ax, 'equal')
+% xlim(ax, [-2, 4])
+% ylim(ax, [-2, 4])
+% xlabel(ax, 'Peri-lick')
+% ylabel(ax, 'Peri-reach')
+% fontsize(ax, p.fontSize, 'points')
+% mdl = fitlm(meta.lick(sel), meta.press(sel));
+% fprintf('press vs. lick: %i total, %i sign-change, %i amplitude change (LM slope p<%g).\n', nnz(sel), nnz(subselSign), nnz(subselAmp), mdl.Coefficients.pValue(2))
 
 
 
