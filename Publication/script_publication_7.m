@@ -1,9 +1,14 @@
  %% 
-read_reachDir_4tgt;
-read_reachDir_2tgt;
-%% S7
-load('meta_Lite_NonDuplicate_NonDrift.mat')
+% read_reachDir_4tgt;
+% read_reachDir_2tgt;
+% euReachDir2tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction_2tgts\SingleUnits_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
+% euReachDir4tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction\SingleUnits_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
+
+load('C:\SERVER\Units\traj_reachDir_2tgt.mat')
+load('C:\SERVER\Units\traj_reachDir_4tgt.mat')
+load('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift.mat')
 load('C:\SERVER\Units\boot_20241118_Figure7.mat')
+read_lda
 % boot_amplitude_difference;
 %% Fig7. Lever-2-pos
 p.fontSize = 9;
@@ -328,7 +333,8 @@ fontsize(ax, p.fontSize, 'points')
 % 7c. Plot population ETAs, 4 pos side by side
 N = arrayfun(@(eta) eta.N, trajCombined4tgt.eta, 'UniformOutput', false);
 IPAW = [1, 1, 1, 3];
-assert(minNumTrials == 4)
+minNumTrials = 4;
+assert(minNumTrials == 4);
 selUnit = N{1, 1} >= minNumTrials & N{2, 1} >= minNumTrials & N{3, 1} >= minNumTrials & N{4, 3} >= minNumTrials;
 for iTarget = [2 4 1 3]
     ax = nexttile(layout.left.tl);

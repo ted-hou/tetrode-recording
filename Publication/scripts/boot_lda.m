@@ -567,7 +567,7 @@ lickTrialLick = arrayfun(@(llh) llh.lick(llh.trueLabel=="lick", :), likelihood, 
 pressTrialPress = cat(1, pressTrialPress{:});
 pressTrialLick = cat(1, pressTrialLick{:});
 lickTrialPress = cat(1, lickTrialPress{:});
-lickTrialLick = cat(1, lickTrialLick{:});
+lickTrialLick = cat(1, lickTrialLick{:});   
 
 DATA = { ...
     pressTrialPress, pressTrialLick; ...

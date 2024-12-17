@@ -1,11 +1,11 @@
 %% Read result summaries
-load('C:\SERVER\Units\lda_pressVsLick_20241212.mat')
-load('C:\SERVER\Units\lda_reach2tgt_20241213.mat')
+load('C:\SERVER\Units\lda_pressVsLick_20241216.mat')
+load('C:\SERVER\Units\lda_reach2tgt_20241216.mat')
 
 %% (SLOW) Read full results containing model predictions from each permutation
 % % 99CI is saved in the summaries, reload this if we need to calculate new CIs
-% load('C:\SERVER\Units\lda_pressVsLick_fullBootData_20241212.mat')
-% load('C:\SERVER\Units\lda_reach2tgt_fullBootData_20241213.mat')
+load('C:\SERVER\Units\lda_pressVsLick_fullBootData_20241216.mat')
+load('C:\SERVER\Units\lda_reach2tgt_fullBootData_20241216.mat')
 
 
 %% Quick summary (99% CI, mean) of bootstrap for lick vs reach
