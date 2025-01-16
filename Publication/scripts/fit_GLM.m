@@ -2,11 +2,13 @@
 % clearvars -except exp
 MDL = cell(length(expAcute), 1);
 SRT = cell(length(expAcute), 1);
+CVP = cell(length(expAcute), 1);
 FT = cell(length(expAcute), 1);
 TT = cell(length(expAcute), 1);
 NOTNAN = cell(length(expAcute), 1);
 % MASK = cell(length(exp), 1);
 
+rng(42)
 for iExp = 1:length(expAcute)
     F = expAcute(iExp).getFeatures(sampleRate=30, trialType={'press'}, stats={'xVel', 'yVel'}, ...
         features={'handL', 'handR', 'footL', 'footR', 'nose', 'spine', 'trialStart', 'pressTrialRamp', 'firstPressRamp'}, ...
@@ -74,8 +76,10 @@ for iExp = 1:length(expAcute)
 
     % 2.3 Fit GLM
     % Grab a unit and start fitting glms!
+    nFolds = 5;
     fprintf(1, 'Fitting %g modelsets...\n', length(expAcute(iExp).eu)); tTicAll = tic();
-    mdl = cell(length(expAcute(iExp).eu), nVariants);
+    mdl = cell(length(expAcute(iExp).eu), nVariants, nFolds);
+    cvp = cell(length(expAcute(iExp).eu), 1);
     srt = cell(length(expAcute(iExp).eu), 1);
     warning('off','all')
     for iEu = 1:length(expAcute(iExp).eu)
@@ -84,14 +88,21 @@ for iExp = 1:length(expAcute)
         srTrialAligned = [0, euAcute.getSpikeRates('gaussian', 0.1, t)]'; 
         srt{iEu} = srTrialAligned(inTrial);
     
+        thisF = Ft;
+        thisF.SpikeRate = double(srt{iEu});
+        cvp{iEu} = cvpartition(height(thisF), KFold=nFolds);
         for iVariant = 1:nVariants
-            thisF = Ft;
-            thisF.SpikeRate = double(srt{iEu});
-%             if strcmp(variantNames{iVariant}, '+PreMoveVel')
-%                 thisF(mask, :) = [];
-%             end
-            mdl{iEu, iVariant} = fitglm(thisF, ResponseVar='SpikeRate', PredictorVars=variantPredictors{iVariant}, Distribution='poisson');
-            fprintf(1, '\t\t%s R^2 = %.2f\n', variantNames{iVariant}, mdl{iEu, iVariant}.Rsquared.Ordinary);
+            for iFold = 1:nFolds
+                selTrain = cvp{iEu}.training(iFold);
+                selTest = cvp{iEu}.test(iFold);
+                mdl{iEu, iVariant, iFold} = fitglm(thisF(selTrain, :), ResponseVar='SpikeRate', PredictorVars=variantPredictors{iVariant}, Distribution='poisson');
+                XTest = thisF(selTest, :);
+                yTest = srt{iEu}(selTest);
+                yHatTest = predict(mdl{iEu, iVariant, iFold}, XTest);
+                sel = ~isnan(yHatTest) & ~isnan(yTest);
+                thisR2 = corr(yHatTest(sel), yTest(sel)) .^ 2;
+                fprintf(1, '\t\t%s R^2 = %.2f\n', variantNames{iVariant}, thisR2);
+            end
         end
 
         % fprintf(1, '\tDone (%.0f%% not nan) in %.2f sec.\n', prctNotNan*100, toc(tTic));
@@ -102,10 +113,12 @@ for iExp = 1:length(expAcute)
     MDL{iExp} = cellfun(@compact, mdl, UniformOutput=false);
     SRT{iExp} = srt;
     NOTNAN{iExp} = notnan;
+    CVP{iExp} = cvp;
 %     MASK{iExp} = mask;
 end
 mdl = cat(1, MDL{:});
 srt = cat(1, SRT{:});
+cvp = cat(1, CVP{:});
 expIndices = zeros(size(mdl, 1), 1);
 i = 0;
 for iExp = 1:length(expAcute)
@@ -154,13 +167,17 @@ end
 
 %% Estimate model performance (R^2)
 
-R2 = NaN(size(mdl));
+R2 = NaN(size(mdl, 1), size(mdl, 2));
 for iEu = 1:size(mdl, 1)
     X = FT{expIndices(iEu)};
     y = srt{iEu};
 
     for iVariant = 1:nVariants
-        yHat = predict(mdl{iEu, iVariant}, X, Simultaneous=true);
+        yHat = NaN(size(y));
+        for iFold = 1:nFolds
+            selTest = cvp{iEu}.test(iFold);
+            yHat(selTest) = predict(mdl{iEu, iVariant, iFold}, X(selTest, :));
+        end
         sel = ~isnan(yHat) & ~isnan(y);
         R2(iEu, iVariant) = corr(yHat(sel), y(sel)) .^ 2;
     end
@@ -169,7 +186,7 @@ end
 %% Estimate model criterion
 crits = ["AIC", "AICc", "BIC", "CAIC"];
 for crit = crits
-    modelCriterion.(crit) = cellfun(@(mdl) mdl.ModelCriterion.(crit), mdl);
+    modelCriterion.(crit) = mean(cellfun(@(mdl) mdl.ModelCriterion.(crit), mdl), 3, 'omitnan');
 end
 
 %% Calculate trial-average fitted vs. observed for all units
@@ -202,7 +219,7 @@ figure, histogram(bootAcute.press.h)
 cAcute.isPressUp = bootAcute.press.h' == 1 & cAcute.hasPress;
 cAcute.isPressDown = bootAcute.press.h' == -1 & cAcute.hasPress;
 cAcute.isPressResponsive = cAcute.isPressUp | cAcute.isPressDown;
-%%
+%% Use fitted models to calculate trial averageds pike rates
 % ax = axes(figure()); hold on;
 
 assert(length(euAcute) > 1)
@@ -221,7 +238,10 @@ for iEu = 1:length(euAcute)
 
     srtHat = NaN(height(Ft), size(mdl, 2));
     for iVariant = 2:size(mdl, 2)
-        srtHat(:, iVariant) = predict(mdl{iEu, iVariant}, Ft);
+        for iFold = 1:nFolds
+            selTest = cvp{iEu}.test(iFold);
+            srtHat(selTest, iVariant) = predict(mdl{iEu, iVariant, iFold}, Ft(selTest, :));
+        end
     end
 
     trials = expAcute(iExp).eu(1).getTrials('press');
@@ -280,8 +300,8 @@ tHat = t;
 
 clear ax;
 %%
-save('C:\SERVER\acute_glm_20241024.mat', 'R2', 'aiAcute', 'bootAcute', 'cAcute', 'fallCorrect', 'fallIncorrect', ...
-    'mdl', 'modelCriterion', 'tHat', 'peakAcute', 'nVariants', 'msrAcute', 'msrHatAcute', 'msrObs', 'pAcute', 'peakHatAcute', 'srTrialAligned', 'srTrialAlignedHat', 'srt', 'srtHat', 'tOnsetAcute', 'tOnsetHatAcute', 'tPeakAcute', 'tPeakHatAcute');
+save('C:\SERVER\acute_glm_20241218.mat', 'R2', 'aiAcute', 'bootAcute', 'cAcute', 'fallCorrect', 'fallIncorrect', ...
+    'mdl', 'modelCriterion', 'tHat', 'peakAcute', 'nVariants', 'msrAcute', 'msrHatAcute', 'msrObs', 'pAcute', 'peakHatAcute', 'srTrialAligned', 'srTrialAlignedHat', 'srt', 'srtHat', 'tOnsetAcute', 'tOnsetHatAcute', 'tPeakAcute', 'tPeakHatAcute', 'cvp', 'nFolds');
 
 
 %%

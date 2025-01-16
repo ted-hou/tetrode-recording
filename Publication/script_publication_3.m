@@ -6,7 +6,7 @@ load_ephysunits
 read_DLC_data
 
 % fit_GLM
-load('C:\SERVER\acute_glm_20241031.mat') % Load previously saved fit_GLM output
+load('C:\SERVER\acute_glm_20241218.mat') % Load previously saved fit_GLM output
 
 
 % boot_bta
@@ -47,7 +47,7 @@ latency.contraPaw = [fAll.press.onset; cat(1, trajCombined2tgt.onset{:}); cat(2,
 latency.contraPawN = struct( ...
     trials=nnz(~isnan(latency.contraPaw)), ...
     sessions=length(fCorrect) + length(traj2tgt) + length(traj4tgt), ...
-    animals=length(unique(euAcute.getAnimalName())) + length(unique(euReachDir2Tgt.getAnimalName())) + length(unique(euReachDir4Tgt.getAnimalName())) ...
+    animals=length(unique(euAcute.getAnimalName())) + length(unique(euReachDir2tgt.getAnimalName())) + length(unique(euReachDir4Tgt.getAnimalName())) ...
     );
 latency.pRankSum.pressVsContraPaw = ranksum(latency.contraPaw , latency.press(c.isPressResponsive), tail='right');
 latency.pRankSum.pressUpVsContraPaw = ranksum(latency.contraPaw , latency.press(c.isPressUp), tail='right');
@@ -172,15 +172,15 @@ xlabel(ax(2), 'Time to bar-contact (s)')
 ylabel(ax(2), 'No. units')
 title(ax(2), 'SNr response onset')
 hLgd = legend(ax(2), hHist, Location='northwest');
-hLgd.Position(1) = 0.175;
-hLgd.Position(2) = 0.5;
+hLgd.Position(1) = 0.24;
+hLgd.Position(2) = 0.46;
 
 % 4c. Histogram of movement onset times
 ax(3) = nexttile(layout.top.left.tl, [layout.top.left.bottom.h, 1]);
 histogram(latency.contraPaw, edges, Normalization='count', FaceColor='black');
 hLgd = legend(sprintf('%g trials\n%g sessions\n%g animals', latency.contraPawN.trials, latency.contraPawN.sessions, latency.contraPawN.animals), Location='northwest');
-hLgd.Position(1) = 0.175;
-hLgd.Position(2) = 0.22;
+hLgd.Position(1) = 0.24;
+hLgd.Position(2) = 0.17;
 title('Forepaw movement onset')
 xlabel('Time to bar-contact (s)')
 ylabel('No. trials')
