@@ -479,6 +479,27 @@ copygraphics(fig, ContentType='vector', BackgroundColor='none')
 %% Fig S3 top
 close all
 
+clear layout
+layout.w = 7;
+layout.h = 6;
+layout.top.h = 4;
+layout.bottom.h = 2;
+layout.bottom.left.w = 1;
+layout.bottom.right.w = 2;
+
+fig = figure(Units='inches', Position=[1 1 layout.w layout.h]);
+layout.tl = tiledlayout(fig, layout.top.h + layout.bottom.h, 1, TileSpacing='loose', Padding='compact');
+
+layout.top.tl = tiledlayout(layout.tl, 2, 4+7, TileSpacing='compact');
+l = layout.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.top.h, 1];
+
+layout.bottom.tl = tiledlayout(layout.tl, 1, layout.bottom.left.w + layout.bottom.right.w, TileSpacing='tight', Padding='tight');
+l = layout.bottom.tl; l.Layout.Tile = 1 + layout.top.h; l.Layout.TileSpan = [layout.bottom.h, 1];
+
+layout.bottom.right.tl = tiledlayout(layout.bottom.tl, 1, 2, TileSpacing='tight', Padding='tight');
+l = layout.bottom.right.tl; l.Layout.Tile = 1 + layout.bottom.left.w; l.Layout.TileSpan = [1, layout.bottom.right.w];
+
+
 % S3a
 YL = {[30, 90], [10, 70]};
 SEL = {c.hasPress & c.isPressUp, c.hasPress & c.isPressDown};
@@ -487,20 +508,15 @@ TITLE = [sprintf("Increase Units (n=%i)", nnz(SEL{1})), sprintf("Decrease Units 
 
 % Plot ETA aligned to cue (i.e. flinchiness) vs. aligned to lever touch
 % close all
-fig = figure(Units='inches', Position=[1 1 7 6]);
-tlp = tiledlayout(fig, 6, 3, TileSpacing='compact');
-tl = tiledlayout(tlp, 2, 4 + 7, TileSpacing='compact');
-tl.Layout.Tile = 1; tl.Layout.TileSpan = [4, 3];
-
 AX = gobjects(2, 2);
 for iRow = 1:2
     yl = YL{iRow};
-    bgAx = axes(tl, XTick=[], YTick=[], Box='off');
+    bgAx = axes(layout.top.tl, XTick=[], YTick=[], Box='off');
     bgAx.Layout.Tile = (iRow-1) * (4+7) + 1;
     bgAx.Layout.TileSpan = [1, 4 + 7];
     title(bgAx, TITLE(iRow))
     
-    ax = axes(tl); AX(iRow, 1) = ax;
+    ax = axes(layout.top.tl); AX(iRow, 1) = ax;
     ax.Layout.Tile = (iRow-1) * (4+7) + 1;
     ax.Layout.TileSpan = [1, 4];
     sel = SEL{iRow};
@@ -524,7 +540,7 @@ for iRow = 1:2
     xline(ax, 1, ':')
     xlabel(ax, 'Time to start cue (s)')
     
-    ax = axes(tl); AX(iRow, 2) = ax;
+    ax = axes(layout.top.tl); AX(iRow, 2) = ax;
     ax.Layout.Tile = (iRow-1) * (4+7) + 4 + 1;
     ax.Layout.TileSpan = [1, 7];
     hold(ax, 'on')
@@ -543,11 +559,10 @@ for iRow = 1:2
 
     fontsize(AX(iRow, :), p.fontSize, 'points')
 end
-ylabel(tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
+ylabel(layout.top.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
 
 % S3b
-ax = nexttile(tlp);
-ax.Layout.TileSpan = [2, 1];
+ax = nexttile(layout.bottom.tl);
 hold(ax, 'on')
 
 sel = c.hasPress;
@@ -577,8 +592,50 @@ ylabel('Peri-cue (a.u.)')
 fontsize(ax, p.fontSize, 'points')
 
 % S3c/d (correct/incorrect press trial video-tracked paw/spine/lick)
+SELTRIALS = {~fAll.press.correct, fAll.press.correct};
+RESULTNAMES = {'incorrect', 'correct'};
+RESULTNAMESDISP = {'Incorrect', 'Correct'};
+FTNAMES = {'spine_yVel', 'handContra_xVel', 'tongue'};
+FTDISPNAMES = {'Spine velocity', 'Contra hand velocity', 'Lick probability'};
+% COLORS = {'red', 'black', 'blue'};
+COLORS = arrayfun(@(i) getColor(i, 3, 0.7), [2, 1, 3], UniformOutput=false);
+YYAXIS = {'left', 'left', 'right'};
+for iResult = 1:2
+    ax = nexttile(layout.bottom.right.tl);
+    colororder(ax, [[0.15, 0.15, 0.15]; getColor(3, 3, 0.7)])
+    hold(ax, 'on');
+    selTrials = SELTRIALS{iResult};
+    t = fAll.press.t;
+    n = nnz(selTrials);
+    hFt = gobjects(1, length(FTNAMES));
+    for iFt = 1:length(FTNAMES)
+        yyaxis(ax, YYAXIS{iFt})
+        X = fAll.press.(FTNAMES{iFt});
+        X = X(selTrials, :);
+        mu = mean(X, 1, 'omitnan');
+        sd = std(X, 0, 1, 'omitnan');
+        col = COLORS{iFt};
+        hFt(iFt) = plot(ax, t, mu, Color=col, LineStyle='-', LineWidth=1.5, DisplayName=FTDISPNAMES{iFt});
+        sel = ~isnan(mu + sd);
+        patch(ax, [t(sel), flip(t(sel))], [mu(sel)-sd(sel), flip(mu(sel)+sd(sel))], 'r', ...
+            LineStyle='-', FaceAlpha=0.075, FaceColor=col, EdgeAlpha=0.075, EdgeColor=col)
+        xline(ax, 0, 'k--')
+    end
+    xlim(ax, [-2, 2])
 
+    yyaxis(ax, 'left')
+    ylabel(ax, 'Velocity (a.u.)')
+    ylim(ax, [-5, 5])
 
+    yyaxis(ax, 'right')
+    ylabel(ax, 'Lick probability')
+    ylim(ax, [-1.5, 1.5])
+    title(ax, RESULTNAMESDISP{iResult})
+end
+xlabel(layout.bottom.right.tl, 'Time to bar contact (s)', FontSize=p.fontSize)
+
+lgd = legend(ax, hFt, Orientation='horizontal');
+lgd.Layout.Tile = 'north';
 
 lgd = legend(AX(1, 2), h, Location='northwest', AutoUpdate='off', FontSize=p.fontSize);
 lgd.Position(1) = lgd.Position(1) - 0.15;
@@ -601,11 +658,13 @@ layout.tl = tiledlayout(fig, 1, 2, TileSpacing='compact');
 
 % S3a 
 ax = nexttile(layout.tl);
-EphysUnit.plotBinnedTrialAverage(ax, btaSig, [-8, 0], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors);
+EphysUnit.plotBinnedTrialAverage(ax, btaSig, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors);
 hLgd = ax.Legend;
 hLgd.Layout.Tile = 'north';
 hLgd.Orientation = 'horizontal';
 hLgd.Title.String = 'Time from cue to movement';
+hLgd.AutoUpdate = false;
+xline(ax, 0, 'k--')
 xlabel(ax, '')
 ylabel(ax, '')
 title(ax, sprintf('Significant units (n=%i)', nnz(c.isPressBTADifferent)))
@@ -613,7 +672,8 @@ ylim(ax, [35, 75])
 
 % S3b
 ax = nexttile(layout.tl);
-EphysUnit.plotBinnedTrialAverage(ax, btaNul, [-8, 0], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors);
+EphysUnit.plotBinnedTrialAverage(ax, btaNul, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors);
+xline(ax, 0, 'k--')
 delete(ax.Legend);
 xlabel(ax, '')
 ylabel(ax, '')

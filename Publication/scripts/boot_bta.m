@@ -18,8 +18,8 @@ fprintf(1, '\n\nOf %d press responsive units, %d showed significantly different 
 
 %% Make individual figures for the significantly different units
 
-[btaSig.X, btaSig.T, btaSig.N, btaSig.S, btaSig.B] = eu(c.isPressBTADifferent).getBinnedTrialAverage('count', p.binnedTrialEdges, 'press', 'window', [-8, 0], 'normalize', false, 'resolution', 0.100);
-[btaNul.X, btaNul.T, btaNul.N, btaNul.S, btaNul.B] = eu(c.isPressResponsive & ~c.isPressBTADifferent).getBinnedTrialAverage('count', p.binnedTrialEdges, 'press', 'window', [-8, 0], 'normalize', false, 'resolution', 0.100);
+[btaSig.X, btaSig.T, btaSig.N, btaSig.S, btaSig.B] = eu(c.isPressBTADifferent).getBinnedTrialAverage('count', p.binnedTrialEdges, 'press', 'window', [-8, 1], 'normalize', false, 'resolution', 0.100);
+[btaNul.X, btaNul.T, btaNul.N, btaNul.S, btaNul.B] = eu(c.isPressResponsive & ~c.isPressBTADifferent).getBinnedTrialAverage('count', p.binnedTrialEdges, 'press', 'window', [-8, 1], 'normalize', false, 'resolution', 0.100);
 btaSig.X = btaSig.X./0.1;
 btaSig.S = btaSig.S./0.1;
 btaNul.X = btaNul.X./0.1;
