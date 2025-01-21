@@ -33,8 +33,8 @@ p.minTrialLength = 2;
 
 close all
 % statName = {'spd'};
-statName = {'xVel', 'yVel', 'spd', 'xPos', 'yPos'}; % Side camera, xVel along AP, yVel along DV.
-statNameDisp = {'AP vel', 'DV vel', 'spd', 'AP pos', 'DV pos'};
+statName = {'xPos', 'yPos', 'xVel', 'yVel', 'spd'}; % Side camera, xVel along AP, yVel along DV.
+statNameDisp = {'AP pos', 'DV pos', 'AP vel', 'DV vel', 'spd'};
 t = flip(p.velETAWindow(2):-p.velETABinWidth:p.velETAWindow(1));
 fCorrect = cell(1, length(expAcute));
 fIncorrect = cell(1, length(expAcute));
