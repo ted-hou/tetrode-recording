@@ -75,11 +75,14 @@ l = layout.bottom.right.tl; l.Layout.Tile = 1 + layout.bottom.left.w; l.Layout.T
 
 for iEu = 1:length(euEg)
     ax = nexttile(layout.top.top.tl);
-    thisRd = euEg(iEu).getRasterData('press', window=[0, 0], sort=true);
-    EphysUnit.plotRaster(ax, thisRd, xlim=[-4, 0], sz=1);
+    thisRd = euEg(iEu).getRasterData('press', window=[0, 0.5], sort=true);
+    EphysUnit.plotRaster(ax, thisRd, xlim=[-4, 0.5], sz=1);
+    xline(ax, 0, 'k--')
+    xlim(ax, [-4, 0.5])
     switch iEu
         case 1
-            legend(ax, {'spike', 'tone'})
+%             hLgd = legend(ax, {'spike', 'tone'});
+            delete(legend(ax))
         case 2
             ylabel(ax, '');
             delete(legend(ax))
@@ -101,9 +104,11 @@ end
 % 3b. PETH of two example units
 for iEu = 1:length(euEg)
     ax = nexttile(layout.top.bottom.tl);
-    thisETA = euEg(iEu).getETA('count', 'press', [-4, 0], minTrialDuration=2, normalize='none');
+    thisETA = euEg(iEu).getETA('count', 'press', [-4, 0.5], minTrialDuration=2, normalize='none');
     thisETA.X = thisETA.X./0.100;
     plot(ax, thisETA.t, thisETA.X, LineWidth=p.lineWidth, Color='black')
+    xline(ax, 0, 'k--')
+    xlim(ax, [-4, 0.5])
     switch iEu
         case 1
 %             ylim(ax, [5, 30])
@@ -126,6 +131,7 @@ EphysUnit.plotETA(ax, etaFine.press, c.hasPress, xlim=[-4,0.5], clim=[-1.5, 1.5]
     order=onset.pressOrder(c.hasPress)); 
 hold(ax, 'on')
 xline(ax, 0, 'k--')
+applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
 
 yt = 0:100:nnz(c.hasPress);
 yt(1) = 1;
@@ -140,7 +146,7 @@ yticks(ax, yt)
 % hold(ax, 'on')
 % plot(lat(order), 1:nnz(c.hasPress))
 ax.Colorbar.Label.Position = [-0.995833372448878, 0.033151078619351, 0];
-title(ax, 'Reach PETH')
+title(ax, '')
 xlabel(ax, 'Time to bar-contact (s)')
 fontsize(ax, p.fontSize, 'points');
 fontname(ax, 'Arial')
@@ -193,7 +199,7 @@ hHist3 = histogram(ax, meta.press(c.hasPress), 40, FaceColor='white');
 histogram(ax, meta.press(c.isPressUp), hHist3.BinEdges, FaceColor='red', EdgeColor='none')
 histogram(ax, meta.press(c.isPressDown), hHist3.BinEdges, FaceColor='blue', EdgeColor='none')
 hold(ax, 'off')
-xlabel(ax, 'Peri-reach response (a.u.)'), ylabel(ax, 'Count')
+xlabel(ax, {'Normalized peri-reach', 'response (a.u.)'}), ylabel(ax, 'Count')
 fontsize(ax, p.fontSize, 'points');
 fontname(ax, 'Arial')
 h = text(ax, 0, 0, 'e', FontSize=16, FontName='Arial', FontWeight='bold');
@@ -201,5 +207,6 @@ ax.Units = 'inches'; h.Units = 'inches';
 h.HorizontalAlignment = 'right';
 h.VerticalAlignment = 'top';
 h.Position = [-0.5, ax.Position(4)+0.1, 0];
+
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')

@@ -3,7 +3,7 @@ euReachDir4Tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction\Sing
 % pa = Pawnalyzer2(eu, refEvent='press');
 
 
-% Make trajectories
+%% Make trajectories
 paReachDir4Tgt = Pawnalyzer2(euReachDir4Tgt, refEvent='cue');
 paReachDir4Tgt.getClips(noImage=true, nFramesBefore=15, nFramesAfter=0, keepData=false, trials='Press');
 paReachDir4Tgt.load('C:\SERVER\Units\acute_3cam_reach_direction\Pawnalyzer2\pa.mat')

@@ -135,7 +135,8 @@ resultNames = {'incorrect', 'correct'};
 trialTypes = {'press', 'lick'};
 
 % fig = figure(Units='inches', Position=[0+(iExp-1)*4.5, -1, 2.5, 3], DefaultAxesFontSize=p.fontSize);
-t = flip(p.velETAWindow(2):-p.velETABinWidth:p.velETAWindow(1));
+% t = flip(p.velETAWindow(2):-p.velETABinWidth:p.velETAWindow(1));
+t = fAll.press.t;
 for iTrialType = 1:length(trialTypes)
     for iExp = 1:length(fstats)
         trialTypeName = trialTypes{iTrialType};
@@ -325,7 +326,8 @@ ylabel(layout.top.tl, 'Probability', FontSize=p.fontSize);
 
 
 % S2b. Spine velocity traces
-t = flip(p.velETAWindow(2):-p.velETABinWidth:p.velETAWindow(1));
+% t = flip(p.velETAWindow(2):-p.velETABinWidth:p.velETAWindow(1));
+t = fAll.press.t;
 for iTrialType = 1:length(trialTypes)
     for iExp = 1:length(fstats)
         ax = nexttile(layout.bottom.tl);

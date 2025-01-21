@@ -14,7 +14,7 @@ for iExp = 1:length(exp)
     files = arrayfun(@(f) sprintf('%s\\%s', f.folder, f.name), files, UniformOutput=false);
     
     exp(iExp).eu = EphysUnit.load(files);
-    trials = exp(iExp).eu(1).makeTrials('press_spontaneous2');
+    trials = exp(iExp).eu(1).makeTrials('press_spontaneous', minSpontaneousTrialDuration=4);
     exp(iExp).goodTrials = trials(trials.duration() > 4);% & arrayfun(@(t) all(t <= eu.EventTimes.RewardTimes | t >= eu.EventTimes.RewardTimes + 4), [trials.Stop])) ;
     exp(iExp).eu(1).Trials.PressSpontaneous = exp(iExp).goodTrials;
     exp(iExp).pa = Pawnalyzer2(exp(iExp).eu, refEvent='press');
@@ -171,7 +171,7 @@ clear tLocal tEvent tGlobal nTrials X iTrial iExp selBase baseMeanByTrial baseSd
 for iExp = 1:length(exp)
     nTrials = length(exp(iExp).traj.target);
     trueStartTimeEMG = NaN(nTrials, 1);
-    t = -2:1/30:0;
+    t = -2:1/40:0;
     for iTrial = 1:nTrials
         x = interp1(exp(iExp).emg.touchAligned.t, exp(iExp).emg.touchAligned.normX(iTrial, :), t);
         isAbove = x >= onsetThreshold;
@@ -193,7 +193,7 @@ end
 for iExp = 1:length(exp)
     nTrials = length(exp(iExp).traj.target);
     exp(iExp).trueStartTimeEMGLeft = NaN(nTrials, 1);
-    t = -2:1/30:0;
+    t = -2:1/40:0;
     for iTrial = 1:nTrials
         x = interp1(exp(iExp).emg.touchAligned.t, exp(iExp).emg.touchAligned.normX(iTrial, :), t);
         isAbove = x >= 1;

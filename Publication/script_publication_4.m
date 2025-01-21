@@ -1,8 +1,8 @@
 % read_spontaneous; % This takes a while because of boostrapping, also does
 % drift/multiunit/duplicate removal
-clear
+% clear
 euSpontaneous = EphysUnit.load('C:\SERVER\Units\acute_spontaneous_reach\SNr_SingleUnit_NonDuplicate_NonDrift');
-load('C:\SERVER\Units\acute_spontaneous_reach\meta\SNr_SingleUnit_NonDuplicate_NonDrift.mat')
+load('C:\SERVER\Units\acute_spontaneous_reach\meta\SNr_SingleUnit_NonDuplicate_NonDrift_20250117.mat')
 expSpontaneous.distributeEphysUnits(euSpontaneous);
 
 %% Fig 4
@@ -32,7 +32,7 @@ l = layout.left.bottom.tl; l.Layout.Tile = 1 + layout.left.top.h; l.Layout.TileS
 
 % 4b. Distribution of Inter-touch-intervals
 ax = nexttile(layout.right.tl, 1, [layout.right.top.h, 1]);
-interTouchIntervals = cell(length(expSpontaneous), 1);
+interTouchIntervals = cell(length(expSpontaneous), 1); 
 for iExp = 1:length(expSpontaneous)
     touchTimes = [expSpontaneous(iExp).eu(1).Trials.Press.Stop];
     interTouchIntervals{iExp} = diff(touchTimes);
@@ -92,17 +92,18 @@ for i = 1:length(exampleUnitNames)
     yyaxis(ax, 'left')
     plot(ax, etaSpontaneousRaw.t, etaSpontaneousRaw.X(iEu, :)./0.1, LineWidth=1.5, Color=[0.2, 0.2, 0.8, 1.0])
     set(ax.YAxis, FontSize=p.fontSize, Color=[0.15, 0.15, 0.15]);
-    yticks(ax, 20:20:60)
-    ylim(ax, [15 65])
+%     yticks(ax, 20:20:60)
+    ylim(ax, [0 80])
     title(ax, '')
     legend(ax, 'off')
     hold(ax, 'on')
-    plot(ax, [0, 0], [0, 100], 'k--')
+    xline(ax, 0, 'k--')
     hold(ax, 'off')
-    fontsize(ax, p.fontSize, 'points')
+    ylabel(ax, 'Spike rate (sp/s)')
     xlabel(ax, '')
     xticks(ax, [-4, -2, 0, 1])
     xlim(ax, [-4, 0.5])
+    fontsize(ax, p.fontSize, 'points')
 end
 SEL = {cSpontaneous.isPressUp, cSpontaneous.isPressDown};
 AX = gobjects(1, 2);
@@ -112,17 +113,18 @@ for i = 1:2
     plot(ax, etaSpontaneousRaw.t, mean(etaSpontaneousRaw.X(SEL{i}, :)./0.1, 1, 'omitnan'), 'k', LineWidth=1.5)
     hold(ax, 'on')
     iSel = find(SEL{i});
-    for iTrial = iSel(:)'
-        plot(ax, etaSpontaneousRaw.t, etaSpontaneousRaw.X(iTrial, :)./0.1, Color=[0 0 0 0.1])
+    for iUnit = iSel(:)'
+        plot(ax, etaSpontaneousRaw.t, etaSpontaneousRaw.X(iUnit, :)./0.1, Color=[0 0 0 0.1])
     end
     xline(ax, 0, 'k--')
     ylim(ax, [0, 80])
     delete(legend(ax))
-    set(ax, FontSize=p.fontSize, FontName='Arial')
+    ylabel(ax, 'Spike rate (sp/s)')
     xticks(ax, [-4, -2, 0, 1])
     xlim(ax, [-4, 0.5])
+    fontsize(ax, p.fontSize, 'points')
 end
-ylabel(layout.left.bottom.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
+% ylabel(layout.left.bottom.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
 xlabel(layout.left.bottom.tl, 'Time to reach onset (s)', FontSize=p.fontSize, FontName='Arial')
 
 % 4d. Plot ETA (touch time)

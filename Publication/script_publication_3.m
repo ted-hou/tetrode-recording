@@ -54,6 +54,8 @@ latency.pRankSum.pressUpVsContraPaw = ranksum(latency.contraPaw , latency.press(
 latency.pRankSum.pressDownVsContraPaw = ranksum(latency.contraPaw , latency.press(c.isPressDown), tail='right');
 latency.pRankSum.pressVsLick = ranksum(latency.lick, latency.press, tail='right');
 latency.pRankSum.pressVsContraPawPlus200 = ranksum(latency.contraPaw -0.2, latency.press(c.isPressResponsive), tail='right');
+latency.pRankSum.pressUpVsContraPawPlus200 = ranksum(latency.contraPaw -0.2, latency.press(c.isPressUp), tail='right');
+latency.pRankSum.pressDownVsContraPawPlus200 = ranksum(latency.contraPaw -0.2, latency.press(c.isPressDown), tail='right');
 latency.pRankSum.pressUpVsPressDown = ranksum(latency.press(c.isPressUp), latency.press(c.isPressDown), tail='both');
 
 fprintf(1, 'Median pre-press spiking onset latency = %.1f ms \n', median(latency.press(c.isPressResponsive)*1000, 'omitnan'))
@@ -64,6 +66,8 @@ fprintf(1, 'Median contralateral paw movement onset latency = %.3f ms \n', media
 fprintf(1, '90%% of forearm movements were initiated within %.3f ms prior to bar contact \n', quantile(latency.contraPaw*1000, 0.1))
 fprintf(1, 'Press spiking precedes paw: One-tailed ranksum test p = %g\n', latency.pRankSum.pressVsContraPaw)
 fprintf(1, 'Press spiking precedes paw (-200ms): One-tailed ranksum test p = %g\n', latency.pRankSum.pressVsContraPawPlus200)
+fprintf(1, 'Press up spiking precedes paw (-200ms): One-tailed ranksum test p = %g\n', latency.pRankSum.pressUpVsContraPawPlus200)
+fprintf(1, 'Press down spiking precedes paw (-200ms): One-tailed ranksum test p = %g\n', latency.pRankSum.pressDownVsContraPawPlus200)
 fprintf(1, 'Excited press spiking precedes paw: One-tailed ranksum test p = %g\n', latency.pRankSum.pressUpVsContraPaw)
 fprintf(1, 'Inhibited press spiking precedes paw: One-tailed ranksum test p = %g\n', latency.pRankSum.pressDownVsContraPaw)
 fprintf(1, 'Press spiking precedes lick spiking: One-tailed ranksum test p = %g\n', latency.pRankSum.pressVsLick)
@@ -157,7 +161,7 @@ ylim(ax(1), [10, 80])
 hold(ax(1), 'off')
 xlabel(ax(1), 'Time to bar-contact (s)')
 ylabel(ax(1), 'Spike rate (sp/s)')
-hLgd = legend(ax(1), h, Location='northwest');
+hLgd = legend(ax(1), h, Location='northwest', AutoUpdate=false);
 % hLgd.Position(1) = 0.24;
 % hLgd.Position(2) = 0.85;
 
@@ -171,15 +175,15 @@ hHist(2) = histogram(ax(2), latency.press(c.isPressDown), edges, Normalization='
 xlabel(ax(2), 'Time to bar-contact (s)')
 ylabel(ax(2), 'No. units')
 title(ax(2), 'SNr response onset')
-hLgd = legend(ax(2), hHist, Location='northwest');
-hLgd.Position(1) = 0.24;
+hLgd = legend(ax(2), hHist, Location='northwest', AutoUpdate=false);
+hLgd.Position(1) = 0.22;
 hLgd.Position(2) = 0.46;
 
 % 4c. Histogram of movement onset times
 ax(3) = nexttile(layout.top.left.tl, [layout.top.left.bottom.h, 1]);
 histogram(latency.contraPaw, edges, Normalization='count', FaceColor='black');
-hLgd = legend(sprintf('%g trials\n%g sessions\n%g animals', latency.contraPawN.trials, latency.contraPawN.sessions, latency.contraPawN.animals), Location='northwest');
-hLgd.Position(1) = 0.24;
+hLgd = legend(sprintf('%g trials\n%g sessions\n%g animals', latency.contraPawN.trials, latency.contraPawN.sessions, latency.contraPawN.animals), Location='northwest', AutoUpdate=false);
+hLgd.Position(1) = 0.22;
 hLgd.Position(2) = 0.17;
 title('Forepaw movement onset')
 xlabel('Time to bar-contact (s)')
@@ -187,7 +191,11 @@ ylabel('No. trials')
 
 fontsize(ax, p.fontSize, 'points')
 fontname(ax, 'Arial')
-xlim(ax, [-4.01, 0.01])
+xlim(ax, [-4, 0.5])
+for iAx = 1:3
+    xline(ax(iAx), 0, 'k--')
+end
+clear iAx
 
 hLetters = gobjects(1, 7);
 hLetters(1) = text(ax(1), 0, 0, 'a', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
@@ -428,10 +436,10 @@ for iEu = 1:length(euEg)
     ax = nexttile(layout.bottom.tl);
     clear btaEg
     [btaEg.X, btaEg.T, btaEg.N, btaEg.S, btaEg.B] = euEg(iEu).getBinnedTrialAverage('count', p.binnedTrialEdges, 'press', ...
-        alignTo='stop', window=[-4, 0], resolution=0.1, normalize=false);
+        alignTo='stop', window=[-4, 0.5], resolution=0.1, normalize=false);
     btaEg.X = btaEg.X ./ 0.1;
     btaEg.S = btaEg.S ./ 0.1;
-    EphysUnit.plotBinnedTrialAverage(ax, btaEg, [-4, 0], nsigmas=1, sem=true, showTrialNum=false, colors=btaColors)
+    EphysUnit.plotBinnedTrialAverage(ax, btaEg, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, colors=btaColors)
     fontsize(ax, p.fontSize, 'points');
     fontname(ax, 'Arial');
     delete(ax.Legend)
@@ -442,6 +450,7 @@ for iEu = 1:length(euEg)
         hLetters(7).VerticalAlignment = 'top';
         hLetters(7).Position = [-0.5, ax.Position(4) + 0.3, 0];
     end
+    xline(ax, 0, 'k--')
 end
 
 
@@ -450,8 +459,8 @@ clear ax
 ax = gobjects(2, 1);
 ax(1) = nexttile(layout.bottom.tl);
 ax(2) = nexttile(layout.bottom.tl);
-EphysUnit.plotBinnedTrialAverage(ax(1), bta.pressDownRaw, [-4, 0], nsigmas=1, sem=true, numFormat='%i', colors=btaColors);
-EphysUnit.plotBinnedTrialAverage(ax(2), bta.pressUpRaw, [-4, 0], nsigmas=1, sem=true, numFormat='%i', colors=btaColors);
+EphysUnit.plotBinnedTrialAverage(ax(1), bta.pressDownRaw, [-4, 0.5], nsigmas=1, sem=true, numFormat='%i', colors=btaColors);
+EphysUnit.plotBinnedTrialAverage(ax(2), bta.pressUpRaw, [-4, 0.5], nsigmas=1, sem=true, numFormat='%i', colors=btaColors);
 delete(ax(2).Legend)
 fontsize(ax, p.fontSize, 'points')
 fontname(ax, 'Arial')
@@ -460,12 +469,17 @@ ylabel(layout.bottom.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
 ax(1).Legend.Orientation = 'horizontal';
 ax(1).Legend.Layout.Tile = 'north';
 ax(1).Legend.Title.String = 'Time from cue to movement';
+ax(1).Legend.AutoUpdate = false;
+xline(ax(1), 0, 'k--')
+xline(ax(2), 0, 'k--')
+% xlim(ax, [-4, 0])
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
 %% Fig S3 top
 close all
-% YL = {[-0.5, 2], [-2, 0.5]};
+
+% S3a
 YL = {[30, 90], [10, 70]};
 SEL = {c.hasPress & c.isPressUp, c.hasPress & c.isPressDown};
 TITLE = [sprintf("Increase Units (n=%i)", nnz(SEL{1})), sprintf("Decrease Units (n=%i)", nnz(SEL{2}))];
@@ -473,10 +487,10 @@ TITLE = [sprintf("Increase Units (n=%i)", nnz(SEL{1})), sprintf("Decrease Units 
 
 % Plot ETA aligned to cue (i.e. flinchiness) vs. aligned to lever touch
 % close all
-fig = figure(Units='inches', Position=[1 1 7 4]);
-tlp = tiledlayout(fig, 1, 5 + 2, TileSpacing='compact');
+fig = figure(Units='inches', Position=[1 1 7 6]);
+tlp = tiledlayout(fig, 6, 3, TileSpacing='compact');
 tl = tiledlayout(tlp, 2, 4 + 7, TileSpacing='compact');
-tl.Layout.Tile = 1; tl.Layout.TileSpan = [1, 5];
+tl.Layout.Tile = 1; tl.Layout.TileSpan = [4, 3];
 
 AX = gobjects(2, 2);
 for iRow = 1:2
@@ -531,8 +545,9 @@ for iRow = 1:2
 end
 ylabel(tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
 
+% S3b
 ax = nexttile(tlp);
-ax.Layout.TileSpan = [1, 2];
+ax.Layout.TileSpan = [2, 1];
 hold(ax, 'on')
 
 sel = c.hasPress;
@@ -560,6 +575,10 @@ xlabel('Peri-reach (a.u.)')
 ylabel('Peri-cue (a.u.)')
 
 fontsize(ax, p.fontSize, 'points')
+
+% S3c/d (correct/incorrect press trial video-tracked paw/spine/lick)
+
+
 
 lgd = legend(AX(1, 2), h, Location='northwest', AutoUpdate='off', FontSize=p.fontSize);
 lgd.Position(1) = lgd.Position(1) - 0.15;
