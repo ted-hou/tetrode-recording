@@ -10,7 +10,7 @@ load('C:\SERVER\acute_glm_20241218.mat') % Load previously saved fit_GLM output
 
 
 % boot_bta
-load('C:\SERVER\boot_bta_20241024.mat') % load boot_bta results
+load('C:\SERVER\boot_bta_20250121.mat') % load boot_bta results
 
 
 %% TST calculated from contra paw spd (2 samples conseq above 0.25 zscore)
@@ -481,8 +481,8 @@ close all
 
 clear layout
 layout.w = 7;
-layout.h = 6;
-layout.top.h = 4;
+layout.h = 4;
+layout.top.h = 2;
 layout.bottom.h = 2;
 layout.bottom.left.w = 1;
 layout.bottom.right.w = 2;
@@ -490,21 +490,22 @@ layout.bottom.right.w = 2;
 fig = figure(Units='inches', Position=[1 1 layout.w layout.h]);
 layout.tl = tiledlayout(fig, layout.top.h + layout.bottom.h, 1, TileSpacing='loose', Padding='compact');
 
-layout.top.tl = tiledlayout(layout.tl, 2, 4+7, TileSpacing='compact');
+layout.top.tl = tiledlayout(layout.tl, 1, 2*(4+7), TileSpacing='compact');
 l = layout.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.top.h, 1];
 
 layout.bottom.tl = tiledlayout(layout.tl, 1, layout.bottom.left.w + layout.bottom.right.w, TileSpacing='tight', Padding='tight');
 l = layout.bottom.tl; l.Layout.Tile = 1 + layout.top.h; l.Layout.TileSpan = [layout.bottom.h, 1];
 
+layout.bottom.left.tl = tiledlayout(layout.bottom.tl, 1, 1, TileSpacing='tight', Padding='tight');
+l = layout.bottom.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.bottom.left.w];
+
 layout.bottom.right.tl = tiledlayout(layout.bottom.tl, 1, 2, TileSpacing='tight', Padding='tight');
 l = layout.bottom.right.tl; l.Layout.Tile = 1 + layout.bottom.left.w; l.Layout.TileSpan = [1, layout.bottom.right.w];
-
 
 % S3a
 YL = {[30, 90], [10, 70]};
 SEL = {c.hasPress & c.isPressUp, c.hasPress & c.isPressDown};
 TITLE = [sprintf("Increase Units (n=%i)", nnz(SEL{1})), sprintf("Decrease Units (n=%i)", nnz(SEL{2}))];
-
 
 % Plot ETA aligned to cue (i.e. flinchiness) vs. aligned to lever touch
 % close all
@@ -562,7 +563,7 @@ end
 ylabel(layout.top.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
 
 % S3b
-ax = nexttile(layout.bottom.tl);
+ax = nexttile(layout.bottom.left.tl);
 hold(ax, 'on')
 
 sel = c.hasPress;
@@ -574,8 +575,10 @@ sel = c.hasPress;
 x = meta.press;
 y = meta.pressCue;
 
-scatter(ax, x(sel & c.isPressResponsive), y(sel & c.isPressResponsive), 3, 'k', MarkerEdgeAlpha=0.9);
-scatter(ax, x(sel & ~c.isPressResponsive), y(sel & ~c.isPressResponsive), 3, 'k', MarkerEdgeAlpha=0.1);
+hScat = scatter(ax, x(sel & c.isPressResponsive), y(sel & c.isPressResponsive), 4, 'k', 'filled', MarkerFaceAlpha=0.9, DisplayName=sprintf('Responsive (%i units)', nnz(sel&c.isPressResponsive)));
+scatter(ax, x(sel & ~c.isPressResponsive), y(sel & ~c.isPressResponsive), 3, 'k', MarkerEdgeAlpha=0.1, DisplayName=sprintf('Unresponsive (n=%i)', nnz(sel&~c.isPressResponsive)));
+lgd = legend(ax, hScat, Orientation='horizontal', AutoUpdate=false);
+lgd.Layout.Tile = 'north';
 xline(ax, 0, ':')
 yline(ax, 0, ':')
 
@@ -586,8 +589,10 @@ axis(ax, 'equal')
 xlim(ax, [-2, 4])
 ylim(ax, [-2, 4])
 
-xlabel('Peri-reach (a.u.)')
+xlabel(layout.bottom.left.tl, 'Peri-reach (a.u.)', FontSize=p.fontSize)
 ylabel('Peri-cue (a.u.)')
+title('Cue vs. reach response')
+% ylabel({'Peri-cue', 'response (a.u.)'})
 
 fontsize(ax, p.fontSize, 'points')
 
