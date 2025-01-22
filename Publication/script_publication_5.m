@@ -253,20 +253,20 @@ clear sel1 sel2 sel3
 p.fontSize=9;
 clear layout
 layout.w = 3.5;
-layout.h = 7;
+layout.h = 3.5;
 layout.top.h = 3;
-layout.bottom.h = 3;
+% layout.bottom.h = 3;
 
 p.lineWidth = 1.5;
 
 fig = figure(Units='inches', Position=[0, 0, layout.w, layout.h]);
-layout.tl = tiledlayout(fig, layout.top.h + layout.bottom.h, 1, TileSpacing='loose', Padding='compact');
+layout.tl = tiledlayout(fig, layout.top.h, 1, TileSpacing='loose', Padding='compact');
 
 layout.top.tl = tiledlayout(layout.tl, 4, 4, TileSpacing='compact');
 l = layout.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.top.h, 1];
-
-layout.bottom.tl = tiledlayout(layout.tl, 2, 2, TileSpacing='compact');
-l = layout.bottom.tl; l.Layout.Tile = 1 + layout.top.h; l.Layout.TileSpan = [layout.bottom.h, 1];
+% 
+% layout.bottom.tl = tiledlayout(layout.tl, 2, 2, TileSpacing='compact');
+% l = layout.bottom.tl; l.Layout.Tile = 1 + layout.top.h; l.Layout.TileSpan = [layout.bottom.h, 1];
 
 % S4a: lick vs reach timing histograms by session
 edges = 1:1:10;
@@ -311,13 +311,13 @@ for ia = find(hasPress(:)' & hasLick(:)')
     hold(ax, 'off')
     set(ax, FontSize=p.fontSize, FontName='Arial');
     title(ax, ai(ia).displayName);
-    if i == 1
-        hLetter = text(ax, 0, 0, 'a', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
-        ax.Units = 'inches';
-        hLetter.HorizontalAlignment = 'right';
-        hLetter.VerticalAlignment = 'top';
-        hLetter.Position = [-0.3, ax.Position(4)+0.2, 0];
-    end
+%     if i == 1
+%         hLetter = text(ax, 0, 0, 'a', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+%         ax.Units = 'inches';
+%         hLetter.HorizontalAlignment = 'right';
+%         hLetter.VerticalAlignment = 'top';
+%         hLetter.Position = [-0.3, ax.Position(4)+0.2, 0];
+%     end
 
 end
 hLgd = legend(ax, Orientation='horizontal'); hLgd.Layout.Tile = 'north';
@@ -325,101 +325,101 @@ xlabel(layout.top.tl, 'Bar/spout-contact time relative to cue (s)', FontSize=p.f
 ylabel(layout.top.tl, 'Probability', FontSize=p.fontSize);
 
 
-% S2b. Spine velocity traces
-% t = flip(p.velETAWindow(2):-p.velETABinWidth:p.velETAWindow(1));
-t = fAll.press.t;
-for iTrialType = 1:length(trialTypes)
-    for iExp = 1:length(fstats)
-        ax = nexttile(layout.bottom.tl);
-        hold(ax, 'on')
-
-        trialTypeName = trialTypes{iTrialType};
-        switch trialTypeName
-            case {'press', 'lick'}
-                mu = table2array(fstats{iExp}.(trialTypeName).mean(:, fnames));
-                sd = table2array(fstats{iExp}.(trialTypeName).sd(:, fnames));
-                n = fstats{iExp}.(trialTypeName).nTrials;
-        end
-
-        switch trialTypeName
-            case 'press'
-                ftNames = {'spine_yVel', 'handContra_xVel'};
-                sdNames = ftNames;
-                colors = ["black", "red"];
-                yRanges = {[-5, 5], [-5, 5]};
-                yTicks = {[-5, 0, 5], [-5, 0, 5]};
-                rightYLabelName = 'Contra hand AP velocity (a.u.)';
-            case 'lick'
-                ftNames = {'spine_yVel', 'tongue'};
-                sdNames = ftNames;
-                colors = ["black", "blue"];
-                yRanges = {[-5, 5], [-1.5, 1.5]};
-                yTicks = {[-5, 0, 5], [0, 1]};
-                rightYLabelName = 'Lick probability';
-        end
-        leftYLabelName = 'Spine DV velocity (a.u.)';
-
-        axisSide = {'left', 'right'};
-
-        h = gobjects(1, length(ftNames));
-        colororder(ax, colors);
-        for iFt = 1:length(ftNames)
-            yyaxis(ax, axisSide{iFt});
-            iVar = find(strcmpi(ftNames{iFt}, fnames));
-            h(iFt) = plot(ax, t, mu(:, iVar), Color=colors(iFt), LineWidth=1.5, DisplayName=fnamesDisp{iVar});
-            if ismember(ftNames{iFt}, sdNames)
-                sel = ~isnan(mu(:, iVar)+sd(:, iVar));
-                patch(ax, [t(sel)'; flip(t(sel)')], [mu(sel, iVar)-sd(sel, iVar); flip(mu(sel, iVar)+sd(sel, iVar))], 'r', ...
-                    LineStyle='none', FaceAlpha=0.075, FaceColor=colors(iFt))
-            end
-        end
-
-        switch trialTypeName
-            case 'press'
-                trialTypeDispName = 'Reach';
-            case 'lick'
-                trialTypeDispName = 'Lick';
-        end
-        plot(ax, [0, 0], [-100, 100], 'k--')
-        title(ax, sprintf('%s (%s)', trialTypeDispName, resultNames{iExp}));
-        hold(ax, 'off')
-        xlim(ax, [-2, 2])
-
-        yyaxis(ax, 'left')
-%         if iExp == 1 && strcmp(trialTypeName, 'press')
-%             ylabel(ax, 'Spine velocity (a.u.)', Units='normalized', Position=[-0.20,-0.15,0])
+% % S2b. Spine velocity traces
+% % t = flip(p.velETAWindow(2):-p.velETABinWidth:p.velETAWindow(1));
+% t = fAll.press.t;
+% for iTrialType = 1:length(trialTypes)
+%     for iExp = 1:length(fstats)
+%         ax = nexttile(layout.bottom.tl);
+%         hold(ax, 'on')
+% 
+%         trialTypeName = trialTypes{iTrialType};
+%         switch trialTypeName
+%             case {'press', 'lick'}
+%                 mu = table2array(fstats{iExp}.(trialTypeName).mean(:, fnames));
+%                 sd = table2array(fstats{iExp}.(trialTypeName).sd(:, fnames));
+%                 n = fstats{iExp}.(trialTypeName).nTrials;
 %         end
-        if iExp == 2
-            yticks(ax, [])
-        end
-        ylim(ax, yRanges{1})
-
-        yyaxis(ax, 'right')
-        ylim(ax, yRanges{2})
-        if strcmp(trialTypeName, 'press')
-            xticks(ax, [])
-        end
-        if iExp == 1
-            yticks(ax, [])
-        else
-            yticks(ax, yTicks{2});
-            ylabel(ax, rightYLabelName)
-        end
-
-        fontsize(ax, p.fontSize, 'points');
-        fontname(ax, 'Arial');
-
-        if iTrialType == 1 && iExp == 1
-            hLetter = text(ax, 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
-            ax.Units = 'inches';
-            hLetter.HorizontalAlignment = 'right';
-            hLetter.VerticalAlignment = 'top';
-            hLetter.Position = [-0.3, ax.Position(4)+0.2, 0];
-        end
-    end
-end
-ylabel(layout.bottom.tl, leftYLabelName, fontSize=p.fontSize)
-xlabel(layout.bottom.tl, 'Time to bar/spout contact (s)', fontSize=p.fontSize)
+% 
+%         switch trialTypeName
+%             case 'press'
+%                 ftNames = {'spine_yVel', 'handContra_xVel'};
+%                 sdNames = ftNames;
+%                 colors = ["black", "red"];
+%                 yRanges = {[-5, 5], [-5, 5]};
+%                 yTicks = {[-5, 0, 5], [-5, 0, 5]};
+%                 rightYLabelName = 'Contra hand AP velocity (a.u.)';
+%             case 'lick'
+%                 ftNames = {'spine_yVel', 'tongue'};
+%                 sdNames = ftNames;
+%                 colors = ["black", "blue"];
+%                 yRanges = {[-5, 5], [-1.5, 1.5]};
+%                 yTicks = {[-5, 0, 5], [0, 1]};
+%                 rightYLabelName = 'Lick probability';
+%         end
+%         leftYLabelName = 'Spine DV velocity (a.u.)';
+% 
+%         axisSide = {'left', 'right'};
+% 
+%         h = gobjects(1, length(ftNames));
+%         colororder(ax, colors);
+%         for iFt = 1:length(ftNames)
+%             yyaxis(ax, axisSide{iFt});
+%             iVar = find(strcmpi(ftNames{iFt}, fnames));
+%             h(iFt) = plot(ax, t, mu(:, iVar), Color=colors(iFt), LineWidth=1.5, DisplayName=fnamesDisp{iVar});
+%             if ismember(ftNames{iFt}, sdNames)
+%                 sel = ~isnan(mu(:, iVar)+sd(:, iVar));
+%                 patch(ax, [t(sel)'; flip(t(sel)')], [mu(sel, iVar)-sd(sel, iVar); flip(mu(sel, iVar)+sd(sel, iVar))], 'r', ...
+%                     LineStyle='none', FaceAlpha=0.075, FaceColor=colors(iFt))
+%             end
+%         end
+% 
+%         switch trialTypeName
+%             case 'press'
+%                 trialTypeDispName = 'Reach';
+%             case 'lick'
+%                 trialTypeDispName = 'Lick';
+%         end
+%         plot(ax, [0, 0], [-100, 100], 'k--')
+%         title(ax, sprintf('%s (%s)', trialTypeDispName, resultNames{iExp}));
+%         hold(ax, 'off')
+%         xlim(ax, [-2, 2])
+% 
+%         yyaxis(ax, 'left')
+% %         if iExp == 1 && strcmp(trialTypeName, 'press')
+% %             ylabel(ax, 'Spine velocity (a.u.)', Units='normalized', Position=[-0.20,-0.15,0])
+% %         end
+%         if iExp == 2
+%             yticks(ax, [])
+%         end
+%         ylim(ax, yRanges{1})
+% 
+%         yyaxis(ax, 'right')
+%         ylim(ax, yRanges{2})
+%         if strcmp(trialTypeName, 'press')
+%             xticks(ax, [])
+%         end
+%         if iExp == 1
+%             yticks(ax, [])
+%         else
+%             yticks(ax, yTicks{2});
+%             ylabel(ax, rightYLabelName)
+%         end
+% 
+%         fontsize(ax, p.fontSize, 'points');
+%         fontname(ax, 'Arial');
+% 
+%         if iTrialType == 1 && iExp == 1
+%             hLetter = text(ax, 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+%             ax.Units = 'inches';
+%             hLetter.HorizontalAlignment = 'right';
+%             hLetter.VerticalAlignment = 'top';
+%             hLetter.Position = [-0.3, ax.Position(4)+0.2, 0];
+%         end
+%     end
+% end
+% ylabel(layout.bottom.tl, leftYLabelName, fontSize=p.fontSize)
+% xlabel(layout.bottom.tl, 'Time to bar/spout contact (s)', fontSize=p.fontSize)
 
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
