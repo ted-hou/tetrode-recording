@@ -130,6 +130,7 @@ xlabel(layout.left.bottom.tl, 'Time to reach onset (s)', FontSize=p.fontSize, Fo
 % 4d. Plot ETA (touch time)
 ax = nexttile(layout.right.tl, 1 + layout.right.top.h, [layout.right.bottom.h, 1]);
 EphysUnit.plotETA(ax, etaSpontaneous, xlim=[-4,0.5], clim=[-1.5, 1.5], sortWindow=[-3, 0.5], signWindow=[-0.3, 0.2], sortThreshold=0.25, negativeSortThreshold=0.25);
+applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
 xline(ax, 0, 'k--')
 title(ax, '')
 yticks(ax, [1, 20:20:length(euSpontaneous), length(euSpontaneous)])

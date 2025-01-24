@@ -9,12 +9,12 @@ read_DLC_data;
 p.fontSize=9;
 clear layout
 layout.w = 7;
-layout.h = 5;
-layout.left.w = 7; % 3.5
+layout.h = 4.5;
+layout.left.w = 5; % 2.5
 layout.right.w = 7; % 3.5
-layout.left.top.h = 4;
-layout.left.bottom.h = 5;
-layout.right.top.h = 2;
+layout.left.top.h = 7; % 1.75
+layout.left.bottom.h = 11; % 2.75
+layout.right.top.h = 3;
 layout.right.bottom.h = 4;
 
 p.lineWidth = 1.5;
@@ -22,17 +22,17 @@ p.lineWidth = 1.5;
 
 close all
 fig = figure(Units='inches', Position=[0, 0, layout.w, layout.h]);
-layout.tl = tiledlayout(fig, 1, layout.left.w + layout.right.w, TileSpacing='compact', Padding='compact');
+layout.tl = tiledlayout(fig, 1, layout.left.w + layout.right.w, TileSpacing='loose', Padding='loose');
 layout.left.tl = tiledlayout(layout.tl, layout.left.top.h + layout.left.bottom.h, 1, TileSpacing='loose');
 l = layout.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.left.w];
 
 layout.right.tl = tiledlayout(layout.tl, layout.right.top.h + layout.right.bottom.h, 1, TileSpacing='loose');
 l = layout.right.tl; l.Layout.Tile = layout.left.w + 1; l.Layout.TileSpan = [1, layout.right.w];
 
-layout.right.top.tl = tiledlayout(layout.right.tl, 1, 2, TileSpacing='compact');
+layout.right.top.tl = tiledlayout(layout.right.tl, 1, 2, TileSpacing='loose');
 l = layout.right.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.right.top.h, 1];
 
-layout.right.bottom.tl = tiledlayout(layout.right.tl, 2, 2, TileSpacing='compact');
+layout.right.bottom.tl = tiledlayout(layout.right.tl, 2, 2, TileSpacing='loose');
 l = layout.right.bottom.tl; l.Layout.Tile = layout.right.top.h + 1; l.Layout.TileSpan = [layout.right.bottom.h, 1];
 
 
@@ -131,85 +131,133 @@ fontsize(ax, p.fontSize, 'points');
 fontname(ax, 'Arial');
 
 % 5e. Lick vs. Reach DLC traces
-resultNames = {'incorrect', 'correct'};
-trialTypes = {'press', 'lick'};
+TASKS = {'press', 'lick'};
+TASKDISPNAMES = {'Reach', 'Lick'};
+SELTRIALS = {~fAll.press.correct, fAll.press.correct};
+RESULTNAMES = {'incorrect', 'correct'};
+RESULTNAMESDISP = {'incorrect', 'correct'};
+FTNAMES = {'spine_yVel', 'handContra_xVel', 'tongue'};
+FTDISPNAMES = {'Spine', 'Contra hand', 'Lick'};
+% COLORS = {'red', 'black', 'blue'};
+COLORS = arrayfun(@(i) getColor(i, 3, 0.7), [2, 1, 3], UniformOutput=false);
+YYAXIS = {'left', 'left', 'right'};
+for iTask = 1:2
+    for iResult = 1:2
+        ax = nexttile(layout.right.bottom.tl);
+        colororder(ax, [[0.15, 0.15, 0.15]; getColor(3, 3, 0.7)])
+        hold(ax, 'on');
+        selTrials = SELTRIALS{iResult};
+        t = fAll.(TASKS{iTask}).t;
+        n = nnz(selTrials);
+        hFt = gobjects(1, length(FTNAMES));
+        for iFt = 1:length(FTNAMES)
+            yyaxis(ax, YYAXIS{iFt})
+            X = fAll.(TASKS{iTask}).(FTNAMES{iFt});
+            X = X(selTrials, :);
+            mu = mean(X, 1, 'omitnan');
+            sd = std(X, 0, 1, 'omitnan');
+            col = COLORS{iFt};
+            hFt(iFt) = plot(ax, t, mu, Color=col, LineStyle='-', LineWidth=1.5, DisplayName=FTDISPNAMES{iFt});
+            sel = ~isnan(mu + sd);
+            patch(ax, [t(sel), flip(t(sel))], [mu(sel)-sd(sel), flip(mu(sel)+sd(sel))], 'r', ...
+                LineStyle='-', FaceAlpha=0.075, FaceColor=col, EdgeAlpha=0.075, EdgeColor=col)
+            xline(ax, 0, 'k--')
+        end
+        xlim(ax, [-2, 2])
+    
+        yyaxis(ax, 'left')
+        ylabel(ax, 'Velocity (a.u.)')
+        ylim(ax, [-5, 5])
+    
+        yyaxis(ax, 'right')
+        ylabel(ax, 'Lick probability')
+        ylim(ax, [-1.5, 1.5])
+        title(ax, sprintf('%s (%s)', TASKDISPNAMES{iTask}, RESULTNAMESDISP{iResult}))
+    end
+    xlabel(layout.right.bottom.tl, 'Time to bar contact (s)', FontSize=p.fontSize)
+end
+
+lgd = legend(ax, hFt, Orientation='horizontal');
+lgd.Layout.Tile = 'north';
+
+
 
 % fig = figure(Units='inches', Position=[0+(iExp-1)*4.5, -1, 2.5, 3], DefaultAxesFontSize=p.fontSize);
 % t = flip(p.velETAWindow(2):-p.velETABinWidth:p.velETAWindow(1));
-t = fAll.press.t;
-for iTrialType = 1:length(trialTypes)
-    for iExp = 1:length(fstats)
-        trialTypeName = trialTypes{iTrialType};
-        ax = nexttile(layout.right.bottom.tl);
-        hold(ax, 'on')
-
-        switch trialTypeName
-            case {'press', 'lick'}
-                mu = table2array(fstats{iExp}.(trialTypeName).mean(:, fnames));
-                sd = table2array(fstats{iExp}.(trialTypeName).sd(:, fnames));
-                n = fstats{iExp}.(trialTypeName).nTrials;
-        end
-
-        ftNames = {'handContra_xVel', 'tongue'};
-        sdNames = {'handContra_xVel', 'tongue'};
-        ftNamesDisp = {'contra hand', 'tongue'};
-        axisSide = {'left', 'right'};
-
-        h = gobjects(1, length(ftNames));
-        colororder(ax, getColor(1:length(ftNames), length(ftNames), 0.7));
-        for iFt = 1:length(ftNames)
-            yyaxis(ax, axisSide{iFt});
-            iVar = find(strcmpi(ftNames{iFt}, fnames));
-            col = getColor(iFt, length(ftNames), 0.7);
-            h(iFt) = plot(ax, t, mu(:, iVar), Color=col, LineWidth=1.5, DisplayName=ftNamesDisp{iFt});
-            if ismember(ftNames{iFt}, sdNames)
-                sel = ~isnan(mu(:, iVar)+sd(:, iVar));
-                patch(ax, [t(sel)'; flip(t(sel)')], [mu(sel, iVar)-sd(sel, iVar); flip(mu(sel, iVar)+sd(sel, iVar))], 'r', ...
-                    LineStyle='none', FaceAlpha=0.075, FaceColor=col)
-            end
-        end
-
-        switch trialTypeName
-            case 'press'
-                trialTypeDispName = 'Reach';
-            case 'lick'
-                trialTypeDispName = 'Lick';
-        end
-        plot(ax, [0, 0], [-100, 100], 'k--')
-%         title(ax, sprintf('%s trials (%s, N=%d)', trialTypeDispName, resultNames{iExp}, n));
-%         title(ax, sprintf('%s trials (%s)', trialTypeDispName, resultNames{iExp}));
-        title(ax, sprintf('%s (%s)', trialTypeDispName, resultNames{iExp}));
-        hold(ax, 'off')
-        xlim(ax, [-2, 2])
-
-        yyaxis(ax, 'left')
-        if iExp == 1 && strcmp(trialTypeName, 'press')
-            ylabel(ax, 'Contra hand velocity (a.u.)', Units='normalized', Position=[-0.20,-0,0])
-        end
-        if iExp == 2
-            yticks(ax, [])
-        end
-        ylim(ax, [-5, 5])
-
-        yyaxis(ax, 'right')
-        if iExp == 2 && strcmp(trialTypeName, 'press')
-            ylabel(ax, 'Lick probability', Units='normalized', VerticalAlignment='bottom', Position=[1.23,-0,0])
-        end
-        if iExp == 1
-            yticks(ax, [])
-        else
-            yticks(ax, [0, 1])
-        end
-        ylim(ax, [-1.5, 1.5])
-        xlabel(layout.right.bottom.tl, 'Time to bar/spout contact (s)', FontSize=p.fontSize, FontName='Arial')
-        if strcmp(trialTypeName, 'press')
-            xticks(ax, [])
-        end
-
-        fontsize(ax, p.fontSize, 'points');
-        fontname(ax, 'Arial');
-    end
-end
+% t = fAll.press.t;
+% for iTrialType = 1:length(trialTypes)
+%     for iExp = 1:length(fstats)
+%         trialTypeName = trialTypes{iTrialType};
+%         ax = nexttile(layout.right.bottom.tl);
+%         hold(ax, 'on')
+% 
+%         switch trialTypeName
+%             case {'press', 'lick'}
+%                 mu = table2array(fstats{iExp}.(trialTypeName).mean(:, fnames));
+%                 sd = table2array(fstats{iExp}.(trialTypeName).sd(:, fnames));
+%                 n = fstats{iExp}.(trialTypeName).nTrials;
+%         end
+% 
+%         ftNames = {'handContra_xVel', 'tongue'};
+%         sdNames = {'handContra_xVel', 'tongue'};
+%         ftNamesDisp = {'contra hand', 'tongue'};
+%         axisSide = {'left', 'right'};
+% 
+%         h = gobjects(1, length(ftNames));
+%         colororder(ax, getColor(1:length(ftNames), length(ftNames), 0.7));
+%         for iFt = 1:length(ftNames)
+%             yyaxis(ax, axisSide{iFt});
+%             iVar = find(strcmpi(ftNames{iFt}, fnames));
+%             col = getColor(iFt, length(ftNames), 0.7);
+%             h(iFt) = plot(ax, t, mu(:, iVar), Color=col, LineWidth=1.5, DisplayName=ftNamesDisp{iFt});
+%             if ismember(ftNames{iFt}, sdNames)
+%                 sel = ~isnan(mu(:, iVar)+sd(:, iVar));
+%                 patch(ax, [t(sel)'; flip(t(sel)')], [mu(sel, iVar)-sd(sel, iVar); flip(mu(sel, iVar)+sd(sel, iVar))], 'r', ...
+%                     LineStyle='none', FaceAlpha=0.075, FaceColor=col)
+%             end
+%         end
+% 
+%         switch trialTypeName
+%             case 'press'
+%                 trialTypeDispName = 'Reach';
+%             case 'lick'
+%                 trialTypeDispName = 'Lick';
+%         end
+%         plot(ax, [0, 0], [-100, 100], 'k--')
+% %         title(ax, sprintf('%s trials (%s, N=%d)', trialTypeDispName, resultNames{iExp}, n));
+% %         title(ax, sprintf('%s trials (%s)', trialTypeDispName, resultNames{iExp}));
+%         title(ax, sprintf('%s (%s)', trialTypeDispName, resultNames{iExp}));
+%         hold(ax, 'off')
+%         xlim(ax, [-2, 2])
+% 
+%         yyaxis(ax, 'left')
+%         if iExp == 1 && strcmp(trialTypeName, 'press')
+%             ylabel(ax, 'Contra hand velocity (a.u.)', Units='normalized', Position=[-0.20,-0,0])
+%         end
+%         if iExp == 2
+%             yticks(ax, [])
+%         end
+%         ylim(ax, [-5, 5])
+% 
+%         yyaxis(ax, 'right')
+%         if iExp == 2 && strcmp(trialTypeName, 'press')
+%             ylabel(ax, 'Lick probability', Units='normalized', VerticalAlignment='bottom', Position=[1.23,-0,0])
+%         end
+%         if iExp == 1
+%             yticks(ax, [])
+%         else
+%             yticks(ax, [0, 1])
+%         end
+%         ylim(ax, [-1.5, 1.5])
+%         xlabel(layout.right.bottom.tl, 'Time to bar/spout contact (s)', FontSize=p.fontSize, FontName='Arial')
+%         if strcmp(trialTypeName, 'press')
+%             xticks(ax, [])
+%         end
+% 
+%         fontsize(ax, p.fontSize, 'points');
+%         fontname(ax, 'Arial');
+%     end
+% end
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
 clear iExp ax fig trialTypeName h iVar axAll n

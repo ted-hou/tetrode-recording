@@ -34,7 +34,8 @@ fprintf(['Baseline spike rate (median+-mad): decrease=%.2f+-%.2f, increase=%.2f+
 
 
 
-%% Load example units
+%% Fig 2.
+% Load example units
 unitNames = { ... 
     'daisy13_20220106_Electrode39_Unit1'; ... % Down
     'daisy9_20211013_Electrode23_Unit1'; ... % Up
