@@ -418,7 +418,7 @@ classdef EphysUnit < handle
         
         function trials = getTrials(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'lick+lickbout', 'press+lickbout', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral'})));
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'lick+lickbout', 'press+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral'})));
             p.addOptional('sorted', true, @islogical);
             p.addParameter('minBoutCycles', 2)
             p.addParameter('maxBoutCycles', 4)
@@ -465,7 +465,7 @@ classdef EphysUnit < handle
                             trials{itt} = obj.makeTrials('firstlick');
                         case 'circlick'
                             trials{itt} = obj.makeTrials('circlick');
-                        case {'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout'}
+                        case {'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds'}
                             if sorted
                                 sorted = false;
 %                                 warning('Parameter "sorted" must be set to false for when trialType="%s". I shall do it for you this time.', trialType{itt})
@@ -581,7 +581,7 @@ classdef EphysUnit < handle
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
             p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', ...
-                'firstlick', 'circlick', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
+                'firstlick', 'circlick', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -2005,7 +2005,7 @@ classdef EphysUnit < handle
                             trials(iBout, :) = circTrials(boutEnds(iBout)-minBoutCycles+1:boutEnds(iBout));
                         end
 
-                    case {'lick+lickbout', 'press+lickbout'}
+                    case {'lick+lickbout', 'press+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds'}
                         p = inputParser();
                         p.addParameter('minBoutCycles', 1) % shorter bouts are discarded entirely.
                         p.addParameter('maxBoutCycles', 4) % longer bouts are truncated, shorter bouts are padded with Empty Trial objects.
@@ -2254,7 +2254,7 @@ classdef EphysUnit < handle
                 useResampleMethod = false;
             end
             p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
-            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
+            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
             p.addParameter('resolution', 0.001, @isnumeric)
             p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) >= x(1))
@@ -2300,6 +2300,9 @@ classdef EphysUnit < handle
                         trials = obj.getTrials(trialType, minSpontaneousTrialDuration=allowedTrialDuration(1));
                     case {'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout'}
                         trials = obj.getTrials(trialType, minBoutCycles=minBoutCycles, maxBoutCycles=maxBoutCycles, minInterval=minInterval, maxInterval=maxInterval);
+                    case {'press+lickbout_in_seconds', 'lick+lickbout_in_seconds'}
+                        trials = obj.getTrials(trialType, minBoutCycles=minBoutCycles, maxBoutCycles=maxBoutCycles, minInterval=minInterval, maxInterval=maxInterval);
+                        trials = trials(:, 1);
                     otherwise
                         trials = obj.getTrials(trialType);
                 end
