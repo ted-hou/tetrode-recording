@@ -158,17 +158,21 @@ egUnitNames = { ...
 SEL = {c.isA2AChrimsonR, c.isD1ChR2};
 LABEL = {'A2A-ChrimsonR', 'D1-ChR2'};
 YTINC = [50, 100];
-fig = figure(Units='inches', Position=[0, 0, 6, 3.5]);
+fig = figure(Units='inches', Position=[0, 0, 6, 5]);
 
 layout.top.h = 3;
+layout.middle.h = 2;
 layout.bottom.h = 2;
 
-tl = tiledlayout(fig, layout.top.h + layout.bottom.h, 1);
+tl = tiledlayout(fig, layout.top.h + layout.middle.h + layout.bottom.h, 1);
 tlTop = tiledlayout(tl, 1, 2);
 tlTop.Layout.Tile = 1; tlTop.Layout.TileSpan = [layout.top.h, 1];
 
+tlMiddle = tiledlayout(tl, 1, 2);
+tlMiddle.Layout.Tile = 1 + layout.top.h; tlMiddle.Layout.TileSpan = [layout.middle.h, 1];
+
 tlBottom = tiledlayout(tl, 1, 2);
-tlBottom.Layout.Tile = 1 + layout.top.h; tlBottom.Layout.TileSpan = [layout.bottom.h, 1];
+tlBottom.Layout.Tile = 1 + layout.top.h + layout.middle.h; tlBottom.Layout.TileSpan = [layout.bottom.h, 1];
 
 for i = 1:2
     iEu = find(strcmpi(eu.getName(), egUnitNames{i}));
@@ -243,12 +247,16 @@ for i = 1:2
     % fontsize(ax, p.fontSize, 'points')
 end
 
+
+selResponsive = squeeze(any(abs(max(NORMSR(:, t>0.01&t<0.05, :), [], 2)) > minDeltaSR, 1));
+selResponsive = selResponsive(:);
+
 for i = 1:2
-    ax = nexttile(tlBottom);
+    ax = nexttile(tlMiddle);
     selOpsin = SEL{i}(:);
-    selResponsive = squeeze(any(abs(max(NORMSR(:, t>0.01&t<0.05, :), [], 2)) > minDeltaSR, 1));
-    selResponsive = selResponsive(:);
     imagesc(ax, 1e3*t, [], mean(NORMSR(:, :, selResponsive & selOpsin), 3, 'omitnan'))
+
+%     imagesc(ax, 1e3*t, [], quantile(NORMSR(:, :, selResponsive & selOpsin), 0.75, 3))
     xlim(ax, [-50, 100])
     clim(ax, [0, 50])
     ax.YAxisLocation = 'right';
@@ -265,4 +273,26 @@ for i = 1:2
     title(ax, sprintf('%s (%i/%i responsive)', LABEL{i}, nnz(selResponsive & selOpsin), nnz(selOpsin)), Interpreter="none")
     fontsize(ax, p.fontSize, 'points')
 end
-xlabel(tlBottom, 'Time from opto onset (ms)', FontSize=p.fontSize)
+xlabel(tlMiddle, 'Time from opto onset (ms)', FontSize=p.fontSize)
+
+
+
+meta = squeeze(mean(NORMSR(:, t>0.01&t<0.025, :), 2, 'omitnan'));
+
+for i = 1:2
+    ax = nexttile(tlBottom);
+    selOpsin = SEL{i}(:);
+
+%     swarmchart(ax, 1:6, meta')
+    plot(ax, 1:6, meta(:, selResponsive & selOpsin)', Marker='o')
+
+%     ax.YAxisLocation = 'right';
+    xticks(ax, 1:length(GROUPS{1}));
+    label = arrayfun(@(grp) sprintf('%inm, %gµW', grp.wavelength, grp.power*1e6), GROUPS{1}, UniformOutput=false);
+    xticklabels(ax, {GROUPS{1}.label})
+    ylabel(ax, 'Stim response (\Deltasp/s)')
+    title(ax, sprintf('%s (%i/%i responsive)', LABEL{i}, nnz(selResponsive & selOpsin), nnz(selOpsin)), Interpreter="none")
+    fontsize(ax, p.fontSize, 'points')
+end
+
+copygraphics(fig, BackgroundColor='none', ContentType='vector')
