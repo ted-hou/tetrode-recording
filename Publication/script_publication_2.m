@@ -78,7 +78,9 @@ fprintf(1, 'Press excided vs. press supressed: two-tailed ranksum test p = %g\n'
 p.fontSize = 9;
 
 variantColors = hsl2rgb([linspace(0.3, 0.9, 5)', linspace(0.75, 0.25, 5)', 0.5*ones(5, 1)]);
-btaColors = hsl2rgb([linspace(0.4, 0, 4)'.^1.3, linspace(0.8, 0.6, 4)', 0.5*ones(4, 1)]);
+
+nBTABins = length(p.binnedTrialEdges) - 1;
+btaColors = hsl2rgb([linspace(0.7, 0, nBTABins)'.^1.3, linspace(0.8, 0.6, nBTABins)', 0.5*ones(nBTABins, 1)]);
 
 clear layout
 layout.w = 7;
@@ -95,7 +97,6 @@ layout.top.right.bottom.h = 4;
 layout.bottom.h = 5;
 
 p.lineWidth = 1.5;
-p.binnedTrialEdges = linspace(2, 10, 5);
 close all
 
 % Create figure and layout panels
@@ -432,11 +433,12 @@ unitNames = { ...
 files = cellfun(@(name) sprintf('C:\\SERVER\\Units\\Lite_NonDuplicate\\%s.mat', name), unitNames, UniformOutput=false);
 euEg = EphysUnit.load(files);
 
+YLIM = {[0, 40], [0, 150]};
 for iEu = 1:length(euEg)
     ax = nexttile(layout.bottom.tl);
     clear btaEg
     [btaEg.X, btaEg.T, btaEg.N, btaEg.S, btaEg.B] = euEg(iEu).getBinnedTrialAverage('count', p.binnedTrialEdges, 'press', ...
-        alignTo='stop', window=[-4, 0.5], resolution=0.1, normalize=false);
+        alignTo='stop', window=[-4, 0.5], resolution=0.1, normalize=false, startBlankWindow=[0, 0.5]);
     btaEg.X = btaEg.X ./ 0.1;
     btaEg.S = btaEg.S ./ 0.1;
     EphysUnit.plotBinnedTrialAverage(ax, btaEg, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, colors=btaColors)
@@ -451,6 +453,8 @@ for iEu = 1:length(euEg)
         hLetters(7).Position = [-0.5, ax.Position(4) + 0.3, 0];
     end
     xline(ax, 0, 'k--')
+    ylim(ax, YLIM{iEu})
+    xlim(ax, [-2.5, 0.5])
 end
 
 
@@ -472,7 +476,8 @@ ax(1).Legend.Title.String = 'Time from cue to movement';
 ax(1).Legend.AutoUpdate = false;
 xline(ax(1), 0, 'k--')
 xline(ax(2), 0, 'k--')
-% xlim(ax, [-4, 0])
+ylim(ax, [20, 80])
+xlim(ax, [-2.5, 0.5])
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
@@ -503,7 +508,8 @@ layout.bottom.right.tl = tiledlayout(layout.bottom.tl, 1, 2, TileSpacing='tight'
 l = layout.bottom.right.tl; l.Layout.Tile = 1 + layout.bottom.left.w; l.Layout.TileSpan = [1, layout.bottom.right.w];
 
 % S3a
-YL = {[30, 90], [10, 70]};
+% YL = {[30, 90], [10, 70]};
+YL = {[-2, 2], [-2, 2]};
 SEL = {c.hasPress & c.isPressUp, c.hasPress & c.isPressDown};
 TITLE = [sprintf("Increase Units (n=%i)", nnz(SEL{1})), sprintf("Decrease Units (n=%i)", nnz(SEL{2}))];
 
@@ -522,8 +528,12 @@ for iRow = 1:2
     ax.Layout.TileSpan = [1, 4];
     sel = SEL{iRow};
     hold(ax, 'on')
-    plot(ax, eta.pressCueRaw.t, mean(eta.pressCueRaw.X(sel, :)./0.1, 1, 'omitnan'), 'k', LineWidth=1.5)
-    plot(ax, eta.pressCueRaw.t, eta.pressCueRaw.X(sel, :)./0.1, Color=[0.15, 0.15, 0.15, 0.05])
+    tt = eta.pressCue.t;
+    mu = mean(eta.pressCue.X(sel, :), 1, 'omitnan');
+    err = std(eta.pressCue.X(sel, :), 0, 1, 'omitnan');
+    plot(ax, eta.pressCue.t, mu, 'k', LineWidth=1.5)
+    patch(ax, [tt, flip(tt)], [mu+err, flip(mu-err)], [0.15, 0.15, 0.15], FaceAlpha=0.1, EdgeColor='none');
+%     plot(ax, eta.pressCueRaw.t, eta.pressCueRaw.X(sel, :)./0.1, Color=[0.15, 0.15, 0.15, 0.05])
     
     if iRow == 1
         h = gobjects(2, 1);
@@ -545,8 +555,11 @@ for iRow = 1:2
     ax.Layout.Tile = (iRow-1) * (4+7) + 4 + 1;
     ax.Layout.TileSpan = [1, 7];
     hold(ax, 'on')
-    plot(ax, eta.pressRaw.t, mean(eta.pressRaw.X(sel, :)./0.1, 1, 'omitnan'), 'k', LineWidth=1.5)
-    plot(ax, eta.pressRaw.t, eta.pressRaw.X(sel, :)./0.1, Color=[0.15, 0.15, 0.15, 0.05])
+    mu = mean(eta.press.X(sel, :), 1, 'omitnan');
+    err = std(eta.press.X(sel, :), 0, 1, 'omitnan');
+    plot(ax, eta.press.t, mu, 'k', LineWidth=1.5)
+    patch(ax, [eta.press.t, flip(eta.press.t)], [mu+err, flip(mu-err)], [0.15, 0.15, 0.15], FaceAlpha=0.1, EdgeColor='none');
+%     plot(ax, eta.pressRaw.t, eta.pressRaw.X(sel, :)./0.1, Color=[0.15, 0.15, 0.15, 0.05])
     xlim(ax, [-3, 0.5])
     xticks(ax, [-3, -2, -1, 0])
     xline(ax, -3, ':')
@@ -601,7 +614,7 @@ SELTRIALS = {~fAll.press.correct, fAll.press.correct};
 RESULTNAMES = {'incorrect', 'correct'};
 RESULTNAMESDISP = {'Incorrect', 'Correct'};
 FTNAMES = {'spine_yVel', 'handContra_xVel', 'tongue'};
-FTDISPNAMES = {'Spine velocity', 'Contra hand velocity', 'Lick probability'};
+FTDISPNAMES = {'Spine velocity', 'Contra forepaw velocity', 'Lick probability'};
 % COLORS = {'red', 'black', 'blue'};
 COLORS = arrayfun(@(i) getColor(i, 3, 0.7), [2, 1, 3], UniformOutput=false);
 YYAXIS = {'left', 'left', 'right'};
@@ -650,42 +663,139 @@ copygraphics(fig, ContentType='vector', BackgroundColor='none')
 %% S3 bottom
 p.fontSize = 9;
 
-btaColors = hsl2rgb([linspace(0.4, 0, 4)'.^1.3, linspace(0.8, 0.6, 4)', 0.5*ones(4, 1)]);
+nBTABins = length(p.binnedTrialEdgesFine) - 1;
+btaColors = hsl2rgb([linspace(0.8, 0, nBTABins)'.^1.3, linspace(0.8, 0.6, nBTABins)', 0.5*ones(nBTABins, 1)]);
 
 clear layout
 layout.w = 7;
-layout.h = 2;
+layout.h = 4;
 
 p.lineWidth = 1.5;
 
 fig = figure(Units='inches', Position=[1, 1, layout.w, layout.h], DefaultAxesFontSize=p.fontSize);
-layout.tl = tiledlayout(fig, 1, 2, TileSpacing='compact');
+layout.tl = tiledlayout(fig, 2, 2, TileSpacing='compact', TileIndexing='columnmajor');
+
+AX = gobjects(2, 2);
 
 % S3a 
 ax = nexttile(layout.tl);
-EphysUnit.plotBinnedTrialAverage(ax, btaSig, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors);
+AX(1, 1) = ax;
+EphysUnit.plotBinnedTrialAverage(ax, btaUp, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors, lineWidth=1.2);
 hLgd = ax.Legend;
 hLgd.Layout.Tile = 'north';
 hLgd.Orientation = 'horizontal';
 hLgd.Title.String = 'Time from cue to movement';
 hLgd.AutoUpdate = false;
 xline(ax, 0, 'k--')
-xlabel(ax, '')
-ylabel(ax, '')
-title(ax, sprintf('Significant units (n=%i)', nnz(c.isPressBTADifferent)))
-ylim(ax, [35, 75])
+title(ax, sprintf('Significant increase units (n=%i)', nnz(c.isPressBTADifferentUp & c.isPressUp)))
+
 
 % S3b
 ax = nexttile(layout.tl);
-EphysUnit.plotBinnedTrialAverage(ax, btaNul, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors);
+AX(2, 1) = ax;
+EphysUnit.plotBinnedTrialAverage(ax, btaDown, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors, lineWidth=1.2);
 xline(ax, 0, 'k--')
+title(ax, sprintf('Significant decrease units (n=%i)', nnz(c.isPressBTADifferentDown & c.isPressDown)))
 delete(ax.Legend);
+
+% S3c
+ax = nexttile(layout.tl);
+AX(1, 2) = ax;
+EphysUnit.plotBinnedTrialAverage(ax, btaNulUp, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors, lineWidth=1.2);
+xline(ax, 0, 'k--')
+title(ax, sprintf('Null increase units (n=%i)', nnz(~c.isPressBTADifferentUp & c.isPressUp)))
+delete(ax.Legend);
+
+% S3d
+ax = nexttile(layout.tl);
+AX(2, 2) = ax;
+EphysUnit.plotBinnedTrialAverage(ax, btaNulDown, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors, lineWidth=1.2);
+xline(ax, 0, 'k--')
+title(ax, sprintf('Null decrease units (n=%i)', nnz(~c.isPressBTADifferentDown & c.isPressDown)))
+delete(ax.Legend);
+
+ax = AX;
+xlim(ax, [-2.5, 0.5]);
+ylim(ax(1, :), [30, 100])
+ylim(ax(2, :), [10, 80])
 xlabel(ax, '')
 ylabel(ax, '')
-title(ax, sprintf('Null units (n=%i)', nnz(~c.isPressBTADifferent & c.isPressResponsive)))
-ylim(ax, [35, 75])
-
 xlabel(layout.tl, 'Time to bar contact (s)', FontSize=p.fontSize)
 ylabel(layout.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
 
+for i = 1:4
+    patch(ax(i), [-2, -0.2, -0.2, -2], [0, 0, 100, 100], [0.15, 0.15, 0.15], FaceAlpha=0.15, EdgeColor='none')
+end
+
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
+
+% %% S3 bottom (lick)
+% p.fontSize = 9;
+% 
+% nBTABins = length(p.binnedTrialEdgesFine) - 1;
+% btaColors = hsl2rgb([linspace(0.8, 0, nBTABins)'.^1.3, linspace(0.8, 0.6, nBTABins)', 0.5*ones(nBTABins, 1)]);
+% 
+% clear layout
+% layout.w = 7;
+% layout.h = 4;
+% 
+% p.lineWidth = 1.5;
+% 
+% fig = figure(Units='inches', Position=[1, 1, layout.w, layout.h], DefaultAxesFontSize=p.fontSize);
+% layout.tl = tiledlayout(fig, 2, 2, TileSpacing='compact', TileIndexing='columnmajor');
+% 
+% AX = gobjects(2, 2);
+% 
+% % S3a 
+% ax = nexttile(layout.tl);
+% AX(1, 1) = ax;
+% EphysUnit.plotBinnedTrialAverage(ax, btaLickUp, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors, lineWidth=1.2);
+% hLgd = ax.Legend;
+% hLgd.Layout.Tile = 'north';
+% hLgd.Orientation = 'horizontal';
+% hLgd.Title.String = 'Time from cue to movement';
+% hLgd.AutoUpdate = false;
+% xline(ax, 0, 'k--')
+% title(ax, sprintf('Significant increase units (n=%i)', nnz(c.isLickBTADifferentUp & c.isLickUp & c.hasPress)))
+% 
+% 
+% % S3b
+% ax = nexttile(layout.tl);
+% AX(2, 1) = ax;
+% EphysUnit.plotBinnedTrialAverage(ax, btaLickDown, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors, lineWidth=1.2);
+% xline(ax, 0, 'k--')
+% title(ax, sprintf('Significant decrease units (n=%i)', nnz(c.isLickBTADifferentDown & c.isLickDown & c.hasPress)))
+% delete(ax.Legend);
+% 
+% % S3c
+% ax = nexttile(layout.tl);
+% AX(1, 2) = ax;
+% EphysUnit.plotBinnedTrialAverage(ax, btaLickNulUp, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors, lineWidth=1.2);
+% xline(ax, 0, 'k--')
+% title(ax, sprintf('Null increase units (n=%i)', nnz(~c.isLickBTADifferentUp & c.isLickUp & c.hasPress)))
+% delete(ax.Legend);
+% 
+% % S3d
+% ax = nexttile(layout.tl);
+% AX(2, 2) = ax;
+% EphysUnit.plotBinnedTrialAverage(ax, btaLickNulDown, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors, lineWidth=1.2);
+% xline(ax, 0, 'k--')
+% title(ax, sprintf('Null decrease units (n=%i)', nnz(~c.isLickBTADifferentDown & c.isLickDown & c.hasPress)))
+% delete(ax.Legend);
+% 
+% ax = AX;
+% xlim(ax, [-2.5, 0.5]);
+% ylim(ax(1, 2), [30, 100])
+% ylim(ax(2, 2), [10, 80])
+% ylim(ax(1, 1), [30, 200])
+% ylim(ax(2, 1), [0, 100])
+% xlabel(ax, '')
+% ylabel(ax, '')
+% xlabel(layout.tl, 'Time to spout contact (s)', FontSize=p.fontSize)
+% ylabel(layout.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
+% 
+% for i = 1:4
+%     patch(ax(i), [-2, -0, -0, -2], [0, 0, 500, 500], [0.15, 0.15, 0.15], FaceAlpha=0.15, EdgeColor='none')
+% end
+% 
+% copygraphics(fig, ContentType='vector', BackgroundColor='none')

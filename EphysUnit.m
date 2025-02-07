@@ -500,6 +500,7 @@ classdef EphysUnit < handle
             p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim'}))
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
             p.addParameter('window', [], @(x) isnumeric(x) && ismember(length(x), [0, 2]))
+            p.addParameter('startBlankWindow', [0, 0], @(x) isnumeric(x) && ismember(length(x), [0, 2])) % Data in the peri-cueOnset window will be made NaN.
             p.addParameter('resolution', 0.001, @(x) isnumeric(x) && x > 0)
             p.addParameter('normalize', false, @islogical)
             p.addParameter('correction', [], @isnumeric)
@@ -509,6 +510,7 @@ classdef EphysUnit < handle
             trialType = lower(p.Results.trialType);
             alignTo = lower(p.Results.alignTo);
             resolution = p.Results.resolution;
+            startBlankWindow = p.Results.startBlankWindow;
             
             if isempty(p.Results.window)
                 window = [-edges(end), 1];
@@ -539,7 +541,7 @@ classdef EphysUnit < handle
                             stats = obj(i).SpikeCountStats;
                     end
                     
-                    [xx, tt] = obj(i).getTrialAlignedData(data, window, trialType, allowedTrialDuration=[edges(iBin), edges(iBin+1)], alignTo=alignTo, resolution=resolution, includeInvalid=false, correction = p.Results.correction);
+                    [xx, tt] = obj(i).getTrialAlignedData(data, window, trialType, allowedTrialDuration=[edges(iBin), edges(iBin+1)], alignTo=alignTo, resolution=resolution, includeInvalid=false, correction=p.Results.correction, startBlankWindow=startBlankWindow);
 
                     if i == 1 && iBin == 1
                         T = tt;
@@ -1526,6 +1528,7 @@ classdef EphysUnit < handle
             p.addParameter('saturation', 1);
             p.addParameter('lightness', 0.4);
             p.addParameter('colors', [])
+            p.addParameter('lineWidth', 1.5)
             p.parse(varargin{:})
             if isfield(p.Results, 'ax')
                 ax = p.Results.ax;
@@ -1539,6 +1542,7 @@ classdef EphysUnit < handle
             S = p.Results.S.S;
             B = p.Results.S.B;
             colors = p.Results.colors;
+            lineWidth = p.Results.lineWidth;
             
             if p.Results.sem
                 S = S./sqrt(N);
@@ -1557,9 +1561,9 @@ classdef EphysUnit < handle
                 bin = B(iBin, :);
                 t = T;% + bin(2);
                 if p.Results.showTrialNum
-                    h(iBin) = plot(ax, t, X(iBin, :), 'Color', colors(iBin, :), 'LineWidth', 1.5, 'DisplayName', sprintf(sprintf('%s-%ss, n=%i trials', p.Results.numFormat, p.Results.numFormat), bin(1), bin(2), N(iBin)));
+                    h(iBin) = plot(ax, t, X(iBin, :), 'Color', colors(iBin, :), 'LineWidth', lineWidth, 'DisplayName', sprintf(sprintf('%s-%ss, n=%i trials', p.Results.numFormat, p.Results.numFormat), bin(1), bin(2), N(iBin)));
                 else
-                    h(iBin) = plot(ax, t, X(iBin, :), 'Color', colors(iBin, :), 'LineWidth', 1.5, 'DisplayName', sprintf(sprintf('%s-%ss', p.Results.numFormat, p.Results.numFormat), bin(1), bin(2)));
+                    h(iBin) = plot(ax, t, X(iBin, :), 'Color', colors(iBin, :), 'LineWidth', lineWidth, 'DisplayName', sprintf(sprintf('%s-%ss', p.Results.numFormat, p.Results.numFormat), bin(1), bin(2)));
                 end
                 if p.Results.nsigmas > 0
                     high = X(iBin, :) + p.Results.nsigmas*S(iBin, :); 
@@ -2270,6 +2274,7 @@ classdef EphysUnit < handle
             p.addParameter('maxBoutCycles', 4)
             p.addParameter('minInterval', 0.05);
             p.addParameter('maxInterval', 0.25);
+            p.addParameter('startBlankWindow', [0, 0])
             p.parse(varargin{:})
             if useResampleMethod
                 x = p.Results.x;
@@ -2292,6 +2297,7 @@ classdef EphysUnit < handle
             maxBoutCycles = p.Results.maxBoutCycles;
             minInterval = p.Results.minInterval;
             maxInterval = p.Results.maxInterval;
+            startBlankWindow = p.Results.startBlankWindow;
 
             % Filter out trials with incorrect lengths
             if isempty(p.Results.trials)
@@ -2523,7 +2529,8 @@ classdef EphysUnit < handle
                 if includeInvalid
                     sel = true(1, length(tt));
                 elseif strcmpi(alignTo, 'stop')
-                    sel = tt >= -trials(iTrial).duration();
+                    tStart = -trials(iTrial).duration();
+                    sel = tt >= tStart & (tt >= tStart+startBlankWindow(2) | tt <= tStart+startBlankWindow(1));
                 % stim pulse: discard after next stim pulse onset
                 elseif ismember(trialType, {'stim', 'stimfirstpulse'})
                     sel = tt <= trials(iTrial).duration() + iti(iTrial);
