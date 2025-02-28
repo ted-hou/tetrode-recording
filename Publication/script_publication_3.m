@@ -39,8 +39,14 @@ for iExp = 1:length(expSpontaneous)
 end
 interTouchIntervals = cat(2, interTouchIntervals{:});
 edges = 1.5:0.5:15;
-histogram(ax, interTouchIntervals, edges, Normalization='probability', ...
-    EdgeAlpha=1, FaceColor='black')
+% centers = (edges(1:end-1) + edges(2:end)) * 0.5;
+hold(ax, 'on')
+% for iExp = 1:length(expSpontaneous)
+%     N = histcounts(interTouchIntervals{iExp}, edges, Normalization='probability');
+%     plot(ax, centers, N, Color=[0.15, 0.15, 0.15], LineWidth=1.5);
+histogram(ax, interTouchIntervals, edges, Normalization='probability', EdgeAlpha=1, FaceColor='black')
+% end
+hold(ax, 'off')
 xlabel(ax, 'Inter-reach interval (s)')
 ylabel(ax, 'Probability')
 yticks(ax, 0:0.1:0.2)

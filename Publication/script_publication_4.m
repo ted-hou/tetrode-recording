@@ -74,7 +74,7 @@ h.Label.Position = [1.103333312471708,0.505319625773328,0];
 
 % title(ax, sprintf('Lick task performance (%g animals)', nAnimalsLick), FontSize=p.fontSize)
 xticks(ax, [0, 4, 10])
-yticks(ax, ax.YLim(2))
+yticks(ax, [0, 0.2])
 ax.YLabel.Position = [-0.5,0.125,-1];
 
 fontsize(ax, p.fontSize, 'points')
@@ -136,8 +136,8 @@ TASKDISPNAMES = {'Reach', 'Lick'};
 SELTRIALS = {~fAll.press.correct, fAll.press.correct};
 RESULTNAMES = {'incorrect', 'correct'};
 RESULTNAMESDISP = {'incorrect', 'correct'};
-FTNAMES = {'spine_yVel', 'handContra_xVel', 'tongue'};
-FTDISPNAMES = {'Spine', 'Contra hand', 'Lick'};
+FTNAMES = {'spine_spd', 'handContra_spd', 'tongue'};
+FTDISPNAMES = {'Spine', 'Contra forepaw', 'Lick'};
 % COLORS = {'red', 'black', 'blue'};
 COLORS = arrayfun(@(i) getColor(i, 3, 0.7), [2, 1, 3], UniformOutput=false);
 YYAXIS = {'left', 'left', 'right'};
@@ -166,15 +166,17 @@ for iTask = 1:2
         xlim(ax, [-2, 2])
     
         yyaxis(ax, 'left')
-        ylabel(ax, 'Velocity (a.u.)')
-        ylim(ax, [-5, 5])
+        ylabel(ax, 'Speed (a.u.)')
+        ylim(ax, [-1.5, 9])
+        yticks(ax, [0, 6])
     
         yyaxis(ax, 'right')
         ylabel(ax, 'Lick probability')
-        ylim(ax, [-1.5, 1.5])
+        ylim(ax, [-0.25, 1.5])
+        yticks(ax, [0, 1])
         title(ax, sprintf('%s (%s)', TASKDISPNAMES{iTask}, RESULTNAMESDISP{iResult}))
     end
-    xlabel(layout.right.bottom.tl, 'Time to bar contact (s)', FontSize=p.fontSize)
+    xlabel(layout.right.bottom.tl, 'Time to bar/spout contact (s)', FontSize=p.fontSize)
 end
 
 lgd = legend(ax, hFt, Orientation='horizontal');

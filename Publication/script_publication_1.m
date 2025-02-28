@@ -57,7 +57,7 @@ layout.bottom.left.w = 3;
 layout.bottom.right.w = 2;
 layout.bottom.right.hh = [1, 4, 4, 4];
 
-close all
+% close all
 fig = figure(Units='inches', Position=[0, 0, layout.w, layout.h]);
 
 layout.tl = tiledlayout(fig, layout.top.h + layout.middle.h + layout.bottom.h, 1, TileSpacing='loose');
@@ -304,3 +304,4 @@ for ia = find(hasPress(:)')
 %         N = histcounts(pt{ia, id}, edges, Normalization='probability');
 %         plot(ax, centers, N, Color=hsl2rgb([0.7*(id-1)/(ndays-1), 0.1, 0.5]), LineWidth=0.1, DisplayName=sprintf('Day %g', daysPress(id)))
 %     end
+end

@@ -512,6 +512,7 @@ l = layout.bottom.right.tl; l.Layout.Tile = 1 + layout.bottom.left.w; l.Layout.T
 YL = {[-2, 2], [-2, 2]};
 SEL = {c.hasPress & c.isPressUp, c.hasPress & c.isPressDown};
 TITLE = [sprintf("Increase Units (n=%i)", nnz(SEL{1})), sprintf("Decrease Units (n=%i)", nnz(SEL{2}))];
+ALPHA = [0.015, 0.05];
 
 % Plot ETA aligned to cue (i.e. flinchiness) vs. aligned to lever touch
 % close all
@@ -532,8 +533,8 @@ for iRow = 1:2
     mu = mean(eta.pressCue.X(sel, :), 1, 'omitnan');
     err = std(eta.pressCue.X(sel, :), 0, 1, 'omitnan');
     plot(ax, eta.pressCue.t, mu, 'k', LineWidth=1.5)
-    patch(ax, [tt, flip(tt)], [mu+err, flip(mu-err)], [0.15, 0.15, 0.15], FaceAlpha=0.1, EdgeColor='none');
-%     plot(ax, eta.pressCueRaw.t, eta.pressCueRaw.X(sel, :)./0.1, Color=[0.15, 0.15, 0.15, 0.05])
+%     patch(ax, [tt, flip(tt)], [mu+err, flip(mu-err)], [0.3, 0.3, 0.3], FaceAlpha=0.1, EdgeColor='none');
+    plot(ax, eta.pressCue.t, eta.pressCue.X(sel, :), Color=[0.15, 0.15, 0.15, ALPHA(iRow)])
     
     if iRow == 1
         h = gobjects(2, 1);
@@ -558,8 +559,8 @@ for iRow = 1:2
     mu = mean(eta.press.X(sel, :), 1, 'omitnan');
     err = std(eta.press.X(sel, :), 0, 1, 'omitnan');
     plot(ax, eta.press.t, mu, 'k', LineWidth=1.5)
-    patch(ax, [eta.press.t, flip(eta.press.t)], [mu+err, flip(mu-err)], [0.15, 0.15, 0.15], FaceAlpha=0.1, EdgeColor='none');
-%     plot(ax, eta.pressRaw.t, eta.pressRaw.X(sel, :)./0.1, Color=[0.15, 0.15, 0.15, 0.05])
+%     patch(ax, [eta.press.t, flip(eta.press.t)], [mu+err, flip(mu-err)], [0.15, 0.15, 0.15], FaceAlpha=0.1, EdgeColor='none');
+    plot(ax, eta.press.t, eta.press.X(sel, :), Color=[0.15, 0.15, 0.15, ALPHA(iRow)])
     xlim(ax, [-3, 0.5])
     xticks(ax, [-3, -2, -1, 0])
     xline(ax, -3, ':')
@@ -612,9 +613,9 @@ fontsize(ax, p.fontSize, 'points')
 % S3c/d (correct/incorrect press trial video-tracked paw/spine/lick)
 SELTRIALS = {~fAll.press.correct, fAll.press.correct};
 RESULTNAMES = {'incorrect', 'correct'};
-RESULTNAMESDISP = {'Incorrect', 'Correct'};
-FTNAMES = {'spine_yVel', 'handContra_xVel', 'tongue'};
-FTDISPNAMES = {'Spine velocity', 'Contra forepaw velocity', 'Lick probability'};
+RESULTNAMESDISP = {'Incorrect reach', 'Correct reach'};
+FTNAMES = {'spine_spd', 'handContra_spd', 'tongue'};
+FTDISPNAMES = {'Spine speed', 'Contra forepaw speed', 'Lick probability'};
 % COLORS = {'red', 'black', 'blue'};
 COLORS = arrayfun(@(i) getColor(i, 3, 0.7), [2, 1, 3], UniformOutput=false);
 YYAXIS = {'left', 'left', 'right'};
@@ -642,12 +643,14 @@ for iResult = 1:2
     xlim(ax, [-2, 2])
 
     yyaxis(ax, 'left')
-    ylabel(ax, 'Velocity (a.u.)')
-    ylim(ax, [-5, 5])
+    ylabel(ax, 'Speed (a.u.)')
+    ylim(ax, [-1.5, 9])
+    yticks(ax, [0, 6])
 
     yyaxis(ax, 'right')
     ylabel(ax, 'Lick probability')
-    ylim(ax, [-1.5, 1.5])
+    ylim(ax, [-0.25, 1.5])
+    yticks(ax, [0, 1])
     title(ax, RESULTNAMESDISP{iResult})
 end
 xlabel(layout.bottom.right.tl, 'Time to bar contact (s)', FontSize=p.fontSize)

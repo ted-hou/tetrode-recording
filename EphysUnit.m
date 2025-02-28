@@ -2215,8 +2215,13 @@ classdef EphysUnit < handle
                     kernelParams.lambda1 = p.Results.lambda1;
                     kernelParams.lambda2 = p.Results.lambda2;
                     kernelWindow = [0, kernelWidth];
-                    tKernel = kernelWindow(1):resolution:kernelWindow(2);
+                    tKernel = 0:resolution:kernelWidth/2;
                     yKernel = exp(-kernelParams.lambda1*tKernel) - exp(-kernelParams.lambda2*tKernel);
+                    [~, iMax] = max(yKernel);
+                    tKernel = tKernel + tKernel(iMax);
+                    yKernel = exp(-kernelParams.lambda1*tKernel) - exp(-kernelParams.lambda2*tKernel);
+                    yKernel = [zeros(1, length(yKernel) - 1), yKernel];
+                    tKernel = [-kernelWidth/2:resolution:-resolution, 0:resolution:kernelWidth/2];
             end
             kernelParams.window = kernelWindow;
             kernelParams.resolution = resolution;
