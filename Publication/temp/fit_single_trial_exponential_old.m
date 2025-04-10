@@ -182,6 +182,35 @@ for iTrialType = 1:4
     title(tl, UNITTYPES{iTrialType})
 end
 
+%% Plot params (new)
+% S2b (reach)
+% 1 row (inc neurons): PETH sig; PETH insig;
+% 2 row (dec neurons): PETH sig; PETH insig;
+% 3 row: distribution of slope: inc vs. dec (color by p value)
+% 4 row (inc neurons): PETH sig, {ETH insig;
+% 5 row (dec neurons): PETH sig, {ETH insig;
+% S6b
+clear layout
+layout.w = 6;
+layout.h = 6;
+layout.top.h = 3;
+layout.middle.h = 1;
+layout.bottom.h = 3;
+
+close all
+fig = figure(Units='inches', Position=[1 1 layout.w layout.h]);
+
+layout.tl = tiledlayout(fig, layout.top.h + layout.middle.h + layout.bottom.h, 1);
+layout.top.tl = tiledlayout(layout.tl, 2, 2);
+l = layout.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.top.h, 1];
+layout.middle.tl = tiledlayout(layout.tl, 1, 2);
+l = layout.middle.tl; l.Layout.Tile = 1 + layout.top.h; l.Layout.TileSpan = [layout.middle.h, 1];
+layout.bottom.tl = tiledlayout(layout.tl, 2, 2);
+l = layout.bottom.tl; l.Layout.Tile = 1 + layout.top.h + layout.middle.h; l.Layout.TileSpan = [layout.bottom.h, 1];
+
+ax = nexttile(layout.middle.tl);
+
+
 %%
 % X = spike rate (nTrials, nTimestampsPerTrial), t = timestamp (1, nTimestampsPerTrial), z = movement time (nTrials, 1)
 function boot = bootParamSlope(X, t, z, varargin)
