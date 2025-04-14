@@ -20,6 +20,8 @@ classdef TetrodeRecording < handle
 		BoardADC
 		NEV
 		NSx
+        IMEC
+        NIDQ
         UserData
 	end
 
@@ -67,12 +69,23 @@ classdef TetrodeRecording < handle
             p.parse(varargin{:})
             r = p.Results;
 
-			expName = strsplit(obj.Path, '\');
-			expName = expName{end - 1};
-
-            if ~r.includeSuffix
-                expName = strsplit(expName, '_');
-                expName = strjoin(expName(1:2), '_');
+            switch lower(obj.System)
+                case 'neuropixel'
+                    expName = strsplit(obj.Files.imec, '.imec');
+                    expName = expName{1};
+                    
+                    if ~r.includeSuffix
+                        expName = strsplit(expName, '_');
+                        expName = strjoin(expName(1:2), '_');
+                    end
+                otherwise
+			        expName = strsplit(obj.Path, '\');
+			        expName = expName{end - 1};
+        
+                    if ~r.includeSuffix
+                        expName = strsplit(expName, '_');
+                        expName = strjoin(expName(1:2), '_');
+                    end
             end
 		end
 
@@ -96,6 +109,8 @@ classdef TetrodeRecording < handle
                     startTime = startTime([1,2,4,5,6,7]);
                     startTime = datetime(startTime, 'TimeZone', 'UTC');
                     obj.StartTime = startTime;
+                elseif strcmpi(obj.System, 'neuropixel')
+                    startTime = [];
                 else
                     error('Unrecognized system %s', obj.System);
                 end
@@ -105,20 +120,39 @@ classdef TetrodeRecording < handle
 		end
 
 		function SelectFiles(obj)
-			[obj.Files, obj.Path, filterindex] = uigetfile({'*.nev; *.ns*; *.ccf', 'Blackrock Files (*.nev, *.ns*, *.ccf)'; '*.rhd', 'Intan RHD2000 Files (*.rhd)'}, 'Select files', 'MultiSelect', 'on');
+			[files, path, filterindex] = uigetfile({'*.nev; *.ns*; *.ccf', 'Blackrock Files (*.nev, *.ns*, *.ccf)'; '*.rhd', 'Intan RHD2000 Files (*.rhd)'; '*.ap.bin', 'SpikeGLX Files (*.ap.bin)'}, 'Select files', 'MultiSelect', 'on');
 			switch filterindex
 				case 1
 					obj.System = 'Blackrock';
+                    obj.Files = files;
+                    obj.Path = path;
 				case 2
 					obj.System = 'Intan';
-			end
-				
+                    obj.Files = files;
+                    obj.Path = path;
+                case 3
+                    obj.System = 'Neuropixel';
+                    imecFile = files;
+                    imecPath = path;
+                    sessionName = strsplit(imecFile, '.imec0');
+                    sessionName = sessionName{1};
+                    files = dir(sprintf('%s\\%s.nidq.bin', imecPath, sessionName));
+                    if isempty(files)
+                        files = dir(sprintf('%s\\..\\%s.nidq.bin', imecPath, sessionName));
+                        assert(~isempty(files), 'Cannot file nidaq file.')
+                    end
+                    nidqFile = files.name;
+                    nidqPath = [files.folder, '\'];
+                    obj.Files = struct(imec=imecFile, nidq=nidqFile);
+                    obj.Path = struct(imec=imecPath, nidq=nidqPath);
+            end
 		end
 
+        % Read raw data files, extract spikes and digital events
 		function ReadFiles(obj, varargin)
 			p = inputParser;
 			addOptional(p, 'ChunkSize', 2, @isnumeric);
-			addParameter(p, 'Duration', [], @isnumeric); % [0, 60] to read 0 - 60 seconds of data. For blackrock only
+			addParameter(p, 'Duration', [], @isnumeric); % [0, 60] to read 0 - 60 seconds of data. For blackrock/neuropixel only
 			addParameter(p, 'SubstractMean', false, @islogical);
 			addParameter(p, 'SubstractMedian', false, @islogical);
 			addParameter(p, 'RemoveTransient', false, @islogical);
@@ -153,11 +187,10 @@ classdef TetrodeRecording < handle
 			detectSpikes	= p.Results.DetectSpikes;
 			detectEvents	= p.Results.DetectEvents;
 
-			files = obj.Files;
-			numChunks = ceil(length(files)/chunkSize);
-
 			switch lower(obj.System)
 				case 'intan'
+		            files = obj.Files;
+		            numChunks = ceil(length(files)/chunkSize);
 					for iChunk = 1:numChunks
 						TetrodeRecording.TTS(['Processing chunk ', num2str(iChunk), '/', num2str(numChunks), ':\n']);
 						obj.ReadIntan(obj.Files((iChunk - 1)*chunkSize + 1:min(iChunk*chunkSize, length(obj.Files))))
@@ -220,10 +253,196 @@ classdef TetrodeRecording < handle
 					end
 					if detectSpikes
 						obj.ClearCache();
-					end
+                    end
+                case 'neuropixel'
+                    if isempty(channels)
+                        channels = 1:384;
+                    end
+                    if strcmpi(digitalChannels, 'auto')
+                        digitalChannels = {'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Mot1Busy', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7};
+                    end
+                    if strcmpi(analogChannels, 'auto')
+                        analogChannels = {'LaserModBlue', 0; 'LaserModRed', 1};
+                    end
+                    obj.NIDQ = [];
+                    TEST_MAX_TIME = Inf;
+                    if length(duration) == 1
+                        eof = false;
+                        timeWindow = [0, duration];
+                        chunkIndex = 1;
+                        while ~eof && timeWindow(2) <= TEST_MAX_TIME
+                            eof = obj.ReadIMEC(Channels=channels, TimeWindow=timeWindow, ReadMode='preallocate');
+                            if detectSpikes
+                                obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), NumSigmas=numSigmas, NumSigmasReturn=numSigmasReturn, NumSigmasReject=numSigmasReject, ...
+                                    WaveformWindow=waveformWindow, Direction=direction, Append=false, MaxMicroVolts=1000, MinThresholdMicroVolts=5);
+                                obj.SaveSpikes(ChunkIndex=chunkIndex);
+                                obj.ClearCache(Spikes=true);
+                            else
+                                obj.ClearCache();
+                            end
+                            timeWindow = timeWindow + duration;
+                            chunkIndex = chunkIndex + 1;
+                        end
+    
+                        eof = false;
+                        timeWindow = [0, duration];
+                        while ~eof && timeWindow(2) <= TEST_MAX_TIME
+                            eof = obj.ReadNIDQ(TimeWindow=timeWindow, ReadMode='preallocate');
+                            timeWindow = timeWindow + duration;
+                        end
+                    else
+                        obj.ReadIMEC(Channels=channels, Duration=duration, ReadMode='simple');
+                        if detectSpikes
+                            obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), NumSigmas=numSigmas, NumSigmasReturn=numSigmasReturn, NumSigmasReject=numSigmasReject, ...
+                                WaveformWindow=waveformWindow, Direction=direction, Append=false);
+                        end
+                        obj.ReadNIDQ(Duration=duration, ReadMode='single');
+                    end
+                    
 			end
 			obj.GetStartTime();
-		end
+        end
+
+        function SaveSpikes(obj, varargin)
+            p = inputParser();
+            p.addParameter('ChunkIndex', [], @isnumeric);
+            p.parse(varargin{:});
+            chunkIndex = p.Results.ChunkIndex;
+
+            expName = obj.GetExpName(includeSuffix=false);
+            pathName = fullfile(obj.Path.nidq, 'Spikes');
+            if ~exist(pathName, 'dir')
+                mkdir(pathName);
+            end
+            for i = 1:length(obj.Spikes)
+                channelIndex = obj.Spikes(i).Channel;
+                spikes = obj.Spikes(i);
+                if ~isempty(chunkIndex)
+                    fileName = sprintf('%s_Chn%03i_%06i.mat', expName, channelIndex, chunkIndex);
+                else
+                    fileName = sprintf('%s_Chn%03i.mat', expName, channelIndex);
+                end
+                save(fullfile(pathName, fileName), 'spikes', '-mat')
+            end
+            obj.Path.SavedSpikes = pathName;
+        end
+
+        function LoadSpikes(obj, varargin)
+        end
+
+        function MergeSavedSpikes(obj, varargin)
+        end
+
+        function SaveNeuropixelIO(obj, varargin)
+            p = inputParser();
+            p.addParameter('Path', '', @ischar)
+            p.parse(varargin{:})
+            pathName = p.Results.Path;
+
+            expName = obj.GetExpName(includeSuffix=false);
+            if isempty(pathName)
+                pathName = fullfile(obj.Path.nidq, 'IO');
+            end
+            if ~exist(pathName, 'dir')
+                mkdir(pathName)
+            end
+
+            for instrument = ["NIDQ", "IMEC"]
+                fileName = sprintf('%s_IO_%s.mat', expName, instrument);
+                S = obj.(instrument);
+                save(fullfile(pathName, fileName), '-struct', 'S', '-v7.3');
+            end
+        end
+
+        function LoadNeuropixelIO(obj, varargin)
+            p = inputParser();
+            p.addParameter('Path', '', @ischar)
+            p.parse(varargin{:})
+            pathName = p.Results.Path;
+
+            expName = obj.GetExpName(includeSuffix=false);
+            if isempty(pathName)
+                pathName = fullfile(obj.Path.nidq, 'IO');
+            end
+            files = dir(fullfile(pathName, sprintf('%s_IO_*.mat', expName)));
+            if isempty(files)
+                pathName = uigetdir(obj.Path.nidq);
+            end
+            files = dir(fullfile(pathName, sprintf('%s_IO_*.mat', expName)));
+            if isempty(files)
+                error('IO files not found');
+            end
+
+            for instrument = ["NIDQ", "IMEC"]
+                fileName = sprintf('%s_IO_%s.mat', expName, instrument);
+                S = load(fullfile(pathName, fileName));
+                obj.(instrument) = S;
+            end
+        end
+
+        function ParseNeuropixelIO(obj, varargin)
+            p = inputParser();
+			p.addParameter('DigitalChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}
+			p.addParameter('AnalogChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'AccX', 1; 'AccY', 2; 'AccZ', 3;}            
+            p.addParameter('Sync', true, @islogical); % True to synchronize NIDQ to IMEC using the Sync channels (0.5Hz square waves).
+            p.parse(varargin{:});
+            digitalChannels = p.Results.DigitalChannels;
+            analogChannels = p.Results.AnalogChannels;
+            sync = p.Results.Sync;
+
+            if strcmpi(digitalChannels, 'auto')
+                digitalChannels = {'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Mot1Busy', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7};
+            end
+            if strcmpi(analogChannels, 'auto')
+                analogChannels = {'LaserModBlue', 0; 'LaserModRed', 1};
+            end
+
+            % Read digital events from NIDQ
+            for i = 1:size(digitalChannels, 1)
+                channelName = digitalChannels{i, 1};
+                channelIndex = digitalChannels{i, 2} + 1;
+                [obj.DigitalEvents.(sprintf('%sOn', channelName)), obj.DigitalEvents.(sprintf('%sOff', channelName))] = TetrodeRecording.FindEdges(bitget(obj.NIDQ.Data(end, :), channelIndex, 'int16'), obj.NIDQ.Timestamps, StartingHighCountsAsOn=~strcmpi(channelName, 'Sync'));
+            end
+%             assert(isequal(size(obj.NIDQ.Data), [size(analogChannels, 1) + 1, obj.NIDQ.NumSamplesRead]));
+
+            % Read analog data from NIDQ
+            % Scale to real units (V)
+            assert(max([analogChannels{:, 2}])+2 == size(obj.NIDQ.Data, 1), 'Not implemented: please read all analog input channels 0 to %i.', size(obj.NIDQ.Data, 1)-2)
+
+            obj.AnalogIn.ChannelNames = cell(size(analogChannels, 1), 1);
+            obj.AnalogIn.ChannelIndex = cell(size(analogChannels, 1), 1);
+            for i = 1:size(analogChannels, 1)
+                obj.AnalogIn.ChannelNames{i} = analogChannels{i, 1};
+                obj.AnalogIn.ChannelIndex{i} = analogChannels{i, 2} + 1;
+            end
+            meta = obj.ReadNeuropixelMeta();
+            obj.AnalogIn.Data = SGLX_readMeta.GainCorrectNI(double(obj.NIDQ.Data(1:end-1, :)), 1 : size(obj.NIDQ.Data, 1)-1, meta.nidq);
+            obj.AnalogIn.Timestamps = obj.NIDQ.Timestamps;
+
+            if sync
+%                 assert(isequal(size(obj.IMEC.Data), [1, obj.IMEC.NumSamplesRead]));
+                [imecSyncOn, imecSyncOff] = obj.FindEdges(obj.IMEC.Data, obj.IMEC.Timestamps, StartingHighCountsAsOn=false);
+
+                nidqSync = [obj.DigitalEvents.SyncOn(:), obj.DigitalEvents.SyncOff(:)]';
+                nidqSync = [0, nidqSync(:)'];
+
+                imecSync = [imecSyncOn(:), imecSyncOff(:)]';
+                imecSync = [0, imecSync(:)'];
+
+                % Correct NI(DigitalEvents) timestamps to IMEC(spike) timestamps
+                if ~isfield(obj.DigitalEvents, 'NIDQRaw')
+                    obj.DigitalEvents.NIDQRaw = obj.DigitalEvents;
+                end
+                for i = 1:size(digitalChannels, 1)
+                    channelName = digitalChannels{i, 1};
+                    obj.DigitalEvents.(sprintf('%sOn', channelName)) = interp1(nidqSync, imecSync, obj.DigitalEvents.NIDQRaw.(sprintf('%sOn', channelName)), 'linear', 'extrap');
+                    obj.DigitalEvents.(sprintf('%sOff', channelName)) = interp1(nidqSync, imecSync, obj.DigitalEvents.NIDQRaw.(sprintf('%sOff', channelName)), 'linear', 'extrap');
+                end
+
+                % Correct NI(Analog) timestamps to IMEC(spike) timestamps
+                obj.AnalogIn.Timestamps = interp1(nidqSync, imecSync, obj.AnalogIn.Timestamps, 'linear', 'extrap');
+            end
+        end
 
 		function ReadBlackrock(obj, varargin)
 			p = inputParser;
@@ -780,6 +999,163 @@ classdef TetrodeRecording < handle
 			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
         end
         
+        % Returns true if end of file reached
+        function eof = ReadIMEC(obj, varargin)
+            p = inputParser();
+            p.addParameter('Channels', 1:384, @isnumeric);
+            p.addParameter('TimeWindow', [], @isnumeric);
+            p.addParameter('ReadMode', 'preallocate', @(x) ismember(x, {'simple', 'append', 'preallocate'}));
+            p.parse(varargin{:})
+            channels = p.Results.Channels;
+            timeWindow = p.Results.TimeWindow;
+            readMode = p.Results.ReadMode;
+
+            meta = obj.ReadNeuropixelMeta();
+
+            % First, read IMEC
+            nChannelsInFile = str2double(meta.imec.nSavedChans);
+            assert(nChannelsInFile==385) % 384 neural, 1 digital where bit 6 is sync
+            assert(isequal(channels, 1:384), 'Channel skipping is not implemented.')
+            nSamplesInFile = str2double(meta.imec.fileSizeBytes) / (2*nChannelsInFile);
+            sampleRate = str2double(meta.imec.imSampRate);
+            obj.IMEC.SampleRate = sampleRate;
+            obj.IMEC.NumSamplesInFile = nSamplesInFile;
+
+            fid = fopen(fullfile(obj.Path.imec, obj.Files.imec), 'rb');
+            if isempty(timeWindow)
+                nSamplesToSkip = 0;
+                nSamplesToRead = nSamplesInFile;
+            else
+                nSamplesToSkip = max(floor(timeWindow(1)*sampleRate), 0);
+                nSamplesToRead = floor(timeWindow(2)*sampleRate) - floor(timeWindow(1)*sampleRate);
+                nSamplesToRead = min(nSamplesToRead, nSamplesInFile - nSamplesToSkip);
+            end
+            eof = nSamplesToSkip + nSamplesToRead >= nSamplesInFile;
+
+            % Read data
+            tTic = tic();
+            fseek(fid, nSamplesToSkip*2*nChannelsInFile, 'bof');
+            obj.Amplifier.Data = fread(fid, [nChannelsInFile, nSamplesToRead], 'int16=>double');
+            fclose(fid);
+            timeElapsed = toc(tTic);
+            fprintf(1, 'Read %.1f seconds of data (%i->%i = %i samples, %.3f MB) of data in %.1f seconds.\n', nSamplesToRead/sampleRate, nSamplesToSkip + 1, nSamplesToSkip + nSamplesToRead, nSamplesToRead, nSamplesToRead*nChannelsInFile*2/1024/1024, timeElapsed);
+
+            if isfield(obj.IMEC, 'NumSamplesRead')
+                obj.IMEC.NumSamplesRead = obj.IMEC.NumSamplesRead + nSamplesToRead;
+            else
+                obj.IMEC.NumSamplesRead = nSamplesToRead;
+            end
+            obj.IMEC.NumSamplesToSkip = nSamplesToSkip;
+
+            obj.FrequencyParameters.AmplifierSampleRate = sampleRate; % For compatibility
+
+            % Extract the digital sync channel
+            if strcmpi(readMode, 'preallocate') && (~isfield(obj.IMEC, 'Data') || isempty(obj.IMEC.Data))
+                obj.IMEC.Data = zeros(1, nSamplesInFile, 'logical');
+                obj.IMEC.Timestamps = (0:nSamplesInFile-1) / sampleRate;
+            end
+            if strcmpi(readMode, 'preallocate')
+                obj.IMEC.Data(:, nSamplesToSkip+1 : nSamplesToSkip+nSamplesToRead) = logical(bitget(obj.Amplifier.Data(end, :), 6+1, 'int16'));
+            elseif strcmpi(readMode, 'append') && isfield(obj.IMEC, 'Data')
+                obj.IMEC.Data = [obj.IMEC.Data, logical(bitget(obj.Amplifier.Data(end, :), 6+1, 'int16'))];
+                obj.IMEC.Timestamps = [obj.IMEC.Timestamps, ((0:nSamplesToRead-1) + nSamplesToSkip) / sampleRate];
+            else
+                obj.IMEC.Data = logical(bitget(obj.Amplifier.Data(end, :), 6+1, 'int16'));
+                obj.IMEC.Timestamps = ((0:nSamplesToRead-1) + nSamplesToSkip) / sampleRate;
+            end
+
+            obj.Amplifier.Data = obj.Amplifier.Data(1:end-1, :);
+            % Do gain correction, bandpass filtering and common median referencing
+            tTic = tic();
+            obj.Amplifier.Data = SGLX_readMeta.GainCorrectIM(obj.Amplifier.Data, channels, meta.imec)*1e6;
+            [B, A] = butter(2, [250, 7500]/(sampleRate/2));
+            obj.Amplifier.Data = filter(B, A, obj.Amplifier.Data')';
+            obj.Amplifier.Data = obj.Amplifier.Data - median(obj.Amplifier.Data, 1);
+            timeElapsed = toc(tTic);
+            fprintf(1, 'Filtered and CARed in %.2f seconds.\n', timeElapsed)
+            obj.Amplifier.Timestamps = (nSamplesToSkip:nSamplesToSkip+nSamplesToRead-1)./sampleRate; % First sample timestamp is set to zero.
+            obj.Amplifier.SampleIndexOffset = nSamplesToSkip;
+            obj.Amplifier.Meta = meta.imec;
+        end
+
+        function eof = ReadNIDQ(obj, varargin)
+            p = inputParser();
+            p.addParameter('TimeWindow', [], @isnumeric)
+            p.addParameter('ReadMode', 'simple', @(x) ismember(x, {'simple', 'append', 'preallocate'}))
+            p.parse(varargin{:})
+            timeWindow = p.Results.TimeWindow;
+            readMode = p.Results.ReadMode;
+
+            meta = obj.ReadNeuropixelMeta();
+
+            % Then, read NIDAQ
+            nChannelsInFile = str2double(meta.nidq.nSavedChans);
+            assert(nChannelsInFile==3) % 1:2 analog, 3 digital
+            nSamplesInFile = str2double(meta.nidq.fileSizeBytes) / (2*nChannelsInFile);
+            sampleRate = str2double(meta.nidq.niSampRate);
+            obj.NIDQ.SampleRate = sampleRate;
+            obj.NIDQ.NumSamplesInFile = nSamplesInFile;
+
+            tTic = tic();
+            fid = fopen(fullfile(obj.Path.nidq, obj.Files.nidq), 'rb');
+            if isempty(timeWindow)
+                nSamplesToSkip = 0;
+                nSamplesToRead = nSamplesInFile;
+            else
+                nSamplesToSkip = max(floor(timeWindow(1)*sampleRate), 0);
+                nSamplesToRead = floor(timeWindow(2)*sampleRate) - floor(timeWindow(1)*sampleRate);
+                nSamplesToRead = min(nSamplesToRead, nSamplesInFile - nSamplesToSkip);
+            end
+            eof = nSamplesToSkip + nSamplesToRead >= nSamplesInFile;
+
+            if strcmpi(readMode, 'preallocate') && (~isfield(obj.NIDQ, 'Data') || isempty(obj.NIDQ.Data))
+                obj.NIDQ.Data = zeros(nChannelsInFile, nSamplesInFile, 'int16');
+                obj.NIDQ.Timestamps = (0:nSamplesInFile-1) / sampleRate;
+            end
+
+            fseek(fid, nSamplesToSkip*2*nChannelsInFile, 'bof');
+            % SGLX_readMeta.GainCorrectNI(fread(fid, [nChannelsInFile, nSamplesToRead], 'int16=>int16'), 1:2, meta.nidq);
+            if strcmpi(readMode, 'preallocate')
+                obj.NIDQ.Data(:, nSamplesToSkip+1 : nSamplesToSkip+nSamplesToRead) = fread(fid, [nChannelsInFile, nSamplesToRead], 'int16=>int16');
+            elseif strcmpi(readMode, 'append') && isfield(obj.NIDQ, 'Data')
+                obj.NIDQ.Data = [obj.NIDQ.Data, fread(fid, [nChannelsInFile, nSamplesToRead], 'int16=>int16')];
+                obj.NIDQ.Timestamps = [obj.NIDQ.Timestamps, ((0:nSamplesToRead-1) + nSamplesToSkip) / sampleRate];
+            else
+                obj.NIDQ.Data = fread(fid, [nChannelsInFile, nSamplesToRead], 'int16=>int16');
+                obj.NIDQ.Timestamps = ((0:nSamplesToRead-1) + nSamplesToSkip) / sampleRate;
+            end
+            fclose(fid);
+            timeElapsed = toc(tTic);
+            fprintf(1, 'Read %.1f seconds of data (%i->%i = %i samples, %.3f MB) of data in %.1f seconds.\n', nSamplesToRead/sampleRate, nSamplesToSkip + 1, nSamplesToSkip + nSamplesToRead, nSamplesToRead, nSamplesToRead*nChannelsInFile*2/1024/1024, timeElapsed);
+
+            if isfield(obj.NIDQ, 'NumSamplesRead')
+                obj.NIDQ.NumSamplesRead = obj.NIDQ.NumSamplesRead + nSamplesToRead;
+            else
+                obj.NIDQ.NumSamplesRead = nSamplesToRead;
+            end            
+        end
+
+        % From SGLX_readMeta (https://github.com/jenniferColonell/SpikeGLX_Datafile_Tools)
+        function meta = ReadNeuropixelMeta(obj)
+            assert(isstruct(obj.Files) && isstruct(obj.Path))
+
+            for instrument = ["imec", "nidq"]
+                [~, name, ~] = fileparts([obj.Path.(instrument), obj.Files.(instrument)]);
+                metaName = [name, '.meta'];
+                fid = fopen(fullfile(obj.Path.(instrument), metaName), 'r');
+                C = textscan(fid, '%[^=] = %[^\r\n]');
+                fclose(fid);
+                meta.(instrument) = struct();
+                for i = 1:length(C{1})
+                    tag = C{1}{i};
+                    if tag(1) == '~'
+                        tag = sprintf('%s', tag(2:end));
+                    end
+                    meta.(instrument).(tag) = C{2}{i};
+                end
+            end
+        end
+
 		% Used to preview a small portion of loaded data. Will remove used data from workspace.
 		function TrimData(obj, numSamples)
 			if ~isempty(obj.BoardDigIn)
@@ -941,6 +1317,8 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Direction', 'negative', @ischar);
 			addParameter(p, 'WaveformWindow', [-0.35, 0.35], @isnumeric);
 			addParameter(p, 'Append', false, @islogical);
+            addParameter(p, 'MaxMicroVolts', Inf, @isnumeric);
+            addParameter(p, 'MinThresholdMicroVolts', 0, @isnumeric);
 			parse(p, channels, varargin{:});
 			channels 		= p.Results.Channels;
 			numSigmas 		= p.Results.NumSigmas;
@@ -949,13 +1327,17 @@ classdef TetrodeRecording < handle
 			directionMode 	= p.Results.Direction;
 			waveformWindow 	= p.Results.WaveformWindow;
 			append 			= p.Results.Append;
+			maxMicroVolts 	= p.Results.MaxMicroVolts;
+            minThreshold    = p.Results.MinThresholdMicroVolts;
 
-			TetrodeRecording.TTS('	Detecting spikes:\n');
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
 
+            lineLength = 0;
 			for iChannel = channels
-				sigma = nanmedian(abs(obj.Amplifier.Data(iChannel, :)))/0.6745;
-				threshold = numSigmas*sigma;
+                cleanedSignal = abs(nonzeros(obj.Amplifier.Data(iChannel, :)));
+                cleanedSignal = cleanedSignal(cleanedSignal <= maxMicroVolts);
+				sigma = median(cleanedSignal, 'all', 'omitnan')/0.6745;
+				threshold = max(minThreshold, numSigmas*sigma);
 				switch lower(directionMode)
 					case 'negative'
 						direction = -1;
@@ -965,8 +1347,8 @@ classdef TetrodeRecording < handle
 						direction = sign(median(obj.Amplifier.Data(iChannel, abs(obj.Amplifier.Data(iChannel, :)) > 1.5*threshold))); % Check if spikes are positive or negative
 					otherwise
 						error(['Unrecognized spike detection mode ''', directionMode, '''.'])
-				end
-				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), ' (', num2str(char(952)), ' = ', num2str(numSigmas), num2str(char(963)), ' = ', num2str(direction*threshold), ')...']);
+                end
+                tTic = tic();
 				
 				% Find spikes
 				[~, sampleIndex] = findpeaks(double(direction*obj.Amplifier.Data(iChannel, :)), 'MinPeakHeight', threshold, 'MinPeakProminence', threshold);
@@ -995,7 +1377,7 @@ classdef TetrodeRecording < handle
 
 				% Reject waveforms that exceed a threshold
 				if ~isempty(numSigmasReject)
-					selected = max(abs(waveforms), [], 2) < abs(numSigmasReject*sigma);
+					selected = max(abs(waveforms), [], 2) < abs(numSigmasReject*sigma) | max(abs(waveforms), [], 2) < maxMicroVolts;
 					waveforms = waveforms(selected, :);
 					timestamps = timestamps(selected);
 					sampleIndex = sampleIndex(selected);
@@ -1008,7 +1390,11 @@ classdef TetrodeRecording < handle
 				if ~append
 					obj.Spikes(iChannel).Channel = iChannel;
 
-					obj.Spikes(iChannel).SampleIndex = sampleIndex;
+                    if strcmpi(obj.System, 'neuropixel')
+					    obj.Spikes(iChannel).SampleIndex = sampleIndex + obj.IMEC.NumSamplesToSkip;
+                    else
+					    obj.Spikes(iChannel).SampleIndex = sampleIndex;
+                    end
 					obj.Spikes(iChannel).Timestamps = timestamps;
 					obj.Spikes(iChannel).Waveforms = waveforms;
 
@@ -1021,17 +1407,23 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).Threshold.ThresholdReturn = direction*numSigmasReturn*sigma;
 					obj.Spikes(iChannel).Threshold.ThresholdReject = [abs(numSigmasReject*sigma); -abs(numSigmasReject*sigma)];
 					obj.Spikes(iChannel).Threshold.Direction = directionMode;
-				else
-					obj.Spikes(iChannel).SampleIndex = [obj.Spikes(iChannel).SampleIndex, sampleIndex + length(obj.DigitalEvents.Timestamps)];
+                else
+                    if strcmpi(obj.System, 'neuropixel')
+					    obj.Spikes(iChannel).SampleIndex = [obj.Spikes(iChannel).SampleIndex, sampleIndex + obj.IMEC.NumSamplesToSkip];
+                    else
+					    obj.Spikes(iChannel).SampleIndex = [obj.Spikes(iChannel).SampleIndex, sampleIndex + length(obj.DigitalEvents.Timestamps)];
+                    end
 					obj.Spikes(iChannel).Timestamps = [obj.Spikes(iChannel).Timestamps, timestamps];
 					obj.Spikes(iChannel).Waveforms = [obj.Spikes(iChannel).Waveforms; waveforms];
 					obj.Spikes(iChannel).Threshold.Threshold = [obj.Spikes(iChannel).Threshold.Threshold, direction*threshold];
 					obj.Spikes(iChannel).Threshold.ThresholdReturn = [obj.Spikes(iChannel).Threshold.ThresholdReturn, direction*numSigmasReturn*sigma];
 					obj.Spikes(iChannel).Threshold.ThresholdReject = [obj.Spikes(iChannel).Threshold.ThresholdReject, [abs(numSigmasReject*sigma); -abs(numSigmasReject*sigma)]];
-				end
+                end
 
-				TetrodeRecording.TTS(['Done(', num2str(numWaveforms), ' waveforms, ', num2str(toc, '%.2f'), ' seconds).\n'])
+                fprintf(repmat('\b', 1, lineLength))
+                lineLength = fprintf('\tDetecting spikes: Channel %i (%s=%g%s=%.2f)...%i waveforms (%.2f seconds).\n', iChannel, char(952), numSigmas, char(963), direction*threshold, numWaveforms, toc(tTic));
 			end
+            fprintf(repmat('\b', 1, lineLength))
 		end
 
 		function GetAnalogData(obj, varargin)
@@ -1146,11 +1538,26 @@ classdef TetrodeRecording < handle
             
 		end
 
-		% This compresses data by ~ 20 times
-		function ClearCache(obj)
-			obj.Amplifier = [];
-			obj.BoardDigIn = [];
-			obj.BoardADC = [];
+        function ClearCache(obj, varargin)
+            p = inputParser();
+            p.addParameter('Amplifier', true, @islogical);
+            p.addParameter('BoardDigIn', true, @islogical);
+            p.addParameter('BoardADC', true, @islogical);
+            p.addParameter('Spikes', false, @islogical);
+            p.parse(varargin{:});
+
+            if p.Results.Amplifier
+			    obj.Amplifier = [];
+            end
+            if p.Results.BoardDigIn
+			    obj.BoardDigIn = [];
+            end
+            if p.Results.BoardADC
+			    obj.BoardADC = [];
+            end
+            if p.Results.Spikes
+                obj.Spikes = [];
+            end
 			mem = memory();
 			TetrodeRecording.TTS(['Cached data cleared. System memory: ', num2str(round(mem.MemUsedMATLAB/1024^2)), ' MB used (', num2str(round(mem.MemAvailableAllArrays/1024^2)), ' MB available).\n']);
 		end
@@ -6020,22 +6427,28 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function [eventOn, eventOff] = FindEdges(event, t)
-			if ischar(event)
-				grad = diff(['0', event]);
-			else
-				grad = diff([0, event]);
-			end
-			eventOn = grad == 1;
-			eventOff = grad == -1;
+        function [eventOn, eventOff] = FindEdges(event, t, varargin)
+            p = inputParser();
+            p.addParameter('StartingHighCountsAsOn', true, @islogical)
+            p.parse(varargin{:})
+            startingHighCountsAsOn = p.Results.StartingHighCountsAsOn;
 
-			if nargin >= 2
-				eventOn = t(eventOn);
-				eventOff = t(eventOff);
-			else
-				eventOn = find(eventOn);
-				eventOff = find(eventOff);
-			end
+            % Convet to digital if needed
+            if ~islogical(event)
+                assert(isnumeric(event));
+                event = event > 0;
+            end
+            eventOn = strfind(event, [false, true]);
+            eventOff = strfind(event, [true, false]);
+
+            if startingHighCountsAsOn && event(1) == true
+                eventOn = [1, eventOn];
+            end
+
+            if ~isempty(t)
+                eventOn = t(eventOn);
+                eventOff = t(eventOff);
+            end
 		end
 
 		function BatchProcessStimData(TR, PTR, varargin)
