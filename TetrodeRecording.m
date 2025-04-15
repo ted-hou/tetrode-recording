@@ -423,10 +423,10 @@ classdef TetrodeRecording < handle
 %                 assert(isequal(size(obj.IMEC.Data), [1, obj.IMEC.NumSamplesRead]));
                 [imecSyncOn, imecSyncOff] = obj.FindEdges(obj.IMEC.Data, obj.IMEC.Timestamps, StartingHighCountsAsOn=false);
 
-                nidqSync = [obj.DigitalEvents.SyncOn(:), obj.DigitalEvents.SyncOff(:)]';
+                nidqSync = sort([obj.DigitalEvents.SyncOn(:)', obj.DigitalEvents.SyncOff(:)'], 'ascend');
                 nidqSync = [0, nidqSync(:)'];
 
-                imecSync = [imecSyncOn(:), imecSyncOff(:)]';
+                imecSync = sort([imecSyncOn(:)', imecSyncOff(:)'], 'ascend');
                 imecSync = [0, imecSync(:)'];
 
                 % Correct NI(DigitalEvents) timestamps to IMEC(spike) timestamps
