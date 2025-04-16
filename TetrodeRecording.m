@@ -1089,8 +1089,8 @@ classdef TetrodeRecording < handle
             meta = obj.ReadNeuropixelMeta();
 
             % Then, read NIDAQ
-            nChannelsInFile = str2double(meta.nidq.nSavedChans);
-            assert(nChannelsInFile==3) % 1:2 analog, 3 digital
+            nChannelsInFile = str2double(meta.nidq.nSavedChans); % 1 to end-1: analog (int16), end: all digital channels (as one int16)
+%             assert(nChannelsInFile==3) % 1:2 analog, 3 digital
             nSamplesInFile = str2double(meta.nidq.fileSizeBytes) / (2*nChannelsInFile);
             sampleRate = str2double(meta.nidq.niSampRate);
             obj.NIDQ.SampleRate = sampleRate;
