@@ -315,22 +315,87 @@ classdef TetrodeRecording < handle
                 mkdir(pathName);
             end
             for i = 1:length(obj.Spikes)
-                channelIndex = obj.Spikes(i).Channel;
+                iChannel = obj.Spikes(i).Channel;
                 spikes = obj.Spikes(i);
                 if ~isempty(chunkIndex)
-                    fileName = sprintf('%s_Chn%03i_%06i.mat', expName, channelIndex, chunkIndex);
+                    fileName = sprintf('%s_Chn%03i_%06i.mat', expName, iChannel, chunkIndex);
                 else
-                    fileName = sprintf('%s_Chn%03i.mat', expName, channelIndex);
+                    fileName = sprintf('%s_Chn%03i.mat', expName, iChannel);
                 end
                 save(fullfile(pathName, fileName), 'spikes', '-mat')
             end
             obj.Path.SavedSpikes = pathName;
         end
 
-        function LoadSpikes(obj, varargin)
-        end
+        function LoadSpikes(obj, channels, varargin)
+            p = inputParser();
+            p.addRequired('Channels', @isnumeric);
+            p.addParameter('Path', 'Spikes', @ischar)
+            p.parse(channels, varargin{:});
+            channels = p.Results.Channels;
+            path = p.Results.Path;
 
-        function MergeSavedSpikes(obj, varargin)
+            if ~exist(path, 'dir')
+                path = fullfile(obj.Path.nidq, path);
+                if ~exist(path, 'dir')
+                    error('Cannot locate folder: %s', path);
+                end
+            end
+
+            expName = obj.GetExpName(includeSuffix=false);
+            for iChannel = channels(:)'
+                files = dir(fullfile(path, sprintf('%s_Chn%03i*.mat', expName, iChannel)));
+                if isempty(files)
+                    warning('No spike files found for channels %i', iChannel);
+                    continue
+                end
+
+                % clear existing
+                if ~isempty(obj.Spikes) && length(obj.Spikes) >= iChannel
+                    chunk = load(fullfile(files(1).folder, files(1).name), 'spikes');
+                    for fn = string(fieldnames(chunk.spikes))'
+                        if isfield(obj.Spikes(iChannel), fn) && ~isempty(obj.Spikes(iChannel).(fn))
+                            obj.Spikes(iChannel).(fn) = [];
+                            warning('Data in Spikes(%i).%s is being overwritten.', iChannel, fn)
+                        end
+                    end
+                end
+
+                for iChunk = 1:length(files)
+                    chunk = load(fullfile(files(iChunk).folder, files(iChunk).name), 'spikes');
+                    if isempty(obj.Spikes) || length(obj.Spikes) < iChannel || ~isfield(obj.Spikes, 'Timestamps') || isempty(obj.Spikes(iChannel).Timestamps)
+                        for fn = string(fieldnames(chunk.spikes))'
+                            obj.Spikes(iChannel).(fn) = chunk.spikes.(fn);
+                        end
+                    else
+                        for fn = string(fieldnames(chunk.spikes))'
+                            switch fn  
+                                case 'Channel'
+                                    assert(chunk.spikes.Channel == iChannel)
+                                    assert(chunk.spikes.Channel == obj.Spikes(iChannel).Channel)
+                                case {'SampleIndex', 'Timestamps'}
+                                    obj.Spikes(iChannel).(fn) = horzcat(obj.Spikes(iChannel).(fn), chunk.spikes.(fn));
+                                case 'Waveforms'
+                                    obj.Spikes(iChannel).(fn) = vertcat(obj.Spikes(iChannel).(fn), chunk.spikes.(fn));
+                                case {'WaveformTimestamps', 'WaveformWindow'}
+                                    assert(isequal(obj.Spikes(iChannel).(fn), chunk.spikes.(fn)), 'Values in field "%s" should be equal across chunks.', fn)
+                                case 'Threshold'
+                                    for subfn = string(fieldnames(chunk.spikes.Threshold))'
+                                        if isnumeric(chunk.spikes.Threshold.(subfn))
+                                            obj.Spikes(iChannel).Threshold.(subfn) = horzcat(obj.Spikes(iChannel).Threshold.(subfn), chunk.spikes.Threshold.(subfn));
+                                        elseif ischar(chunk.spikes.Threshold.(subfn))
+                                            obj.Spikes(iChannel).Threshold.(subfn) = horzcat(string(obj.Spikes(iChannel).Threshold.(subfn)), string(chunk.spikes.Threshold.(subfn)));                                            
+                                        else
+                                            error('Unsupported field type for Threshold.%s', subfn);
+                                        end
+                                    end
+                                otherwise
+                                    error('Unknown field name %s', fn)
+                            end
+                        end
+                    end
+                end
+            end
         end
 
         function SaveNeuropixelIO(obj, varargin)
@@ -1706,12 +1771,17 @@ classdef TetrodeRecording < handle
 			for iChannel = channels
 				if isempty(obj.Spikes(iChannel).Waveforms)
 					continue
-				end
-				iWaveformToDiscard = sum(isnan(obj.Spikes(iChannel).Waveforms), 2) > 0;
-				obj.Spikes(iChannel).Waveforms(iWaveformToDiscard, :) = [];
-				obj.Spikes(iChannel).Timestamps(iWaveformToDiscard) = [];
-				obj.Spikes(iChannel).SampleIndex(iWaveformToDiscard) = [];
-			end
+                end
+				iWaveformToDiscard = any(isnan(obj.Spikes(iChannel).Waveforms), 2);
+                lineLength = fprintf('Removing %i spike waveforms containing NaNs from channel %i.\n', nnz(iWaveformToDiscard), iChannel);
+                if nnz(iWaveformToDiscard) > 0
+				    obj.Spikes(iChannel).Waveforms(iWaveformToDiscard, :) = [];
+				    obj.Spikes(iChannel).Timestamps(iWaveformToDiscard) = [];
+				    obj.Spikes(iChannel).SampleIndex(iWaveformToDiscard) = [];
+                end
+%                 fprintf(repmat('\b', 1, lineLength))
+            end
+            fprintf('\n')
 		end
 
 		function FeatureExtract(obj, channels, varargin)
@@ -3101,7 +3171,7 @@ classdef TetrodeRecording < handle
 
 			expName = obj.GetExpName();
 
-			hFigure	= figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'Name', expName, 'DefaultAxesFontSize', fontSize,...
+			hFigure	= figure('Units', 'Normalized', 'OuterPosition', [0, 0, 1, 1], 'Name', expName, 'DefaultAxesFontSize', fontSize,...
 				'GraphicsSmoothing', 'off');
 			hFigure.UserData.SelectedChannels = false(nChannels, 1);
 			hAxes = gobjects(1, nChannels);
