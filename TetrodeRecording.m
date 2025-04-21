@@ -3724,7 +3724,7 @@ classdef TetrodeRecording < handle
 			if ~isempty(h.Figure)
 				clf(h.Figure)
 			else
-				h.Figure = figure('Units', 'Normalized', 'Position', [0, 0, 1, 1], 'GraphicsSmoothing', 'on');
+				h.Figure = figure('Units', 'Normalized', 'OuterPosition', [0, 0, 1, 1], 'GraphicsSmoothing', 'on');
 				h.Figure.UserData.PlotMean = true;
 				h.Figure.UserData.ReferenceCluster = referenceCluster;
                 h.Figure.UserData.PlotRefreshEnabled = true;
