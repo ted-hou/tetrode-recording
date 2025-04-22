@@ -6566,8 +6566,8 @@ classdef TetrodeRecording < handle
                 assert(isnumeric(event));
                 event = event > 0;
             end
-            eventOn = strfind(event, [false, true]);
-            eventOff = strfind(event, [true, false]);
+            eventOn = strfind(event, [false, true]) + 1;
+            eventOff = strfind(event, [true, false]) + 1;
 
             if startingHighCountsAsOn && event(1) == true
                 eventOn = [1, eventOn];
