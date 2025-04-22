@@ -274,7 +274,7 @@ classdef TetrodeRecording < handle
                             eof = obj.ReadIMEC(Channels=channels, TimeWindow=timeWindow, ReadMode='preallocate');
                             if detectSpikes
                                 obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), NumSigmas=numSigmas, NumSigmasReturn=numSigmasReturn, NumSigmasReject=numSigmasReject, ...
-                                    WaveformWindow=waveformWindow, Direction=direction, Append=false, MaxMicroVolts=1000, MinThresholdMicroVolts=5);
+                                    WaveformWindow=waveformWindow, Direction=direction, Append=false, MaxMicroVolts=400, MinThresholdMicroVolts=5);
                                 obj.SaveSpikes(ChunkIndex=chunkIndex);
                                 obj.ClearCache(Spikes=true);
                             else
@@ -294,7 +294,7 @@ classdef TetrodeRecording < handle
                         obj.ReadIMEC(Channels=channels, Duration=duration, ReadMode='simple');
                         if detectSpikes
                             obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), NumSigmas=numSigmas, NumSigmasReturn=numSigmasReturn, NumSigmasReject=numSigmasReject, ...
-                                WaveformWindow=waveformWindow, Direction=direction, Append=false);
+                                WaveformWindow=waveformWindow, Direction=direction, Append=false, MaxMicroVolts=400, MinThresholdMicroVolts=5);
                         end
                         obj.ReadNIDQ(Duration=duration, ReadMode='single');
                     end
@@ -450,10 +450,12 @@ classdef TetrodeRecording < handle
 			p.addParameter('DigitalChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'Cue', 4; 'Press', 2; 'Lick', 3; 'Reward', 5}
 			p.addParameter('AnalogChannels', 'auto', @(x) iscell(x) || ischar(x)); % 'auto', or custom, e.g. {'AccX', 1; 'AccY', 2; 'AccZ', 3;}            
             p.addParameter('Sync', true, @islogical); % True to synchronize NIDQ to IMEC using the Sync channels (0.5Hz square waves).
+            p.addParameter('StimAnalogThreshold', 0.1, @isnumeric); % Set to number (volts) to parse two analog channels into StimOn, StimOff events
             p.parse(varargin{:});
             digitalChannels = p.Results.DigitalChannels;
             analogChannels = p.Results.AnalogChannels;
             sync = p.Results.Sync;
+            stimAnalogThreshold = p.Results.StimAnalogThreshold;
 
             if strcmpi(digitalChannels, 'auto')
                 digitalChannels = {'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Mot1Busy', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7};
@@ -475,10 +477,10 @@ classdef TetrodeRecording < handle
             assert(max([analogChannels{:, 2}])+2 == size(obj.NIDQ.Data, 1), 'Not implemented: please read all analog input channels 0 to %i.', size(obj.NIDQ.Data, 1)-2)
 
             obj.AnalogIn.ChannelNames = cell(size(analogChannels, 1), 1);
-            obj.AnalogIn.ChannelIndex = cell(size(analogChannels, 1), 1);
+            obj.AnalogIn.ChannelIndex = NaN(size(analogChannels, 1), 1);
             for i = 1:size(analogChannels, 1)
                 obj.AnalogIn.ChannelNames{i} = analogChannels{i, 1};
-                obj.AnalogIn.ChannelIndex{i} = analogChannels{i, 2} + 1;
+                obj.AnalogIn.ChannelIndex(i) = analogChannels{i, 2} + 1;
             end
             meta = obj.ReadNeuropixelMeta();
             obj.AnalogIn.Data = SGLX_readMeta.GainCorrectNI(double(obj.NIDQ.Data(1:end-1, :)), 1 : size(obj.NIDQ.Data, 1)-1, meta.nidq);
@@ -506,6 +508,25 @@ classdef TetrodeRecording < handle
 
                 % Correct NI(Analog) timestamps to IMEC(spike) timestamps
                 obj.AnalogIn.Timestamps = interp1(nidqSync, imecSync, obj.AnalogIn.Timestamps, 'linear', 'extrap');
+            end
+
+            % Detect stim events
+            if ~isempty(stimAnalogThreshold) && ~isnan(stimAnalogThreshold)
+                stimOn = [];
+                stimOff = [];
+                for iChannel = 1:length(obj.AnalogIn.ChannelNames)
+                    channelName = obj.AnalogIn.ChannelNames{iChannel};
+                    channelIndex = obj.AnalogIn.ChannelIndex(iChannel);
+                    if ~ismember(channelName, {'LaserModBlue', 'LaserModRed', 'LEDModBlue', 'LEDModRed', 'StimModBlue', 'StimModRed', 'Stim1', 'Stim2'})
+                        warning('Analog input channel %i "%s" not parsed as stim. To parse as stim, it''s name must be one of {''LaserModBlue'', ''LaserModRed'', ''LEDModBlue'', ''LEDModRed'', ''StimModBlue'', ''StimModRed'', ''Stim1'', ''Stim2''}.', channelIndex, channelName);
+                        continue
+                    end
+                    [obj.DigitalEvents.(sprintf('%sOn', channelName)), obj.DigitalEvents.(sprintf('%sOff', channelName))] = obj.FindEdges(obj.AnalogIn.Data(channelIndex, :) >= stimAnalogThreshold, obj.AnalogIn.Timestamps, StartingHighCountsAsOn=true);
+                    stimOn = horzcat(stimOn, obj.DigitalEvents.(sprintf('%sOn', channelName)));
+                    stimOff = horzcat(stimOff, obj.DigitalEvents.(sprintf('%sOff', channelName)));
+                end
+                obj.DigitalEvents.StimOn = sort(stimOn, 'ascend');
+                obj.DigitalEvents.StimOff = sort(stimOff, 'ascend');
             end
         end
 
@@ -1709,6 +1730,33 @@ classdef TetrodeRecording < handle
             stats.prct95 = prctile(waveforms, 95, 1);
         end
         
+        function SpikeCullHighVoltage(obj, channels, threshold)
+            p = inputParser();
+			p.addRequired('Channels', @isnumeric); % Default to all
+			p.addRequired('Threshold', @isnumeric); % Threshold in microvolts
+            p.parse(channels, threshold);
+			channels = p.Results.Channels;
+			threshold = p.Results.Threshold;
+
+            if isempty(channels)
+                channels = [obj.Spikes.Channel];
+            end
+
+            if isempty(threshold) || isnan(threshold)
+                return
+            end
+
+            for iChn = channels(:)'
+                toCull = max(abs(obj.Spikes(iChn).Waveforms), [], 2) > threshold;
+                obj.Spikes(iChn).SampleIndex(toCull) = [];
+                obj.Spikes(iChn).Timestamps(toCull) = [];
+                obj.Spikes(iChn).Waveforms(toCull, :) = [];
+                obj.Spikes(iChn).Feature.Coeff(toCull, :) = [];
+                obj.Spikes(iChn).Cluster.Classes(toCull) = [];       
+                fprintf(1, 'Culled %i waveforms with peak magnitude > %.4f uV from chn %i\n', nnz(toCull), threshold, iChn);                
+            end
+        end
+
         function SpikeCullLowISI(obj, channels, varargin)
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric); % Default to all
@@ -2749,10 +2797,13 @@ classdef TetrodeRecording < handle
                         iPulseEnd = find(pulseOrder == iPulseEnd);
                         pulseWidth = tce.Log(iTrain).params.pulseWidth;
                         switch tce.Log(iTrain).wavelength
-                            case 473
+                            case {473, 470, 465}
                                 color = [0.2, 0.2, 0.8];
-                            case 593
+                            case {593, 635}
                                 color = [0.8, 0.2, 0.2];
+                            otherwise
+                                color = [0.2, 0.2, 0.2];
+                                warning('Cannot assign color to unknown wavelength %g, using gray instead', tce.Log(iTrain).wavelength)
                         end
                         alpha = 0.2 + 0.6*((tce.Log(iTrain).params.iPower - 1)./(length(tce.Params.targetPowers) - 1));
                         patch(hAxes, 1e3*[0, pulseWidth, pulseWidth, 0], [iPulseStart, iPulseStart, iPulseEnd, iPulseEnd], color, ...
@@ -2818,11 +2869,18 @@ classdef TetrodeRecording < handle
             p.addParameter('pulseWidthErrorMargin', 1e-3, @isnumeric)
             p.parse(varargin{:})
 
-            if strcmpi(obj.Path(1:3), 'Z:\')
-                obj.Path = strrep(obj.Path, 'Z:\', 'C:\SERVER\');
+            if strcmpi(obj.System, 'intan')
+                if strcmpi(obj.Path(1:3), 'Z:\')
+                    obj.Path = strrep(obj.Path, 'Z:\', 'C:\SERVER\');
+                end
+                file = dir(sprintf('%s\\..\\%s.mat', obj.Path, obj.GetExpName(includeSuffix=false)));
+                assert(~isempty(file), 'Cannot find file %s', sprintf('%s\\..\\%s.mat', obj.Path, obj.GetExpName(includeSuffix=false)))
+            elseif strcmpi(obj.System, 'neuropixel')
+                file = dir(fullfile(obj.Path.nidq, sprintf('..\\..\\%s.mat', obj.GetExpName(includeSuffix=false))));
+                assert(~isempty(file), 'Cannot find file %s', fullfile(obj.Path.nidq, sprintf('..\\..\\%s.mat', obj.GetExpName(includeSuffix=false))))
+            else
+                error();
             end
-            file = dir(sprintf('%s\\..\\%s.mat', obj.Path, obj.GetExpName(includeSuffix=false)));
-            assert(~isempty(file), 'Cannot find file %s', sprintf('%s\\..\\%s.mat', obj.Path, obj.GetExpName(includeSuffix=false)))
 
             tce = load(sprintf('%s\\%s', file.folder, file.name));
             tce = tce.obj;
@@ -3200,7 +3258,7 @@ classdef TetrodeRecording < handle
 				end
 
 
-				hAxes(iChannel)	= subplot(8, 16, iChannel);
+				hAxes(iChannel)	= subplot(8, 16, iChannel - channels(1) + 1);
                 hAxes(iChannel).ContextMenu = cm;
                 obj.PlotAllChannels_PlotSingle(hAxes(iChannel), iChannel, p)
 			end
