@@ -306,11 +306,12 @@ classdef TetrodeRecording < handle
         function SaveSpikes(obj, varargin)
             p = inputParser();
             p.addParameter('ChunkIndex', [], @isnumeric);
+            p.addParameter('Path', 'Spikes', @ischar)
             p.parse(varargin{:});
             chunkIndex = p.Results.ChunkIndex;
 
             expName = obj.GetExpName(includeSuffix=false);
-            pathName = fullfile(obj.Path.nidq, 'Spikes');
+            pathName = fullfile(obj.Path.nidq, p.Results.Path);
             if ~exist(pathName, 'dir')
                 mkdir(pathName);
             end
@@ -1100,7 +1101,7 @@ classdef TetrodeRecording < handle
 
             % First, read IMEC
             nChannelsInFile = str2double(meta.imec.nSavedChans);
-            assert(nChannelsInFile==385) % 384 neural, 1 digital where bit 6 is sync
+            assert(nChannelsInFile==385) % 384 neural, 1 digital where bit 6 (7 in MATLAB) is sync
             assert(isequal(channels, 1:384), 'Channel skipping is not implemented.')
             nSamplesInFile = str2double(meta.imec.fileSizeBytes) / (2*nChannelsInFile);
             sampleRate = str2double(meta.imec.imSampRate);
