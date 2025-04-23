@@ -274,7 +274,7 @@ classdef TetrodeRecording < handle
                             eof = obj.ReadIMEC(Channels=channels, TimeWindow=timeWindow, ReadMode='preallocate');
                             if detectSpikes
                                 obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), NumSigmas=numSigmas, NumSigmasReturn=numSigmasReturn, NumSigmasReject=numSigmasReject, ...
-                                    WaveformWindow=waveformWindow, Direction=direction, Append=false, MaxMicroVolts=400, MinThresholdMicroVolts=5);
+                                    WaveformWindow=waveformWindow, Direction=direction, Append=false, MaxMicroVolts=500, MinThresholdMicroVolts=5, MaxThresholdMicroVolts=75);
                                 obj.SaveSpikes(ChunkIndex=chunkIndex);
                                 obj.ClearCache(Spikes=true);
                             else
@@ -294,7 +294,7 @@ classdef TetrodeRecording < handle
                         obj.ReadIMEC(Channels=channels, Duration=duration, ReadMode='simple');
                         if detectSpikes
                             obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), NumSigmas=numSigmas, NumSigmasReturn=numSigmasReturn, NumSigmasReject=numSigmasReject, ...
-                                WaveformWindow=waveformWindow, Direction=direction, Append=false, MaxMicroVolts=400, MinThresholdMicroVolts=5);
+                                WaveformWindow=waveformWindow, Direction=direction, Append=false, MaxMicroVolts=400, MinThresholdMicroVolts=5, MaxThresholdMicroVolts=75);
                         end
                         obj.ReadNIDQ(Duration=duration, ReadMode='single');
                     end
@@ -1406,6 +1406,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Append', false, @islogical);
             addParameter(p, 'MaxMicroVolts', Inf, @isnumeric);
             addParameter(p, 'MinThresholdMicroVolts', 0, @isnumeric);
+            addParameter(p, 'MaxThresholdMicroVolts', Inf, @isnumeric);
 			parse(p, channels, varargin{:});
 			channels 		= p.Results.Channels;
 			numSigmas 		= p.Results.NumSigmas;
@@ -1416,6 +1417,7 @@ classdef TetrodeRecording < handle
 			append 			= p.Results.Append;
 			maxMicroVolts 	= p.Results.MaxMicroVolts;
             minThreshold    = p.Results.MinThresholdMicroVolts;
+            maxThreshold    = p.Results.MaxThresholdMicroVolts;
 
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
 
@@ -1425,6 +1427,7 @@ classdef TetrodeRecording < handle
                 cleanedSignal = cleanedSignal(cleanedSignal <= maxMicroVolts);
 				sigma = median(cleanedSignal, 'all', 'omitnan')/0.6745;
 				threshold = max(minThreshold, numSigmas*sigma);
+                threshold = min(maxThreshold, threshold);
 				switch lower(directionMode)
 					case 'negative'
 						direction = -1;

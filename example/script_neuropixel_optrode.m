@@ -1,7 +1,7 @@
 %% Spike detection
 tr = TetrodeRecording;
 tr.SelectFiles();
-tr.ReadFiles(Duration=120, NumSigmas=4, NumSigmasReturn=1.25, NumSigmasReject=20, WaveformWindow=[-1, 1])
+tr.ReadFiles(Duration=120, NumSigmas=3, NumSigmasReturn=1.5, NumSigmasReject=20, WaveformWindow=[-0.5, 1])
 tr.SaveNeuropixelIO()
 %% Read detected spikes and NIDQ digital/analog channels
 tr.LoadNeuropixelIO();
