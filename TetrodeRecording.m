@@ -268,7 +268,7 @@ classdef TetrodeRecording < handle
                             eof = obj.ReadIMEC(Channels=channels, TimeWindow=timeWindow, ReadMode='preallocate');
                             if detectSpikes
                                 obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), NumSigmas=numSigmas, NumSigmasReturn=numSigmasReturn, NumSigmasReject=numSigmasReject, ...
-                                    WaveformWindow=waveformWindow, Direction=direction, Append=false, MaxMicroVolts=750, MinThresholdMicroVolts=55, MaxThresholdMicroVolts=100);
+                                    WaveformWindow=waveformWindow, Direction=direction, Append=false, MaxMicroVolts=750, MinThresholdMicroVolts=45, MaxThresholdMicroVolts=75, UseClampedThresholdInsteadOfSigma=true);
                                 obj.SaveSpikes(ChunkIndex=chunkIndex);
                                 obj.ClearCache(Spikes=true);
                             else
@@ -288,7 +288,7 @@ classdef TetrodeRecording < handle
                         obj.ReadIMEC(Channels=channels, Duration=duration, ReadMode='simple');
                         if detectSpikes
                             obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), NumSigmas=numSigmas, NumSigmasReturn=numSigmasReturn, NumSigmasReject=numSigmasReject, ...
-                                WaveformWindow=waveformWindow, Direction=direction, Append=false, MaxMicroVolts=750, MinThresholdMicroVolts=55, MaxThresholdMicroVolts=100);
+                                WaveformWindow=waveformWindow, Direction=direction, Append=false, MaxMicroVolts=750, MinThresholdMicroVolts=45, MaxThresholdMicroVolts=75, UseClampedThresholdInsteadOfSigma=true);
                         end
                         obj.ReadNIDQ(Duration=duration, ReadMode='single');
                     end
@@ -1409,6 +1409,7 @@ classdef TetrodeRecording < handle
             addParameter(p, 'MaxMicroVolts', Inf, @isnumeric);
             addParameter(p, 'MinThresholdMicroVolts', 0, @isnumeric);
             addParameter(p, 'MaxThresholdMicroVolts', Inf, @isnumeric);
+            addParameter(p, 'UseClampedThresholdInsteadOfSigma', true, @islogical);
 			parse(p, channels, varargin{:});
 			channels 		= p.Results.Channels;
 			numSigmas 		= p.Results.NumSigmas;
@@ -1420,6 +1421,7 @@ classdef TetrodeRecording < handle
 			maxMicroVolts 	= p.Results.MaxMicroVolts;
             minThreshold    = p.Results.MinThresholdMicroVolts;
             maxThreshold    = p.Results.MaxThresholdMicroVolts;
+            useClampedThresholdInsteadOfSigma = p.Results.UseClampedThresholdInsteadOfSigma;
 
 			sampleRate = obj.FrequencyParameters.AmplifierSampleRate/1000;
 
@@ -1430,6 +1432,17 @@ classdef TetrodeRecording < handle
 				sigma = median(cleanedSignal, 'all', 'omitnan')/0.6745;
 				threshold = max(minThreshold, numSigmas*sigma);
                 threshold = min(maxThreshold, threshold);
+                thresholdReturn = numSigmasReturn*sigma;
+                thresholdReject = numSigmasReject*sigma;
+                if useClampedThresholdInsteadOfSigma
+                    if ~isempty(thresholdReturn)
+                        thresholdReturn = threshold * numSigmasReturn / numSigmas;
+                    end
+                    if ~isempty(thresholdReject)
+                        thresholdReject = threshold * numSigmasReject / numSigmas;
+                    end
+                end
+
 				switch lower(directionMode)
 					case 'negative'
 						direction = -1;
@@ -1458,9 +1471,9 @@ classdef TetrodeRecording < handle
 				% Reject waveforms that do not return to a certain level after crossing threshold
 				if ~isempty(numSigmasReturn)
 					if direction > 0
-						selected = min(waveforms(:, t > 0), [], 2) <= numSigmasReturn*sigma;
+						selected = min(waveforms(:, t > 0), [], 2) <= thresholdReturn;
 					else
-						selected = max(waveforms(:, t > 0), [], 2) >= -numSigmasReturn*sigma;
+						selected = max(waveforms(:, t > 0), [], 2) >= -thresholdReturn;
 					end
 					waveforms = waveforms(selected, :);
 					timestamps = timestamps(selected);
@@ -1469,7 +1482,7 @@ classdef TetrodeRecording < handle
 
 				% Reject waveforms that exceed a threshold
 				if ~isempty(numSigmasReject)
-					selected = max(abs(waveforms), [], 2) < abs(numSigmasReject*sigma) | max(abs(waveforms), [], 2) < maxMicroVolts;
+					selected = max(abs(waveforms), [], 2) < abs(thresholdReject) | max(abs(waveforms), [], 2) < maxMicroVolts;
 					waveforms = waveforms(selected, :);
 					timestamps = timestamps(selected);
 					sampleIndex = sampleIndex(selected);
@@ -1496,8 +1509,8 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).Threshold.NumSigmasReturn = numSigmasReturn;
 					obj.Spikes(iChannel).Threshold.NumSigmasReject = numSigmasReject;
 					obj.Spikes(iChannel).Threshold.Threshold = direction*threshold;
-					obj.Spikes(iChannel).Threshold.ThresholdReturn = direction*numSigmasReturn*sigma;
-					obj.Spikes(iChannel).Threshold.ThresholdReject = [abs(numSigmasReject*sigma); -abs(numSigmasReject*sigma)];
+					obj.Spikes(iChannel).Threshold.ThresholdReturn = direction*thresholdReturn;
+					obj.Spikes(iChannel).Threshold.ThresholdReject = [abs(thresholdReject); -abs(thresholdReject)];
 					obj.Spikes(iChannel).Threshold.Direction = directionMode;
                 else
                     if strcmpi(obj.System, 'neuropixel')
@@ -1508,8 +1521,8 @@ classdef TetrodeRecording < handle
 					obj.Spikes(iChannel).Timestamps = [obj.Spikes(iChannel).Timestamps, timestamps];
 					obj.Spikes(iChannel).Waveforms = [obj.Spikes(iChannel).Waveforms; waveforms];
 					obj.Spikes(iChannel).Threshold.Threshold = [obj.Spikes(iChannel).Threshold.Threshold, direction*threshold];
-					obj.Spikes(iChannel).Threshold.ThresholdReturn = [obj.Spikes(iChannel).Threshold.ThresholdReturn, direction*numSigmasReturn*sigma];
-					obj.Spikes(iChannel).Threshold.ThresholdReject = [obj.Spikes(iChannel).Threshold.ThresholdReject, [abs(numSigmasReject*sigma); -abs(numSigmasReject*sigma)]];
+					obj.Spikes(iChannel).Threshold.ThresholdReturn = [obj.Spikes(iChannel).Threshold.ThresholdReturn, direction*thresholdReturn];
+					obj.Spikes(iChannel).Threshold.ThresholdReject = [obj.Spikes(iChannel).Threshold.ThresholdReject, [abs(thresholdReject); -abs(thresholdReject)]];
                 end
 
                 fprintf(repmat('\b', 1, lineLength))
