@@ -305,9 +305,11 @@ classdef TetrodeRecording < handle
 
         function SaveSpikes(obj, varargin)
             p = inputParser();
+            p.addParameter('Channels', [], @isnumeric);
             p.addParameter('ChunkIndex', [], @isnumeric);
             p.addParameter('Path', 'Spikes', @ischar)
             p.parse(varargin{:});
+            channels = p.Results.Channels;
             chunkIndex = p.Results.ChunkIndex;
 
             expName = obj.GetExpName(includeSuffix=false);
@@ -317,6 +319,12 @@ classdef TetrodeRecording < handle
             end
             for i = 1:length(obj.Spikes)
                 iChannel = obj.Spikes(i).Channel;
+                if isempty(iChannel)
+                    continue
+                end
+                if ~isempty(channels) && ~ismember(iChannel, channels)
+                    continue
+                end
                 spikes = obj.Spikes(i);
                 if ~isempty(chunkIndex)
                     fileName = sprintf('%s_Chn%03i_%06i.mat', expName, iChannel, chunkIndex);
