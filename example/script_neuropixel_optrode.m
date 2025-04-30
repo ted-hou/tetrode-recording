@@ -17,14 +17,15 @@ tr.LoadSpikes(1:384, Path='Spikes_AutoSorted');
 %%
 tr.SaveSpikes(Channels=1:128, Path='Spikes_Sorted');
 tr.SaveSpikes(Channels=129:256, Path='Spikes_Sorted');
+tr.SaveSpikes(Channels=257:384, Path='Spikes_Sorted');
 
 %% Load sorted data on a different PC
 tr = TetrodeRecording();
 tr.SelectFiles();
 tr.LoadNeuropixelIO();
 tr.ParseNeuropixelIO();
-tr.LoadSpikes(1:384, Path='Spikes');
+tr.LoadSpikes(129:256, Path='Spikes_AutoSorted');
 
 %%
-tr.PlotAllChannels(Channels=1:128, plotMethod='mean')
-tr.SaveSpikes()
+tr.PlotAllChannels(Channels=129:256, plotMethod='mean')
+tr.SaveSpikes(Channels=1:128, Path='Spikes_Sorted')

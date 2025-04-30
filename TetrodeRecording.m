@@ -3535,7 +3535,11 @@ classdef TetrodeRecording < handle
                 delete(ax)
                 return
             end
-            
+
+            if isempty(obj.Spikes(channel).Channel)
+                delete(ax)
+                return
+            end
             % Delete cluster
             if ~isempty(ax.UserData.ToDeleteClusters)
                 % Delete cluster
