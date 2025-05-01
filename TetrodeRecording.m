@@ -1776,11 +1776,41 @@ classdef TetrodeRecording < handle
             end
         end
 
+        function SpikeCullLowSpikeRateClusters(obj, channels, varargin)
+            p = inputParser();
+            p.addRequired('Channels', @isnumeric);
+            p.addParameter('MinSpikeRate', 0.5, @isnumeric);
+            p.parse(channels, varargin{:});
+            channels = p.Results.Channels;
+            minSpikeRate = p.Results.MinSpikeRate;
+
+            if isempty(channels)
+                channels = [obj.Spikes.Channel];
+            end
+
+            for iChn = channels(:)'
+                sessionLength = obj.Spikes(iChn).Timestamps(end);
+                clusters = unique(obj.Spikes(iChn).Cluster.Classes);
+                clustersToCull = [];
+                for iCluster = clusters(:)'
+                    spikeRate = nnz(obj.Spikes(iChn).Cluster.Classes == iCluster) / sessionLength;
+                    if spikeRate < minSpikeRate
+                        clustersToCull = [clustersToCull, iCluster];
+                    end
+                end
+
+                if ~isempty(clustersToCull)
+                    obj.ClusterRemove(iChn, clustersToCull);
+                    fprintf('Removed clusters %s from Channel %i (spike rate < %g sp/s)\n', num2str(clustersToCull), iChn, minSpikeRate);
+                end
+            end
+        end
+
         function SpikeCullLowISI(obj, channels, varargin)
 			p = inputParser;
 			addRequired(p, 'Channels', @isnumeric); % Default to all
 			addParameter(p, 'Clusters', [], @isnumeric); % Default to all, clustered will be combined in ISI analysis
-			addParameter(p, 'MinISI', 0.5, @isnumeric); % Min allowed ISI (ms). After culling, spikes will have ISI >= minISI.
+			addParameter(p, 'MinISI', 0.001, @isnumeric); % Min allowed ISI (ms). After culling, spikes will have ISI >= minISI.
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
 			clusters = p.Results.Clusters;
@@ -4527,7 +4557,7 @@ classdef TetrodeRecording < handle
 
 			if (ok && ~isempty(clusters))
 				clusters = cellfun(@str2num, liststr(clusters));
-                obj.SpikeCullLowISI(iChannel, 'Clusters', clusters, 'MinISI', 0.5);
+                obj.SpikeCullLowISI(iChannel, 'Clusters', clusters, 'MinISI', 0.001);
             end
 			obj.ReplotChannel(iChannel, p, h);
 			obj.GUIBusy(h.Figure, false);
