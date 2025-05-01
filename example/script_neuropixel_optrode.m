@@ -10,9 +10,9 @@ tr.ParseNeuropixelIO();
 
 % Spike sort
 tr.LoadSpikes(1:384);
-tr.SpikeSort(1:384, Dimension=10, FeatureMethod='PCA', WaveformWindow=[-0.5, 1], ClusterMethod='kmeans', NumClusters=3);
+tr.SpikeSort(1:384, Dimension=10, FeatureMethod='PCA', WaveformWindow=[-0.5, 0.5], ClusterMethod='kmeans', NumClusters=3);
 tr.SpikeCullLowSpikeRateClusters(1:384, MinSpikeRate=1);
-tr.SpikeSort(1:384, Dimension=10, FeatureMethod='PCA', WaveformWindow=[-0.5, 1], ClusterMethod='kmeans', NumClusters=3);
+tr.SpikeSort(1:384, Dimension=10, FeatureMethod='PCA', WaveformWindow=[-0.5, 0.5], ClusterMethod='kmeans', NumClusters=3);
 tr.SaveSpikes(Path='Spikes_AutoSorted');
 %%
 tr.LoadSpikes(1:384, Path='Spikes_AutoSorted');
@@ -31,3 +31,12 @@ tr.SpikeSort(257:384, Dimension=10, FeatureMethod='PCA', WaveformWindow=[-0.5, 0
 
 tr.PlotAllChannels(Channels=257:384, plotMethod='mean')
 % tr.SaveSpikes(Channels=1:128, Path='Spikes_Sorted')
+
+
+%%
+for iChannel = [obj.Spikes.Channel]
+    clusters = unique(obj.Spikes(iChannel).Cluster.Classes);
+    if length(clusters) == 1
+        obj.SpikeSort(iChannel, Dimension=10, FeatureMethod='PCA', WaveformWindow=[-0.5, 0.5], ClusterMethod='kmeans', NumClusters=2)
+    end
+end

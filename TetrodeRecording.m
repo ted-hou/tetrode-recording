@@ -1800,8 +1800,14 @@ classdef TetrodeRecording < handle
                 end
 
                 if ~isempty(clustersToCull)
-                    obj.ClusterRemove(iChn, clustersToCull);
-                    fprintf('Removed clusters %s from Channel %i (spike rate < %g sp/s)\n', num2str(clustersToCull), iChn, minSpikeRate);
+                    if isequal(sort(clustersToCull(:)), sort(clusters(:)))
+				        for field = fieldnames(obj.Spikes)'
+					        obj.Spikes(iChannel).(field{1}) = [];
+				        end                        
+                    else
+                        obj.ClusterRemove(iChn, clustersToCull);
+                        fprintf('Removed clusters %s from Channel %i (spike rate < %g sp/s)\n', num2str(clustersToCull), iChn, minSpikeRate);
+                    end
                 end
             end
         end
@@ -3508,7 +3514,9 @@ classdef TetrodeRecording < handle
             ax = gca();
             channel = ax.UserData.Channel;
             
-            answer = inputdlg('Enter new cluster order:', 'Reorder', [1, 50]);
+            cluster = unique(obj.Spikes(channel).Cluster.Classes);
+
+            answer = inputdlg('Enter new cluster order:', 'Reorder', [1, 50], {num2str(flip(cluster))});
 
 			if ~isempty(answer)
 				ax.UserData.ToReorder = str2num(answer{1});
