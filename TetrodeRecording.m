@@ -1893,7 +1893,7 @@ classdef TetrodeRecording < handle
                 if ~isempty(clustersToCull)
                     if isequal(sort(clustersToCull(:)), sort(clusters(:)))
 				        for field = fieldnames(obj.Spikes)'
-					        obj.Spikes(iChannel).(field{1}) = [];
+					        obj.Spikes(iChn).(field{1}) = [];
 				        end                        
                     else
                         obj.ClusterRemove(iChn, clustersToCull);
