@@ -119,8 +119,36 @@ classdef TetrodeRecording < handle
 			end
 		end
 
-		function SelectFiles(obj)
-			[files, path, filterindex] = uigetfile({'*.nev; *.ns*; *.ccf', 'Blackrock Files (*.nev, *.ns*, *.ccf)'; '*.rhd', 'Intan RHD2000 Files (*.rhd)'; '*.ap.bin', 'SpikeGLX Files (*.ap.bin)'}, 'Select files', 'MultiSelect', 'on');
+        function SelectFiles(obj, varargin)
+            p = inputParser();
+            p.addParameter('NeuropixelPath', '', @ischar)
+            p.parse(varargin{:})
+            neuropixelPath = p.Results.NeuropixelPath;
+            
+            if isempty(neuropixelPath)
+			    [files, path, filterindex] = uigetfile({'*.nev; *.ns*; *.ccf', 'Blackrock Files (*.nev, *.ns*, *.ccf)'; '*.rhd', 'Intan RHD2000 Files (*.rhd)'; '*.ap.bin', 'SpikeGLX Files (*.ap.bin)'}, 'Select files', 'MultiSelect', 'on');
+            else
+                if isfile(neuropixelPath)
+                    [path, files, ext] = fileparts(neuropixelPath);
+                    files = strjoin(files, ext, '');
+                    filterindex = 3;
+                elseif isfolder(neuropixelPath)
+                    s = dir(fullfile(neuropixelPath, '*.imec0.ap.bin'));
+                    if isempty(s)
+                        s = dir(fullfile(neuropixelPath, sprintf('**\\*.imec0.ap.bin')));
+                    end
+                    if isempty(s)
+                        s = dir(fullfile(neuropixelPath, sprintf('**\\**\\*.imec0.ap.bin')));
+                    end
+                    assert(~isempty(s), 'Invalid neuropixelPath: ''%s''', neuropixelPath)
+                    path = s.folder;
+                    files = s.name;
+                    filterindex = 3;
+                else
+                    error('Invalid neuropixelPath: ''%s''', neuropixelPath);
+                end
+            end
+
 			switch filterindex
 				case 1
 					obj.System = 'Blackrock';
@@ -1676,6 +1704,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'WaveformWindow', [], @isnumeric);
 			addParameter(p, 'ClusterMethod', 'gaussian', @ischar);
 			addParameter(p, 'NumClusters', 3, @isnumeric);
+			addParameter(p, 'Verbose', true, @islogical);
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
 			dimension = p.Results.Dimension;
@@ -1683,14 +1712,15 @@ classdef TetrodeRecording < handle
 			waveformWindow = p.Results.WaveformWindow;
 			clusterMethod = p.Results.ClusterMethod;
 			numClusters = p.Results.NumClusters;
+            verbose = p.Results.Verbose;
 
 			if isempty(channels)
 				channels = [obj.Spikes.Channel];
 			end
 
-			obj.RemoveNaNs(channels);
-			obj.FeatureExtract(channels, 'WaveformWindow', waveformWindow, 'Method', featureMethod, 'Dimension', dimension);
-			obj.Cluster(channels, 'Method', clusterMethod, 'NumClusters', numClusters);
+			obj.RemoveNaNs(channels, Verbose=verbose);
+			obj.FeatureExtract(channels, 'WaveformWindow', waveformWindow, 'Method', featureMethod, 'Dimension', dimension, 'Verbose', verbose);
+			obj.Cluster(channels, 'Method', clusterMethod, 'NumClusters', numClusters, 'Verbose', verbose);
         end
 
         function SpikeClusterAutoReorder(obj, channels, varargin)
@@ -1698,6 +1728,7 @@ classdef TetrodeRecording < handle
             p.addRequired('Channels', @isnumeric);
             p.addOptional('SortBy', 'range', @(x) ischar(x) && ismember(x, {'range', 'maxabs', 'snr'})); % range: max(mean)-min(mean), maxabs: max(abs(mean)), snr: maxabs / std
             p.addOptional('SortOrder', 'descend', @(x) ischar(x) && ismember(x, {'descend', 'ascend'}));
+            p.addOptional('Verbose', true, @islogical)
             p.parse(channels, varargin{:});
             channels = p.Results.Channels;
             
@@ -1720,9 +1751,19 @@ classdef TetrodeRecording < handle
                     end
                 end
                 [~, I] = sort(stats, p.Results.SortOrder);
-                fprintf(1, sprintf('Reordering spike clusters in channel %i, new order: [%s]...', channel, num2str(I(:)')))
-                obj.SpikeClusterReorder(channel, I);
-                fprintf(1, 'Done.\n')
+                if p.Results.Verbose
+                    fprintf(1, sprintf('Reordering spike clusters in channel %i, new order: [%s]...', channel, num2str(I(:)')))
+                end
+                if ~isequal(I, 1:length(I))
+                    obj.SpikeClusterReorder(channel, I);
+                    if p.Results.Verbose
+                        fprintf(1, 'Done.\n')
+                    end
+                else
+                    if p.Results.Verbose
+                        fprintf(1, 'Identical thus skipped.\n')
+                    end
+                end
             end
         end
 
@@ -1749,6 +1790,55 @@ classdef TetrodeRecording < handle
             stats.prct95 = prctile(waveforms, 95, 1);
         end
         
+        % Garlic peeling to keep splitting and removing low firing rate
+        % clusters (i.e. artifcacts), until all clusters are high firing.
+        % This works if we assume that a real unit (or a real unit + a
+        % noise unit) will just be split down the middle by kmeans, yielding
+        % two high-firning clusters
+        function IterativeArtifactRemoval(obj, channels, varargin)
+            p = inputParser();
+            p.addRequired('Channels', @isnumeric);
+            p.addParameter('MinSpikeRate', 1, @isnumeric);
+            p.addParameter('KIterative', 4, @isnumeric);
+            p.addParameter('KFinal', 2, @isnumeric);
+            p.addParameter('MaxIters', 5, @isnumeric);
+			p.addParameter('DimensionIterative', 3, @isnumeric);
+			p.addParameter('DimensionFinal', 10, @isnumeric);
+			p.addParameter('FeatureMethod', 'PCA', @ischar);
+			p.addParameter('WaveformWindow', [], @isnumeric);
+			p.addParameter('ClusterMethod', 'kmeans', @ischar);
+
+            p.parse(channels, varargin{:})
+            channels = p.Results.Channels;
+            minSpikeRate = p.Results.MinSpikeRate;
+            kIterative = p.Results.KIterative;
+            kFinal = p.Results.KFinal;
+            maxIters = p.Results.MaxIters;
+			dimensionIterative = p.Results.DimensionIterative;
+			dimensionFinal = p.Results.DimensionFinal;
+			featureMethod = p.Results.FeatureMethod;
+			waveformWindow = p.Results.WaveformWindow;
+			clusterMethod = p.Results.ClusterMethod;
+            
+            if isempty(channels)
+                channels = [obj.Spike.Channel];
+            end
+            for iChannel = channels(:)'
+                culledClusters = NaN;
+                iters = 0;
+                tTic = tic();
+                while ~isempty(culledClusters) && iters < maxIters
+                    obj.SpikeSort(iChannel, Dimension=dimensionIterative, FeatureMethod=featureMethod, WaveformWindow=waveformWindow, ClusterMethod=clusterMethod, NumClusters=kIterative, Verbose=false);
+                    culledClusters = obj.SpikeCullLowSpikeRateClusters(iChannel, MinSpikeRate=minSpikeRate);
+                    iters = iters + 1;
+                end
+                obj.SpikeSort(iChannel, Dimension=dimensionFinal, FeatureMethod=featureMethod, WaveformWindow=waveformWindow, ClusterMethod=clusterMethod, NumClusters=kFinal, Verbose=false);
+                fprintf('IterativeArtifactRemoval: Channel %i done after %i iterations (%.2fs)\n', iChannel, iters, toc(tTic));
+            
+                obj.SpikeClusterAutoReorder(iChannel, 'range', 'descend', Verbose=false);
+            end            
+        end
+
         function SpikeCullHighVoltage(obj, channels, threshold)
             p = inputParser();
 			p.addRequired('Channels', @isnumeric); % Default to all
@@ -1776,7 +1866,7 @@ classdef TetrodeRecording < handle
             end
         end
 
-        function SpikeCullLowSpikeRateClusters(obj, channels, varargin)
+        function culledClusters = SpikeCullLowSpikeRateClusters(obj, channels, varargin)
             p = inputParser();
             p.addRequired('Channels', @isnumeric);
             p.addParameter('MinSpikeRate', 0.5, @isnumeric);
@@ -1788,6 +1878,7 @@ classdef TetrodeRecording < handle
                 channels = [obj.Spikes.Channel];
             end
 
+            culledClusters = cell(1, length(channels));
             for iChn = channels(:)'
                 sessionLength = obj.Spikes(iChn).Timestamps(end);
                 clusters = unique(obj.Spikes(iChn).Cluster.Classes);
@@ -1809,6 +1900,12 @@ classdef TetrodeRecording < handle
                         fprintf('Removed clusters %s from Channel %i (spike rate < %g sp/s)\n', num2str(clustersToCull), iChn, minSpikeRate);
                     end
                 end
+
+                culledClusters{iChn} = clustersToCull;
+            end
+
+            if length(channels) == 1
+                culledClusters = culledClusters{1};
             end
         end
 
@@ -1870,13 +1967,18 @@ classdef TetrodeRecording < handle
             xlabel('ms')
         end
         
-		function RemoveNaNs(obj, channels)
+        function RemoveNaNs(obj, channels, varargin)
+            p = inputParser();
+            p.addParameter('Verbose', true, @islogical)
+            p.parse(varargin{:})
 			for iChannel = channels
 				if isempty(obj.Spikes(iChannel).Waveforms)
 					continue
                 end
 				iWaveformToDiscard = any(isnan(obj.Spikes(iChannel).Waveforms), 2);
-                lineLength = fprintf('Removing %i spike waveforms containing NaNs from channel %i.\n', nnz(iWaveformToDiscard), iChannel);
+                if p.Results.Verbose
+                    lineLength = fprintf('Removing %i spike waveforms containing NaNs from channel %i.\n', nnz(iWaveformToDiscard), iChannel);
+                end
                 if nnz(iWaveformToDiscard) > 0
 				    obj.Spikes(iChannel).Waveforms(iWaveformToDiscard, :) = [];
 				    obj.Spikes(iChannel).Timestamps(iWaveformToDiscard) = [];
@@ -1884,7 +1986,9 @@ classdef TetrodeRecording < handle
                 end
 %                 fprintf(repmat('\b', 1, lineLength))
             end
-            fprintf('\n')
+            if p.Results.Verbose
+                fprintf('\n')
+            end
 		end
 
 		function FeatureExtract(obj, channels, varargin)
@@ -1894,12 +1998,14 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Method', 'WaveletTransform', @ischar);
 			addParameter(p, 'WaveDecLevel', 4, @isnumeric);
 			addParameter(p, 'Dimension', 10, @isnumeric);
+			addParameter(p, 'Verbose', true, @islogical);
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
 			waveformWindow = p.Results.WaveformWindow;
 			method = p.Results.Method;
 			waveDecLevel = p.Results.WaveDecLevel;
 			dimension = p.Results.Dimension;
+            verbose = p.Results.Verbose;
 
 			switch lower(method)
 				case 'wavelettransform'
@@ -1910,14 +2016,18 @@ classdef TetrodeRecording < handle
 					error('Unrecognized feature extraction method.')
 			end
 
-			tic, TetrodeRecording.TTS(['	Extracting waveform features (', methodDisplayName, '):\n']);
+            if verbose
+			    tic, TetrodeRecording.TTS(['	Extracting waveform features (', methodDisplayName, '):\n']);
+            end
 
 			for iChannel = channels
 				if isempty(obj.Spikes(iChannel).Waveforms)
 					continue
 				end
 
-				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), '...']);
+                if verbose
+				    tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), '...']);
+                end
 
 				obj.Spikes(iChannel).Feature.Method = method;
 
@@ -1936,7 +2046,9 @@ classdef TetrodeRecording < handle
 						[obj.Spikes(iChannel).Feature.Coeff, obj.Spikes(iChannel).Feature.Stats] = obj.PCA(iChannel, 'WaveformWindow', thisWaveformWindow, 'Dimension', dimension);
 				end
 
-				TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
+                if verbose
+				    TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
+                end
 			end
 		end
 
@@ -2014,12 +2126,14 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Dimension', [], @isnumeric);
 			addParameter(p, 'Clusters', [], @isnumeric);
 			addParameter(p, 'NumClusters', [], @isnumeric);
+			addParameter(p, 'Verbose', true, @islogical);
 			parse(p, channels, varargin{:});
 			channels = p.Results.Channels;
 			method = p.Results.Method;
 			dimension = p.Results.Dimension;
 			clusters = p.Results.Clusters;
 			numClusters = p.Results.NumClusters;
+            verbose = p.Results.Verbose;
 
 			switch lower(method)
 				case 'kmeans'
@@ -2030,8 +2144,10 @@ classdef TetrodeRecording < handle
 					methodDisplayName = 'superparamagnetic';
 				otherwise
 					error('Unrecognized clustering method. Must be ''kmeans'', ''gaussian'', or ''SPC''.')			
-			end			
-			tic, TetrodeRecording.TTS(['	Clustering (', methodDisplayName, '):\n']);
+            end			
+            if verbose
+			    tic, TetrodeRecording.TTS(['	Clustering (', methodDisplayName, '):\n']);
+            end
 			for iChannel = channels
 				numWaveforms = size(obj.Spikes(iChannel).Waveforms, 1);
 
@@ -2053,8 +2169,10 @@ classdef TetrodeRecording < handle
 				obj.Spikes(iChannel).Cluster.Method = method;
 				if isempty(obj.Spikes(iChannel).Waveforms)
 					continue
-				end
-				tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), '...']);
+                end
+                if verbose
+				    tic, TetrodeRecording.TTS(['		Channel ', num2str(iChannel), '...']);
+                end
 				switch lower(method)
 					case 'kmeans'
 						[classesSelected, obj.Spikes(iChannel).Cluster.Stats] = obj.KMeans(iChannel, 'NumClusters', numClusters, 'Dimension', thisDimension, 'SelectedWaveforms', selected);
@@ -2076,7 +2194,9 @@ classdef TetrodeRecording < handle
 				end
 				obj.Spikes(iChannel).Cluster.Classes(selected) = classesSelected;
 
-				TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
+                if verbose
+				    TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
+                end
 			end
 		end
 
