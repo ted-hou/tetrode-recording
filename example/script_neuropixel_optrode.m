@@ -34,7 +34,7 @@ tr = TetrodeRecording();
 tr.SelectFiles();
 tr.LoadNeuropixelIO();
 tr.ParseNeuropixelIO();
-tr.LoadSpikes(1:128, Path='Spikes_AutoSorted');
+tr.LoadSpikes(1:128, Path='Spikes_AutoSortedIterative');
 tr.PlotAllChannels(Channels=1:128, plotMethod='mean')
 % tr.SaveSpikes(Channels=1:128, Path='Spikes_Sorted')
 

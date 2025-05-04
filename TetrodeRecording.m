@@ -1257,7 +1257,7 @@ classdef TetrodeRecording < handle
             assert(isstruct(obj.Files) && isstruct(obj.Path))
 
             for instrument = ["imec", "nidq"]
-                [~, name, ~] = fileparts([obj.Path.(instrument), obj.Files.(instrument)]);
+                [~, name, ~] = fileparts(fullfile(obj.Path.(instrument), obj.Files.(instrument)));
                 metaName = [name, '.meta'];
                 fid = fopen(fullfile(obj.Path.(instrument), metaName), 'r');
                 C = textscan(fid, '%[^=] = %[^\r\n]');
