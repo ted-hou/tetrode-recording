@@ -36,7 +36,19 @@ tr.LoadNeuropixelIO();
 tr.ParseNeuropixelIO();
 
 %%
+channels = 1:128;
+tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
+tr.PlotAllChannels(Channels=channels, plotMethod='mean')
+%%
+tr.SaveSpikes(Channels=channels, Path='Spikes_Sorted')
 channels = 129:256;
+tr.Spikes = [];
+tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
+tr.PlotAllChannels(Channels=channels, plotMethod='mean')
+%%
+tr.SaveSpikes(Channels=channels, Path='Spikes_Sorted')
+channels = 257:384;
+tr.Spikes = [];
 tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
 tr.PlotAllChannels(Channels=channels, plotMethod='mean')
 % tr.SaveSpikes(Channels=channels, Path='Spikes_Sorted')
@@ -89,12 +101,47 @@ for iSession = 1:length(folders)
     end
 end
 
+%% Convert to EphysUnits
+folders = { ...
+%     'C:\SERVER\desmond38\desmond38_20250401', ...
+%     'C:\SERVER\desmond38\desmond38_20250402', ...
+%     'C:\SERVER\desmond38\desmond38_20250403', ...
+%     'C:\SERVER\desmond38\desmond38_20250407', ...
+%     'C:\SERVER\desmond38\desmond38_20250417', ...
+%     'C:\SERVER\desmond39\desmond39_20250404', ...
+%     'C:\SERVER\desmond39\desmond39_20250407', ...
+%     'C:\SERVER\desmond39\desmond39_20250408', ...
+    'C:\SERVER\desmond39\desmond39_20250423', ...
+    };
 
+chunkSize = 16; % NumChannelsPerChunk
+for iSession = 1:length(folders)
+    try
+        tr = TetrodeRecording();
+        tr.SelectFiles(NeuropixelPath=folders{iSession});
+        tr.LoadNeuropixelIO();
+        tr.ParseNeuropixelIO();
+        
+        % IterativeArtifactRemoval (OnionPeeling): Load spikes
+        for iChunk = 1:(384/chunkSize)
+            channels = (iChunk-1)*chunkSize + 1 : iChunk*chunkSize;
+            tr.LoadSpikes(channels, Path='Spikes_Sorted');
+            channels = [tr.Spikes.Channel];
 
-%%
-for iChannel = [obj.Spikes.Channel]
-    clusters = unique(obj.Spikes(iChannel).Cluster.Classes);
-    if length(clusters) == 1
-        obj.SpikeSort(iChannel, Dimension=10, FeatureMethod='PCA', WaveformWindow=[-0.5, 0.5], ClusterMethod='kmeans', NumClusters=2)
+            if isempty(channels)
+                tr.Spikes = [];
+                continue
+            end
+
+            ar = AcuteRecording(tr, 'N/A');
+            ar.binMoveResponse(tr, 'none', Window=[-1, 0], Store=true);
+            eu = EphysUnit(ar, readWaveforms=false, cullITI=false, savepath='C:\SERVER\Units\TwoColor_SNr_SCRetro', tr=tr);
+
+            tr.Spikes = [];
+            clear eu
+        end
+    catch ME
+        warning('Could not process folder: %s', folders{iSession})
+        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
     end
 end

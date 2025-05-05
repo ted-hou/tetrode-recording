@@ -27,12 +27,15 @@ classdef AcuteRecording < handle
                 tr = p.Results.tr;
 
                 obj.strain = p.Results.strain;
-                splitPath = strsplit(tr.Path, '\');
-                path = strjoin(splitPath(1:end-2), '\');
-                if tr.Path(1) == '\'
-                    path = ['\', path];
+                try
+                    splitPath = strsplit(tr.Path, '\');
+                    path = strjoin(splitPath(1:end-2), '\');
+                    if tr.Path(1) == '\'
+                        path = ['\', path];
+                    end
+                    obj.path = path;
+                catch ME
                 end
-                obj.path = path;
 
                 expName = strsplit(tr.GetExpName(), '_');
                 obj.expName = strjoin(expName(1:2), '_');

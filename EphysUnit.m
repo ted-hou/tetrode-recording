@@ -296,6 +296,13 @@ classdef EphysUnit < handle
                             obj(i).EventTimes.MotorBusyOff = [];
                         end
 
+                        if isfield(tr.DigitalEvents, 'NIDQRaw')
+                            for field = string(fieldnames(tr.DigitalEvents))'
+                                obj(i).EventTimes.(field) = tr.DigitalEvents.(field);
+                            end
+                        end
+
+
                         if p.Results.cullITI
                             obj(i).ExtendedWindow = extendedWindow;
                         else

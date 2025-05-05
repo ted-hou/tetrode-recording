@@ -3419,8 +3419,9 @@ classdef TetrodeRecording < handle
             m0_2 = uimenu(m0, 'Text', 'Press/Stim', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Stim'});
             m0_3 = uimenu(m0, 'Text', 'Lick/Stim', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Lick/Stim'});
             m0_4 = uimenu(m0, 'Text', 'Press/Lick', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Lick'});
-            m0_5 = uimenu(m0, 'Text', 'Stim1/Stim2', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Stim1/Stim2'});
-            m0_6 = uimenu(m0, 'Text', 'StimTwoColor', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'StimTwoColor'});
+            m0_5 = uimenu(m0, 'Text', 'Press/Lick (Spontaneous)', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Lick (Spontaneous)'});
+            m0_6 = uimenu(m0, 'Text', 'Stim1/Stim2', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Stim1/Stim2'});
+            m0_7 = uimenu(m0, 'Text', 'StimTwoColor', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'StimTwoColor'});
             m1 = uimenu(cm, 'Text', 'Delete Channel', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteChn, 'Separator', true, 'Accelerator', 'D');
             m2 = uimenu(cm, 'Text', 'Delete Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteClusters, 'Separator', true, 'Accelerator', 'X');
             m3 = uimenu(cm, 'Text', 'Merge Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnMergeClusters, 'Accelerator', 'C');
@@ -3559,6 +3560,8 @@ classdef TetrodeRecording < handle
                     obj.PlotChannel(channel, 'Reference', 'CueOn', 'Event', 'LickOn', 'Exclude', 'PressOn', 'Event2', '', 'Exclude2', '', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', true);
                 case 'Press/Lick'
                     obj.PlotChannel(channel, 'Reference', 'CueOn', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Event2', 'LickOn', 'Exclude2', 'PressOn', 'RasterXLim', [-6, 1], 'ExtendedWindow', [-1, 1], 'WaveformYLim', [-200, 200], 'PlotStim', false);
+                case 'Press/Lick (Spontaneous)'
+                    obj.PlotChannel(channel, 'Reference', 'PressOff', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Reference2', 'LickOff', 'Event2', 'LickOn', 'Exclude2', 'PressOn', 'RasterXLim', [-6, 1], 'ExtendedWindow', [0, 0], 'WaveformYLim', [-200, 200], 'PlotStim', false);                    
                 case 'Stim1/Stim2'
                     obj.PlotChannel(channel, PlotStimBlue=true, PlotStimOrange=true, ExtendedWindow=[-0.25, 0.5]) % Legacy, only used for Sep2023 experiments
                 case 'StimTwoColor'
@@ -3885,6 +3888,7 @@ classdef TetrodeRecording < handle
 			addParameter(p, 'Reference', 'CueOn', @ischar);
 			addParameter(p, 'Event', 'PressOn', @ischar);
 			addParameter(p, 'Exclude', 'LickOn', @ischar);
+			addParameter(p, 'Reference2', '', @ischar);
 			addParameter(p, 'Event2', '', @ischar);
 			addParameter(p, 'Exclude2', '', @ischar);
 			addParameter(p, 'Clusters', [], @isnumeric);
@@ -3911,6 +3915,7 @@ classdef TetrodeRecording < handle
 			reference 			= p.Results.Reference;
 			event 				= p.Results.Event;
 			exclude 			= p.Results.Exclude;
+			reference2 			= p.Results.Reference2;            
 			event2 				= p.Results.Event2;
 			exclude2 			= p.Results.Exclude2;
 			clusters 			= p.Results.Clusters;
@@ -4220,7 +4225,7 @@ classdef TetrodeRecording < handle
 			hButtonNextChn = uicontrol(h.Figure,...
 				'Style', 'pushbutton',...
 				'String', 'Next Chn',...
-				'Callback', {@(~, ~) obj.PlotChannel(nextChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, ...
+				'Callback', {@(~, ~) obj.PlotChannel(nextChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Reference2', reference2, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, ...
                 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, ...
                 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, ...
                 'FrameRate', frameRate, 'PlotStim', plotStim, 'PlotPETH', plotPETH, 'Fig', h.Figure, ...
@@ -4249,7 +4254,7 @@ classdef TetrodeRecording < handle
 			hButtonPrevChn = uicontrol(h.Figure,...
 				'Style', 'pushbutton',...
 				'String', 'Prev Chn',...
-				'Callback', {@(~, ~) obj.PlotChannel(prevChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, ...
+				'Callback', {@(~, ~) obj.PlotChannel(prevChn, 'Reference', reference, 'Event', event, 'Exclude', exclude, 'Reference2', reference2, 'Event2', event2, 'Exclude2', exclude2, 'Clusters', clusters, ...
                 'ReferenceCluster', referenceCluster, 'WaveformWindow', waveformWindow, 'ExtendedWindow', extendedWindow, 'MinTrialLength', minTrialLength, 'Bins', bins, ...
                 'BinMethod', binMethod, 'SpikeRateWindow', spikeRateWindow, 'RasterXLim', rasterXLim, 'WaveformYLim', waveformYLim, 'FontSize', fontSize, 'PrintMode', printMode, ...
                 'FrameRate', frameRate, 'PlotStim', plotStim, 'Fig', h.Figure, ...
@@ -4349,6 +4354,7 @@ classdef TetrodeRecording < handle
 			reference 		= p.Results.Reference;
 			event 			= p.Results.Event;
 			exclude 		= p.Results.Exclude;
+            reference2      = p.Results.Reference2;
 			event2 			= p.Results.Event2;
 			exclude2 		= p.Results.Exclude2;
 			waveformWindow 	= p.Results.WaveformWindow;
@@ -4365,6 +4371,10 @@ classdef TetrodeRecording < handle
 			plotStimOrange 	= p.Results.PlotStimOrange;
             plotPETH        = p.Results.PlotPETH;
             isTCE           = p.Results.TwoColorExperiment;
+
+            if isempty(reference2)
+                reference2 = reference;
+            end
 
             if ~h.Figure.UserData.PlotRefreshEnabled
                 return
@@ -4431,12 +4441,12 @@ classdef TetrodeRecording < handle
     
 			    if isgraphics(h.Raster2, 'Axes')
 				    if ~plotStim
-					    obj.Raster(iChannel, reference, event2, exclude2, 'Clusters', clusters,...
+					    obj.Raster(iChannel, reference2, event2, exclude2, 'Clusters', clusters,...
 						    'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
 						    'SelectedSampleIndex', selectedSampleIndex, 'Sort', true,...
 						    'Ax', h.Raster2);		
                 	    if plotPETH
-					        obj.PETH(iChannel, reference, event2, exclude2, 'Clusters', clusters,...
+					        obj.PETH(iChannel, reference2, event2, exclude2, 'Clusters', clusters,...
 						        'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
 						        'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
 						        'SelectedSampleIndex', selectedSampleIndex,...
