@@ -3418,11 +3418,11 @@ classdef TetrodeRecording < handle
             m0_4 = uimenu(m0, 'Text', 'Press/Lick', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Lick'});
             m0_5 = uimenu(m0, 'Text', 'Stim1/Stim2', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Stim1/Stim2'});
             m0_6 = uimenu(m0, 'Text', 'StimTwoColor', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'StimTwoColor'});
-            m1 = uimenu(cm, 'Text', 'Delete Channel', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteChn, 'Separator', true);
-            m2 = uimenu(cm, 'Text', 'Delete Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteClusters, 'Separator', true);
-            m3 = uimenu(cm, 'Text', 'Merge Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnMergeClusters);
-            m4 = uimenu(cm, 'Text', 'Reorder Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnReorderClusters);
-            m5 = uimenu(cm, 'Text', 'Execute', 'MenuSelectedFcn', @obj.PlotAllChannels_OnExecute, 'Separator', true);
+            m1 = uimenu(cm, 'Text', 'Delete Channel', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteChn, 'Separator', true, 'Accelerator', 'D');
+            m2 = uimenu(cm, 'Text', 'Delete Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteClusters, 'Separator', true, 'Accelerator', 'X');
+            m3 = uimenu(cm, 'Text', 'Merge Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnMergeClusters, 'Accelerator', 'C');
+            m4 = uimenu(cm, 'Text', 'Reorder Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnReorderClusters, 'Accelerator', 'R');
+            m5 = uimenu(cm, 'Text', 'Execute', 'MenuSelectedFcn', @obj.PlotAllChannels_OnExecute, 'Separator', true, 'Accelerator', 'E');
             m6 = uimenu(cm, 'Text', 'Execute All', 'MenuSelectedFcn', @obj.PlotAllChannels_OnExecuteAll);
             cm.ContextMenuOpeningFcn = {@obj.PlotAllChannels_OnContextMenuOpened, m1, m2, m3, m4};
             
