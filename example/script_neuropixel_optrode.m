@@ -34,9 +34,12 @@ tr = TetrodeRecording();
 tr.SelectFiles();
 tr.LoadNeuropixelIO();
 tr.ParseNeuropixelIO();
-tr.LoadSpikes(1:128, Path='Spikes_AutoSortedIterative');
-tr.PlotAllChannels(Channels=1:128, plotMethod='mean')
-% tr.SaveSpikes(Channels=1:128, Path='Spikes_Sorted')
+
+%%
+channels = 129:256;
+tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
+tr.PlotAllChannels(Channels=channels, plotMethod='mean')
+% tr.SaveSpikes(Channels=channels, Path='Spikes_Sorted')
 
 
 %% IterativeArtifactRemoval (OnionPeeling)

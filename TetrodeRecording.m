@@ -3052,7 +3052,10 @@ classdef TetrodeRecording < handle
                 assert(~isempty(file), 'Cannot find file %s', sprintf('%s\\..\\%s.mat', obj.Path, obj.GetExpName(includeSuffix=false)))
             elseif strcmpi(obj.System, 'neuropixel')
                 file = dir(fullfile(obj.Path.nidq, sprintf('..\\..\\%s.mat', obj.GetExpName(includeSuffix=false))));
-                assert(~isempty(file), 'Cannot find file %s', fullfile(obj.Path.nidq, sprintf('..\\..\\%s.mat', obj.GetExpName(includeSuffix=false))))
+                if isempty(file)
+                    file = dir(fullfile(obj.Path.nidq, sprintf('..\\%s.mat', obj.GetExpName(includeSuffix=false))));                
+                    assert(~isempty(file), 'Cannot find file %s', fullfile(obj.Path.nidq, sprintf('..\\..\\%s.mat', obj.GetExpName(includeSuffix=false))))
+                end
             else
                 error();
             end
@@ -4584,7 +4587,7 @@ classdef TetrodeRecording < handle
 					['Merge selected clusters (', mat2str(clusters), ')?'],...
 					'Merge Clusters',...
 					'Merge', 'Cancel',...
-					'Cancel');
+					'Merge');
 				if strcmpi(answer, 'Merge')
 					% Merge selected clusters
 					allClusters = unique(obj.Spikes(iChannel).Cluster.Classes);
