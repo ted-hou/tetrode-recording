@@ -50,7 +50,6 @@ if ~exist(p.path, 'dir')
     mkdir(p.path)
 end
 for iEu = 1:length(eu)
-% for iEu = 1:length(eu)
     ax = axes(figure(Units='inches', Position=[0, 0, 10, 8]));
     groups = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'});
     isi = NaN(length(groups), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)));
