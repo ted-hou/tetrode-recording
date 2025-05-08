@@ -759,6 +759,8 @@ classdef EphysUnit < handle
             p.addParameter('trials', [], @(x) isa(x, 'Trial'))
             p.addParameter('shutterDelay', 0, @isnumeric)
             p.addParameter('correction', [], @isnumeric)
+            p.addParameter('photoelectricBlankDuration', 0, @isnumeric); %0.5e-3
+            p.addParameter('photoelectricNumSigmasThreshold', 3, @isnumeric);
             p.parse(trialType, varargin{:})
             trialType = p.Results.trialType;
             window = p.Results.window;
@@ -767,6 +769,8 @@ classdef EphysUnit < handle
             durErr = p.Results.durErr;
             alignTo = p.Results.alignTo;
             correction = p.Results.correction;
+            photoelectricBlankDuration = p.Results.photoelectricBlankDuration;
+            photoelectricNumSigmasThreshold = p.Results.photoelectricNumSigmasThreshold;
 
             if strcmp(alignTo, 'default')
                 switch trialType
@@ -782,6 +786,7 @@ classdef EphysUnit < handle
                     trials = obj.getTrials(trialType, sorted=true);
                 else
                     trials = p.Results.trials;
+                    trials = trials.sortby(alignTo, 'ascend');
                 end
                 dur = round(trials.duration ./ durErr) * durErr;
                 selTrials = dur >= minTrialDuration & dur <= maxTrialDuration;
@@ -789,7 +794,7 @@ classdef EphysUnit < handle
                     selTrials = selTrials & reshape(~isnan(correction), size(selTrials));
                 end
                 trials = trials(selTrials);
-                [~, t, I] = trials.inTrial(obj.SpikeTimes, window);
+                [~, t, I] = trials.inTrial(obj.SpikeTimes, window, windowMode=alignTo);
                 switch alignTo
                     case 'start'
                         tRef = [trials.Start];
@@ -854,6 +859,7 @@ classdef EphysUnit < handle
                         t = t(sel);
                         dur = dur(pulseOrder);
                         iti = iti(pulseOrder);
+
                         rd.tce.stimLog = tce.Log;
                         rd.tce.trainOrder = trainOrder(:)';
                         rd.tce.pulseOrder = pulseOrder(:)';
@@ -865,6 +871,24 @@ classdef EphysUnit < handle
                         iti = iti(ISort);
                     end
                 end
+
+                % Do blanking
+                if photoelectricBlankDuration > 0
+                    % assert(mod(window(1)/photoelectricBlankDuration, 1) == 0)
+                    tShift = window(1) : photoelectricBlankDuration : window(2);
+                    pethBlank = nnz(t >= 0 & t < photoelectricBlankDuration); % Num spikes in onset blank
+                    pethAll = arrayfun(@(tShift) nnz(t >= tShift & t < tShift + photoelectricBlankDuration), tShift); % photo-electric time histogram, eh? get it?
+                                
+                    hasArtifact = pethBlank > mean(pethAll) + photoelectricNumSigmasThreshold*std(pethAll);
+
+                    if hasArtifact
+                        sel = t >= 0 & t < photoelectricBlankDuration;
+                        t(sel) = [];
+                        I(sel) = [];
+                        fprintf('Removed %i spike photoelectric artifacts.\n', nnz(sel));
+                    end
+                end
+
                 rd.name = obj.getName('_');
                 rd.trialType = trialType;
                 rd.alignTo = alignTo;
@@ -882,9 +906,10 @@ classdef EphysUnit < handle
                 fprintf(1, 'Calculating raster data for %g units...\n', length(obj));
                 for i = 1:length(obj)
                     try
-                        rd(i) = obj(i).getRasterData(trialType, window, ...
-                            minTrialDuration=minTrialDuration, alignTo=alignTo, sort=p.Results.sort, ...
-                            maxTrialDuration=maxTrialDuration, durErr=durErr, shutterDelay=p.Results.shutterDelay);
+                        % rd(i) = obj(i).getRasterData(trialType, window, ...
+                        %     minTrialDuration=minTrialDuration, alignTo=alignTo, sort=p.Results.sort, ...
+                        %     maxTrialDuration=maxTrialDuration, durErr=durErr, shutterDelay=p.Results.shutterDelay);
+                        rd(i) = obj(i).getRasterData(trialType, varargin{:});
                     catch ME
                         warning('\tError when processing unit %g', i)
                         warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
@@ -902,6 +927,8 @@ classdef EphysUnit < handle
             p.addParameter('resolution', 1e-3, @isnumeric)
             p.addParameter('alignTo', 'default', @(x) ismember(x, {'default', 'start', 'stop'}))
             p.addParameter('shutterDelay', 0, @isnumeric)
+            p.addParameter('photoelectricBlankDuration', 0, @isnumeric); %0.5e-3
+            p.addParameter('photoelectricNumSigmasThreshold', 3, @isnumeric);
             p.parse(trialType, trials, varargin{:})
             trialType = p.Results.trialType;
             trials = p.Results.trials;
@@ -909,10 +936,13 @@ classdef EphysUnit < handle
             resolution = p.Results.resolution;
             alignTo = p.Results.alignTo;
             shutterDelay = p.Results.shutterDelay;
+            photoelectricBlankDuration = p.Results.photoelectricBlankDuration;
+            photoelectricNumSigmasThreshold = p.Results.photoelectricNumSigmasThreshold;
 
             assert(length(obj) == 1)
 
-            rd = obj.getRasterData(trialType, window, trials=trials, alignTo=alignTo, shutterDelay=shutterDelay, sort=false);
+            rd = obj.getRasterData(trialType, window, trials=trials, alignTo=alignTo, shutterDelay=shutterDelay, sort=false, ...
+                photoelectricBlankDuration=photoelectricBlankDuration, photoelectricNumSigmasThreshold=photoelectricNumSigmasThreshold);
             isFirstSpikeInTrial = logical([1, diff(rd.I)]);
             start = [1, strfind(isFirstSpikeInTrial, [0, 1]) + 1];
             stop = [strfind(isFirstSpikeInTrial, [0, 1]), length(rd.I)];
@@ -1734,14 +1764,16 @@ classdef EphysUnit < handle
                         end
                         iPulseStart = find(pulseOrder == iPulseStart);
                         iPulseEnd = find(pulseOrder == iPulseEnd);
-                        pulseWidth = stimLog(iTrain).params.pulseWidth;
+                        pulseWidth = stimLog(iTrain).params.pulseWidth * timescale;
                         switch stimLog(iTrain).wavelength
-                            case 473
+                            case {473, 465, 470}
                                 color = [0.2, 0.2, 0.8];
-                            case 593
+                            case {593, 635, 660}
                                 color = [0.8, 0.2, 0.2];
+                            otherwise 
+                                color = [0.2, 0.2, 0.2];
                         end
-                        alpha = 0.2 + 0.6*((stimLog(iTrain).params.iPower - 1)./(length(tceParams.targetPowers) - 1));
+                        alpha = 0.2 + 0.4*((stimLog(iTrain).params.iPower - 1)./(length(tceParams.targetPowers) - 1));
                         partialHash = stimLog(iTrain).params.iPower + stimLog(iTrain).wavelength*10;
                         partialDesc = sprintf('%guW \t%inm', tceParams.targetPowers(stimLog(iTrain).params.iPower)*1e6, stimLog(iTrain).wavelength);
                         stimBoxDict(partialHash) = patch(ax, [0, pulseWidth, pulseWidth, 0], [iPulseStart, iPulseStart, iPulseEnd, iPulseEnd], color, ...
@@ -1875,6 +1907,36 @@ classdef EphysUnit < handle
                         % trials = Trial(obj.EventTimes.PressOff, obj.EventTimes.Press, 'first');
                         trials = Trial(obj.EventTimes.Press(1:end-1), obj.EventTimes.Press(2:end), advancedValidation=false);
                         trials = trials(trials.duration >= minSpontaneousTrialDuration);
+                    case 'press_spontaneous_clean' % PressOff->PressOn 
+                        p = inputParser();
+                        p.addParameter('minSpontaneousTrialDuration', 0)
+                        p.addParameter('excludeLick', true, @islogical)
+                        p.parse(varargin{:})
+                        minSpontaneousTrialDuration = p.Results.minSpontaneousTrialDuration;
+                        excludeLick = p.Results.excludeLick;
+
+                        if ~excludeLick
+                            trials = Trial(obj.EventTimes.PressOff, obj.EventTimes.PressOn, 'first');
+                        else
+                            trials = Trial(obj.EventTimes.PressOff, obj.EventTimes.PressOn, 'first', obj.EventTimes.LickOn);
+                        end
+                        trials = trials(trials.duration >= minSpontaneousTrialDuration);
+
+                    case 'lick_spontaneous_clean' % PressOff->PressOn 
+                        p = inputParser();
+                        p.addParameter('minSpontaneousTrialDuration', 0)
+                        p.addParameter('excludePress', true, @islogical)
+                        p.parse(varargin{:})
+                        minSpontaneousTrialDuration = p.Results.minSpontaneousTrialDuration;
+                        excludePress = p.Results.excludePress;
+
+                        if ~excludePress
+                            trials = Trial(obj.EventTimes.LickOff, obj.EventTimes.LickOn, 'first');
+                        else
+                            trials = Trial(obj.EventTimes.LickOff, obj.EventTimes.LickOn, 'first', obj.EventTimes.PressOn);
+                        end
+                        trials = trials(trials.duration >= minSpontaneousTrialDuration);
+                        
                     case 'press_spontaneous_correct'
                         p = inputParser();
                         p.addParameter('minSpontaneousTrialDuration', 0)
