@@ -106,10 +106,12 @@ classdef Trial
             %   trial array if it isn't sorted. t is sorted ascending.
             p = inputParser();
             p.addRequired('t', @isnumeric);
-            p.addOptional('extendedWindow', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
+            p.addOptional('window', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
+            p.addParameter('windowMode', 'extend', @(x) ismember(x, {'start', 'stop', 'extend'}))
             p.parse(t, varargin{:})
             t = p.Results.t;
-            extendedWindow = p.Results.extendedWindow;
+            window = p.Results.window;
+            windowMode = p.Results.windowMode;
             
             if isempty(obj)
                 B = false(size(t));
@@ -129,7 +131,7 @@ classdef Trial
             B = rem(bins, 2) ~= 0;
             I = (bins(B) + 1) / 2;
             
-            if extendedWindow(1) == 0 && extendedWindow(2) == 0
+            if window(1) == 0 && window(2) == 0
                 t = t(B);
                 [t, Isort] = sort(t);
                 I = I(Isort);
@@ -141,20 +143,55 @@ classdef Trial
             Il = [];
             Ir = [];
 
-            % Find events in the left (pre-trial) window
-            if extendedWindow(1) < 0
-                edges = reshape([start + extendedWindow(1); start], [], 1);
-                [~, ~, bins] = histcounts(t, edges);
-                Bl = rem(bins, 2) ~= 0;
-                Il = (bins(Bl) + 1) / 2;
-            end
-
-            % Find events in the right (post-trial) window
-            if extendedWindow(2) > 0
-                edges = reshape([stop; stop + extendedWindow(2)], [], 1);
-                [~, ~, bins] = histcounts(t, edges);
-                Br = rem(bins, 2) ~= 0;
-                Ir = (bins(Br) + 1) / 2;
+            switch windowMode
+                case 'start'
+                    % Find events in the left (pre-start) window
+                    if window(1) < 0
+                        edges = reshape([start + window(1); start], [], 1);
+                        [~, ~, bins] = histcounts(t, edges);
+                        Bl = rem(bins, 2) ~= 0;
+                        Il = (bins(Bl) + 1) / 2;
+                    end
+        
+                    % Find events in the right (post-start) window
+                    if window(2) > 0
+                        edges = reshape([start; start + window(2)], [], 1);
+                        [~, ~, bins] = histcounts(t, edges);
+                        Br = rem(bins, 2) ~= 0;
+                        Ir = (bins(Br) + 1) / 2;
+                    end
+                case 'stop'
+                    % Find events in the left (pre-stop) window
+                    if window(1) < 0
+                        edges = reshape([stop + window(1); stop], [], 1);
+                        [~, ~, bins] = histcounts(t, edges);
+                        Bl = rem(bins, 2) ~= 0;
+                        Il = (bins(Bl) + 1) / 2;
+                    end
+        
+                    % Find events in the right (post-stop) window
+                    if window(2) > 0
+                        edges = reshape([stop; stop + window(2)], [], 1);
+                        [~, ~, bins] = histcounts(t, edges);
+                        Br = rem(bins, 2) ~= 0;
+                        Ir = (bins(Br) + 1) / 2;
+                    end
+                case 'extend'
+                    % Find events in the left (pre-trial) window
+                    if window(1) < 0
+                        edges = reshape([start + window(1); start], [], 1);
+                        [~, ~, bins] = histcounts(t, edges);
+                        Bl = rem(bins, 2) ~= 0;
+                        Il = (bins(Bl) + 1) / 2;
+                    end
+        
+                    % Find events in the right (post-trial) window
+                    if window(2) > 0
+                        edges = reshape([stop; stop + window(2)], [], 1);
+                        [~, ~, bins] = histcounts(t, edges);
+                        Br = rem(bins, 2) ~= 0;
+                        Ir = (bins(Br) + 1) / 2;
+                    end
             end
 
             t = [t(B), t(Bl), t(Br)];
