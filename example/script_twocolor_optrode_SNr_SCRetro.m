@@ -54,7 +54,7 @@ eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units
 %%
 eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_SNr', waveforms=false, spikecounts=false, spikerates=false);
 
-% Make Raster
+%% Make Raster
 clear rd
 rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shutterDelay=0, photoelectricBlankDuration=0.5e-3);
 rd.press = eu.getRasterData('press', window=[-4, 0], alignTo='stop');
@@ -69,11 +69,47 @@ eta.lick = eu.getETA('count', 'lick', [-4, 0], resolution=0.1, alignTo='stop', i
 eta.pressRaw.X = eta.pressRaw.X ./ 0.1;
 eta.lickRaw.X = eta.lickRaw.X ./ 0.1;
 
-% Calculate META
+% ETA Stim
+p.isiBaselineWindow = [-0.1, 0];
+p.stimBluePowers = [25, 50, 100]*1e-6;
+p.stimRedPowers = [500, 2000, 8000, 16000]*1e-6;
+p.stimBlueDurations = [10, 20]*1e-3;
+p.stimRedDurations = [10, 20]*1e-3;
+
+close all
+XBlue = cell(length(eu), 1);
+XRed = cell(length(eu), 1);
+for iEu = 1:length(eu)
+    groupsBlue = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimBluePowers, duration=p.stimBlueDurations, location=[], wavelength=[470, 473]));
+    groupsRed = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimRedPowers, duration=p.stimRedDurations, location=[], wavelength=635));
+
+    % rd = eu(iEu).getRasterData('stimtwocolor', p.isiWindow, trials=[groupsRed.trials], alignTo='start', shutterDelay=0, sort=false, photoelectricBlankDuration=0.5e-3);
+    % EphysUnit.plotRaster(rd)
+
+    [isi, t] = eu(iEu).getMeanPEISI('stimtwocolor', [groupsBlue.trials], window=p.isiWindow, resolution=p.isiRes, photoelectricBlankDuration=0.5e-3);
+    selBaseline = t>p.isiBaselineWindow(1) & t<p.isiBaselineWindow(2);
+    normSR = (1./isi - mean(1./isi(:, selBaseline), 'omitnan')) ./ std(1./isi(:, selBaseline), 0, 2, 'omitnan');
+    XBlue{iEu} = normSR;
+
+    [isi, t] = eu(iEu).getMeanPEISI('stimtwocolor', [groupsRed.trials], window=p.isiWindow, resolution=p.isiRes, ...
+        photoelectricBlankDuration=0.5e-3);
+    selBaseline = t>p.isiBaselineWindow(1) & t<p.isiBaselineWindow(2);
+    normSR = (1./isi - mean(1./isi(:, selBaseline), 'omitnan')) ./ std(1./isi(:, selBaseline), 0, 2, 'omitnan');
+    XRed{iEu} = normSR;
+
+    fprintf('nan=%i, nan=%i\n', nnz(isnan(XBlue{iEu})), nnz(isnan(XRed{iEu})))
+end
+
+eta.stimBlue = struct(X=cat(1, XBlue{:}), t=t, N=[], D=[], stats=[]);
+eta.stimRed = struct(X=cat(1, XRed{:}), t=t, N=[], D=[], stats=[]);
+
+clear XBlue XRed iEu groupsBlue groupsRed isi t selBaseline normSR
+
+%% Calculate META
 clear meta
-p.metaWindow = [-0.3, 0];
-p.posRespThreshold = 1;
-p.negRespThreshold = -0.5;
+p.metaWindow = [-0.2, 0];
+p.posRespThreshold = 0.5;
+p.negRespThreshold = -0.25;
 t = eta.press.t;
 meta.press = mean(eta.press.X(:, t>=p.metaWindow(1) & t<=p.metaWindow(2)), 2, 'omitnan');
 meta.lick = mean(eta.lick.X(:, t>=p.metaWindow(1) & t<=p.metaWindow(2)), 2, 'omitnan');
@@ -82,17 +118,36 @@ meta.pressRaw = mean(eta.press.X(:, t>=p.metaWindow(1) & t<=p.metaWindow(2)), 2,
 meta.lickRaw = mean(eta.lick.X(:, t>=p.metaWindow(1) & t<=p.metaWindow(2)), 2, 'omitnan');
 clear t
 
+p.metaWindowStim = [0.005, 0.050];
+p.posRespThresholdStim = 2;
+p.negRespThresholdStim = -1;
+
+t = eta.stimBlue.t;
+meta.stimBlue = mean(eta.stimBlue.X(:, t>=p.metaWindowStim(1) & t<=p.metaWindowStim(2)), 2, 'omitnan');
+t = eta.stimRed.t;
+meta.stimRed = mean(eta.stimRed.X(:, t>=p.metaWindowStim(1) & t<=p.metaWindowStim(2)), 2, 'omitnan');
+clear t
+
 c.isPressUp =         meta.press >= p.posRespThreshold;
 c.isPressDown =       meta.press <= p.negRespThreshold;
 c.isPressResponsive = c.isPressUp | c.isPressDown;
 c.isLickUp =          meta.lick >= p.posRespThreshold;
 c.isLickDown =        meta.lick <= p.negRespThreshold;
 c.isLickResponsive =  c.isLickUp | c.isLickDown;
-
 c.isLickUnresponsiveButUp = ~c.isLickResponsive & meta.lick > 0;
 c.isLickUnresponsiveButDown = ~c.isLickResponsive & meta.lick < 0;
 c.isPressUnresponsiveButUp = ~c.isPressResponsive & meta.press > 0;
 c.isPressUnresponsiveButDown = ~c.isPressResponsive & meta.press < 0;
+
+c.isStimBlueUp = meta.stimBlue >= p.posRespThresholdStim;
+c.isStimBlueDown = meta.stimBlue <= p.negRespThresholdStim;
+c.isStimRedUp = meta.stimRed >= p.posRespThresholdStim;
+c.isStimRedDown = meta.stimRed <= p.negRespThresholdStim;
+
+c.isStimBlueUpRedUpThereforeChrimsonMaybe = c.isStimBlueUp & c.isStimRedUp;
+c.isStimBlueUpRedNotUpThereforeCoChrMaybe = c.isStimBlueUp & ~c.isStimRedUp;
+c.isStimBlueNotUpRedUpThereforeChrimsonMaybe = ~c.isStimBlueUp & c.isStimRedUp;
+c.isStimBlueNotUpRedNotUp = ~c.isStimBlueUp & ~c.isStimRedUp;
 
 
 %% Combined PEISI and Stim Raster
@@ -181,44 +236,7 @@ for iEu = 1:length(eu)
     % end
 end
 
-clear fig ax iEu
-
-clear iEu ax groups isi deltaSR iGrp h
-
-
-%% ETA Stim
-p.isiBaselineWindow = [-0.2, 0];
-close all
-XBlue = cell(length(eu), 1);
-XRed = cell(length(eu), 1);
-iEuBad = [];
-for iEu = 1:length(eu)
-    groupsBlue = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=[25e-6, 50e-6, 100e-6, 500e-6], duration=[0.010, 0.020], location=[], wavelength=[470, 473]));
-    groupsRed = eu(iEu).groupTwoColorStimTrials({'wavelength', 'duration'}, selectBy=struct(power=[], duration=[0.010, 0.020], location=[], wavelength=635));
-
-    [isi, t] = eu(iEu).getMeanPEISI('stimtwocolor', [groupsBlue.trials], window=p.isiWindow, resolution=p.isiRes, photoelectricBlankDuration=0.5e-3);
-    selBaseline = t>p.isiBaselineWindow(1) & t<p.isiBaselineWindow(2);
-    normSR = (1./isi - mean(1./isi(:, selBaseline), 'omitnan')) ./ std(1./isi(:, selBaseline), 0, 2, 'omitnan');
-    XBlue{iEu} = normSR;
-    if nnz(isnan(isi)) == 1001
-        iEuBad = [iEuBad, iEu];
-        fprintf('%s\n', eu(iEu).ExpName)
-    end
-
-    [isi, t] = eu(iEu).getMeanPEISI('stimtwocolor', [groupsRed.trials], window=p.isiWindow, resolution=p.isiRes, ...
-        photoelectricBlankDuration=0.5e-3);
-    selBaseline = t>p.isiBaselineWindow(1) & t<p.isiBaselineWindow(2);
-    normSR = (1./isi - mean(1./isi(:, selBaseline), 'omitnan')) ./ std(1./isi(:, selBaseline), 0, 2, 'omitnan');
-    XRed{iEu} = normSR;
-
-    fprintf('nan=%i, nan=%i\n', nnz(isnan(XBlue{iEu})), nnz(isnan(XRed{iEu})))
-end
-
-eta.stimBlue = struct(X=cat(1, XBlue{:}), t=t, N=[], D=[], stats=[]);
-eta.stimRed = struct(X=cat(1, XRed{:}), t=t, N=[], D=[], stats=[]);
-
-
-% clear groups isi normSR iGrp selBaseline t XBlue XRed
+clear fig layout iEu ax groups isi deltaSR iGrp h trialTypes colors iTrialType trialType
 
 
 %% Plot ETA Heatmaps Reach Lick Reach Lick StimBlue StimRed
@@ -254,22 +272,126 @@ EphysUnit.plotETA(ax(2), eta.lick, ...
 [~, order] = EphysUnit.plotETA(ax(3), eta.press, sortGroup=groupVar, ...
     clim=[-1.5, 1.5], xlim=[-4, 0], sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
     sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
-EphysUnit.plotETA(ax(4), eta.lick, order=order, ...
+EphysUnit.plotETA(ax(4), eta.lick, order=order, sortGroup=groupVar, ...
     clim=[-1.5, 1.5], xlim=[-4, 0], hidecolorbar=true);
 
-EphysUnit.plotETA(ax(5), eta.stimBlue, order=order, ...
-    clim=[-3, 3], xlim=[-0.1, 0.3], hidecolorbar=true);
-EphysUnit.plotETA(ax(6), eta.stimRed, order=order, ...
-    clim=[-3, 3], xlim=[-0.1, 0.3], hidecolorbar=true);
+EphysUnit.plotETA(ax(5), eta.stimBlue, order=order, sortGroup=groupVar, ...
+    clim=[-10, 10], xlim=[-50, 20], hidecolorbar=true, timeUnit='ms');
+EphysUnit.plotETA(ax(6), eta.stimRed, order=order, sortGroup=groupVar, ...
+    clim=[-10, 10], xlim=[-50, 20], hidecolorbar=true, timeUnit='ms');
 
-title(ax([1, 3]), 'Reach')
-title(ax([2, 4]), 'Lick')
-title(ax(5), 'CoChR2 (470nm)')
-title(ax(6), 'ChrimsonR (635nm)')
 for iAx = 1:4
     applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+end
+for iAx = 5:6
+    applyCustomColormap(ax(iAx), [-10, 10], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
 end
 
 N = histcounts(groupVar, -0.5:2:3.5);
 yline(ax(3), cumsum(N(1:end-1)) + 1, 'k--');
 yline(ax(4), cumsum(N(1:end-1)) + 1, 'k--');
+xline(ax(5), 0, 'k--')
+xline(ax(6), 0, 'k--')
+clear fig ax order iAx
+
+
+%% Sort By stim
+p.xlim.stimETA = [-50, 50];
+p.xlim.moveETA = [-2, 0];
+
+groupVarStim = NaN(length(eu), 1);
+groupVarStim(c.isStimBlueUpRedNotUpThereforeCoChrMaybe) = 0; % CoChR
+groupVarStim(c.isStimBlueUpRedUpThereforeChrimsonMaybe) = 10; % Lots of Chrimson or Chrimson+CoChR double label?
+groupVarStim(c.isStimBlueNotUpRedUpThereforeChrimsonMaybe) = 20; % Low titer of Chrimson or distant Chrimson-cell?
+groupVarStim(c.isStimBlueNotUpRedNotUp) = 30; % No opto response
+
+
+% % Subgroups: 
+% % press-dec & ~lick-dec, 
+% % press-dec & lick-dec, 
+% % ~press-dec & lick-dec, 
+% % ~press-dec & ~lick-dec 
+% groupVarStim(c.isPressDown & ~c.isLickDown) = groupVarStim(c.isPressDown & ~c.isLickDown) + 0;
+% groupVarStim(c.isPressDown & c.isLickDown) = groupVarStim(c.isPressDown & c.isLickDown) + 1;
+% groupVarStim(~c.isPressDown & c.isLickDown) = groupVarStim(~c.isPressDown & c.isLickDown) + 2;
+% groupVarStim(~c.isPressDown & ~c.isLickDown) = groupVarStim(~c.isPressDown & ~c.isLickDown) + 3;
+
+% Subgroups: 
+% press-dec & lick-dec, 
+% press-dec & ~lick-dec, 
+% ~press-dec & lick-dec, 
+% ~press-dec & ~lick-dec 
+selLastGroup = ~c.isPressResponsive & ~c.isLickResponsive;
+groupVarStim(c.isPressDown  & c.isLickDown  & ~selLastGroup) = groupVarStim(c.isPressDown  & c.isLickDown  & ~selLastGroup) + 0;
+groupVarStim(c.isPressDown  & ~c.isLickDown & ~selLastGroup) = groupVarStim(c.isPressDown  & ~c.isLickDown & ~selLastGroup) + 1;
+groupVarStim(~c.isPressDown & c.isLickDown  & ~selLastGroup) = groupVarStim(~c.isPressDown & c.isLickDown  & ~selLastGroup) + 2;
+groupVarStim(~c.isPressDown & ~c.isLickDown & ~selLastGroup) = groupVarStim(~c.isPressDown & ~c.isLickDown & ~selLastGroup) + 3;
+groupVarStim(selLastGroup) = groupVarStim(selLastGroup) + 4;
+
+% groupVarStim(c.isPressUnresponsiveButDown & c.isLickUp) = groupVarStim(c.isPressUnresponsiveButDown & c.isLickUp) + 0;
+% groupVarStim(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButUp) = groupVarStim(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButUp) + 0;
+% groupVarStim(c.isPressDown & c.isLickUp) = groupVarStim(c.isPressDown & c.isLickUp) + 0;
+% groupVarStim(c.isPressDown & c.isLickUnresponsiveButUp) = groupVarStim(c.isPressDown & c.isLickUnresponsiveButUp) + 0;
+% groupVarStim(c.isPressUp & c.isLickUnresponsiveButDown) = groupVarStim(c.isPressUp & c.isLickUnresponsiveButDown) + 1;
+% groupVarStim(c.isPressUp & c.isLickDown) = groupVarStim(c.isPressUp & c.isLickDown) + 1;
+% groupVarStim(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButDown) = groupVarStim(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButDown) + 1;
+% groupVarStim(c.isPressUnresponsiveButUp & c.isLickDown) = groupVarStim(c.isPressUnresponsiveButUp & c.isLickDown) + 1;
+% groupVarStim(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButDown) = groupVarStim(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButDown) + 2;
+% groupVarStim(c.isPressUnresponsiveButDown & c.isLickDown) = groupVarStim(c.isPressUnresponsiveButDown & c.isLickDown) + 2;
+% groupVarStim(c.isPressDown & c.isLickUnresponsiveButDown) = groupVarStim(c.isPressDown & c.isLickUnresponsiveButDown) + 2;
+% groupVarStim(c.isPressDown & c.isLickDown) = groupVarStim(c.isPressDown & c.isLickDown) + 2;
+% groupVarStim(c.isPressUp & c.isLickUp) = groupVarStim(c.isPressUp & c.isLickUp) + 3;
+% groupVarStim(c.isPressUp & c.isLickUnresponsiveButUp) = groupVarStim(c.isPressUp & c.isLickUnresponsiveButUp) + 3;
+% groupVarStim(c.isPressUnresponsiveButUp & c.isLickUp) = groupVarStim(c.isPressUnresponsiveButUp & c.isLickUp) + 3;
+% groupVarStim(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButUp) = groupVarStim(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButUp) + 3;
+
+fig = figure;
+ax = arrayfun(@(i) subplot(1, 4, i), 1:4);
+
+[~, order] = EphysUnit.plotETA(ax(3), eta.stimBlue, ...
+    clim=[-10, 10], xlim=p.xlim.stimETA, hidecolorbar=true, timeUnit='ms', ...
+    sortWindow=[0, 0.05], signWindow=[0.01, 0.02], ...
+    sortThreshold=6, negativeSortThreshold=3, onsetDirection='forward', onsetPattern=[0 1 1], ...
+    sortGroup=groupVarStim);
+EphysUnit.plotETA(ax(4), eta.stimRed, order=order, ...
+    clim=[-10, 10], xlim=p.xlim.stimETA, hidecolorbar=true, timeUnit='ms');
+
+EphysUnit.plotETA(ax(1), eta.press, order=order, ...
+    clim=[-1.5, 1.5], xlim=p.xlim.moveETA, sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
+    sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
+EphysUnit.plotETA(ax(2), eta.lick, order=order, ...
+    clim=[-1.5, 1.5], xlim=p.xlim.moveETA, hidecolorbar=true);
+
+title(ax(1), 'Reach')
+title(ax(2), 'Lick')
+title(ax(3), sprintf('470-473 nm\n%g-%g uW\n%g-%g ms', 1e6*min(p.stimBluePowers), 1e6*max(p.stimBluePowers), 1e3*min(p.stimBlueDurations), 1e3*max(p.stimBlueDurations)))
+title(ax(4), sprintf('635 nm\n%g-%g uW\n%g-%g ms', 1e6*min(p.stimRedPowers), 1e6*max(p.stimRedPowers), 1e3*min(p.stimRedDurations), 1e3*max(p.stimRedDurations)))
+for iAx = 1:2
+    applyCustomColormap(ax(iAx), [-2, 2], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+end
+for iAx = 3:4
+    applyCustomColormap(ax(iAx), [-10, 10], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+end
+
+xline(ax(3), 0, 'k--')
+xline(ax(4), 0, 'k--')
+
+xlabel(ax(1), 'Time to bar contact (s)')
+xlabel(ax(2), 'Time to spout contact (s)')
+xlabel(ax(3:4), 'Time from opto on (ms)')
+
+
+N = histcounts(groupVarStim, -5:10:35);
+for iAx = 1:4
+    yline(ax(iAx), cumsum(N(1:end-1)) + 1, 'k', LineWidth=3);
+end
+
+NTen = cumsum([0, N]);
+for iTen = 0:3
+    N = histcounts(groupVarStim, iTen*10 + [-0.5, 2.5, 3.5, 4.5])
+    for iAx = 1:4
+        yline(ax(iAx), cumsum(NTen(iTen + 1) + N) + 1, 'k--', LineWidth=1);
+    end
+end
+
+% clear fig ax order iAx N

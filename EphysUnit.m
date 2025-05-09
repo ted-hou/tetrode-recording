@@ -924,6 +924,7 @@ classdef EphysUnit < handle
             p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor'})))
             p.addRequired('trials', @(x) isa(x, 'Trial'))
             p.addOptional('window', [-0.5, 0.5], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
+            p.addParameter('rd', [], @isstruct)
             p.addParameter('resolution', 1e-3, @isnumeric)
             p.addParameter('alignTo', 'default', @(x) ismember(x, {'default', 'start', 'stop'}))
             p.addParameter('shutterDelay', 0, @isnumeric)
@@ -941,22 +942,33 @@ classdef EphysUnit < handle
 
             assert(length(obj) == 1)
 
-            rd = obj.getRasterData(trialType, window, trials=trials, alignTo=alignTo, shutterDelay=shutterDelay, sort=false, ...
-                photoelectricBlankDuration=photoelectricBlankDuration, photoelectricNumSigmasThreshold=photoelectricNumSigmasThreshold);
+            if isempty(p.Results.rd)
+                rd = obj.getRasterData(trialType, window, trials=trials, alignTo=alignTo, shutterDelay=shutterDelay, sort=false, ...
+                    photoelectricBlankDuration=photoelectricBlankDuration, photoelectricNumSigmasThreshold=photoelectricNumSigmasThreshold);
+            else
+                rd = p.Results.rd;
+            end
             isFirstSpikeInTrial = logical([1, diff(rd.I)]);
             start = [1, strfind(isFirstSpikeInTrial, [0, 1]) + 1];
             stop = [strfind(isFirstSpikeInTrial, [0, 1]), length(rd.I)];
 
             nTrials = length(start);
-            isi = [NaN, diff(rd.t)];
+            isi = [NaN, diff(rd.t)]; % isi =: time since last spike (so we don't shift stim responses early oh no no no)
             isi(isFirstSpikeInTrial) = NaN;
 
             t = window(1):resolution:window(2);
             ISI = NaN(nTrials, length(t));
             for iTrial = 1:nTrials
                 sel = start(iTrial) + 1:stop(iTrial);
+                xv = rd.t(sel);
+                yv = isi(sel);
+                [~, ia, ~] = unique(xv);
+
                 try
-                    ISI(iTrial, :) = interp1(rd.t(sel), isi(sel), t, 'linear');
+                    % ISI(iTrial, :) = interp1(xv(ia), yv(ia), t, 'linear');
+                    ISI(iTrial, :) = interp1(xv(ia), yv(ia), t, 'previous');
+                catch ME
+                    warning('Could not interpolate isi for trial %i', iTrial)
                 end
             end
             isi = mean(ISI, 1, 'omitnan');
@@ -1421,10 +1433,11 @@ classdef EphysUnit < handle
                 end
 
 
+                % If we fail to find onset/threshold crossing (nonSig) put it outside
                 nonSig = isnan(sortVal);
                 sortVal(nonSig) = max(sortVal, [], 'omitnan') + 1;
                 sortVal = sortVal .* etaSign;
-                sortVal(nonSig) = sortVal(nonSig) + meta(nonSig);
+                sortVal(nonSig) = sortVal(nonSig) + meta(nonSig); % For non-sig units, sort by response magnitude
                 base = ceil(range(sortVal))*10; % Def safe
                 sortVal = sortVal + sortGroup*base;
                 
