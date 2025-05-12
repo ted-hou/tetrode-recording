@@ -35,7 +35,7 @@ tr.SelectFiles();
 tr.LoadNeuropixelIO();
 tr.ParseNeuropixelIO();
 
-%%
+%
 channels = 1:128;
 tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
 tr.PlotAllChannels(Channels=channels, plotMethod='mean')
@@ -51,7 +51,8 @@ channels = 257:384;
 tr.Spikes = [];
 tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
 tr.PlotAllChannels(Channels=channels, plotMethod='mean')
-% tr.SaveSpikes(Channels=channels, Path='Spikes_Sorted')
+%%
+tr.SaveSpikes(Channels=channels, Path='Spikes_Sorted')
 
 
 %% IterativeArtifactRemoval (OnionPeeling)

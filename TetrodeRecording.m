@@ -3076,12 +3076,12 @@ classdef TetrodeRecording < handle
             assert(sum(nPulsesPerTrain) == nnz(tOn), 'Intan recorded %i shutterOn events while TwoColorExperiment.Log has %i.', nnz(tOn), sum(nPulsesPerTrain));
             assert(sum(nPulsesPerTrain) == nnz(tOff), 'Intan recorded %i shutterOn events while TwoColorExperiment.Log has %i.', nnz(tOn), sum(nPulsesPerTrain));
             nPulses = nnz(tOn);
-            fprintf('Intan & TwoColorExperiment.Log both recorded %i shutter pulses.\n', nnz(tOn))
+            % fprintf('Intan & TwoColorExperiment.Log both recorded %i shutter pulses.\n', nnz(tOn))
             
             % Pulse durations should match between Intan and TCE as well.
             assert(all(abs(tOff - tOn - pulseWidth) < p.Results.pulseWidthErrorMargin), 'Only %i/%i pulseWidths agree (df<%gs).', ...
                 nnz(abs(tOff - tOn - pulseWidth) < p.Results.pulseWidthErrorMargin), nPulses, p.Results.pulseWidthErrorMargin)
-            fprintf('All %i pulseWidths agree (df<%gs).\n', nPulses, p.Results.pulseWidthErrorMargin)
+            % fprintf('All %i pulseWidths agree (df<%gs).\n', nPulses, p.Results.pulseWidthErrorMargin)
             
             % Generate pulse->train map
             iPulse = 0;
@@ -4464,7 +4464,7 @@ classdef TetrodeRecording < handle
             end
     
 
-			if length(clusters) == 1
+			if isscalar(clusters)
 				selectedCluster = clusters;
 				clusters = [];
 				if selectedCluster == referenceCluster

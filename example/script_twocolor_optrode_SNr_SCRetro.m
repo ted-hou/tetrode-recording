@@ -52,9 +52,10 @@ end
 eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr')
 
 %%
-eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_SNr', waveforms=false, spikecounts=false, spikerates=false);
+clear, clc
+eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
 
-%% Make Raster
+% Make Raster
 clear rd
 rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shutterDelay=0, photoelectricBlankDuration=0.5e-3);
 rd.press = eu.getRasterData('press', window=[-4, 0], alignTo='stop');
@@ -75,6 +76,14 @@ p.stimBluePowers = [25, 50, 100]*1e-6;
 p.stimRedPowers = [500, 2000, 8000, 16000]*1e-6;
 p.stimBlueDurations = [10, 20]*1e-3;
 p.stimRedDurations = [10, 20]*1e-3;
+
+p.isiWindow = [-0.4, 0.4];
+p.isiRes = 1e-3;
+p.xlim.stim = [-0.1, 0.3];
+p.xlim.move = [-4, 0];
+p.path = 'C:\SERVER\Figures\TwoColor_SNr_SCRetro';
+p.rasterSzStim = 1;
+p.rasterSzMove = 1;
 
 close all
 XBlue = cell(length(eu), 1);
@@ -152,13 +161,6 @@ c.isStimBlueNotUpRedNotUp = ~c.isStimBlueUp & ~c.isStimRedUp;
 
 %% Combined PEISI and Stim Raster
 % Stim Rasters
-p.isiWindow = [-0.4, 0.4];
-p.isiRes = 1e-3;
-p.xlim.stim = [-0.1, 0.3];
-p.xlim.move = [-4, 0];
-p.path = 'C:\SERVER\Figures\TwoColor_SNr_SCRetro';
-p.rasterSzStim = 1;
-p.rasterSzMove = 1;
 
 fig = figure(Units='inches', Position=[0, 0, 12, 8]);
 clear layout
@@ -238,64 +240,7 @@ end
 
 clear fig layout iEu ax groups isi deltaSR iGrp h trialTypes colors iTrialType trialType
 
-
-%% Plot ETA Heatmaps Reach Lick Reach Lick StimBlue StimRed
-groupVar = NaN(length(eu), 1);
-groupVar(c.isPressUnresponsiveButDown & c.isLickUp) = 0;
-groupVar(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButUp) = 0;
-groupVar(c.isPressDown & c.isLickUp) = 0;
-groupVar(c.isPressDown & c.isLickUnresponsiveButUp) = 0;
-groupVar(c.isPressUp & c.isLickUnresponsiveButDown) = 1;
-groupVar(c.isPressUp & c.isLickDown) = 1;
-groupVar(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButDown) = 1;
-groupVar(c.isPressUnresponsiveButUp & c.isLickDown) = 1;
-
-groupVar(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButDown) = 2;
-groupVar(c.isPressUnresponsiveButDown & c.isLickDown) = 2;
-groupVar(c.isPressDown & c.isLickUnresponsiveButDown) = 2;
-groupVar(c.isPressDown & c.isLickDown) = 2;
-groupVar(c.isPressUp & c.isLickUp) = 3;
-groupVar(c.isPressUp & c.isLickUnresponsiveButUp) = 3;
-groupVar(c.isPressUnresponsiveButUp & c.isLickUp) = 3;
-groupVar(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButUp) = 3;
-
-fig = figure;
-ax = arrayfun(@(i) subplot(1, 6, i), 1:6);
-
-EphysUnit.plotETA(ax(1), eta.press, ...
-    clim=[-1.5, 1.5], xlim=[-4, 0], sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
-    sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
-EphysUnit.plotETA(ax(2), eta.lick, ...
-    clim=[-1.5, 1.5], xlim=[-4, 0], sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
-    sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
-
-[~, order] = EphysUnit.plotETA(ax(3), eta.press, sortGroup=groupVar, ...
-    clim=[-1.5, 1.5], xlim=[-4, 0], sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
-    sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
-EphysUnit.plotETA(ax(4), eta.lick, order=order, sortGroup=groupVar, ...
-    clim=[-1.5, 1.5], xlim=[-4, 0], hidecolorbar=true);
-
-EphysUnit.plotETA(ax(5), eta.stimBlue, order=order, sortGroup=groupVar, ...
-    clim=[-10, 10], xlim=[-50, 20], hidecolorbar=true, timeUnit='ms');
-EphysUnit.plotETA(ax(6), eta.stimRed, order=order, sortGroup=groupVar, ...
-    clim=[-10, 10], xlim=[-50, 20], hidecolorbar=true, timeUnit='ms');
-
-for iAx = 1:4
-    applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
-end
-for iAx = 5:6
-    applyCustomColormap(ax(iAx), [-10, 10], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
-end
-
-N = histcounts(groupVar, -0.5:2:3.5);
-yline(ax(3), cumsum(N(1:end-1)) + 1, 'k--');
-yline(ax(4), cumsum(N(1:end-1)) + 1, 'k--');
-xline(ax(5), 0, 'k--')
-xline(ax(6), 0, 'k--')
-clear fig ax order iAx
-
-
-%% Sort By stim
+%% Figure 1. Sort by optotagging (blue/both/red/neither), then sub-divide by move response (decrese/increase/unmodulated)
 p.xlim.stimETA = [-50, 50];
 p.xlim.moveETA = [-2, 0];
 
@@ -305,16 +250,6 @@ groupVarStim(c.isStimBlueUpRedUpThereforeChrimsonMaybe) = 10; % Lots of Chrimson
 groupVarStim(c.isStimBlueNotUpRedUpThereforeChrimsonMaybe) = 20; % Low titer of Chrimson or distant Chrimson-cell?
 groupVarStim(c.isStimBlueNotUpRedNotUp) = 30; % No opto response
 
-
-% % Subgroups: 
-% % press-dec & ~lick-dec, 
-% % press-dec & lick-dec, 
-% % ~press-dec & lick-dec, 
-% % ~press-dec & ~lick-dec 
-% groupVarStim(c.isPressDown & ~c.isLickDown) = groupVarStim(c.isPressDown & ~c.isLickDown) + 0;
-% groupVarStim(c.isPressDown & c.isLickDown) = groupVarStim(c.isPressDown & c.isLickDown) + 1;
-% groupVarStim(~c.isPressDown & c.isLickDown) = groupVarStim(~c.isPressDown & c.isLickDown) + 2;
-% groupVarStim(~c.isPressDown & ~c.isLickDown) = groupVarStim(~c.isPressDown & ~c.isLickDown) + 3;
 
 % Subgroups: 
 % press-dec & lick-dec, 
@@ -327,23 +262,6 @@ groupVarStim(c.isPressDown  & ~c.isLickDown & ~selLastGroup) = groupVarStim(c.is
 groupVarStim(~c.isPressDown & c.isLickDown  & ~selLastGroup) = groupVarStim(~c.isPressDown & c.isLickDown  & ~selLastGroup) + 2;
 groupVarStim(~c.isPressDown & ~c.isLickDown & ~selLastGroup) = groupVarStim(~c.isPressDown & ~c.isLickDown & ~selLastGroup) + 3;
 groupVarStim(selLastGroup) = groupVarStim(selLastGroup) + 4;
-
-% groupVarStim(c.isPressUnresponsiveButDown & c.isLickUp) = groupVarStim(c.isPressUnresponsiveButDown & c.isLickUp) + 0;
-% groupVarStim(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButUp) = groupVarStim(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButUp) + 0;
-% groupVarStim(c.isPressDown & c.isLickUp) = groupVarStim(c.isPressDown & c.isLickUp) + 0;
-% groupVarStim(c.isPressDown & c.isLickUnresponsiveButUp) = groupVarStim(c.isPressDown & c.isLickUnresponsiveButUp) + 0;
-% groupVarStim(c.isPressUp & c.isLickUnresponsiveButDown) = groupVarStim(c.isPressUp & c.isLickUnresponsiveButDown) + 1;
-% groupVarStim(c.isPressUp & c.isLickDown) = groupVarStim(c.isPressUp & c.isLickDown) + 1;
-% groupVarStim(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButDown) = groupVarStim(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButDown) + 1;
-% groupVarStim(c.isPressUnresponsiveButUp & c.isLickDown) = groupVarStim(c.isPressUnresponsiveButUp & c.isLickDown) + 1;
-% groupVarStim(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButDown) = groupVarStim(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButDown) + 2;
-% groupVarStim(c.isPressUnresponsiveButDown & c.isLickDown) = groupVarStim(c.isPressUnresponsiveButDown & c.isLickDown) + 2;
-% groupVarStim(c.isPressDown & c.isLickUnresponsiveButDown) = groupVarStim(c.isPressDown & c.isLickUnresponsiveButDown) + 2;
-% groupVarStim(c.isPressDown & c.isLickDown) = groupVarStim(c.isPressDown & c.isLickDown) + 2;
-% groupVarStim(c.isPressUp & c.isLickUp) = groupVarStim(c.isPressUp & c.isLickUp) + 3;
-% groupVarStim(c.isPressUp & c.isLickUnresponsiveButUp) = groupVarStim(c.isPressUp & c.isLickUnresponsiveButUp) + 3;
-% groupVarStim(c.isPressUnresponsiveButUp & c.isLickUp) = groupVarStim(c.isPressUnresponsiveButUp & c.isLickUp) + 3;
-% groupVarStim(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButUp) = groupVarStim(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButUp) + 3;
 
 fig = figure;
 ax = arrayfun(@(i) subplot(1, 4, i), 1:4);
@@ -390,8 +308,236 @@ NTen = cumsum([0, N]);
 for iTen = 0:3
     N = histcounts(groupVarStim, iTen*10 + [-0.5, 2.5, 3.5, 4.5])
     for iAx = 1:4
-        yline(ax(iAx), cumsum(NTen(iTen + 1) + N) + 1, 'k--', LineWidth=1);
+        yline(ax(iAx), NTen(iTen + 1) + cumsum(N) + 1, 'k--', LineWidth=1);
     end
 end
 
 % clear fig ax order iAx N
+
+
+%% Figure2. Sort by peri-movement response (incongruent/congruent)
+p.xlim.stimETA = [-50, 50];
+p.xlim.moveETA = [-2, 0];
+
+groupVar = NaN(length(eu), 1);
+groupVar(c.isPressUnresponsiveButDown & c.isLickUp) = 0;
+groupVar(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButUp) = 0;
+groupVar(c.isPressDown & c.isLickUp) = 0;
+groupVar(c.isPressDown & c.isLickUnresponsiveButUp) = 0;
+groupVar(c.isPressUp & c.isLickUnresponsiveButDown) = 1;
+groupVar(c.isPressUp & c.isLickDown) = 1;
+groupVar(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButDown) = 1;
+groupVar(c.isPressUnresponsiveButUp & c.isLickDown) = 1;
+groupVar(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButDown) = 2;
+groupVar(c.isPressUnresponsiveButDown & c.isLickDown) = 2;
+groupVar(c.isPressDown & c.isLickUnresponsiveButDown) = 2;
+groupVar(c.isPressDown & c.isLickDown) = 2;
+groupVar(c.isPressUp & c.isLickUp) = 3;
+groupVar(c.isPressUp & c.isLickUnresponsiveButUp) = 3;
+groupVar(c.isPressUnresponsiveButUp & c.isLickUp) = 3;
+groupVar(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButUp) = 3;
+
+
+fig = figure;
+ax = arrayfun(@(i) subplot(1, 6, i), 1:6);
+
+EphysUnit.plotETA(ax(1), eta.press, ...
+    clim=[-1.5, 1.5], xlim=p.xlim.moveETA, sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
+    sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
+EphysUnit.plotETA(ax(2), eta.lick, ...
+    clim=[-1.5, 1.5], xlim=p.xlim.moveETA, sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
+    sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
+
+[~, order] = EphysUnit.plotETA(ax(3), eta.press, sortGroup=groupVar, ...
+    clim=[-1.5, 1.5], xlim=p.xlim.moveETA, sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
+    sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
+EphysUnit.plotETA(ax(4), eta.lick, order=order, ...
+    clim=[-1.5, 1.5], xlim=p.xlim.moveETA, hidecolorbar=true);
+
+EphysUnit.plotETA(ax(5), eta.stimBlue, order=order, ...
+    clim=[-10, 10], xlim=p.xlim.stimETA, hidecolorbar=true, timeUnit='ms');
+EphysUnit.plotETA(ax(6), eta.stimRed, order=order, ...
+    clim=[-10, 10], xlim=p.xlim.stimETA, hidecolorbar=true, timeUnit='ms');
+
+title(ax([1, 3]), 'Reach')
+title(ax([2, 4]), 'Lick')
+title(ax(5), sprintf('470-473 nm\n%g-%g uW\n%g-%g ms', 1e6*min(p.stimBluePowers), 1e6*max(p.stimBluePowers), 1e3*min(p.stimBlueDurations), 1e3*max(p.stimBlueDurations)))
+title(ax(6), sprintf('635 nm\n%g-%g uW\n%g-%g ms', 1e6*min(p.stimRedPowers), 1e6*max(p.stimRedPowers), 1e3*min(p.stimRedDurations), 1e3*max(p.stimRedDurations)))
+for iAx = 1:4
+    applyCustomColormap(ax(iAx), [-2, 2], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+end
+for iAx = 5:6
+    applyCustomColormap(ax(iAx), [-10, 10], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+    xline(ax(iAx), 0, 'k--')
+end
+
+
+xlabel(ax([1, 3]), 'Time to bar contact (s)')
+xlabel(ax([2, 4]), 'Time to spout contact (s)')
+xlabel(ax([5, 6]), 'Time from opto on (ms)')
+
+
+N = histcounts(groupVar, -0.5:2:3.5);
+for iAx = 3:6
+    yline(ax(iAx), cumsum(N(1:end-1)) + 1, 'k', LineWidth=3);
+end
+
+
+%% Figure 3. Sort by peri-movement response (incongruent/congruent) and then subdivide by optotagging (blue/both/red/neither)
+p.xlim.stimETA = [-50, 50];
+p.xlim.moveETA = [-2, 0];
+
+groupVar = NaN(length(eu), 1);
+groupVar(c.isPressUnresponsiveButDown & c.isLickUp) = 0;
+groupVar(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButUp) = 0;
+groupVar(c.isPressDown & c.isLickUp) = 0;
+groupVar(c.isPressDown & c.isLickUnresponsiveButUp) = 0;
+groupVar(c.isPressUp & c.isLickUnresponsiveButDown) = 0;
+groupVar(c.isPressUp & c.isLickDown) = 0;
+groupVar(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButDown) = 0;
+groupVar(c.isPressUnresponsiveButUp & c.isLickDown) = 0;
+groupVar(c.isPressUnresponsiveButDown & c.isLickUnresponsiveButDown) = 1;
+groupVar(c.isPressUnresponsiveButDown & c.isLickDown) = 1;
+groupVar(c.isPressDown & c.isLickUnresponsiveButDown) = 1;
+groupVar(c.isPressDown & c.isLickDown) = 1;
+groupVar(c.isPressUp & c.isLickUp) = 1;
+groupVar(c.isPressUp & c.isLickUnresponsiveButUp) = 1;
+groupVar(c.isPressUnresponsiveButUp & c.isLickUp) = 1;
+groupVar(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButUp) = 1;
+
+groupVar = groupVar * 10;
+
+% Subgroups: % BlueOn, % Red On, Blue On, % Red On, % Neither On
+groupVar(c.isStimBlueUpRedNotUpThereforeCoChrMaybe) = groupVar(c.isStimBlueUpRedNotUpThereforeCoChrMaybe) + 0; % CoChR
+groupVar(c.isStimBlueUpRedUpThereforeChrimsonMaybe) = groupVar(c.isStimBlueUpRedUpThereforeChrimsonMaybe) + 1; % Lots of Chrimson or Chrimson+CoChR double label?
+groupVar(c.isStimBlueNotUpRedUpThereforeChrimsonMaybe) = groupVar(c.isStimBlueNotUpRedUpThereforeChrimsonMaybe) + 2; % Low titer of Chrimson or distant Chrimson-cell?
+groupVar(c.isStimBlueNotUpRedNotUp) = groupVar(c.isStimBlueNotUpRedNotUp) + 3; % No opto response
+
+
+fig = figure;
+ax = arrayfun(@(i) subplot(1, 6, i), 1:6);
+
+EphysUnit.plotETA(ax(1), eta.press, ...
+    clim=[-1.5, 1.5], xlim=p.xlim.moveETA, sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
+    sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
+EphysUnit.plotETA(ax(2), eta.lick, ...
+    clim=[-1.5, 1.5], xlim=p.xlim.moveETA, sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
+    sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
+
+[~, order] = EphysUnit.plotETA(ax(3), eta.press, sortGroup=groupVar, ...
+    clim=[-1.5, 1.5], xlim=p.xlim.moveETA, sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
+    sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
+EphysUnit.plotETA(ax(4), eta.lick, order=order, ...
+    clim=[-1.5, 1.5], xlim=p.xlim.moveETA, hidecolorbar=true);
+
+EphysUnit.plotETA(ax(5), eta.stimBlue, order=order, ...
+    clim=[-10, 10], xlim=p.xlim.stimETA, hidecolorbar=true, timeUnit='ms');
+EphysUnit.plotETA(ax(6), eta.stimRed, order=order, ...
+    clim=[-10, 10], xlim=p.xlim.stimETA, hidecolorbar=true, timeUnit='ms');
+
+title(ax([1, 3]), 'Reach')
+title(ax([2, 4]), 'Lick')
+title(ax(5), sprintf('470-473 nm\n%g-%g uW\n%g-%g ms', 1e6*min(p.stimBluePowers), 1e6*max(p.stimBluePowers), 1e3*min(p.stimBlueDurations), 1e3*max(p.stimBlueDurations)))
+title(ax(6), sprintf('635 nm\n%g-%g uW\n%g-%g ms', 1e6*min(p.stimRedPowers), 1e6*max(p.stimRedPowers), 1e3*min(p.stimRedDurations), 1e3*max(p.stimRedDurations)))
+for iAx = 1:4
+    applyCustomColormap(ax(iAx), [-2, 2], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+end
+for iAx = 5:6
+    applyCustomColormap(ax(iAx), [-10, 10], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+    xline(ax(iAx), 0, 'k--')
+end
+
+
+xlabel(ax([1, 3]), 'Time to bar contact (s)')
+xlabel(ax([2, 4]), 'Time to spout contact (s)')
+xlabel(ax([5, 6]), 'Time from opto on (ms)')
+
+
+N = histcounts(groupVar, [-5, 5, 15]);
+for iAx = 3:6
+    yline(ax(iAx), cumsum(N(1:end-1)) + 1, 'k', LineWidth=3);
+end
+
+NTen = cumsum([0, N]);
+for iTen = 0 : 1
+    N = histcounts(groupVar, iTen*10 + (-0.5:1:3.5));
+    for iAx = 3:6
+        yline(ax(iAx), NTen(iTen + 1) + cumsum(N) + 1, 'k--', LineWidth=1);
+    end
+end
+
+
+%% Figure 4. Sort by peri-movement response (1+dec/1+dec/neither-dec) and then subdivide by optotagging (blue/both/red/neither)
+p.xlim.stimETA = [-50, 50];
+p.xlim.moveETA = [-2, 0];
+
+% Major groups: 
+% press-dec & lick-dec, 
+% press-dec & ~lick-dec, 
+% ~press-dec & lick-dec, 
+% ~press-dec & ~lick-dec 
+groupVar = NaN(length(eu), 1);
+groupVar(c.isPressDown | c.isLickDown) = 0;
+groupVar(~(c.isPressDown | c.isLickDown) & (c.isPressUp | c.isLickUp)) = 10;
+groupVar(~c.isPressResponsive & ~c.isLickResponsive) = 20;
+assert(nnz(isnan(groupVar)) == 0)
+
+% Subgroups: % BlueOn, % Red On, Blue On, % Red On, % Neither On
+groupVar(c.isStimBlueUpRedNotUpThereforeCoChrMaybe) = groupVar(c.isStimBlueUpRedNotUpThereforeCoChrMaybe) + 0; % CoChR
+groupVar(c.isStimBlueUpRedUpThereforeChrimsonMaybe) = groupVar(c.isStimBlueUpRedUpThereforeChrimsonMaybe) + 1; % Lots of Chrimson or Chrimson+CoChR double label?
+groupVar(c.isStimBlueNotUpRedUpThereforeChrimsonMaybe) = groupVar(c.isStimBlueNotUpRedUpThereforeChrimsonMaybe) + 2; % Low titer of Chrimson or distant Chrimson-cell?
+groupVar(c.isStimBlueNotUpRedNotUp) = groupVar(c.isStimBlueNotUpRedNotUp) + 3; % No opto response
+
+
+fig = figure;
+ax = arrayfun(@(i) subplot(1, 6, i), 1:6);
+
+EphysUnit.plotETA(ax(1), eta.press, ...
+    clim=[-1.5, 1.5], xlim=p.xlim.moveETA, sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
+    sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
+EphysUnit.plotETA(ax(2), eta.lick, ...
+    clim=[-1.5, 1.5], xlim=p.xlim.moveETA, sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
+    sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
+
+[~, order] = EphysUnit.plotETA(ax(3), eta.press, sortGroup=groupVar, ...
+    clim=[-1.5, 1.5], xlim=p.xlim.moveETA, sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
+    sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
+EphysUnit.plotETA(ax(4), eta.lick, order=order, ...
+    clim=[-1.5, 1.5], xlim=p.xlim.moveETA, hidecolorbar=true);
+
+EphysUnit.plotETA(ax(5), eta.stimBlue, order=order, ...
+    clim=[-10, 10], xlim=p.xlim.stimETA, hidecolorbar=true, timeUnit='ms');
+EphysUnit.plotETA(ax(6), eta.stimRed, order=order, ...
+    clim=[-10, 10], xlim=p.xlim.stimETA, hidecolorbar=true, timeUnit='ms');
+
+title(ax([1, 3]), 'Reach')
+title(ax([2, 4]), 'Lick')
+title(ax(5), sprintf('470-473 nm\n%g-%g uW\n%g-%g ms', 1e6*min(p.stimBluePowers), 1e6*max(p.stimBluePowers), 1e3*min(p.stimBlueDurations), 1e3*max(p.stimBlueDurations)))
+title(ax(6), sprintf('635 nm\n%g-%g uW\n%g-%g ms', 1e6*min(p.stimRedPowers), 1e6*max(p.stimRedPowers), 1e3*min(p.stimRedDurations), 1e3*max(p.stimRedDurations)))
+for iAx = 1:4
+    applyCustomColormap(ax(iAx), [-2, 2], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+end
+for iAx = 5:6
+    applyCustomColormap(ax(iAx), [-10, 10], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+    xline(ax(iAx), 0, 'k--')
+end
+
+
+xlabel(ax([1, 3]), 'Time to bar contact (s)')
+xlabel(ax([2, 4]), 'Time to spout contact (s)')
+xlabel(ax([5, 6]), 'Time from opto on (ms)')
+
+
+N = histcounts(groupVar, [-5, 5, 15, 25]);
+for iAx = 3:6
+    yline(ax(iAx), cumsum(N(1:end-1)) + 1, 'k', LineWidth=3);
+end
+
+NTen = cumsum([0, N]);
+for iTen = 0 : length(NTen)-1
+    N = histcounts(groupVar, iTen*10 + [-0.5, 0.5, 1.5, 2.5, 3.5]);
+    for iAx = 3:6
+        yline(ax(iAx), NTen(iTen + 1) + cumsum(N) + 1, 'k--', LineWidth=1);
+    end
+end
+
