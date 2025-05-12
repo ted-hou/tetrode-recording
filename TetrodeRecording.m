@@ -1880,7 +1880,7 @@ classdef TetrodeRecording < handle
 
             culledClusters = cell(1, length(channels));
             for iChn = channels(:)'
-                sessionLength = obj.Spikes(iChn).Timestamps(end);
+                sessionLength = obj.AnalogIn.Timestamps(end); %obj.Spikes(iChn).Timestamps(end);
                 clusters = unique(obj.Spikes(iChn).Cluster.Classes);
                 clustersToCull = [];
                 for iCluster = clusters(:)'
