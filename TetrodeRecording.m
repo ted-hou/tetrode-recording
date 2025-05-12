@@ -3073,6 +3073,40 @@ classdef TetrodeRecording < handle
             pulseWidth = cat(2, pulseWidth{:});
             
             % Verify congruence between Intan shutter events and TwoColorExperiment.Log
+            nPulsesTCE = sum(nPulsesPerTrain);
+            nPulsesEphys = nnz(tOn);
+            assert(nnz(tOn) == nnz(tOff));
+            if nPulsesTCE < nPulsesEphys
+                warning('Hey I am taking the liberty of removing the last %i stimOn/stimOff events from Ephys (total %i) for ya because they were not in TwoColorExperiment.Log (total %i). You prolly forgot to save at the end after doing some manual stim ya blockhead.', nPulsesEphys-nPulsesTCE, nPulsesEphys, nPulsesTCE);
+                tOn = tOn(1:sum(nPulsesPerTrain));
+                tOff = tOff(1:sum(nPulsesPerTrain));
+                obj.DigitalEvents.StimOn = tOn;
+                obj.DigitalEvents.StimOff = tOff;
+            elseif nPulsesTCE > nPulsesEphys
+                dt.tce = seconds(diff(arrayfun(@(log) log.mirrorStartTime, [tce.Log]), 1));
+                assert(all(nPulsesPerTrain==mean(nPulsesPerTrain)), 'HUH? Always %g pulses per train? What a wild assertion no wonder why it was not met.', mean(nPulsesPerTrain))
+                dt.ephys = diff(tOn(1:mean(nPulsesPerTrain):end), 1);
+
+                % Remove tail of tce
+                if sum(dt.tce(1:nPulsesEphys/mean(nPulsesPerTrain)-1) - dt.ephys) < sum(dt.tce(end-nPulsesEphys/mean(nPulsesPerTrain)+2:end) - dt.ephys)
+                    warning('Hey I am taking the liberty of removing the last %i pulses from TCE (total %i) for ya because they were not in Ephys (total %i). You prolly forgot to save at the end after doing some manual stim ya blockhead.', nPulsesTCE - nPulsesEphys, nPulsesTCE, nPulsesEphys);
+                    tce.Log(end - nPulsesEphys/mean(nPulsesPerTrain) + 1 : end) = [];
+
+                    nPulsesPerTrain = arrayfun(@(log) log.params.nPulses, tce.Log);
+                    pulseWidth = arrayfun(@(log) repmat(log.params.pulseWidth, [1, log.params.nPulses]), tce.Log, UniformOutput=false);
+                    pulseWidth = cat(2, pulseWidth{:});
+                                        
+                % Remove head of tce
+                else
+                    warning('Hey I am taking the liberty of removing the first %i pulses from TCE (total %i) for ya because they were not in Ephys (total %i). You prolly forgot to save at the end after doing some manual stim ya blockhead.', nPulsesTCE - nPulsesEphys, nPulsesTCE, nPulsesEphys);
+                    tce.Log(1 : end - nPulsesEphys/mean(nPulsesPerTrain)) = [];
+
+
+                    nPulsesPerTrain = arrayfun(@(log) log.params.nPulses, tce.Log);
+                    pulseWidth = arrayfun(@(log) repmat(log.params.pulseWidth, [1, log.params.nPulses]), tce.Log, UniformOutput=false);
+                    pulseWidth = cat(2, pulseWidth{:});
+                end
+            end
             assert(sum(nPulsesPerTrain) == nnz(tOn), 'Intan recorded %i shutterOn events while TwoColorExperiment.Log has %i.', nnz(tOn), sum(nPulsesPerTrain));
             assert(sum(nPulsesPerTrain) == nnz(tOff), 'Intan recorded %i shutterOn events while TwoColorExperiment.Log has %i.', nnz(tOn), sum(nPulsesPerTrain));
             nPulses = nnz(tOn);
