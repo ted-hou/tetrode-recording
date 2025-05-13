@@ -1,17 +1,17 @@
 
 
 %% Remove duplicates (Slow)
-eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro', waveforms=false, spikecounts=false, spikerates=false, animalNames={'desmond38'});
+eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\Batch2', waveforms=false, spikecounts=false, spikerates=false, animalNames={'desmond38'});
 %
 euAll = eu;
 
 eu = eu.removeMultiUnits(cullZeros=true);
 [eu, isDuplicate] = eu.removeDuplicates(0.7);
-eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate')
+% eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate')
 
-%% Remove drift, low spike rate units
+% Remove drift, low spike rate units
 clear c
-eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
+% eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
 
 % Remove drift
 c.isDrifting = detectDriftingUnits(eu, smoothWindow=300, tolerance=0.05, spikeRateThreshold=15, includeITI=true);
@@ -23,6 +23,15 @@ p.minSpikeRate = 15;
 c.isSNr = msr >= p.minSpikeRate;
 
 eu = eu(c.isSNr & ~c.isDrifting);
+
+% eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr')
+
+% Make spontaneous reach/lick trials
+p.minTrialLength = 4;
+for iEu = 1:length(eu)
+    eu(iEu).Trials.Press = eu(iEu).makeTrials('press_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
+    eu(iEu).Trials.Lick = eu(iEu).makeTrials('lick_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
+end
 
 eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr')
 
@@ -39,15 +48,6 @@ for iEu = find(string({eu.ExpName}) == "desmond38_20250403")
     eu(iEu).Trials.Stim = eu(iEu).makeTrials('stim');
 end
 
-
-eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr')
-
-%% Make spontaneous reach/lick trials
-p.minTrialLength = 4;
-for iEu = 1:length(eu)
-    eu(iEu).Trials.Press = eu(iEu).makeTrials('press_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
-    eu(iEu).Trials.Lick = eu(iEu).makeTrials('lick_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
-end
 
 eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr')
 
