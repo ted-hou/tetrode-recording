@@ -1737,7 +1737,7 @@ classdef TetrodeRecording < handle
             end
             
             for channel = channels
-                if isempty(obj.Spikes(channel).Cluster)
+                if length(obj.Spikes) < channel || isempty(obj.Spikes(channel).Cluster)
                     continue
                 end
                 clusters = unique(obj.Spikes(channel).Cluster.Classes);
