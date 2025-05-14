@@ -144,6 +144,23 @@ for iSession = 1:length(folders)
 end
 
 %% Batch do stuff to SelectedChannels
+tr.SelectedChannels = [8:11, 13, 15:35, 37, 39:128];
+
+% for iChannel = tr.SelectedChannels
+%     tr.ClusterRemove(iChannel, 1);
+% end
+
+tr.FeatureExtract(tr.SelectedChannels, 'Method', 'PCA', 'Dimension', 10, 'WaveformWindow', [-0.5, 0.5]);
+tr.Cluster(tr.SelectedChannels, 'Clusters', [], 'Method', 'kmeans', 'NumClusters', 2);
+tr.SpikeClusterAutoReorder(tr.SelectedChannels, verbose=false)
+
+tr.SelectedChannels = [];
+tr.PlotAllChannels(Channels=channels, plotMethod='mean')
+
+
+%% Batch do stuff to SelectedChannels
+tr.SelectedChannels = [257:265, 267:2:273, 274:315, 317, 319:384];
+
 for iChannel = tr.SelectedChannels
     tr.ClusterRemove(iChannel, 1);
 end
@@ -152,13 +169,11 @@ tr.FeatureExtract(tr.SelectedChannels, 'Method', 'PCA', 'Dimension', 10, 'Wavefo
 tr.Cluster(tr.SelectedChannels, 'Clusters', [], 'Method', 'kmeans', 'NumClusters', 2);
 tr.SpikeClusterAutoReorder(tr.SelectedChannels, verbose=false)
 
+tr.SelectedChannels = [];
+tr.PlotAllChannels(Channels=channels, plotMethod='mean')
 %%
 for iChannel = tr.SelectedChannels
 	for field = fieldnames(tr.Spikes)'
 		tr.Spikes(iChannel).(field{1}) = [];
 	end				
 end
-
-%% 
-tr.SelectedChannels = [];
-tr.PlotAllChannels(Channels=channels, plotMethod='mean')

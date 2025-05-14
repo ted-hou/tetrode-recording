@@ -70,10 +70,10 @@ eta.lick = eu.getETA('count', 'lick', [-4, 0], resolution=0.1, alignTo='stop', i
 eta.pressRaw.X = eta.pressRaw.X ./ 0.1;
 eta.lickRaw.X = eta.lickRaw.X ./ 0.1;
 
-% ETA Stim
+%% ETA Stim
 p.isiBaselineWindow = [-0.1, 0];
-p.stimBluePowers = [25, 50, 100]*1e-6;
-p.stimRedPowers = [500, 2000, 8000, 16000]*1e-6;
+p.stimBluePowers = [25, 50, 100, 500]*1e-6;
+p.stimRedPowers = [25, 50, 100, 500, 2000, 8000, 16000]*1e-6;
 p.stimBlueDurations = [10, 20]*1e-3;
 p.stimRedDurations = [10, 20]*1e-3;
 
@@ -106,7 +106,7 @@ for iEu = 1:length(eu)
     normSR = (1./isi - mean(1./isi(:, selBaseline), 'omitnan')) ./ std(1./isi(:, selBaseline), 0, 2, 'omitnan');
     XRed{iEu} = normSR;
 
-    fprintf('nan=%i, nan=%i\n', nnz(isnan(XBlue{iEu})), nnz(isnan(XRed{iEu})))
+    % fprintf('nan=%i, nan=%i\n', nnz(isnan(XBlue{iEu})), nnz(isnan(XRed{iEu})))
 end
 
 eta.stimBlue = struct(X=cat(1, XBlue{:}), t=t, N=[], D=[], stats=[]);
@@ -114,9 +114,9 @@ eta.stimRed = struct(X=cat(1, XRed{:}), t=t, N=[], D=[], stats=[]);
 
 clear XBlue XRed iEu groupsBlue groupsRed isi t selBaseline normSR
 
-%% Calculate META
+% Calculate META
 clear meta
-p.metaWindow = [-0.2, 0];
+p.metaWindow = [-0.3, 0];
 p.posRespThreshold = 0.5;
 p.negRespThreshold = -0.25;
 t = eta.press.t;
@@ -136,17 +136,17 @@ meta.stimBlue = mean(eta.stimBlue.X(:, t>=p.metaWindowStim(1) & t<=p.metaWindowS
 t = eta.stimRed.t;
 meta.stimRed = mean(eta.stimRed.X(:, t>=p.metaWindowStim(1) & t<=p.metaWindowStim(2)), 2, 'omitnan');
 clear t
-
-c.isPressUp =         meta.press >= p.posRespThreshold;
-c.isPressDown =       meta.press <= p.negRespThreshold;
-c.isPressResponsive = c.isPressUp | c.isPressDown;
-c.isLickUp =          meta.lick >= p.posRespThreshold;
-c.isLickDown =        meta.lick <= p.negRespThreshold;
-c.isLickResponsive =  c.isLickUp | c.isLickDown;
-c.isLickUnresponsiveButUp = ~c.isLickResponsive & meta.lick > 0;
-c.isLickUnresponsiveButDown = ~c.isLickResponsive & meta.lick < 0;
-c.isPressUnresponsiveButUp = ~c.isPressResponsive & meta.press > 0;
-c.isPressUnresponsiveButDown = ~c.isPressResponsive & meta.press < 0;
+% 
+% c.isPressUp =         meta.press >= p.posRespThreshold;
+% c.isPressDown =       meta.press <= p.negRespThreshold;
+% c.isPressResponsive = c.isPressUp | c.isPressDown;
+% c.isLickUp =          meta.lick >= p.posRespThreshold;
+% c.isLickDown =        meta.lick <= p.negRespThreshold;
+% c.isLickResponsive =  c.isLickUp | c.isLickDown;
+% c.isLickUnresponsiveButUp = ~c.isLickResponsive & meta.lick > 0;
+% c.isLickUnresponsiveButDown = ~c.isLickResponsive & meta.lick < 0;
+% c.isPressUnresponsiveButUp = ~c.isPressResponsive & meta.press > 0;
+% c.isPressUnresponsiveButDown = ~c.isPressResponsive & meta.press < 0;
 
 c.isStimBlueUp = meta.stimBlue >= p.posRespThresholdStim;
 c.isStimBlueDown = meta.stimBlue <= p.negRespThresholdStim;
@@ -157,6 +157,76 @@ c.isStimBlueUpRedUpThereforeChrimsonMaybe = c.isStimBlueUp & c.isStimRedUp;
 c.isStimBlueUpRedNotUpThereforeCoChrMaybe = c.isStimBlueUp & ~c.isStimRedUp;
 c.isStimBlueNotUpRedUpThereforeChrimsonMaybe = ~c.isStimBlueUp & c.isStimRedUp;
 c.isStimBlueNotUpRedNotUp = ~c.isStimBlueUp & ~c.isStimRedUp;
+
+%% Boot response dir
+p.bootAlpha = 0.05;
+p.nboot = 100000;
+p.metaWindow = [-0.3, 0];
+boot.press = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muDiffObs', NaN(length(eu), 1));
+boot.lick = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muDiffObs', NaN(length(eu), 1));
+[boot.press.h, boot.press.muDiffCI, boot.press.muDiffObs] = bootstrapMoveResponse( ...
+    eu, 'press', nboot=p.nboot, alpha=p.bootAlpha, withReplacement=false, oneSided=false, ...
+    responseWindow=p.metaWindow, allowedTrialDuration=[0, Inf]);
+[boot.lick.h, boot.lick.muDiffCI, boot.lick.muDiffObs] = bootstrapMoveResponse( ...
+    eu, 'lick', nboot=p.nboot, alpha=p.bootAlpha, withReplacement=false, oneSided=false, ...
+    responseWindow=p.metaWindow, allowedTrialDuration=[0, Inf]);
+fprintf(1, '\nAll done\n')
+
+% Report bootstraped movement response direction
+assert(nnz(isnan(boot.lick.h)) == 0)
+assert(nnz(isnan(boot.press.h)) == 0)
+
+figure, histogram(boot.press.h)
+c.isPressUp = boot.press.h == 1;
+c.isPressDown = boot.press.h == -1;
+c.isPressResponsive = c.isPressUp | c.isPressDown;
+
+figure, histogram(boot.lick.h)
+c.isLickUp = boot.lick.h == 1;
+c.isLickDown = boot.lick.h == -1;
+c.isLickResponsive = c.isLickUp | c.isLickDown;
+
+c.isLickUnresponsiveButUp = ~c.isLickResponsive & meta.lick > 0;
+c.isLickUnresponsiveButDown = ~c.isLickResponsive & meta.lick < 0;
+c.isPressUnresponsiveButUp = ~c.isPressResponsive & meta.press > 0;
+c.isPressUnresponsiveButDown = ~c.isPressResponsive & meta.press < 0;
+
+fprintf(1, ['%g units:\n' ...
+    '\t%g (%.0f%%) are excited (p<%g);\n' ...
+    '\t%g (%.0f%%) are inhibited (p<%g).\n'], ...
+    length(eu), ...
+    nnz(c.isPressUp), 100*nnz(c.isPressUp)/nnz(c.isPressResponsive), p.bootAlpha, ...
+    nnz(c.isPressDown), 100*nnz(c.isPressDown)/nnz(c.isPressResponsive), p.bootAlpha);
+
+fprintf(1, ['%g units:\n' ...
+    '\t%g (%.0f%%) are excited (p<%g);\n' ...
+    '\t%g (%.0f%%) are inhibited (p<%g).\n'], ...
+    length(eu), ...
+    nnz(c.isLickUp), 100*nnz(c.isLickUp)/nnz(c.isLickResponsive), p.bootAlpha, ...
+    nnz(c.isLickDown), 100*nnz(c.isLickDown)/nnz(c.isLickResponsive), p.bootAlpha);
+
+nTotal = nnz(c.isPressResponsive & c.isLickResponsive);
+fprintf(1, ['%g units:\n' ...
+    '\t%g (%.0f%%) are press-excited AND lick-excited;\n' ...
+    '\t%g (%.0f%%) are press-inhibited AND lick-inhibited;\n' ...
+    '\t%g (%.0f%%) are press-excited AND lick-inhibited;\n' ...
+    '\t%g (%.0f%%) are press-inhibited AND lick-excited;\n'], ...
+    length(eu), ...
+    nnz(c.isPressUp & c.isLickUp), 100*nnz(c.isPressUp & c.isLickUp)/nTotal, ...
+    nnz(c.isPressDown & c.isLickDown), 100*nnz(c.isPressDown & c.isLickDown)/nTotal, ...
+    nnz(c.isPressUp & c.isLickDown), 100*nnz(c.isPressUp & c.isLickDown)/nTotal, ...
+    nnz(c.isPressDown & c.isLickUp), 100*nnz(c.isPressDown & c.isLickUp)/nTotal)   
+
+fprintf('Calculate: Of %i: %i (%i%%) showed modulation for BOTH, %i (%i%%) showed modulation for lick only, %i (%i%%) showed modulation for reach only, %i (%i%%) for neither.', ...
+    length(eu), ...
+    nnz(c.isPressResponsive & c.isLickResponsive), round(nnz(c.isPressResponsive & c.isLickResponsive)/length(eu)*100), ...
+    nnz(c.isLickResponsive & ~c.isPressResponsive), round(nnz(c.isLickResponsive & ~c.isPressResponsive)/length(eu)*100), ...
+    nnz(c.isPressResponsive & ~c.isLickResponsive), round(nnz(c.isPressResponsive & ~c.isLickResponsive)/length(eu)*100), ...
+    nnz(~c.isPressResponsive & ~c.isLickResponsive), round(nnz(~c.isPressResponsive & ~c.isLickResponsive)/length(eu)*100) ...
+    )
+
+
+
 
 
 %% Combined PEISI and Stim Raster
@@ -263,7 +333,7 @@ groupVarStim(~c.isPressDown & c.isLickDown  & ~selLastGroup) = groupVarStim(~c.i
 groupVarStim(~c.isPressDown & ~c.isLickDown & ~selLastGroup) = groupVarStim(~c.isPressDown & ~c.isLickDown & ~selLastGroup) + 3;
 groupVarStim(selLastGroup) = groupVarStim(selLastGroup) + 4;
 
-fig = figure;
+fig = figure(Units="inches", Position=[0 0 10.5, 7.5]);
 ax = arrayfun(@(i) subplot(1, 4, i), 1:4);
 
 [~, order] = EphysUnit.plotETA(ax(3), eta.stimBlue, ...
@@ -312,6 +382,8 @@ for iTen = 0:3
     end
 end
 
+copygraphics(fig, BackgroundColor='none', ContentType='vector')
+
 % clear fig ax order iAx N
 
 
@@ -338,7 +410,7 @@ groupVar(c.isPressUnresponsiveButUp & c.isLickUp) = 3;
 groupVar(c.isPressUnresponsiveButUp & c.isLickUnresponsiveButUp) = 3;
 
 
-fig = figure;
+fig = figure(Units="inches", Position=[0 0 12.5, 7.5]);
 ax = arrayfun(@(i) subplot(1, 6, i), 1:6);
 
 EphysUnit.plotETA(ax(1), eta.press, ...
@@ -382,6 +454,8 @@ for iAx = 3:6
     yline(ax(iAx), cumsum(N(1:end-1)) + 1, 'k', LineWidth=3);
 end
 
+copygraphics(fig, BackgroundColor='none', ContentType='vector')
+
 
 %% Figure 3. Sort by peri-movement response (incongruent/congruent) and then subdivide by optotagging (blue/both/red/neither)
 p.xlim.stimETA = [-50, 50];
@@ -414,7 +488,7 @@ groupVar(c.isStimBlueNotUpRedUpThereforeChrimsonMaybe) = groupVar(c.isStimBlueNo
 groupVar(c.isStimBlueNotUpRedNotUp) = groupVar(c.isStimBlueNotUpRedNotUp) + 3; % No opto response
 
 
-fig = figure;
+fig = figure(Units="inches", Position=[0 0 11, 7.5]);
 ax = arrayfun(@(i) subplot(1, 6, i), 1:6);
 
 EphysUnit.plotETA(ax(1), eta.press, ...
@@ -466,6 +540,8 @@ for iTen = 0 : 1
     end
 end
 
+copygraphics(fig, BackgroundColor='none', ContentType='vector')
+
 
 %% Figure 4. Sort by peri-movement response (1+dec/1+dec/neither-dec) and then subdivide by optotagging (blue/both/red/neither)
 p.xlim.stimETA = [-50, 50];
@@ -489,7 +565,7 @@ groupVar(c.isStimBlueNotUpRedUpThereforeChrimsonMaybe) = groupVar(c.isStimBlueNo
 groupVar(c.isStimBlueNotUpRedNotUp) = groupVar(c.isStimBlueNotUpRedNotUp) + 3; % No opto response
 
 
-fig = figure;
+fig = figure(Units="inches", Position=[0 0 11, 7.5]);
 ax = arrayfun(@(i) subplot(1, 6, i), 1:6);
 
 EphysUnit.plotETA(ax(1), eta.press, ...
@@ -541,3 +617,5 @@ for iTen = 0 : length(NTen)-1
     end
 end
 
+
+copygraphics(fig, BackgroundColor='none', ContentType='vector')
