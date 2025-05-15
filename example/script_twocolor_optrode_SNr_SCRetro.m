@@ -27,11 +27,11 @@ eu = eu(c.isSNr & ~c.isDrifting);
 % eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr')
 
 % Make spontaneous reach/lick trials
-p.minTrialLength = 4;
-for iEu = 1:length(eu)
-    eu(iEu).Trials.Press = eu(iEu).makeTrials('press_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
-    eu(iEu).Trials.Lick = eu(iEu).makeTrials('lick_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
-end
+% p.minTrialLength = 4;
+% for iEu = 1:length(eu)
+%     eu(iEu).Trials.Press = eu(iEu).makeTrials('press_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
+%     eu(iEu).Trials.Lick = eu(iEu).makeTrials('lick_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
+% end
 
 eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr')
 
@@ -51,6 +51,87 @@ end
 
 eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr')
 
+%% Get medial vs. lateral trials, save to EU (do only once)
+p.minTrialLength = 4;
+[~, ia, ~] = unique({eu.ExpName});
+for iEu = 1:length(eu)
+    switch eu(iEu).getAnimalName()
+        case {'desmond38', 'daisy26'}
+            implantSide = 'R';
+        case 'desmond39'
+            implantSide = 'L';
+        otherwise 
+            error()
+    end
+
+
+    pressTrials = Trial(eu(iEu).EventTimes.PressOff, eu(iEu).EventTimes.PressOn, 'first');
+    pressTrials = pressTrials(pressTrials.duration() >= p.minTrialLength);
+    pressTimes = [pressTrials.Stop];
+    lickTrials = Trial(eu(iEu).EventTimes.LickOff, eu(iEu).EventTimes.LickOn, 'first');
+    lickTrials = lickTrials(lickTrials.duration() >= p.minTrialLength);
+    lickTimes = [lickTrials.Stop];
+
+    leftOn = eu(iEu).EventTimes.CueLeftOn;
+    leftOff = eu(iEu).EventTimes.CueLeftOff;
+    rightOn = eu(iEu).EventTimes.CueRightOn;
+    rightOff = eu(iEu).EventTimes.CueRightOff;
+
+    if length(leftOn) == length(leftOff) + 1
+        leftOff(end + 1) = Inf;
+    end
+    if length(rightOn) == length(rightOff) + 1
+        rightOff(end + 1) = Inf;
+    end
+    assert(length(leftOn) == length(leftOff))
+    assert(length(rightOn) == length(rightOff))
+    assert(all(leftOn - leftOff <= 0))
+    assert(all(rightOn - rightOff <= 0))
+
+    cueTrialsLeft = Trial(leftOn, leftOff, advancedValidation=false);
+    cueTrialsRight = Trial(rightOn, rightOff, advancedValidation=false);
+    isLeft = cueTrialsLeft.inTrial(pressTimes);
+    isRight = cueTrialsRight.inTrial(pressTimes);
+
+    eu(iEu).Trials.CueLeft = cueTrialsLeft;
+    eu(iEu).Trials.CueRight = cueTrialsRight;
+    eu(iEu).Trials.PressLeft = pressTrials(isLeft);
+    eu(iEu).Trials.PressRight = pressTrials(isRight);
+
+    % Press trials must occur when one LED was on
+    sel = cueTrialsLeft.inTrial(pressTimes) | cueTrialsRight.inTrial(pressTimes);
+    if nnz(sel) < length(sel)
+        eu(iEu).Trials.Press = pressTrials(sel);
+        if ismember(iEu, ia)
+            fprintf('Removed %i (of %i) press trials because they occured when both Cue LEDs were off.\n', length(sel) - nnz(sel), length(sel));
+        end
+    end
+
+    % Lick trials must occur when both LEDs were off
+    sel = ~cueTrialsLeft.inTrial(lickTimes) & ~cueTrialsRight.inTrial(lickTimes);
+    if nnz(sel) < length(sel)
+        eu(iEu).Trials.Lick = lickTrials(sel);
+        if ismember(iEu, ia)
+            fprintf('Removed %i (of %i) lick trials because they occured when Cue LED(s) was on.\n', length(sel) - nnz(sel), length(sel));
+        end
+    end
+
+    switch implantSide
+        case 'L'
+            eu(iEu).Trials.PressSpontaneousMedial = eu(iEu).Trials.PressLeft;
+            eu(iEu).Trials.PressSpontaneousLateral = eu(iEu).Trials.PressRight;
+        case 'R'
+            eu(iEu).Trials.PressSpontaneousMedial = eu(iEu).Trials.PressRight;
+            eu(iEu).Trials.PressSpontaneousLateral = eu(iEu).Trials.PressLeft;
+    end
+end
+
+% Count number of trials by session
+arrayfun(@(eu) fprintf('%s: %i med, %i lat, %i lick;\n', eu.ExpName, length(eu.Trials.PressSpontaneousMedial), length(eu.Trials.PressSpontaneousLateral), length(eu.Trials.Lick)), eu(ia));
+
+clear ia sel implantSide cueTrialsLeft cueTrialsRight isLeft isRight leftOn leftOff pressTrials pressTimes lickTrials lickTimes iEu
+eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr')
+
 %%
 clear, clc
 eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
@@ -59,20 +140,28 @@ eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfen
 clear rd
 rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shutterDelay=0, photoelectricBlankDuration=0.5e-3);
 rd.press = eu.getRasterData('press', window=[-4, 0], alignTo='stop');
+rd.pressMed = eu.getRasterData('press_spontaneous_medial', window=[-4, 0], alignTo='stop');
+rd.pressLat = eu.getRasterData('press_spontaneous_lateral', window=[-4, 0], alignTo='stop');
 rd.lick = eu.getRasterData('lick', window=[-4, 0], alignTo='stop');
 
 % Make ETA
 clear eta
 eta.pressRaw = eu.getETA('count', 'press', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none');
+eta.pressMedRaw = eu.getETA('count', 'press_spontaneous_medial', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none');
+eta.pressLatRaw = eu.getETA('count', 'press_spontaneous_lateral', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none');
 eta.lickRaw = eu.getETA('count', 'lick', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none');
 eta.press = eu.getETA('count', 'press', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2]);
+eta.pressMed = eu.getETA('count', 'press_spontaneous_medial', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2]);
+eta.pressLat = eu.getETA('count', 'press_spontaneous_lateral', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2]);
 eta.lick = eu.getETA('count', 'lick', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2]);
 eta.pressRaw.X = eta.pressRaw.X ./ 0.1;
+eta.pressMedRaw.X = eta.pressMedRaw.X ./ 0.1;
+eta.pressLatRaw.X = eta.pressLatRaw.X ./ 0.1;
 eta.lickRaw.X = eta.lickRaw.X ./ 0.1;
 
-%% ETA Stim
+% ETA Stim
 p.isiBaselineWindow = [-0.1, 0];
-p.stimBluePowers = [25, 50, 100, 500]*1e-6;
+p.stimBluePowers = [25, 50, 100, 500]*1e-6; 
 p.stimRedPowers = [25, 50, 100, 500, 2000, 8000, 16000]*1e-6;
 p.stimBlueDurations = [10, 20]*1e-3;
 p.stimRedDurations = [10, 20]*1e-3;
@@ -121,9 +210,13 @@ p.posRespThreshold = 0.5;
 p.negRespThreshold = -0.25;
 t = eta.press.t;
 meta.press = mean(eta.press.X(:, t>=p.metaWindow(1) & t<=p.metaWindow(2)), 2, 'omitnan');
+meta.pressMed = mean(eta.pressMed.X(:, t>=p.metaWindow(1) & t<=p.metaWindow(2)), 2, 'omitnan');
+meta.pressLat = mean(eta.pressLat.X(:, t>=p.metaWindow(1) & t<=p.metaWindow(2)), 2, 'omitnan');
 meta.lick = mean(eta.lick.X(:, t>=p.metaWindow(1) & t<=p.metaWindow(2)), 2, 'omitnan');
 t = eta.pressRaw.t;
 meta.pressRaw = mean(eta.press.X(:, t>=p.metaWindow(1) & t<=p.metaWindow(2)), 2, 'omitnan');
+meta.pressMedRaw = mean(eta.pressMedRaw.X(:, t>=p.metaWindow(1) & t<=p.metaWindow(2)), 2, 'omitnan');
+meta.pressLatRaw = mean(eta.pressLatRaw.X(:, t>=p.metaWindow(1) & t<=p.metaWindow(2)), 2, 'omitnan');
 meta.lickRaw = mean(eta.lick.X(:, t>=p.metaWindow(1) & t<=p.metaWindow(2)), 2, 'omitnan');
 clear t
 
@@ -158,21 +251,29 @@ c.isStimBlueUpRedNotUpThereforeCoChrMaybe = c.isStimBlueUp & ~c.isStimRedUp;
 c.isStimBlueNotUpRedUpThereforeChrimsonMaybe = ~c.isStimBlueUp & c.isStimRedUp;
 c.isStimBlueNotUpRedNotUp = ~c.isStimBlueUp & ~c.isStimRedUp;
 
-%% Boot response dir
+% Boot response dir
 p.bootAlpha = 0.05;
 p.nboot = 100000;
 p.metaWindow = [-0.3, 0];
 boot.press = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muDiffObs', NaN(length(eu), 1));
+boot.pressMed = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muDiffObs', NaN(length(eu), 1));
+boot.pressLat = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muDiffObs', NaN(length(eu), 1));
 boot.lick = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muDiffObs', NaN(length(eu), 1));
 [boot.press.h, boot.press.muDiffCI, boot.press.muDiffObs] = bootstrapMoveResponse( ...
     eu, 'press', nboot=p.nboot, alpha=p.bootAlpha, withReplacement=false, oneSided=false, ...
+    responseWindow=p.metaWindow, allowedTrialDuration=[0, Inf]);
+[boot.pressMed.h, boot.pressMed.muDiffCI, boot.pressMed.muDiffObs] = bootstrapMoveResponse( ...
+    eu, 'press_spontaneous_medial', nboot=p.nboot, alpha=p.bootAlpha, withReplacement=false, oneSided=false, ...
+    responseWindow=p.metaWindow, allowedTrialDuration=[0, Inf]);
+[boot.pressLat.h, boot.pressLat.muDiffCI, boot.pressLat.muDiffObs] = bootstrapMoveResponse( ...
+    eu, 'press_spontaneous_lateral', nboot=p.nboot, alpha=p.bootAlpha, withReplacement=false, oneSided=false, ...
     responseWindow=p.metaWindow, allowedTrialDuration=[0, Inf]);
 [boot.lick.h, boot.lick.muDiffCI, boot.lick.muDiffObs] = bootstrapMoveResponse( ...
     eu, 'lick', nboot=p.nboot, alpha=p.bootAlpha, withReplacement=false, oneSided=false, ...
     responseWindow=p.metaWindow, allowedTrialDuration=[0, Inf]);
 fprintf(1, '\nAll done\n')
 
-% Report bootstraped movement response direction
+%% Report bootstraped movement response direction
 assert(nnz(isnan(boot.lick.h)) == 0)
 assert(nnz(isnan(boot.press.h)) == 0)
 
@@ -180,42 +281,79 @@ figure, histogram(boot.press.h)
 c.isPressUp = boot.press.h == 1;
 c.isPressDown = boot.press.h == -1;
 c.isPressResponsive = c.isPressUp | c.isPressDown;
+c.isPressUnresponsiveButUp = ~c.isPressResponsive & meta.press > 0;
+c.isPressUnresponsiveButDown = ~c.isPressResponsive & meta.press < 0;
+
+c.isPressMedUp = boot.pressMed.h == 1;
+c.isPressMedDown = boot.pressMed.h == -1;
+c.isPressMedResponsive = c.isPressMedUp | c.isPressMedDown;
+c.isPressMedUnresponsiveButUp = ~c.isPressMedResponsive & meta.pressMed > 0;
+c.isPressMedUnresponsiveButDown = ~c.isPressMedResponsive & meta.pressMed < 0;
+
+c.isPressLatUp = boot.pressLat.h == 1;
+c.isPressLatDown = boot.pressLat.h == -1;
+c.isPressLatResponsive = c.isPressLatUp | c.isPressLatDown;
+c.isPressLatUnresponsiveButUp = ~c.isPressLatResponsive & meta.pressLat > 0;
+c.isPressLatUnresponsiveButDown = ~c.isPressLatResponsive & meta.pressLat < 0;
 
 figure, histogram(boot.lick.h)
 c.isLickUp = boot.lick.h == 1;
 c.isLickDown = boot.lick.h == -1;
 c.isLickResponsive = c.isLickUp | c.isLickDown;
-
 c.isLickUnresponsiveButUp = ~c.isLickResponsive & meta.lick > 0;
 c.isLickUnresponsiveButDown = ~c.isLickResponsive & meta.lick < 0;
-c.isPressUnresponsiveButUp = ~c.isPressResponsive & meta.press > 0;
-c.isPressUnresponsiveButDown = ~c.isPressResponsive & meta.press < 0;
 
-fprintf(1, ['%g units:\n' ...
+fprintf(1, ['%g/%g (%.0f%%) units (press responsive):\n' ...
     '\t%g (%.0f%%) are excited (p<%g);\n' ...
     '\t%g (%.0f%%) are inhibited (p<%g).\n'], ...
-    length(eu), ...
+    nnz(c.isPressResponsive), length(eu), 100*nnz(c.isPressResponsive)/length(eu), ...
     nnz(c.isPressUp), 100*nnz(c.isPressUp)/nnz(c.isPressResponsive), p.bootAlpha, ...
     nnz(c.isPressDown), 100*nnz(c.isPressDown)/nnz(c.isPressResponsive), p.bootAlpha);
 
-fprintf(1, ['%g units:\n' ...
+fprintf(1, ['%g/%g (%.0f%%) units (press medial responsive):\n' ...
     '\t%g (%.0f%%) are excited (p<%g);\n' ...
     '\t%g (%.0f%%) are inhibited (p<%g).\n'], ...
-    length(eu), ...
+    nnz(c.isPressMedResponsive), length(eu), 100*nnz(c.isPressMedResponsive)/length(eu), ...
+    nnz(c.isPressMedUp), 100*nnz(c.isPressMedUp)/nnz(c.isPressMedResponsive), p.bootAlpha, ...
+    nnz(c.isPressMedDown), 100*nnz(c.isPressMedDown)/nnz(c.isPressMedResponsive), p.bootAlpha);
+
+fprintf(1, ['%g/%g (%.0f%%) units (press lateral responsive):\n' ...
+    '\t%g (%.0f%%) are excited (p<%g);\n' ...
+    '\t%g (%.0f%%) are inhibited (p<%g).\n'], ...
+    nnz(c.isPressLatResponsive), length(eu), 100*nnz(c.isPressLatResponsive)/length(eu), ...
+    nnz(c.isPressLatUp), 100*nnz(c.isPressLatUp)/nnz(c.isPressLatResponsive), p.bootAlpha, ...
+    nnz(c.isPressLatDown), 100*nnz(c.isPressLatDown)/nnz(c.isPressLatResponsive), p.bootAlpha);
+
+fprintf(1, ['%g/%g (%.0f%%) units (lick responsive):\n' ...
+    '\t%g (%.0f%%) are excited (p<%g);\n' ...
+    '\t%g (%.0f%%) are inhibited (p<%g).\n'], ...
+    nnz(c.isLickResponsive), length(eu), 100*nnz(c.isLickResponsive)/length(eu), ...
     nnz(c.isLickUp), 100*nnz(c.isLickUp)/nnz(c.isLickResponsive), p.bootAlpha, ...
     nnz(c.isLickDown), 100*nnz(c.isLickDown)/nnz(c.isLickResponsive), p.bootAlpha);
 
 nTotal = nnz(c.isPressResponsive & c.isLickResponsive);
-fprintf(1, ['%g units:\n' ...
+fprintf(1, ['%g/%g (%.0f%%) units (press and lick responsive):\n' ...
     '\t%g (%.0f%%) are press-excited AND lick-excited;\n' ...
     '\t%g (%.0f%%) are press-inhibited AND lick-inhibited;\n' ...
     '\t%g (%.0f%%) are press-excited AND lick-inhibited;\n' ...
     '\t%g (%.0f%%) are press-inhibited AND lick-excited;\n'], ...
-    length(eu), ...
+    nTotal, length(eu), 100*nTotal/length(eu), ...
     nnz(c.isPressUp & c.isLickUp), 100*nnz(c.isPressUp & c.isLickUp)/nTotal, ...
     nnz(c.isPressDown & c.isLickDown), 100*nnz(c.isPressDown & c.isLickDown)/nTotal, ...
     nnz(c.isPressUp & c.isLickDown), 100*nnz(c.isPressUp & c.isLickDown)/nTotal, ...
     nnz(c.isPressDown & c.isLickUp), 100*nnz(c.isPressDown & c.isLickUp)/nTotal)   
+
+nTotal = nnz(c.isPressMedResponsive & c.isPressLatResponsive);
+fprintf(1, ['%g/%g (%.0f%%) units (press-med and press-lat responsive):\n' ...
+    '\t%g (%.0f%%) are press-med-excited AND press-lat-excited;\n' ...
+    '\t%g (%.0f%%) are press-med-inhibited AND press-lat-inhibited;\n' ...
+    '\t%g (%.0f%%) are press-med-excited AND press-lat-inhibited;\n' ...
+    '\t%g (%.0f%%) are press-med-inhibited AND press-lat-excited;\n'], ...
+    nTotal, length(eu), 100*nTotal/length(eu), ...
+    nnz(c.isPressMedUp & c.isPressLatUp), 100*nnz(c.isPressMedUp & c.isPressLatUp)/nTotal, ...
+    nnz(c.isPressMedDown & c.isPressLatDown), 100*nnz(c.isPressMedDown & c.isPressLatDown)/nTotal, ...
+    nnz(c.isPressMedUp & c.isPressLatDown), 100*nnz(c.isPressMedUp & c.isPressLatDown)/nTotal, ...
+    nnz(c.isPressMedDown & c.isPressLatUp), 100*nnz(c.isPressMedDown & c.isPressLatUp)/nTotal)   
 
 fprintf('Calculate: Of %i: %i (%i%%) showed modulation for BOTH, %i (%i%%) showed modulation for lick only, %i (%i%%) showed modulation for reach only, %i (%i%%) for neither.', ...
     length(eu), ...
@@ -225,8 +363,9 @@ fprintf('Calculate: Of %i: %i (%i%%) showed modulation for BOTH, %i (%i%%) showe
     nnz(~c.isPressResponsive & ~c.isLickResponsive), round(nnz(~c.isPressResponsive & ~c.isLickResponsive)/length(eu)*100) ...
     )
 
+clear nTotal
 
-
+save('C:\SERVER\Units\meta_TwoColor_SNr_SCRetro.mat', 'c', 'p', 'boot', 'rd', 'eta', 'meta')
 
 
 %% Combined PEISI and Stim Raster
