@@ -37,12 +37,10 @@ function [h, muDiffCI, muDiffObs] = bootstrapMoveResponse(eu, trialType, varargi
     p = h;
     muDiffCI = NaN(length(eu), 2);
     muDiffObs = NaN(length(eu), 1);
+    lineLength = 0;
+    tTicAll = tic();
     for iEu = 1:length(eu)
-        fprintf(1, '%d/%d ', iEu, length(eu))
-        if mod(iEu, 15) == 0
-            fprintf(1, '\n')
-        end
-
+        tTic = tic();
         [sr, t] = eu(iEu).getTrialAlignedData('count', dataWindow, r.trialType, alignTo=r.alignTo, ...
             allowedTrialDuration=r.allowedTrialDuration, trialDurationError=r.trialDurationError, ...
             includeInvalid=false, resolution=0.1, correction=correction{iEu}, trials=trials{iEu});
@@ -96,12 +94,9 @@ function [h, muDiffCI, muDiffObs] = bootstrapMoveResponse(eu, trialType, varargi
         elseif direction == -1
             h(iEu) = -(muDiffObs(iEu) < muDiffCI(iEu, 1));
         end
-%         if muDiffObs(iEu) > muDiffCI(iEu, 2)
-%             h(iEu) = 1;
-%         elseif muDiffObs(iEu) < muDiffCI(iEu, 1)
-%             h(iEu) = -1;
-%         else
-%             h(iEu) = 0;
-%         end
+        fprintf(repmat('\b', 1, lineLength))
+        lineLength = fprintf(1, '%d/%d (%gs)', iEu, length(eu), toc(tTic));
     end
+    fprintf(repmat('\b', 1, lineLength))
+    fprintf('Bootstrapped %i units in %gs.\n', length(eu), toc(tTicAll))
 end
