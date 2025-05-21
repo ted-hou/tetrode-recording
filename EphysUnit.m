@@ -1360,9 +1360,10 @@ classdef EphysUnit < handle
             end
 
             S(length(files)) = struct('eu', []);
+            lineLength = 0;
+            tTicAll = tic();
             for i = 1:length(files)
                 tTic = tic();
-                fprintf(1, 'Reading unit %g/%g...', i, length(files));
                 S(i) = load(files{i}, 'eu');
                 if ~p.Results.waveforms
                     S(i).eu.Waveforms = [];
@@ -1376,8 +1377,11 @@ classdef EphysUnit < handle
                     S(i).eu.SpikeRates = single([]);
                     S(i).eu.SpikeRateTimestamps = single([]);
                 end
-                fprintf(1, 'Done (%.2f s).\n', toc(tTic));
+                fprintf(repmat('\b', 1, lineLength));
+                lineLength = fprintf(1, 'Reading unit %g/%g...(%.2f s)\n', i, length(files), toc(tTic));             
             end
+            fprintf(repmat('\b', 1, lineLength));
+            fprintf('Read %i units in %.2f s\n', length(files), toc(tTicAll));
             obj = [S.eu];
         end
 
