@@ -1,7 +1,7 @@
 %% Spike detection
 tr = TetrodeRecording;
 tr.SelectFiles();
-tr.ReadFiles(Duration=120, NumSigmas=4, NumSigmasReturn=1.5, NumSigmasReject=20, WaveformWindow=[-0.5, 1])
+tr.ReadFiles(Duration=240, NumSigmas=4, NumSigmasReturn=1.5, NumSigmasReject=20, WaveformWindow=[-0.5, 1])
 tr.SaveNeuropixelIO()
 
 % Read detected spikes and NIDQ digital/analog channels
@@ -10,10 +10,10 @@ tr.ParseNeuropixelIO();
 
 % Spike sort
 tr.LoadSpikes(1:384);
-tr.SpikeSort(1:384, Dimension=10, FeatureMethod='PCA', WaveformWindow=[-0.5, 0.5], ClusterMethod='kmeans', NumClusters=3);
-tr.SpikeCullLowSpikeRateClusters(1:384, MinSpikeRate=1);
-tr.SpikeSort(1:384, Dimension=10, FeatureMethod='PCA', WaveformWindow=[-0.5, 0.5], ClusterMethod='kmeans', NumClusters=3);
-tr.SaveSpikes(Path='Spikes_AutoSorted');
+tr.IterativeArtifactRemoval(1:384, MinSpikeRate=4, KIterative=4, KFinal=2, MaxIters=5, ...
+    DimensionIterative=3, DimensionFinal=10, FeatureMethod='PCA', ClusterMethod='kmeans', ...
+    WaveformWindow=[-0.5, 0.5]);
+tr.SaveSpikes(Path='Spikes_AutoSortedIterative');
 
 %% Spike detection
 tr = TetrodeRecording;
