@@ -361,7 +361,7 @@ fprintf('Calculate: Of %i: %i (%i%%) showed modulation for BOTH, %i (%i%%) showe
 
 clear nTotal
 
-save('C:\SERVER\Units\meta_TwoColor_SC.mat', 'c', 'p', 'boot', 'rd', 'eta', 'meta')
+save('C:\SERVER\Units\meta_TwoColor_SC_20250604.mat', 'c', 'p', 'boot', 'rd', 'eta', 'meta')
 
 %% LDA to decode reach vs. lick using opto-tagged neural populations
 clear pLDA;
@@ -441,6 +441,7 @@ for iGroup = 1:length(GROUPNAME)
         resp(iExp).press = resp(iExp).press(selPress, :);
         resp(iExp).lick = resp(iExp).lick(selLick, :);
         resp(iExp).baseline = resp(iExp).baseline(selBaseline, :);
+        resp(iExp).movement = vertcat(resp(iExp).press, resp(iExp).lick);
     
         sr(iExp).press = sr(iExp).press(selPress, :, :);
         sr(iExp).lick = sr(iExp).lick(selLick, :, :);
@@ -452,58 +453,62 @@ for iGroup = 1:length(GROUPNAME)
     clear t iExp unitIndicesInExp pressTrials lickTrials i iEu selT mu sd selPress selLick selBaseline
     
     % Fit LDA
-    likelihood.(groupName)(length(sr)) = struct(press=[], lick=[], baseline=[]);
+    likelihood.(groupName)(length(sr)) = struct(press=[], lick=[], baseline=[], movement=[]);
     t = sr(1).t;
     
     for iExp = 1:length(sr)
         nPress = size(resp(iExp).press, 1);
         nLick = size(resp(iExp).lick, 1);
         nBaseline = size(resp(iExp).baseline, 1);
+        nMovement = size(resp(iExp).movement, 1);
         nTrials = nPress + nLick;
     
         % Fit model using response window
-        X = vertcat(resp(iExp).press, resp(iExp).lick, resp(iExp).baseline);
-        Y = vertcat(repmat("press", [nPress, 1]), repmat("lick", [nLick, 1]), repmat("baseline", [nBaseline, 1]));
+        X = vertcat(resp(iExp).press, resp(iExp).lick, resp(iExp).baseline, resp(iExp).movement);
+        Y = vertcat(repmat("press", [nPress, 1]), repmat("lick", [nLick, 1]), repmat("baseline", [nBaseline, 1]), repmat("movement", [nMovement, 1]));
         mdl = fitcdiscr(X, Y, Prior='empirical', CrossVal='on', KFold=pLDA.kFold);
     
         % Predict full timecourse using fitted model
         likelihood.(groupName)(iExp).press = NaN(nTrials, length(t));
         likelihood.(groupName)(iExp).lick = NaN(nTrials, length(t));
         likelihood.(groupName)(iExp).baseline = NaN(nTrials, length(t));
+        likelihood.(groupName)(iExp).movement = NaN(nTrials, length(t));
         likelihood.(groupName)(iExp).trueLabel = Y;
         likelihood.(groupName)(iExp).t = t;
     
-        assert(length(mdl.ClassNames) == 3)
-        [~, iClass] = ismember(["press", "lick", "baseline"], mdl.ClassNames);
+        assert(length(mdl.ClassNames) == 4)
+        [~, iClass] = ismember(["press", "lick", "baseline", "movement"], mdl.ClassNames);
         for i = 1:length(t)
             XPress = squeeze(sr(iExp).press(:, i, :));
             XLick = squeeze(sr(iExp).lick(:, i, :));
             XAll = vertcat(XPress, XLick);
     
-            score = NaN(nPress + nLick, 3);
+            score = NaN(nPress + nLick, 4);
     
             for iFold = 1:pLDA.kFold
                 testIndices = mdl.Partition.test(iFold);
                 testIndices = testIndices(1:nTrials)';
-                [~, score(testIndices, 1:3)] = mdl.Trained{iFold}.predict(XAll(testIndices, :));
+                [~, score(testIndices, 1:4)] = mdl.Trained{iFold}.predict(XAll(testIndices, :));
             end
     
             likelihood.(groupName)(iExp).press(:, i) = score(:, iClass(1));
             likelihood.(groupName)(iExp).lick(:, i) = score(:, iClass(2));
             likelihood.(groupName)(iExp).baseline(:, i) = score(:, iClass(3));
+            likelihood.(groupName)(iExp).movement(:, i) = score(:, iClass(4));
         end
         likelihood.(groupName)(iExp).df = likelihood.(groupName)(iExp).press - likelihood.(groupName)(iExp).lick; % df = press - lick
     end
     clear iExp nPress nLick nTrials X Y mdl i t XPress XLick score iFold testIndices trainIndices
 end
 
-%% LDA with bootstrap to get confidence intervals
+% LDA with bootstrap to get confidence intervals
 % Fit LDA
 t = sr(1).t;
 pLDA.nBoot = 10000;
     
 rng(42);
 
+clear bootLDA;
 pool = parpool();
 for iGroup = 1:length(GROUPNAME)
     groupName = GROUPNAME{iGroup};
@@ -512,76 +517,83 @@ for iGroup = 1:length(GROUPNAME)
     dfBoot = NaN([size(dfBoot), pLDA.nBoot]);
     pressBoot = dfBoot;
     lickBoot = dfBoot;
+    baselineBoot = dfBoot;
+    movementBoot = dfBoot;
     resp = RESP.(groupName);
     sr = SR.(groupName);
 
     parfor iBoot = 1:pLDA.nBoot
         % fprintf('%i\n', iBoot);
         df = cell(length(sr), 1);
-        press = df;
-        lick = df;
+        press = cell(length(sr), 1);
+        lick = cell(length(sr), 1);
+        baseline = cell(length(sr), 1);
+        movement = cell(length(sr), 1);
+
         for iExp = 1:length(sr)
             nPress = size(resp(iExp).press, 1);
             nLick = size(resp(iExp).lick, 1);
             nBaseline = size(resp(iExp).baseline, 1);
+            nMovement = size(resp(iExp).movement, 1);
             nTrials = nPress + nLick;
         
             % Fit model using response window
             X = vertcat(resp(iExp).press, resp(iExp).lick);
             X = X(randperm(size(X, 1)), :);
-            X = vertcat(X, resp(iExp).baseline);
-            Y = vertcat(repmat("press", [nPress, 1]), repmat("lick", [nLick, 1]), repmat("baseline", [nBaseline, 1]));
+            X = vertcat(X, resp(iExp).baseline, resp(iExp).movement);
+            Y = vertcat(repmat("press", [nPress, 1]), repmat("lick", [nLick, 1]), repmat("baseline", [nBaseline, 1]), repmat("movement", [nMovement, 1]));
             mdl = fitcdiscr(X, Y, Prior='empirical', CrossVal='on', KFold=pLDA.kFold);
         
             % Predict full timecourse using fitted model
             press{iExp} = NaN(nTrials, length(t));
             lick{iExp} = NaN(nTrials, length(t));
-            assert(length(mdl.ClassNames) == 3)
-            [~, iClass] = ismember(["press", "lick", "baseline"], mdl.ClassNames);
+            baseline{iExp} = NaN(nTrials, length(t));
+            movement{iExp} = NaN(nTrials, length(t));
+            assert(length(mdl.ClassNames) == 4)
+            [~, iClass] = ismember(["press", "lick", "baseline", "movement"], mdl.ClassNames);
             for i = 1:length(t)
                 XPress = squeeze(sr(iExp).press(:, i, :));
                 XLick = squeeze(sr(iExp).lick(:, i, :));
                 XAll = vertcat(XPress, XLick);
     
-                score = NaN(nPress + nLick, 3);
+                score = NaN(nPress + nLick, 4);
         
                 for iFold = 1:pLDA.kFold
                     testIndices = mdl.Partition.test(iFold);
                     testIndices = testIndices(1:nTrials)';
-                    [~, score(testIndices, 1:3)] = mdl.Trained{iFold}.predict(XAll(testIndices, :));
+                    [~, score(testIndices, 1:4)] = mdl.Trained{iFold}.predict(XAll(testIndices, :));
                 end
     
                 press{iExp}(:, i) = score(:, iClass(1));
                 lick{iExp}(:, i) = score(:, iClass(2));
+                baseline{iExp}(:, i) = score(:, iClass(3));
+                movement{iExp}(:, i) = score(:, iClass(4));
             end
             df{iExp} = press{iExp} - lick{iExp}; % df = press - lick
         end
         dfBoot(:, :, iBoot) = cat(1, df{:});
         pressBoot(:, :, iBoot) = cat(1, press{:});
         lickBoot(:, :, iBoot) = cat(1, lick{:});
+        baselineBoot(:, :, iBoot) = cat(1, baseline{:});
+        movementBoot(:, :, iBoot) = cat(1, movement{:});
     end
     
-
-    DFBOOT.(groupName) = dfBoot;
-    PRESSBOOT.(groupName) = pressBoot;
-    LICKBOOT.(groupName) = lickBoot;
-    clear iExp nPress nLick nTrials X Y mdl i press lick XPress XLick score likelihoodBoot df iBoot
+    bootLDA.(groupName).df = dfBoot;
+    bootLDA.(groupName).press = pressBoot;
+    bootLDA.(groupName).lick = lickBoot;
+    bootLDA.(groupName).baseline = baselineBoot;
+    bootLDA.(groupName).movement = movementBoot;
+    clear iExp nPress nLick nTrials X Y mdl i df press lick baseline movement XPress XLick XAll score iFold testIndices iBoot dfBoot
 end
 
 delete(pool)
-clear pool iGroup groupName dfBoot pressBoot lickBoot
-
-save('C:\SERVER\Units\lda_twocolor_optrode_SC_fullBootData_20250602.mat', 'DFBOOT', 'PRESSBOOT', 'LICKBOOT', 'pLDA', 'RESP', 'SR', '-v7.3')
-
+clear pool iGroup groupName pressBoot lickBoot baselineBoot movementBoot
+%
+save('C:\SERVER\Units\lda_twocolor_optrode_SC_fullBootData_20250602.mat', 'bootLDA', 'pLDA', 'RESP', 'SR', '-v7.3')
+clear bootLDAStats;
 % Quick summary (99% CI, mean) of bootstrap for lick vs reach
-clear dfBootStats pressBootStats lickBootStats;
-clear DFBOOTSTATS PRESSBOOTSTATS LICKBOOTSTATS;
-
 for iGroup = 1:length(GROUPNAME)
     groupName = GROUPNAME{iGroup};
-    dfBoot = DFBOOT.(groupName);
-    pressBoot = PRESSBOOT.(groupName);
-    lickBoot = LICKBOOT.(groupName);
 
     sr = SR.(groupName);
     resp = RESP.(groupName);
@@ -596,53 +608,28 @@ for iGroup = 1:length(GROUPNAME)
     
     isPress = Y == "press";
     isLick = Y == "lick";
-    
-    dfBootStats.press.X = transpose(squeeze(mean(dfBoot(isPress, :, :), 1, 'omitnan')));
-    dfBootStats.press.mu = mean(dfBootStats.press.X, 1, 'omitnan');
-    dfBootStats.press.ci = quantile(dfBootStats.press.X, [0.005, 0.995], 1);
-    
-    dfBootStats.lick.X = transpose(squeeze(mean(dfBoot(isLick, :, :), 1, 'omitnan')));
-    dfBootStats.lick.mu = mean(dfBootStats.lick.X, 1, 'omitnan');
-    dfBootStats.lick.ci = quantile(dfBootStats.lick.X, [0.005, 0.995], 1);
-    
-    dfBootStats.all.X = transpose(squeeze(mean(dfBoot, 1, 'omitnan')));
-    dfBootStats.all.mu = mean(dfBootStats.all.X, 1, 'omitnan');
-    dfBootStats.all.ci = quantile(dfBootStats.all.X, [0.005, 0.995], 1);
 
-    pressBootStats.press.X = transpose(squeeze(mean(pressBoot(isPress, :, :), 1, 'omitnan')));
-    pressBootStats.press.mu = mean(pressBootStats.press.X, 1, 'omitnan');
-    pressBootStats.press.ci = quantile(pressBootStats.press.X, [0.005, 0.995], 1);
-
-    pressBootStats.lick.X = transpose(squeeze(mean(pressBoot(isLick, :, :), 1, 'omitnan')));
-    pressBootStats.lick.mu = mean(pressBootStats.lick.X, 1, 'omitnan');
-    pressBootStats.lick.ci = quantile(pressBootStats.lick.X, [0.005, 0.995], 1);
-
-    pressBootStats.all.X = transpose(squeeze(mean(pressBoot, 1, 'omitnan')));
-    pressBootStats.all.mu = mean(pressBootStats.all.X, 1, 'omitnan');
-    pressBootStats.all.ci = quantile(pressBootStats.all.X, [0.005, 0.995], 1);
-
-    lickBootStats.press.X = transpose(squeeze(mean(lickBoot(isPress, :, :), 1, 'omitnan')));
-    lickBootStats.press.mu = mean(lickBootStats.press.X, 1, 'omitnan');
-    lickBootStats.press.ci = quantile(lickBootStats.press.X, [0.005, 0.995], 1);
-
-    lickBootStats.lick.X = transpose(squeeze(mean(lickBoot(isLick, :, :), 1, 'omitnan')));
-    lickBootStats.lick.mu = mean(lickBootStats.lick.X, 1, 'omitnan');
-    lickBootStats.lick.ci = quantile(lickBootStats.lick.X, [0.005, 0.995], 1);
-
-    lickBootStats.all.X = transpose(squeeze(mean(lickBoot, 1, 'omitnan')));
-    lickBootStats.all.mu = mean(lickBootStats.all.X, 1, 'omitnan');
-    lickBootStats.all.ci = quantile(lickBootStats.all.X, [0.005, 0.995], 1);
-
-    DFBOOTSTATS.(groupName) = dfBootStats;
-    PRESSBOOTSTATS.(groupName) = pressBootStats;
-    LICKBOOTSTATS.(groupName) = lickBootStats;
+    classNames = ["df", "press", "lick", "baseline", "movement"];
+    trialTypes = ["press", "lick", "all"];
+    selTrials = {isPress, isLick, isPress | isLick};
+    for iClass = 1:length(classNames)
+        className = classNames(iClass);
+        for iTask = 1:length(trialTypes)
+            taskName = trialTypes(iTask);
+            X = transpose(squeeze(mean(bootLDA.(groupName).(className)(selTrials{iTask}, :, :), 1, 'omitnan')));
+            bootLDAStats.(groupName).(className).(taskName).X = X;
+            bootLDAStats.(groupName).(className).(taskName).mu = mean(X, 'omitnan');
+            bootLDAStats.(groupName).(className).(taskName).ci = quantile(X, [0.005, 0.995], 1);
+        end
+    end
+    clear classNames trialTypes selTrials iClass className iTask taskName X
 end
 
-clear iGroup Y iExp nPress nLick isPress isLick dfBoot dfBootStats
+clear iGroup Y iExp nPress nLick isPress isLick groupName
 
 t = SR.(GROUPNAME{1}).t;
 
-save('C:\SERVER\Units\lda_twocolor_optrode_SC_20250602.mat', 'pLDA', 'likelihood', 'SR', 'RESP', 't', 'goodExpNames', 'nUnits', 'DFBOOTSTATS', 'PRESSBOOTSTATS', 'LICKBOOTSTATS')
+save('C:\SERVER\Units\lda_twocolor_optrode_SC_20250602.mat', 'pLDA', 'likelihood', 'SR', 'RESP', 't', 'goodExpNames', 'nUnits', 'bootLDAStats')
 %% Plot results (individual sessions)
 close all
 xl = [-0.5, 0];
@@ -712,9 +699,6 @@ tl = tiledlayout(fig, 1, length(GROUPNAME), TileSpacing='tight', Padding='loose'
 for iGroup = 1:length(GROUPNAME)
     groupName = GROUPNAME{iGroup};
     t = likelihood.(groupName)(1).t;
-    dfBootStats = DFBOOTSTATS.(groupName);
-    pressBootStats = PRESSBOOTSTATS.(groupName);
-    lickBootStats = LICKBOOTSTATS.(groupName);
 
     ax = nexttile(tl);
     hold(ax, 'on')
@@ -723,10 +707,8 @@ for iGroup = 1:length(GROUPNAME)
     h(2) = plot(ax, t, XMean.(groupName).trueLick, 'blue', LineWidth=1.5, DisplayName='true lick');
     h(3) = plot(ax, t, XMean.(groupName).falsePress, 'red', LineStyle=':', LineWidth=1.5, DisplayName='false reach');
     h(4) = plot(ax, t, XMean.(groupName).falseLick, 'blue', LineStyle=':', LineWidth=1.5, DisplayName='false lick');
-    % patch(ax, [t, flip(t)], [dfBootStats.all.ci(1, :), flip(dfBootStats.all.ci(2, :))], 'black', EdgeColor='black', FaceAlpha=0.15, EdgeAlpha=0.5, DisplayName='99% CI');
-    patch(ax, [t, flip(t)], [pressBootStats.press.ci(1, :), flip(pressBootStats.press.ci(2, :))], 'red', EdgeColor='red', FaceAlpha=0.2, EdgeAlpha=0.5, DisplayName='99% CI');
-    % patch(ax, [t, flip(t)], [pressBootStats.lick.ci(1, :), flip(pressBootStats.lick.ci(2, :))], 'blue', EdgeColor='blue', FaceAlpha=0.2, EdgeAlpha=0.5, DisplayName='99% CI');
-    patch(ax, [t, flip(t)], [lickBootStats.lick.ci(1, :), flip(lickBootStats.lick.ci(2, :))], 'blue', EdgeColor='blue', FaceAlpha=0.2, EdgeAlpha=0.5, DisplayName='99% CI');
+    patch(ax, [t, flip(t)], [bootLDAStats.(groupName).press.press.ci(1, :), flip(bootLDAStats.(groupName).press.press.ci(2, :))], 'red', EdgeColor='red', FaceAlpha=0.2, EdgeAlpha=0.5, DisplayName='99% CI');
+    patch(ax, [t, flip(t)], [bootLDAStats.(groupName).lick.lick.ci(1, :), flip(bootLDAStats.(groupName).lick.lick.ci(2, :))], 'blue', EdgeColor='blue', FaceAlpha=0.2, EdgeAlpha=0.5, DisplayName='99% CI');
     patch(ax, [pLDA.responseWindow, flip(pLDA.responseWindow)], [-1, -1, 1, 1], 'yellow', FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName='training');
     hold(ax, 'off')
     ylim(ax, [0, 1])
