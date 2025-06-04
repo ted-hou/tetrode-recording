@@ -968,7 +968,7 @@ classdef EphysUnit < handle
                     % ISI(iTrial, :) = interp1(xv(ia), yv(ia), t, 'linear');
                     ISI(iTrial, :) = interp1(xv(ia), yv(ia), t, 'previous');
                 catch ME
-                    warning('Could not interpolate isi for trial %i', iTrial)
+                    % warning('Could not interpolate isi for trial %i', iTrial)
                 end
             end
             isi = mean(ISI, 1, 'omitnan');
@@ -1425,7 +1425,9 @@ classdef EphysUnit < handle
             N = p.Results.eta.N;
             if ~isempty(p.Results.sel)
                 X = X(p.Results.sel, :);
-                N = N(p.Results.sel);
+                if ~isempty(N)
+                    N = N(p.Results.sel);
+                end
             end
             onsetPattern = p.Results.onsetPattern;
             onsetDirection = p.Results.onsetDirection;

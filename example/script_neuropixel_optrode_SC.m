@@ -99,9 +99,9 @@ tr.SaveSpikes(Channels=channels, Path='Spikes_Sorted')
 
 %% Convert to EphysUnits
 folders = { ...
-    'C:\SERVER\daisy26\daisy26_20250519', ...
-    % 'C:\SERVER\desmond38\desmond38_20250407', ...
-    % 'C:\SERVER\desmond38\desmond38_20250417', ...
+    'C:\SERVER\daisy26\daisy26_20250521', ...
+    'C:\SERVER\desmond38\desmond38_20250520', ...
+    'C:\SERVER\desmond39\desmond39_20250522', ...
     };
 
 chunkSize = 32; % NumChannelsPerChunk
@@ -126,7 +126,7 @@ for iSession = 1:length(folders)
 
             ar = AcuteRecording(tr, 'N/A');
             ar.binMoveResponse(tr, 'none', Window=[-1, 0], Store=true);
-            eu = EphysUnit(ar, readWaveforms=false, cullITI=false, savepath='C:\SERVER\Units\TwoColor_SNr_SCRetro\SCBatch1', tr=tr);
+            eu = EphysUnit(ar, readWaveforms=false, cullITI=false, savepath='C:\SERVER\Units\TwoColor_SC\Batch2', tr=tr);
 
             tr.Spikes = [];
             clear eu
@@ -153,7 +153,7 @@ tr.PlotAllChannels(Channels=channels, plotMethod='mean')
 
 
 %% Batch do stuff to SelectedChannels
-tr.SelectedChannels = [257:265, 267:2:273, 274:315, 317, 319:384];
+tr.SelectedChannels = [257:384];
 
 for iChannel = tr.SelectedChannels
     tr.ClusterRemove(iChannel, 1);
