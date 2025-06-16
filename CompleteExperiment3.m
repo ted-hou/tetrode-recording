@@ -1,6 +1,7 @@
 classdef CompleteExperiment3 < CompleteExperiment
     properties
         vtdF = []
+        tce = []
     end
 
     methods
@@ -10,8 +11,10 @@ classdef CompleteExperiment3 < CompleteExperiment
             end
             p = inputParser();
             p.addRequired('eu', @(x) isa(x, 'EphysUnit'))
+            p.addParameter('cameras', 'flr', @(x) all(ismember(x, 'flr')))
             p.parse(varargin{:});
             eu = p.Results.eu;
+            cameras = p.Results.cameras;
 
             [uniqueExpNames, ~, expIndices] = unique({eu.ExpName});
             nExp = length(uniqueExpNames);
@@ -19,9 +22,20 @@ classdef CompleteExperiment3 < CompleteExperiment
             for i = 1:nExp
                 obj(i).name = uniqueExpNames{i};
                 obj(i).eu = eu(expIndices==i);
-                obj(i).vtdF = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'f');
-                obj(i).vtdL = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'l');
-                obj(i).vtdR = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'r');
+                try
+                    obj(i).tce = obj(i).eu(1).LoadTwoColorExperiment();
+                catch
+                    obj(i).tce = [];
+                end
+                if ismember('f', cameras)
+                    obj(i).vtdF = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'f');
+                end
+                if ismember('l', cameras)
+                    obj(i).vtdL = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'l');
+                end
+                if ismember('r', cameras)
+                    obj(i).vtdR = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'r');
+                end
                 obj(i).ac = CompleteExperiment.readArduino(obj(i).name);
             end
         end
@@ -31,10 +45,15 @@ classdef CompleteExperiment3 < CompleteExperiment
             animalName = strsplit(expName, '_');
             animalName = animalName{1};
 
-            deepLabCutFiles = dir(sprintf('C:\\SERVER\\%s\\%s\\%s_%g*.csv', animalName, expName, expName, sidenum));
+
+            if isempty(obj.tce)
+                deepLabCutFiles = dir(sprintf('C:\\SERVER\\%s\\%s\\%s_%g*.csv', animalName, expName, expName, sidenum));
+            else
+                deepLabCutFiles = dir(sprintf('C:\\SERVER\\%s\\%s\\%s_laser_%g*.csv', animalName, expName, expName, sidenum));
+            end
             % Deep lab cut
             if ~isempty(deepLabCutFiles)
-                vtd = obj.readVideoTrackingData(expName, side);
+                vtd = obj.readVideoTrackingData(expName, side, sprintf('%s_laser', expName));
             % Pawnalyzer2 manually labeled
             else
                 vidFile = dir(sprintf('C:\\SERVER\\%s\\%s\\%s*_%g.mp4', animalName, expName, expName, sidenum));
@@ -47,8 +66,8 @@ classdef CompleteExperiment3 < CompleteExperiment
 
         function alignTimestamps(obj, varargin)
             p = inputParser();
-            p.addParameter('refEventNameArduino', 'CUE_ON', @ischar)
-            p.addParameter('refEventNameEphys', 'Cue', @ischar)
+            p.addParameter('refEventNameArduino', 'CUE_ON', @(x) ischar(x) || iscell(x))
+            p.addParameter('refEventNameEphys', 'Cue', @(x) ischar(x) || iscell(x))
             p.addParameter('trialDurationTolerance', 0.1, @isnumeric)
             p.parse(varargin{:});
             refEventNameArduino = p.Results.refEventNameArduino;
@@ -56,11 +75,20 @@ classdef CompleteExperiment3 < CompleteExperiment
             trialDurationTolerance = p.Results.trialDurationTolerance;
             % Use CUE_ON events because this is recorded in arduino and ephys
             if length(obj) == 1
-                fprintf(1, '%s (%g units), alingning ephys & camera using %s and %s timestamps.\n', obj.name, length(obj.eu), refEventNameEphys, refEventNameArduino)
+                fprintf(1, '%s (%g units), alingning ephys & camera using %s and %s timestamps.\n', obj.name, length(obj.eu), string(refEventNameEphys).join, string(refEventNameArduino).join)
 
-                eventId = find(strcmp(obj.ac.EventMarkerNames, refEventNameArduino));
-                eventDateNum = obj.ac.EventMarkersUntrimmed(obj.ac.EventMarkersUntrimmed(:, 1) == eventId, 3)';
-                eventDateTime = datetime(eventDateNum, ConvertFrom='datenum', TimeZone='America/New_York');
+                % eventId = find(strcmp(obj.ac.EventMarkerNames, refEventNameArduino));
+                % eventDateNum = obj.ac.EventMarkersUntrimmed(obj.ac.EventMarkersUntrimmed(:, 1) == eventId, 3)';
+                % eventDateTime = datetime(eventDateNum, ConvertFrom='datenum', TimeZone='America/New_York');
+                if ischar(refEventNameArduino)
+                    eventDateTime = obj.ac.GetEventMarker(refEventNameArduino, 'datetime');
+                else
+                    eventDateTime = [];
+                    for iEvent = 1:length(refEventNameArduino)
+                        eventDateTime = vertcat(eventDateTime, obj.ac.GetEventMarker(refEventNameArduino{iEvent}, 'datetime'));
+                    end
+                    eventDateTime = sort(eventDateTime, 'ascend');
+                end
                 fcamDateTime = datetime([obj.ac.Cameras(obj.getCameraIndex('f')).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
                 fcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('f')).Camera.EventLog.FrameNumber];
                 lcamDateTime = datetime([obj.ac.Cameras(obj.getCameraIndex('l')).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
@@ -69,7 +97,15 @@ classdef CompleteExperiment3 < CompleteExperiment
                 rcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('r')).Camera.EventLog.FrameNumber];
 
                 % Find event in ephystime
-                eventEphysTime = obj.eu(1).EventTimes.(refEventNameEphys);
+                if ischar(refEventNameEphys)
+                    eventEphysTime = obj.eu(1).EventTimes.(refEventNameEphys);
+                else
+                    eventEphysTime = [];
+                    for iEvent = 1:length(refEventNameEphys)
+                        eventEphysTime = vertcat(eventEphysTime(:), obj.eu(1).EventTimes.(refEventNameEphys{iEvent})(:));
+                    end
+                    eventEphysTime = sort(eventEphysTime, 'ascend');
+                end
                 
                 % Some assertions: 
                 try
@@ -123,21 +159,33 @@ classdef CompleteExperiment3 < CompleteExperiment
                     rcamDateTime = rcamDateTime(iStart:end);
                     warning('%s right camera had a restart. Only the last batch of framenumbers and timestamps are kept. %.2f seconds of data are useless.', obj.name, (iStart-1)*10/30)
                 end
-                assert(all(diff(fcamFrameNum) == 10))
-                assert(all(diff(lcamFrameNum) == 10))
-                assert(all(diff(rcamFrameNum) == 10))
 
-                fcamEphysTime = interp1(eventDateTime, eventEphysTime, fcamDateTime, 'linear', 'extrap');
-                lcamEphysTime = interp1(eventDateTime, eventEphysTime, lcamDateTime, 'linear', 'extrap');
-                rcamEphysTime = interp1(eventDateTime, eventEphysTime, rcamDateTime, 'linear', 'extrap');
+                if ~isempty(obj.vtdF)
+                    assert(all(diff(fcamFrameNum) == 10))
+                    fcamEphysTime = interp1(eventDateTime, eventEphysTime, fcamDateTime, 'linear', 'extrap');
+                    fvtdEphysTime = interp1(fcamFrameNum, fcamEphysTime, obj.vtdF.FrameNumber, 'linear', 'extrap');
+                    obj.vtdF.Timestamp = fvtdEphysTime;
+                else
+                    fcamEphysTime = NaN;
+                end
 
-                fvtdEphysTime = interp1(fcamFrameNum, fcamEphysTime, obj.vtdF.FrameNumber, 'linear', 'extrap');
-                lvtdEphysTime = interp1(lcamFrameNum, lcamEphysTime, obj.vtdL.FrameNumber, 'linear', 'extrap');
-                rvtdEphysTime = interp1(rcamFrameNum, rcamEphysTime, obj.vtdR.FrameNumber, 'linear', 'extrap');
+                if ~isempty(obj.vtdL)
+                    assert(all(diff(lcamFrameNum) == 10))
+                    lcamEphysTime = interp1(eventDateTime, eventEphysTime, lcamDateTime, 'linear', 'extrap');
+                    lvtdEphysTime = interp1(lcamFrameNum, lcamEphysTime, obj.vtdL.FrameNumber, 'linear', 'extrap');
+                    obj.vtdL.Timestamp = lvtdEphysTime;
+                else
+                    lcamEphysTime = NaN;
+                end
 
-                obj.vtdF.Timestamp = fvtdEphysTime;
-                obj.vtdL.Timestamp = lvtdEphysTime;
-                obj.vtdR.Timestamp = rvtdEphysTime;
+                if ~isempty(obj.vtdR)
+                    assert(all(diff(rcamFrameNum) == 10))
+                    rcamEphysTime = interp1(eventDateTime, eventEphysTime, rcamDateTime, 'linear', 'extrap');
+                    rvtdEphysTime = interp1(rcamFrameNum, rcamEphysTime, obj.vtdR.FrameNumber, 'linear', 'extrap');
+                    obj.vtdR.Timestamp = rvtdEphysTime;
+                else
+                    rcamEphysTime = NaN;
+                end
 
                 fprintf(1, '\tFrame 0 in ephys time: %.3f s, %.3f s, %.3f s\n', fcamEphysTime(1), lcamEphysTime(1), rcamEphysTime(1))
                 
@@ -158,7 +206,7 @@ classdef CompleteExperiment3 < CompleteExperiment
             animalName = strsplit(obj.name, '_');
             animalName = animalName{1};
             switch animalName
-                case {'daisy23', 'daisy24', 'daisy25'}
+                case {'daisy23', 'daisy24', 'daisy25', 'desmond38', 'desmond39', 'daisy26'}
                     switch lower(side)
                         case {'f', 'front'}
                             i = 2;
@@ -232,6 +280,7 @@ classdef CompleteExperiment3 < CompleteExperiment
             p.addParameter('resolution', 1/30, @isnumeric)
             p.addParameter('likelihoodThreshold', 0, @isnumeric)
             p.addParameter('data', [], @istable)
+            p.addParameter('interp', 'linear', @ischar)
             p.parse(side, feature, varargin{:})
             side = p.Results.side;
             trialType = p.Results.trialType;
@@ -241,6 +290,7 @@ classdef CompleteExperiment3 < CompleteExperiment
             includeInvalid = p.Results.includeInvalid;
             resolution = p.Results.resolution;
             likelihoodThreshold = p.Results.likelihoodThreshold;
+            interp = p.Results.interp;
 
             if isempty(trials)
                 trials = obj.eu(1).getTrials(trialType);
@@ -293,9 +343,9 @@ classdef CompleteExperiment3 < CompleteExperiment
                 xx(ll < likelihoodThreshold) = NaN;
                 yy(ll < likelihoodThreshold) = NaN;
                 ll(ll < likelihoodThreshold) = NaN;
-                xx = interp1(vtd.Timestamp, xx, tt, 'linear');                        
-                yy = interp1(vtd.Timestamp, yy, tt, 'linear');                        
-                ll = interp1(vtd.Timestamp, ll, tt, 'linear');     
+                xx = interp1(vtd.Timestamp, xx, tt, interp);                        
+                yy = interp1(vtd.Timestamp, yy, tt, interp);                        
+                ll = interp1(vtd.Timestamp, ll, tt, interp);     
                 X(i, inTrial) = xx(inTrial);
                 Y(i, inTrial) = yy(inTrial);
                 L(i, inTrial) = ll(inTrial);
