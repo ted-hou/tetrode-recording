@@ -569,10 +569,10 @@ classdef CompleteExperiment < handle
         end
 
         function vtd = readVideoTrackingData(obj, expName, side, videoExpName)
-            if nargin < 2
+            if nargin < 3
                 side = 'both';
             end
-            if nargin < 3
+            if nargin < 4
                 videoExpName = expName;
             end
         
