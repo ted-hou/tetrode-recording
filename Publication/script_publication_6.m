@@ -76,6 +76,12 @@ meanZ = mean(eta.circLick.Z, 2);
 eta.lickBoutNorm = eta.lickBout;
 eta.lickBoutNorm.X = normalize(eta.lickBout.X, 2, 'zscore', 'robust');
 
+% Special plot: let's use pre-reach baseline for z-scoring osci-lick spike
+% rates
+eta.lickBoutNorm.X(c.hasPress, :) = (eta.lickBout.X(c.hasPress, :) - vertcat(eta.press.stats(c.hasPress).mean)./0.1) ./ (vertcat(eta.press.stats(c.hasPress).sd)./0.1);
+% eta.lickBoutNorm.X(c.hasPress, :) = (eta.lickBout.X(c.hasPress, :) - vertcat(eta.press.stats(c.hasPress).mean)./0.1) ./ (vertcat(eta.press.stats(c.hasPress).sd)./0.1);
+
+
 maxBoutCycles = 4;
 sel = c.hasPress & c.hasLick & c.isLick;
 phase = angle(meanZ(sel));
@@ -85,9 +91,9 @@ amp = amp(:);
 phase = phase(:);
 [sortedPhase, I] = sort(phase);
 [~, ~] = EphysUnit.plotETA(ax, eta.lickBoutNorm, sel, order=I, ...
-    clim=[-2, 2], xlim=[0, 2*pi*maxBoutCycles], hidecolorbar=false);
-applyCustomColormap(ax, [-2, 2], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
-xticks (ax, (0:2:8).*pi);
+    clim=[-5, 5], xlim=[0, 2*pi*maxBoutCycles], hidecolorbar=false);
+applyCustomColormap(ax, [-5, 5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+xticks(ax, (0:2:8).*pi);
 xticklabels(ax, [{'0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2:2:8, UniformOutput=false)]);
 title(ax, 'Lick-entrained')
 ylabel(ax, 'Unit')
@@ -270,7 +276,7 @@ for iAx = 1:4
         fontsize(ax, p.fontSize, 'points')
         text(ax, 0.025, 1, sprintf('inc(n=%i)', nnz(IDSplit{iAx, iTask}{1})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='top', Interpreter='none', FontSize=p.fontSize-1)
         text(ax, 0.025, 0.025, sprintf('dec(n=%i)', nnz(IDSplit{iAx, iTask}{3})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize-1)
-
+        yline(ax, 0, '--')
     end
 
     % 6d. Any bout
@@ -288,6 +294,7 @@ for iAx = 1:4
     ax.XGrid = 'on';
     fontsize(ax, p.fontSize, 'points')
     text(ax, 0.05, -0.025, sprintf('n=%i', nnz(iEu)), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize-1.5)
+    yline(ax, 0, '--')
 end
 xlabel(layout.right.bottom.tl, 'Time from bar/spout contact (s) & lick phase', FontSize=p.fontSize);
 ylabel(layout.right.bottom.tl, 'Normalized spike rate (a.u.)', FontSize=p.fontSize)

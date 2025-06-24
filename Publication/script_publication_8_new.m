@@ -1,5 +1,12 @@
 read_SC_opto_trajectories_DLC;
-[SNr_SCRetro.eu, SNr_SCRetro.rd, SNr_SCRetro.eta, SNr_SCRetro.meta, SNr_SCRetro.p, SNr_SCRetro.c, SNr_SCRetro.boot] = read_SNr_SCRetro();
+% [SNr_SCRetro.eu, SNr_SCRetro.rd, SNr_SCRetro.eta, SNr_SCRetro.meta, SNr_SCRetro.p, SNr_SCRetro.c, SNr_SCRetro.boot] = read_SNr_SCRetro();
+[SNr_SCRetro.eu, SNr_SCRetro.rd, SNr_SCRetro.eta, SNr_SCRetro.meta, SNr_SCRetro.p, SNr_SCRetro.c, SNr_SCRetro.boot] = read_SNr_SCRetro(metaPath='C:\SERVER\Units\meta_TwoColor_SNr_SCRetro_20250611.mat', readBootButRecalculateMeta=true, ...
+    stimBluePowers=[100, 500, 2000]*1e-6, ...
+    stimRedPowers=[2000, 8000, 16000]*1e-6, ...
+    stimBluePowersMustContain=["*1e6==100", "*1e6==500", "*1e6==2000"], ...
+    stimRedPowersMustContain=["*1e6==2000", "*1e6>=8000"] ...
+);
+
 
 %% Fig 8a SC Stim causes movements (medial SC stim vs. lateral SC stim)
 close all
@@ -83,10 +90,9 @@ if ~useYYAxis
     lgd.Layout.Tile = 'north';
 end
 
-clear windowPreStim windowPostStim WAVELENGTHS COLORS BODYPARTS BODYPARTDISPNAMES YYAXIS BODYPARTCOLORS YLIMS YTICKS
-clear iExp tl h AX iColor color mwPower ax iBodypart bodypart X Y t nTrials velX velY spd mu sd col h lgd
-
-
 copygraphics(fig, BackgroundColor='none', ContentType='vector')
+clear windowPreStim windowPostStim WAVELENGTHS COLORS BODYPARTS BODYPARTDISPNAMES YYAXIS BODYPARTCOLORS YLIMS YTICKS
+clear iExp tl h AX iColor color mwPower ax iBodypart bodypart X Y t nTrials velX velY spd mu sd col h lgd useYYAxis
+clear fig
 
 %% Fig 8b. Rasters of optotagging SNr neurons

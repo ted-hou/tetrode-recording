@@ -124,6 +124,7 @@ msr = arrayfun(@(stats) stats.median, [eu.SpikeRateStats]);
 % Lick/Press responses
 eta.press = eu.getETA('count', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm);
 eta.lick = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize=p.etaNorm);
+eta.pressIncorrect = eu.getETA('count', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, maxTrialDuration=4, normalize=p.etaNorm);
 eta.pressRaw = eu.getETA('count', 'press', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize='none');
 eta.lickRaw = eu.getETA('count', 'lick', p.etaWindow, minTrialDuration=p.minTrialDuration, normalize='none');
 eta.pressCue = eu.getETA('count', 'press', p.cueEtaWindow, alignTo='start', minTrialDuration=p.minTrialDuration, normalize=eta.press.stats, includeInvalid=true);

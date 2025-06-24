@@ -53,7 +53,11 @@ classdef CompleteExperiment3 < CompleteExperiment
             end
             % Deep lab cut
             if ~isempty(deepLabCutFiles)
-                vtd = obj.readVideoTrackingData(expName, side, sprintf('%s_laser', expName));
+                if isempty(obj.tce)
+                    vtd = obj.readVideoTrackingData(expName, side, sprintf('%s', expName));
+                else
+                    vtd = obj.readVideoTrackingData(expName, side, sprintf('%s_laser', expName));
+                end
             % Pawnalyzer2 manually labeled
             else
                 vidFile = dir(sprintf('C:\\SERVER\\%s\\%s\\%s*_%g.mp4', animalName, expName, expName, sidenum));
@@ -69,10 +73,12 @@ classdef CompleteExperiment3 < CompleteExperiment
             p.addParameter('refEventNameArduino', 'CUE_ON', @(x) ischar(x) || iscell(x))
             p.addParameter('refEventNameEphys', 'Cue', @(x) ischar(x) || iscell(x))
             p.addParameter('trialDurationTolerance', 0.1, @isnumeric)
+            p.addParameter('shiftDurationTolerance', 1.5, @isnumeric)
             p.parse(varargin{:});
             refEventNameArduino = p.Results.refEventNameArduino;
             refEventNameEphys = p.Results.refEventNameEphys;
             trialDurationTolerance = p.Results.trialDurationTolerance;
+            shiftDurationTolerance = p.Results.shiftDurationTolerance;
             % Use CUE_ON events because this is recorded in arduino and ephys
             if length(obj) == 1
                 fprintf(1, '%s (%g units), alingning ephys & camera using %s and %s timestamps.\n', obj.name, length(obj.eu), string(refEventNameEphys).join, string(refEventNameArduino).join)
@@ -89,12 +95,19 @@ classdef CompleteExperiment3 < CompleteExperiment
                     end
                     eventDateTime = sort(eventDateTime, 'ascend');
                 end
-                fcamDateTime = datetime([obj.ac.Cameras(obj.getCameraIndex('f')).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
-                fcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('f')).Camera.EventLog.FrameNumber];
-                lcamDateTime = datetime([obj.ac.Cameras(obj.getCameraIndex('l')).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
-                lcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('l')).Camera.EventLog.FrameNumber];
-                rcamDateTime = datetime([obj.ac.Cameras(obj.getCameraIndex('r')).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
-                rcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('r')).Camera.EventLog.FrameNumber];
+
+                if ~isempty(obj.vtdF)
+                    fcamDateTime = datetime([obj.ac.Cameras(obj.getCameraIndex('f')).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
+                    fcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('f')).Camera.EventLog.FrameNumber];
+                end
+                if ~isempty(obj.vtdL)
+                    lcamDateTime = datetime([obj.ac.Cameras(obj.getCameraIndex('l')).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
+                    lcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('l')).Camera.EventLog.FrameNumber];
+                end
+                if ~isempty(obj.vtdR)
+                    rcamDateTime = datetime([obj.ac.Cameras(obj.getCameraIndex('r')).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
+                    rcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('r')).Camera.EventLog.FrameNumber];
+                end
 
                 % Find event in ephystime
                 if ischar(refEventNameEphys)
@@ -107,6 +120,9 @@ classdef CompleteExperiment3 < CompleteExperiment
                     eventEphysTime = sort(eventEphysTime, 'ascend');
                 end
                 
+                eventDateTime = eventDateTime(:);
+                eventEphysTime = eventEphysTime(:);
+
                 % Some assertions: 
                 try
                     assert(length(eventEphysTime) == length(eventDateTime), 'Arduino has %g %s events, but ephys has %g %s events.', length(eventDateTime), refEventNameArduino, length(eventEphysTime), refEventNameEphys)
@@ -116,48 +132,56 @@ classdef CompleteExperiment3 < CompleteExperiment
                     n = length(eventDateTime) - length(eventEphysTime);
                     if n > 0
                         % case 1: remove first n arduino events
-                        if all(abs(itiArduino(n+1:end) - itiEphys) < 1.5)
+                        if all(abs(itiArduino(n+1:end) - itiEphys) < shiftDurationTolerance)
                             eventDateTime = eventDateTime(n+1:end);
                         % case 2: remove last n arduino events
-                        elseif all(abs(itiArduino(1:end-n) - itiEphys) < 1.5)
+                        elseif all(abs(itiArduino(1:end-n) - itiEphys) < shiftDurationTolerance)
                             eventDateTime = eventDateTime(1:end-n);
                         else
                             error('Arduino has %g ref events, but ephys has %g ref events.', length(eventDateTime), length(eventEphysTime));
                         end
                     else
                         n = -n;
+                        if strcmpi(obj.name, 'desmond23_20220504')
+                            eventEphysTime = eventEphysTime(n:end-1);
                         % case 1: remove first n ephys events
-                        if all(abs(itiArduino - itiEphys(n+1:end)) < 1.5)
+                        elseif all(abs(itiArduino - itiEphys(n+1:end)) < shiftDurationTolerance)
                             eventEphysTime = eventEphysTime(n+1:end);
                         % case 2: remove last n ephys events
-                        elseif all(abs(itiArduino - itiEphys(1:end-n)) < 1.5)
+                        elseif all(abs(itiArduino - itiEphys(1:end-n)) < shiftDurationTolerance)
                             eventEphysTime = eventEphysTime(1:end-n);
                         else
                             error('Arduino has %g ref events, but ephys has %g ref events.', length(eventDateTime), length(eventEphysTime));
                         end
                     end
                 end
-                assert(all(abs(diff(eventEphysTime) - seconds(diff(eventDateTime))) < trialDurationTolerance), 'Adruino trial lengths differe significantly from ephys, max different: %g.', max(abs(diff(eventEphysTime) - seconds(diff(eventDateTime)))))
+                assert(all(abs(diff(eventEphysTime(:)) - seconds(diff(eventDateTime(:)))) < trialDurationTolerance), 'Adruino trial lengths differe significantly from ephys, max different: %g.', max(abs(diff(eventEphysTime(:)) - seconds(diff(eventDateTime(:))))))
                 fprintf(1, '\tInter-ref-intervals match between ephys and arduino for %g trials with a tolerance of %gs.\n', length(eventEphysTime), trialDurationTolerance);
 
                 % Clean up restarting framenums
-                if nnz(fcamFrameNum == 0) > 1
-                    iStart = find(fcamFrameNum == 0, 1, 'last');
-                    fcamFrameNum = fcamFrameNum(iStart:end);
-                    fcamDateTime = fcamDateTime(iStart:end);
-                    warning('%s front camera had a restart. Only the last batch of framenumbers and timestamps are kept. %.2f seconds of data are useless.', obj.name, (iStart-1)*10/30)
+                if ~isempty(obj.vtdF)
+                    if nnz(fcamFrameNum == 0) > 1
+                        iStart = find(fcamFrameNum == 0, 1, 'last');
+                        fcamFrameNum = fcamFrameNum(iStart:end);
+                        fcamDateTime = fcamDateTime(iStart:end);
+                        fprintf('%s front camera had a restart. Only the last batch of framenumbers and timestamps are kept. %.2f seconds of data are useless.\n', obj.name, (iStart-1)*10/30)
+                    end
                 end
-                if nnz(lcamFrameNum == 0) > 1
-                    iStart = find(lcamFrameNum == 0, 1, 'last');
-                    lcamFrameNum = lcamFrameNum(iStart:end);
-                    lcamDateTime = lcamDateTime(iStart:end);
-                    warning('%s left camera had a restart. Only the last batch of framenumbers and timestamps are kept. %.2f seconds of data are useless.', obj.name, (iStart-1)*10/30)
+                if ~isempty(obj.vtdL)
+                    if nnz(lcamFrameNum == 0) > 1
+                        iStart = find(lcamFrameNum == 0, 1, 'last');
+                        lcamFrameNum = lcamFrameNum(iStart:end);
+                        lcamDateTime = lcamDateTime(iStart:end);
+                        fprintf('%s left camera had a restart. Only the last batch of framenumbers and timestamps are kept. %.2f seconds of data are useless.\n', obj.name, (iStart-1)*10/30)
+                    end
                 end
-                if nnz(rcamFrameNum == 0) > 1
-                    iStart = find(rcamFrameNum == 0, 1, 'last');
-                    rcamFrameNum = rcamFrameNum(iStart:end);
-                    rcamDateTime = rcamDateTime(iStart:end);
-                    warning('%s right camera had a restart. Only the last batch of framenumbers and timestamps are kept. %.2f seconds of data are useless.', obj.name, (iStart-1)*10/30)
+                if ~isempty(obj.vtdR)
+                    if nnz(rcamFrameNum == 0) > 1
+                        iStart = find(rcamFrameNum == 0, 1, 'last');
+                        rcamFrameNum = rcamFrameNum(iStart:end);
+                        rcamDateTime = rcamDateTime(iStart:end);
+                        fprintf('%s right camera had a restart. Only the last batch of framenumbers and timestamps are kept. %.2f seconds of data are useless.\n', obj.name, (iStart-1)*10/30)
+                    end
                 end
 
                 if ~isempty(obj.vtdF)
@@ -227,7 +251,16 @@ classdef CompleteExperiment3 < CompleteExperiment
                             i = 3;
                         otherwise
                             error('Unrecognized side string: ''%s''', side)
-                    end                    
+                    end
+                case {'daisy14', 'daisy15', 'daisy16', 'desmond23', 'desmond24', 'desmond25', 'desmond26', 'desmond27'}
+                    switch lower(side)
+                        case {'l', 'left'}
+                            i = 2;
+                        case {'r', 'right'}
+                            i = 1;
+                        otherwise
+                            error('Unrecognized side string: ''%s''', side)
+                    end
             end
         end
 
