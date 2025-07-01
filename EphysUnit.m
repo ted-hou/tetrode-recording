@@ -425,7 +425,8 @@ classdef EphysUnit < handle
         
         function trials = getTrials(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'lick+lickbout', 'press+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral'})));
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'lick+lickbout', 'press+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
+                'press_release_correct', 'press_release_incorrect', 'press_release'})));
             p.addOptional('sorted', true, @islogical);
             p.addParameter('minBoutCycles', 2)
             p.addParameter('maxBoutCycles', 4)
@@ -480,6 +481,13 @@ classdef EphysUnit < handle
                             trials{itt} = obj.makeTrials(trialType{itt}, ...
                                 minBoutCycles=p.Results.minBoutCycles, maxBoutCycles=p.Results.maxBoutCycles, ...
                                 minInterval=p.Results.minInterval, maxInterval=p.Results.maxInterval);
+                        case 'press_release_correct'
+                            trials{itt} = obj.Trials.PressReleaseCorrect;
+                        case 'press_release_incorrect'
+                            trials{itt} = obj.Trials.PressReleaseIncorrect;
+                        case 'press_release'
+                            thesetrials = [obj.Trials.PressReleaseCorrect, obj.Trials.PressReleaseIncorrect];
+                            trials{itt} = thesetrials.sortby('start', 'ascend');
                     end
                 end
                 trials = cat(1, trials{:});
@@ -590,7 +598,8 @@ classdef EphysUnit < handle
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
             p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', ...
-                'firstlick', 'circlick', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
+                'firstlick', 'circlick', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
+                'press_release_correct', 'press_release_incorrect'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -685,8 +694,13 @@ classdef EphysUnit < handle
                     theseTrials = trials;
                 end
 
-                [x, ~, d] = obj(i).getTrialAlignedData(data, window, event, trials=theseTrials, alignTo=alignTo, allowedTrialDuration=[minTrialDuration, maxTrialDuration], ...
-                    findSingleTrialDuration=findSingleTrialDuration, resolution=resolution, includeInvalid=includeInvalid, correction=correction, kernel=kernel, minBoutCycles=minBoutCycles, maxBoutCycles=maxBoutCycles, minInterval=minInterval, maxInterval=maxInterval);
+                try
+                    [x, ~, d] = obj(i).getTrialAlignedData(data, window, event, trials=theseTrials, alignTo=alignTo, allowedTrialDuration=[minTrialDuration, maxTrialDuration], ...
+                        findSingleTrialDuration=findSingleTrialDuration, resolution=resolution, includeInvalid=includeInvalid, correction=correction, kernel=kernel, minBoutCycles=minBoutCycles, maxBoutCycles=maxBoutCycles, minInterval=minInterval, maxInterval=maxInterval);
+                catch
+                    % warning('getTrialAlignedData failed for obj index %i', i)
+                    x = [];
+                end
                 
                 if isempty(x)
                     % warning('EventTriggeredAverage cannot be calculated for Unit %i (%s), likely because trial count is zero.', i, obj(i).getName())
@@ -749,7 +763,8 @@ classdef EphysUnit < handle
 
         function rd = getRasterData(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_medial', 'press_spontaneous_lateral'})))
+            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
+                'press_release_correct', 'press_release_incorrect', 'press_release'})))
             p.addOptional('window', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -774,7 +789,7 @@ classdef EphysUnit < handle
 
             if strcmp(alignTo, 'default')
                 switch trialType
-                    case {'press', 'lick', 'press_spontaneous'}
+                    case {'press', 'lick', 'press_spontaneous', 'press_release_correct', 'press_release_incorrect'}
                         alignTo = 'stop';
                     case {'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor'}
                         alignTo = 'start';
@@ -832,7 +847,7 @@ classdef EphysUnit < handle
 
                 if p.Results.sort
                     if strcmpi(trialType, 'stimtwocolor')
-                        [tce, stimOn, stimOff, trainIndices] = obj.LoadTwoColorExperiment();
+                        [tce, stimOn, stimOff, trainIndices] = obj.loadTwoColorExperiment();
                         stimOn = stimOn + p.Results.shutterDelay;
                         stimOff = stimOff + p.Results.shutterDelay;
                         nPulses = length(stimOn);
@@ -1178,7 +1193,7 @@ classdef EphysUnit < handle
             end
         end
 
-        function [tce, tOn, tOff, trainIndices] = LoadTwoColorExperiment(obj, varargin)
+        function [tce, tOn, tOff, trainIndices] = loadTwoColorExperiment(obj, varargin)
             assert(length(obj) == 1)
             p = inputParser();
             p.addParameter('pulseWidthErrorMargin', 1e-3, @isnumeric)
@@ -1269,7 +1284,7 @@ classdef EphysUnit < handle
 
             assert(length(obj) == 1);
 
-            [tce, ~, ~, trainIndices] = obj.LoadTwoColorExperiment();
+            [tce, ~, ~, trainIndices] = obj.loadTwoColorExperiment();
             [groupIndices, conditions] = tce.groupStimTrains(groupBy, firstShutterControlTrain);
 
             nGroups = length(conditions);
@@ -1329,6 +1344,128 @@ classdef EphysUnit < handle
                 if ~isempty(selectBy.power)
                     assert(ismember('power', groupBy))
                     groups = groups(ismember(round(1e6*[groups.power]), round(1e6*selectBy.power)));
+                end
+            end
+        end
+
+        function [ac, euIndicesFirstInSession, expIndices, uniqueExpNames] = loadArduinoConnection(obj)
+            [uniqueExpNames, euIndicesFirstInSession, expIndices] = unique(string({obj.ExpName}));
+
+            for iExp = 1:length(uniqueExpNames)
+                expName = uniqueExpNames(iExp);
+                animalName = obj(euIndicesFirstInSession(iExp)).getAnimalName();
+
+                file = dir(sprintf('C:\\SERVER\\%s\\%s\\%s.mat', animalName, expName, expName));
+                try
+                    assert(~isempty(file), 'Cannot find file "C:\\SERVER\\%s\\%s\\%s.mat"', animalName, expName, expName)
+                catch
+                    file = dir(sprintf('C:\\SERVER\\%s\\%s\\%s_lever_*.mat', animalName, expName, animalName));
+                    assert(~isempty(file), 'Cannot find file "C:\\SERVER\\%s\\%s\\%s_lever_*.mat"', animalName, expName, animalName)
+                end
+    
+                acTemp = load(sprintf('%s\\%s', file.folder, file.name));
+                acTemp = acTemp.obj;
+                if isa(acTemp, 'TwoColorExperiment')
+                    acTemp = acTemp.LaserArduino;
+                end
+                assert(isa(acTemp, 'ArduinoConnection'))
+                ac(iExp) = acTemp;
+            end
+
+            ac = ac(expIndices);
+        end
+
+        % Convert arduino to ephys timestamps
+        function tEU = alignTimestamps(obj, tAC, varargin)
+            p = inputParser();
+            p.addRequired('tAC', @(x) isnumeric(x) || isstring(x));
+            p.addParameter('acRefEventName', "CUE_ON", @(x) isstring(x)); % Try ["CUE_ON", "LEVER_PRESSED"]
+            p.addParameter('euRefEventName', "Cue", @(x) isstring(x)); % Try ["Cue", "Press"]
+            p.addParameter('trialDurationTolerance', 0.1, @isnumeric)
+            p.addParameter('shiftDurationTolerance', 0.5, @isnumeric)
+            p.addParameter('ac', {}, @iscell)
+            p.parse(tAC, varargin{:})
+            tAC = p.Results.tAC;
+            acRefEventName = p.Results.acRefEventName;
+            euRefEventName = p.Results.euRefEventName;
+            trialDurationTolerance = p.Results.trialDurationTolerance;
+            shiftDurationTolerance = p.Results.shiftDurationTolerance;
+
+            if isnumeric(tAC)
+                error('Not implemented: acTimestamps is numeric, use event name string instead.')
+            end
+            assert(isstring(tAC));
+            tAC = tAC(:)';
+
+            if isempty(p.Results.ac)
+                [ac, euIndicesFirstInSession, expIndices, uniqueExpNames] = loadArduinoConnection(obj);
+            else
+                ac = p.Results.ac;
+                euIndicesFirstInSession = ac{2};
+                expIndices = ac{3};
+                uniqueExpNames = ac{4};
+                ac = ac{1};
+            end
+
+            for iExp = 1:length(uniqueExpNames)
+                try
+                    acTemp = ac(euIndicesFirstInSession(iExp));
+                    euTemp = obj(euIndicesFirstInSession(iExp));
+    
+                    tRefAC = arrayfun(@(event) acTemp.GetEventMarker(char(event), 'millis'), acRefEventName, UniformOutput=false);
+                    tRefAC = sort(cat(1, tRefAC{:}), 'ascend');
+                    tRefAC = tRefAC./1000; % Convert arduino millis to seconds
+    
+                    tRefEU = arrayfun(@(event) euTemp.EventTimes.(event)(:), euRefEventName, UniformOutput=false);
+                    tRefEU = sort(cat(1, tRefEU{:}), 'ascend');
+    
+                    % # events mismatch
+                    if length(tRefEU) ~= length(tRefAC)
+                        itiRefEU = diff(tRefEU);
+                        itiRefAC = diff(tRefAC);
+                        n = length(tRefAC) - length(tRefEU);
+                        if n > 0
+                            % case 1: remove first n arduino events
+                            if all(abs(itiRefAC(n+1:end) - itiRefEU) < shiftDurationTolerance)
+                                tRefAC = tRefAC(n+1:end);
+                            % case 2: remove last n arduino events
+                            elseif all(abs(itiRefAC(1:end-n) - itiRefEU) < shiftDurationTolerance)
+                                tRefAC = tRefAC(1:end-n);
+                            else
+                                error('Arduino has %g ref events, but ephys has %g ref events.', length(tRefAC), length(tRefEU));
+                            end
+                        else
+                            n = -n;
+                            if strcmpi(euTemp.ExpName, 'desmond23_20220504')
+                                tRefEU = tRefEU(n:end-1);
+                            % case 1: remove first n ephys events
+                            elseif all(abs(itiRefAC - itiRefEU(n+1:end)) < shiftDurationTolerance)
+                                tRefEU = tRefEU(n+1:end);
+                            % case 2: remove last n ephys events
+                            elseif all(abs(itiRefAC - itiRefEU(1:end-n)) < shiftDurationTolerance)
+                                tRefEU = tRefEU(1:end-n);
+                            else
+                                error('Arduino has %g ref events, but ephys has %g ref events.', length(tRefAC), length(tRefEU));
+                            end
+                        end
+                    end
+    
+                    assert(all(abs(diff(tRefAC(:)) - diff(tRefEU(:))) < trialDurationTolerance), 'Adruino trial lengths differe significantly from ephys, max different: %g.', max(abs(diff(tRefEU(:)) - diff(tRefAC(:)))))
+                    fprintf(1, '\tInter-ref-intervals match between ephys and arduino for %g trials with a tolerance of %gs.\n', length(tRefEU), trialDurationTolerance);
+    
+                    euIndices = find(expIndices==iExp);
+                    euIndices = euIndices(:)';
+                    tEU(iExp).euIndices = euIndices;
+                    for event = tAC
+                        tACTemp = acTemp.GetEventMarker(char(event), 'millis')./1000;
+                        tEUTemp = interp1(tRefAC, tRefEU, tACTemp, 'linear', 'extrap');
+                        tEU(iExp).(event) = tEUTemp;
+                        for iEu = euIndices
+                            obj(iEu).EventTimes.(event) = tEUTemp;
+                        end
+                    end
+                catch
+                    warning('Error when aligning timestamps for session %s', euTemp.ExpName)
                 end
             end
         end
@@ -1946,7 +2083,7 @@ classdef EphysUnit < handle
 
     end
 
-    % private methods
+    % private (not anymore!) methods
     methods % (Access = {})
         function trials = makeTrials(obj, trialType, varargin)
             if length(obj) == 1
@@ -2387,7 +2524,8 @@ classdef EphysUnit < handle
                 useResampleMethod = false;
             end
             p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
-            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral'}))
+            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
+                'press_release_correct', 'press_release_incorrect'}))
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
             p.addParameter('resolution', 0.001, @isnumeric)
             p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) >= x(1))

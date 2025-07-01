@@ -51,6 +51,10 @@ classdef Trial
                 obj(i).Stop = stop(i);
             end
         end
+
+        function b = eq(obj, other)
+            b = isequal(obj, other);
+        end
         
         function l = duration(obj)
             l = [obj.Stop] - [obj.Start];
@@ -74,8 +78,12 @@ classdef Trial
             b = isempty(obj.Start) || isempty(obj.Stop);
         end
 
+        function [sortedObj, I] = sort(obj)
+            [sortedObj, I] = obj.sortby('start', 'ascend');
+        end
+
         % Sort trials by start time
-        function sortedObj = sortby(obj, varargin)
+        function [sortedObj, I] = sortby(obj, varargin)
             p = inputParser();
             p.addOptional('property', 'start', @(x) ischar(x) && ismember(lower(x), {'start', 'stop', 'duration'}))
             p.addOptional('direction', 'ascend', @(x) ischar(x) && ismember(lower(x), {'ascend', 'descend'}))
@@ -110,6 +118,7 @@ classdef Trial
             p.addParameter('windowMode', 'extend', @(x) ismember(x, {'start', 'stop', 'extend'}))
             p.parse(t, varargin{:})
             t = p.Results.t;
+            t = t(:)';
             window = p.Results.window;
             windowMode = p.Results.windowMode;
             
@@ -265,7 +274,6 @@ classdef Trial
             
             % Find trial edges using histcounts()
             edges = reshape([start(1:end-1), max(start(end), stop(end))], [], 1);
-            
             [~, ~, bins] = histcounts(stop, edges);
             stop = stop(bins > 0); % Remove 0th bin, stop event cannot occur befor start
             bins = bins(bins > 0);
