@@ -23,7 +23,7 @@ classdef CompleteExperiment3 < CompleteExperiment
                 obj(i).name = uniqueExpNames{i};
                 obj(i).eu = eu(expIndices==i);
                 try
-                    obj(i).tce = obj(i).eu(1).LoadTwoColorExperiment();
+                    obj(i).tce = obj(i).eu(1).loadTwoColorExperiment();
                 catch
                     obj(i).tce = [];
                 end

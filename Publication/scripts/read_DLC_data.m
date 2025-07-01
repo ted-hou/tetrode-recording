@@ -60,49 +60,82 @@ for iExp = 1:length(expAcute)
 %             theseNamesSmooth = fnamesSmoothR;
     end
 
-    fCorrect{iExp} = struct('press', [], 'lick', []);
-    fIncorrect{iExp} = struct('press', [], 'lick', []);
-    for trialType = {'press', 'lick'}
+    fCorrect{iExp} = struct('press', [], 'lick', [], 'press_release', []);
+    fIncorrect{iExp} = struct('press', [], 'lick', [], 'press_release', []);
+    for trialType = {'press', 'lick', 'press_release'}
         trialType = trialType{1};
-        trials = expAcute(iExp).eu(1).getTrials(trialType);
-        if strcmp(trialType, 'press')
-            disp(length(trials))
-        end
+        switch trialType
+            case {'press', 'lick'}
+                trials = expAcute(iExp).eu(1).getTrials(trialType);
+                nCorrectTrials = nnz(trials.duration >= 4);
+                nIncorrectTrials = nnz(trials.duration < 4 & trials.duration >= p.minTrialLength);
+                fIncorrect{iExp}.(trialType) = NaN(length(t), length(fnames), nIncorrectTrials);
+                fCorrect{iExp}.(trialType) = NaN(length(t), length(fnames), nCorrectTrials);
 
-        nCorrectTrials = nnz(trials.duration >= 4);
-        nIncorrectTrials = nnz(trials.duration < 4 & trials.duration >= p.minTrialLength);
-        fIncorrect{iExp}.(trialType) = NaN(length(t), length(fnames), nIncorrectTrials);
-        fCorrect{iExp}.(trialType) = NaN(length(t), length(fnames), nCorrectTrials);
-        iTrialCorrect = 0;
-        iTrialIncorrect = 0;
-        for iTrial = 1:length(trials)
-            if trials(iTrial).duration < p.minTrialLength
-                continue;
-            end
+                iTrialCorrect = 0;
+                iTrialIncorrect = 0;
+                for iTrial = 1:length(trials)
+                    if trials(iTrial).duration < p.minTrialLength
+                        continue;
+                    end
+        
+                    tGlobal = flip(trials(iTrial).Stop + p.velETAWindow(2):-p.velETABinWidth:trials(iTrial).Stop + p.velETAWindow(1));
+                    F = expAcute(iExp).getFeatures(timestamps=tGlobal, features=theseNames, stats=statName, useGlobalNormalization=true);
+                    % F = CompleteExperiment.convolveFeatures(F, kernels, kernelNames={'_smooth'}, ...
+                    %     features=theseNames, ...
+                    %     stats=statName, ...
+                    %     mode='replace', normalize='none');
+                    inTrial = F.t >= trials(iTrial).Start;
+                    if iTrial < length(trials)
+                        inTrial = inTrial & F.t <= trials(iTrial + 1).Start;
+                    end
+                    F(:, {'t', 'inTrial'}) = [];
+                    thisData = table2array(F);
+                    thisData(~inTrial, :) = NaN;
+        
+                    % Incorrect
+                    if trials(iTrial).duration < 4
+                        iTrialIncorrect = iTrialIncorrect + 1;
+                        fIncorrect{iExp}.(trialType)(:, :, iTrialIncorrect) = thisData;
+                    % Correct
+                    else
+                        iTrialCorrect = iTrialCorrect + 1;
+                        fCorrect{iExp}.(trialType)(:, :, iTrialCorrect) = thisData;
+                    end
+                end
+            case 'press_release'
+                correctTrials = expAcute(iExp).eu(1).getTrials(sprintf('%s_correct', trialType));
+                incorrectTrials = expAcute(iExp).eu(1).getTrials(sprintf('%s_incorrect', trialType));
+                nCorrectTrials = length(correctTrials);
+                nIncorrectTrials = length(incorrectTrials);
+                fIncorrect{iExp}.(trialType) = NaN(length(t), length(fnames), nIncorrectTrials);
+                fCorrect{iExp}.(trialType) = NaN(length(t), length(fnames), nCorrectTrials);
 
-            tGlobal = flip(trials(iTrial).Stop + p.velETAWindow(2):-p.velETABinWidth:trials(iTrial).Stop + p.velETAWindow(1));
-            F = expAcute(iExp).getFeatures(timestamps=tGlobal, features=theseNames, stats=statName, useGlobalNormalization=true);
-            % F = CompleteExperiment.convolveFeatures(F, kernels, kernelNames={'_smooth'}, ...
-            %     features=theseNames, ...
-            %     stats=statName, ...
-            %     mode='replace', normalize='none');
-            inTrial = F.t >= trials(iTrial).Start;
-            if iTrial < length(trials)
-                inTrial = inTrial & F.t <= trials(iTrial + 1).Start;
-            end
-            F(:, {'t', 'inTrial'}) = [];
-            thisData = table2array(F);
-            thisData(~inTrial, :) = NaN;
 
-            % Incorrect
-            if trials(iTrial).duration < 4
-                iTrialIncorrect = iTrialIncorrect + 1;
-                fIncorrect{iExp}.(trialType)(:, :, iTrialIncorrect) = thisData;
-            % Correct
-            else
-                iTrialCorrect = iTrialCorrect + 1;
-                fCorrect{iExp}.(trialType)(:, :, iTrialCorrect) = thisData;
-            end
+                for iTrial = 1:length(correctTrials)
+                    tGlobal = flip(correctTrials(iTrial).Stop + p.velETAWindow(2):-p.velETABinWidth:correctTrials(iTrial).Stop + p.velETAWindow(1));
+                    F = expAcute(iExp).getFeatures(timestamps=tGlobal, features=theseNames, stats=statName, useGlobalNormalization=true);
+                    inTrial = F.t >= correctTrials(iTrial).Start;
+                    if iTrial < length(correctTrials)
+                        inTrial = inTrial & F.t <= correctTrials(iTrial + 1).Start;
+                    end
+                    F(:, {'t', 'inTrial'}) = [];
+                    thisData = table2array(F);
+                    thisData(~inTrial, :) = NaN;
+                    fCorrect{iExp}.(trialType)(:, :, iTrial) = thisData;
+                end
+                for iTrial = 1:length(incorrectTrials)
+                    tGlobal = flip(incorrectTrials(iTrial).Stop + p.velETAWindow(2):-p.velETABinWidth:incorrectTrials(iTrial).Stop + p.velETAWindow(1));
+                    F = expAcute(iExp).getFeatures(timestamps=tGlobal, features=theseNames, stats=statName, useGlobalNormalization=true);
+                    inTrial = F.t >= incorrectTrials(iTrial).Start;
+                    if iTrial < length(incorrectTrials)
+                        inTrial = inTrial & F.t <= incorrectTrials(iTrial + 1).Start;
+                    end
+                    F(:, {'t', 'inTrial'}) = [];
+                    thisData = table2array(F);
+                    thisData(~inTrial, :) = NaN;
+                    fIncorrect{iExp}.(trialType)(:, :, iTrial) = thisData;
+                end
         end
     end
 end

@@ -260,7 +260,7 @@ classdef CompleteExperiment < handle
             timestamps = timestamps(:);
             inTrial = obj.eu(1).getTrials(p.Results.trialType).inTrial(timestamps);
 
-            F = table(timestamps, inTrial, VariableNames={'t', 'inTrial'});
+            F = table(timestamps(:), inTrial(:), VariableNames={'t', 'inTrial'});
             for iFeature = 1:length(features)
                 featureName = features{iFeature};
 
