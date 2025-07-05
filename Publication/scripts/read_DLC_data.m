@@ -60,9 +60,9 @@ for iExp = 1:length(expAcute)
 %             theseNamesSmooth = fnamesSmoothR;
     end
 
-    fCorrect{iExp} = struct('press', [], 'lick', [], 'press_release', []);
-    fIncorrect{iExp} = struct('press', [], 'lick', [], 'press_release', []);
-    for trialType = {'press', 'lick', 'press_release'}
+    fCorrect{iExp} = struct('press', [], 'lick', [], 'press_release', [], 'press_retract', []);
+    fIncorrect{iExp} = struct('press', [], 'lick', [], 'press_release', [], 'press_retract', []);
+    for trialType = {'press', 'lick', 'press_release', 'press_retract'}
         trialType = trialType{1};
         switch trialType
             case {'press', 'lick'}
@@ -103,7 +103,7 @@ for iExp = 1:length(expAcute)
                         fCorrect{iExp}.(trialType)(:, :, iTrialCorrect) = thisData;
                     end
                 end
-            case 'press_release'
+            case {'press_release', 'press_retract'}
                 correctTrials = expAcute(iExp).eu(1).getTrials(sprintf('%s_correct', trialType));
                 incorrectTrials = expAcute(iExp).eu(1).getTrials(sprintf('%s_incorrect', trialType));
                 nCorrectTrials = length(correctTrials);

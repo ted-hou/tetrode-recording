@@ -426,7 +426,7 @@ classdef EphysUnit < handle
         function trials = getTrials(obj, trialType, varargin)
             p = inputParser();
             p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'lick+lickbout', 'press+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
-                'press_release_correct', 'press_release_incorrect', 'press_release'})));
+                'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect', 'press_release'})));
             p.addOptional('sorted', true, @islogical);
             p.addParameter('minBoutCycles', 2)
             p.addParameter('maxBoutCycles', 4)
@@ -485,6 +485,10 @@ classdef EphysUnit < handle
                             trials{itt} = obj.Trials.PressReleaseCorrect;
                         case 'press_release_incorrect'
                             trials{itt} = obj.Trials.PressReleaseIncorrect;
+                        case 'press_retract_correct'
+                            trials{itt} = obj.Trials.PressRetractCorrect;
+                        case 'press_retract_incorrect'
+                            trials{itt} = obj.Trials.PressRetractIncorrect;
                         case 'press_release'
                             thesetrials = [obj.Trials.PressReleaseCorrect, obj.Trials.PressReleaseIncorrect];
                             trials{itt} = thesetrials.sortby('start', 'ascend');
@@ -599,7 +603,7 @@ classdef EphysUnit < handle
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
             p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', ...
                 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
-                'press_release_correct', 'press_release_incorrect'}))
+                'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -764,7 +768,7 @@ classdef EphysUnit < handle
         function rd = getRasterData(obj, trialType, varargin)
             p = inputParser();
             p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
-                'press_release_correct', 'press_release_incorrect', 'press_release'})))
+                'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect', 'press_release'})))
             p.addOptional('window', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -789,7 +793,7 @@ classdef EphysUnit < handle
 
             if strcmp(alignTo, 'default')
                 switch trialType
-                    case {'press', 'lick', 'press_spontaneous', 'press_release_correct', 'press_release_incorrect'}
+                    case {'press', 'lick', 'press_spontaneous', 'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect'}
                         alignTo = 'stop';
                     case {'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor'}
                         alignTo = 'start';
@@ -2525,7 +2529,7 @@ classdef EphysUnit < handle
             end
             p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
             p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', 'firstlick', 'circlick', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
-                'press_release_correct', 'press_release_incorrect'}))
+                'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect'}))
             p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
             p.addParameter('resolution', 0.001, @isnumeric)
             p.addParameter('allowedTrialDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) >= x(1))
