@@ -115,6 +115,64 @@ for iEu = 1:length(eu)
     end
 end
 
+%% Align ArduinoConnection events to ephys time using a common event (try CueOn)
+clear ac
+[ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames] = eu.loadArduinoConnection();
+
+
+%% Find retract times
+tEU = eu.alignTimestamps(["LEVER_RELEASED", "LEVER_RETRACT_START", "LEVER_RETRACTED", "LEVER_RETRACT_END", "TUBE_RETRACT_START", "TUBE_RETRACT_END"], ac={ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames});
+
+for iEu = 1:length(eu)
+    try
+        leverReleaseTimes = eu(iEu).EventTimes.LEVER_RELEASED;
+        leverRetractTimes = eu(iEu).EventTimes.LEVER_RETRACT_START;
+        if isempty(leverRetractTimes)
+            leverRetractTimes = eu(iEu).EventTimes.LEVER_RETRACTED;
+        end
+        % eu(iEu).Trials.Press = Trial(eu(iEu).EventTimes.Cue, eu(iEu).EventTimes.Press, 'first');
+        eu(iEu).Trials.PressIncorrect = eu(iEu).Trials.Press(eu(iEu).Trials.Press.duration() < 4 & eu(iEu).Trials.Press.duration() >= 2);
+        eu(iEu).Trials.PressCorrect = eu(iEu).Trials.Press(eu(iEu).Trials.Press.duration() >= 4);
+        [~, leverRetractTimesIncorrect] = eu(iEu).Trials.PressIncorrect.inTrial(leverRetractTimes, [0, 2], windowMode='stop');
+        assert(nnz(leverRetractTimesIncorrect) > 0)
+        [~, leverRetractTimesCorrect] = eu(iEu).Trials.PressCorrect.inTrial(leverRetractTimes, [-0.1, 8], windowMode='stop');
+        eu(iEu).Trials.RetractReleaseIncorrect = Trial([leverRetractTimesIncorrect, Inf], leverReleaseTimes, 'first');
+        eu(iEu).Trials.RetractReleaseCorrect = Trial([leverRetractTimesCorrect, Inf], leverReleaseTimes, 'first');
+        eu(iEu).Trials.PressReleaseIncorrect = Trial([eu(iEu).Trials.PressIncorrect.Start, Inf], [eu(iEu).Trials.RetractReleaseIncorrect.Stop], 'first');
+        eu(iEu).Trials.PressReleaseCorrect = Trial([eu(iEu).Trials.PressCorrect.Stop, Inf], [eu(iEu).Trials.RetractReleaseCorrect.Stop], 'first');
+        eu(iEu).Trials.PressRetractIncorrect = Trial([eu(iEu).Trials.PressIncorrect.Stop], leverRetractTimesIncorrect, 'first');
+        eu(iEu).Trials.PressRetractCorrect = Trial([eu(iEu).Trials.PressCorrect.Stop], leverRetractTimesCorrect, 'first');
+        % 
+        % fprintf(['press=%i\npressIncorrect=%i, pressCorrect=%i;\nleverRetractTimesIncorrect=%i, leverRetractTimesCorrect=%i;\n' ...
+        %     'eu(iEu).Trials.RetractReleaseIncorrect=%i, eu(iEu).Trials.RetractReleaseCorrect=%i;\n' ...
+        %     'eu(iEu).Trials.PressReleaseIncorrect=%i, eu(iEu).Trials.PressReleaseCorrect=%i\n'], length(eu(iEu).Trials.Press), length(eu(iEu).Trials.PressIncorrect), length(eu(iEu).Trials.PressCorrect), ...
+        %     length(leverRetractTimesIncorrect), length(leverRetractTimesCorrect), ...
+        %     length(eu(iEu).Trials.RetractReleaseIncorrect), length(eu(iEu).Trials.RetractReleaseCorrect), ...
+        %     length(eu(iEu).Trials.PressReleaseIncorrect), length(eu(iEu).Trials.PressReleaseCorrect));
+        % disp(1)
+    catch
+        warning('Counld not process iEu = %i, "%s"', iEu, eu(iEu).getName())
+    end
+end
+
+%% Find and correct bad lick labels
+for iEu = 1:length(eu)
+    eu(iEu).EventTimes.LICK = [];
+    eu(iEu).EventTimes.LICK_OFF = [];
+end
+eu.alignTimestamps(["LICK", "LICK_OFF", "REWARD_ON"], ac={ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames});
+clear nLicks
+nLicks.EUvAC = arrayfun(@(eu) [length(eu.EventTimes.Lick), length(eu.EventTimes.LICK)], eu, UniformOutput=false);
+nLicks.EUvAC = cat(1, nLicks.EUvAC{:});
+nLicks.EUvReward = arrayfun(@(eu) [length(eu.EventTimes.Lick), length(eu.EventTimes.RewardTimes)], eu, UniformOutput=false);
+nLicks.EUvReward = cat(1, nLicks.EUvReward{:});
+
+lickIsReward = diff(nLicks.EUvReward, 1, 2) == 0; lickIsReward = lickIsReward(:)';
+
+for iEu = find(lickIsReward)
+    eu(iEu).Trials.Lick = Trial(eu(iEu).EventTimes.Cue, eu(iEu).EventTimes.LICK, 'first', eu(iEu).EventTimes.Press);
+end
+
 %%
 
 % 2.3.1  Basic summaries
@@ -226,10 +284,10 @@ title(ax(2), sprintf('%i NaN (%i NaN)', nnz(isnan(onset.lick(c.isLickResponsive)
 clear n x I
 
 %% Save metadata and units
-eu.save('C:\SERVER\Units\Lite_NonDuplicate_NonDrift')
-
-%%
-save('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift.mat', 'p', 'c', 'eta', 'etaSmooth', 'euPos', 'meta', 'msr', 'onset', 'boot', 'ai')
+% eu.save('C:\SERVER\Units\Lite_NonDuplicate_NonDrift')
+% 
+% %%
+% save('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift.mat', 'p', 'c', 'eta', 'etaSmooth', 'euPos', 'meta', 'msr', 'onset', 'boot', 'ai')
 
 %%
 function info = getAnimalInfo(eu, ai, field)
