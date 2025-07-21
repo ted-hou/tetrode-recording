@@ -1,133 +1,133 @@
 
-
-%% Remove duplicates (Slow)
-eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SC\Batch2', waveforms=false, spikecounts=false, spikerates=false);
-%
-euAll = eu;
-
-% Remove drift, low spike rate units
-clear c
-
-% Remove drift
-c.isDrifting = detectDriftingUnits(eu, smoothWindow=300, tolerance=0.05, spikeRateThreshold=0.5, includeITI=true);
-
-% Filter by spike rate
-msr = arrayfun(@(eu) eu.SpikeRateStats.median, eu);
-eu = eu(~c.isDrifting);
-
-eu = eu.removeMultiUnits(cullZeros=true);
-[eu, isDuplicate] = eu.removeDuplicates(0.7);
-
-
-% Make spontaneous reach/lick trials
+% 
+% %% Remove duplicates (Slow)
+% eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SC\Batch2', waveforms=false, spikecounts=false, spikerates=false);
+% %
+% euAll = eu;
+% 
+% % Remove drift, low spike rate units
+% clear c
+% 
+% % Remove drift
+% c.isDrifting = detectDriftingUnits(eu, smoothWindow=300, tolerance=0.05, spikeRateThreshold=0.5, includeITI=true);
+% 
+% % Filter by spike rate
+% msr = arrayfun(@(eu) eu.SpikeRateStats.median, eu);
+% eu = eu(~c.isDrifting);
+% 
+% eu = eu.removeMultiUnits(cullZeros=true);
+% [eu, isDuplicate] = eu.removeDuplicates(0.7);
+% 
+% 
+% % Make spontaneous reach/lick trials
+% % p.minTrialLength = 4;
+% % for iEu = 1:length(eu)
+% %     eu(iEu).Trials.Press = eu(iEu).makeTrials('press_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
+% %     eu(iEu).Trials.Lick = eu(iEu).makeTrials('lick_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
+% % end
+% 
+% % eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SC\SingleUnit_NonDuplicate_NonDrift_SNr')
+% % 
+% % %% Fix extra red stim event for bad session
+% % for iEu = find(string({eu.ExpName}) == "desmond38_20250403")
+% %     assert(isscalar(iEu))
+% %     assert(eu(iEu).EventTimes.LaserModRedOn(1) - eu(iEu).EventTimes.LaserModRedOff(1) < 1e-6)
+% %     iBadStimOn = find(eu(iEu).EventTimes.StimOn == eu(iEu).EventTimes.LaserModRedOn(1));
+% %     iBadStimOff = find(eu(iEu).EventTimes.StimOff == eu(iEu).EventTimes.LaserModRedOff(1));
+% %     eu(iEu).EventTimes.StimOn(iBadStimOn) = [];
+% %     eu(iEu).EventTimes.StimOff(iBadStimOff) = [];
+% %     eu(iEu).EventTimes.LaserModRedOn(1) = [];
+% %     eu(iEu).EventTimes.LaserModRedOff(1) = [];
+% %     eu(iEu).Trials.Stim = eu(iEu).makeTrials('stim');
+% % end
+% % 
+% % 
+% % eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr')
+% 
+% %% Get medial vs. lateral trials, save to EU (do only once)
 % p.minTrialLength = 4;
+% [~, ia, ~] = unique({eu.ExpName});
 % for iEu = 1:length(eu)
-%     eu(iEu).Trials.Press = eu(iEu).makeTrials('press_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
-%     eu(iEu).Trials.Lick = eu(iEu).makeTrials('lick_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
+%     switch eu(iEu).getAnimalName()
+%         case {'desmond38', 'daisy26'}
+%             implantSide = 'R';
+%         case 'desmond39'
+%             implantSide = 'L';
+%         otherwise 
+%             error()
+%     end
+% 
+% 
+%     pressTrials = Trial(eu(iEu).EventTimes.PressOff, eu(iEu).EventTimes.PressOn, 'first');
+%     pressTrials = pressTrials(pressTrials.duration() >= p.minTrialLength);
+%     pressTimes = [pressTrials.Stop];
+%     lickTrials = Trial(eu(iEu).EventTimes.LickOff, eu(iEu).EventTimes.LickOn, 'first');
+%     lickTrials = lickTrials(lickTrials.duration() >= p.minTrialLength);
+%     lickTimes = [lickTrials.Stop];
+% 
+%     leftOn = eu(iEu).EventTimes.CueLeftOn;
+%     leftOff = eu(iEu).EventTimes.CueLeftOff;
+%     rightOn = eu(iEu).EventTimes.CueRightOn;
+%     rightOff = eu(iEu).EventTimes.CueRightOff;
+% 
+%     if length(leftOn) == length(leftOff) + 1
+%         leftOff(end + 1) = Inf;
+%     end
+%     if length(rightOn) == length(rightOff) + 1
+%         rightOff(end + 1) = Inf;
+%     end
+%     assert(length(leftOn) == length(leftOff))
+%     assert(length(rightOn) == length(rightOff))
+%     assert(all(leftOn - leftOff <= 0))
+%     assert(all(rightOn - rightOff <= 0))
+% 
+%     cueTrialsLeft = Trial(leftOn, leftOff, advancedValidation=false);
+%     cueTrialsRight = Trial(rightOn, rightOff, advancedValidation=false);
+%     isLeft = cueTrialsLeft.inTrial(pressTimes);
+%     isRight = cueTrialsRight.inTrial(pressTimes);
+% 
+%     eu(iEu).Trials.CueLeft = cueTrialsLeft;
+%     eu(iEu).Trials.CueRight = cueTrialsRight;
+%     eu(iEu).Trials.PressLeft = pressTrials(isLeft);
+%     eu(iEu).Trials.PressRight = pressTrials(isRight);
+% 
+%     % Press trials must occur when one LED was on
+%     sel = cueTrialsLeft.inTrial(pressTimes) | cueTrialsRight.inTrial(pressTimes);
+%     if nnz(sel) < length(sel)
+%         eu(iEu).Trials.Press = pressTrials(sel);
+%         if ismember(iEu, ia)
+%             fprintf('Removed %i (of %i) press trials because they occured when both Cue LEDs were off.\n', length(sel) - nnz(sel), length(sel));
+%         end
+%     else
+%         eu(iEu).Trials.Press = pressTrials;
+%     end
+% 
+%     % Lick trials must occur when both LEDs were off
+%     sel = ~cueTrialsLeft.inTrial(lickTimes) & ~cueTrialsRight.inTrial(lickTimes);
+%     if nnz(sel) < length(sel)
+%         eu(iEu).Trials.Lick = lickTrials(sel);
+%         if ismember(iEu, ia)
+%             fprintf('Removed %i (of %i) lick trials because they occured when Cue LED(s) was on.\n', length(sel) - nnz(sel), length(sel));
+%         end
+%     else
+%         eu(iEu).Trials.Lick = lickTrials;
+%     end
+% 
+%     switch implantSide
+%         case 'L'
+%             eu(iEu).Trials.PressSpontaneousMedial = eu(iEu).Trials.PressLeft;
+%             eu(iEu).Trials.PressSpontaneousLateral = eu(iEu).Trials.PressRight;
+%         case 'R'
+%             eu(iEu).Trials.PressSpontaneousMedial = eu(iEu).Trials.PressRight;
+%             eu(iEu).Trials.PressSpontaneousLateral = eu(iEu).Trials.PressLeft;
+%     end
 % end
-
-% eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SC\SingleUnit_NonDuplicate_NonDrift_SNr')
 % 
-% %% Fix extra red stim event for bad session
-% for iEu = find(string({eu.ExpName}) == "desmond38_20250403")
-%     assert(isscalar(iEu))
-%     assert(eu(iEu).EventTimes.LaserModRedOn(1) - eu(iEu).EventTimes.LaserModRedOff(1) < 1e-6)
-%     iBadStimOn = find(eu(iEu).EventTimes.StimOn == eu(iEu).EventTimes.LaserModRedOn(1));
-%     iBadStimOff = find(eu(iEu).EventTimes.StimOff == eu(iEu).EventTimes.LaserModRedOff(1));
-%     eu(iEu).EventTimes.StimOn(iBadStimOn) = [];
-%     eu(iEu).EventTimes.StimOff(iBadStimOff) = [];
-%     eu(iEu).EventTimes.LaserModRedOn(1) = [];
-%     eu(iEu).EventTimes.LaserModRedOff(1) = [];
-%     eu(iEu).Trials.Stim = eu(iEu).makeTrials('stim');
-% end
-% 
-% 
-% eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr')
-
-%% Get medial vs. lateral trials, save to EU (do only once)
-p.minTrialLength = 4;
-[~, ia, ~] = unique({eu.ExpName});
-for iEu = 1:length(eu)
-    switch eu(iEu).getAnimalName()
-        case {'desmond38', 'daisy26'}
-            implantSide = 'R';
-        case 'desmond39'
-            implantSide = 'L';
-        otherwise 
-            error()
-    end
-
-
-    pressTrials = Trial(eu(iEu).EventTimes.PressOff, eu(iEu).EventTimes.PressOn, 'first');
-    pressTrials = pressTrials(pressTrials.duration() >= p.minTrialLength);
-    pressTimes = [pressTrials.Stop];
-    lickTrials = Trial(eu(iEu).EventTimes.LickOff, eu(iEu).EventTimes.LickOn, 'first');
-    lickTrials = lickTrials(lickTrials.duration() >= p.minTrialLength);
-    lickTimes = [lickTrials.Stop];
-
-    leftOn = eu(iEu).EventTimes.CueLeftOn;
-    leftOff = eu(iEu).EventTimes.CueLeftOff;
-    rightOn = eu(iEu).EventTimes.CueRightOn;
-    rightOff = eu(iEu).EventTimes.CueRightOff;
-
-    if length(leftOn) == length(leftOff) + 1
-        leftOff(end + 1) = Inf;
-    end
-    if length(rightOn) == length(rightOff) + 1
-        rightOff(end + 1) = Inf;
-    end
-    assert(length(leftOn) == length(leftOff))
-    assert(length(rightOn) == length(rightOff))
-    assert(all(leftOn - leftOff <= 0))
-    assert(all(rightOn - rightOff <= 0))
-
-    cueTrialsLeft = Trial(leftOn, leftOff, advancedValidation=false);
-    cueTrialsRight = Trial(rightOn, rightOff, advancedValidation=false);
-    isLeft = cueTrialsLeft.inTrial(pressTimes);
-    isRight = cueTrialsRight.inTrial(pressTimes);
-
-    eu(iEu).Trials.CueLeft = cueTrialsLeft;
-    eu(iEu).Trials.CueRight = cueTrialsRight;
-    eu(iEu).Trials.PressLeft = pressTrials(isLeft);
-    eu(iEu).Trials.PressRight = pressTrials(isRight);
-
-    % Press trials must occur when one LED was on
-    sel = cueTrialsLeft.inTrial(pressTimes) | cueTrialsRight.inTrial(pressTimes);
-    if nnz(sel) < length(sel)
-        eu(iEu).Trials.Press = pressTrials(sel);
-        if ismember(iEu, ia)
-            fprintf('Removed %i (of %i) press trials because they occured when both Cue LEDs were off.\n', length(sel) - nnz(sel), length(sel));
-        end
-    else
-        eu(iEu).Trials.Press = pressTrials;
-    end
-
-    % Lick trials must occur when both LEDs were off
-    sel = ~cueTrialsLeft.inTrial(lickTimes) & ~cueTrialsRight.inTrial(lickTimes);
-    if nnz(sel) < length(sel)
-        eu(iEu).Trials.Lick = lickTrials(sel);
-        if ismember(iEu, ia)
-            fprintf('Removed %i (of %i) lick trials because they occured when Cue LED(s) was on.\n', length(sel) - nnz(sel), length(sel));
-        end
-    else
-        eu(iEu).Trials.Lick = lickTrials;
-    end
-
-    switch implantSide
-        case 'L'
-            eu(iEu).Trials.PressSpontaneousMedial = eu(iEu).Trials.PressLeft;
-            eu(iEu).Trials.PressSpontaneousLateral = eu(iEu).Trials.PressRight;
-        case 'R'
-            eu(iEu).Trials.PressSpontaneousMedial = eu(iEu).Trials.PressRight;
-            eu(iEu).Trials.PressSpontaneousLateral = eu(iEu).Trials.PressLeft;
-    end
-end
-
-% Count number of trials by session
-arrayfun(@(eu) fprintf('%s: %i med, %i lat, %i lick;\n', eu.ExpName, length(eu.Trials.PressSpontaneousMedial), length(eu.Trials.PressSpontaneousLateral), length(eu.Trials.Lick)), eu(ia));
-%%
-clear ia sel implantSide cueTrialsLeft cueTrialsRight isLeft isRight leftOn leftOff pressTrials pressTimes lickTrials lickTimes iEu
-eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SC\SingleUnit_NonDuplicate_NonDrift_SC')
+% % Count number of trials by session
+% arrayfun(@(eu) fprintf('%s: %i med, %i lat, %i lick;\n', eu.ExpName, length(eu.Trials.PressSpontaneousMedial), length(eu.Trials.PressSpontaneousLateral), length(eu.Trials.Lick)), eu(ia));
+% %%
+% clear ia sel implantSide cueTrialsLeft cueTrialsRight isLeft isRight leftOn leftOff pressTrials pressTimes lickTrials lickTimes iEu
+% eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SC\SingleUnit_NonDuplicate_NonDrift_SC')
 
 %%
 clear, clc
@@ -156,7 +156,7 @@ eta.pressMedRaw.X = eta.pressMedRaw.X ./ 0.1;
 eta.pressLatRaw.X = eta.pressLatRaw.X ./ 0.1;
 eta.lickRaw.X = eta.lickRaw.X ./ 0.1;
 
-%% ETA Stim
+% ETA Stim
 p.isiBaselineWindow = [-0.1, 0];
 p.stimBluePowers = [25 50]*1e-6; 
 p.stimRedPowers = [25 50 100 500, 2000, 16000]*1e-6;
@@ -199,7 +199,7 @@ eta.stimRed = struct(X=cat(1, XRed{:}), t=t, N=[], D=[], stats=[]);
 
 clear XBlue XRed iEu groupsBlue groupsRed isi t selBaseline normSR
 
-%% Calculate META
+% Calculate META
 clear meta
 p.metaWindow = [-0.1, 0];
 p.posRespThreshold = 2;
@@ -247,7 +247,7 @@ c.isStimBlueUpRedNotUpThereforeCoChrMaybe = c.isStimBlueUp & ~c.isStimRedUp;
 c.isStimBlueNotUpRedUpThereforeChrimsonMaybe = ~c.isStimBlueUp & c.isStimRedUp;
 c.isStimBlueNotUpRedNotUp = ~c.isStimBlueUp & ~c.isStimRedUp;
 
-%% Boot response dir
+% Boot response dir
 p.bootAlpha = 0.05;
 p.nboot = 100000;
 p.metaWindow = [-0.5, 0];
@@ -589,7 +589,7 @@ end
 delete(pool)
 clear pool iGroup groupName pressBoot lickBoot baselineBoot movementBoot
 %
-save('C:\SERVER\Units\lda_twocolor_optrode_SC_fullBootData_20250602.mat', 'bootLDA', 'pLDA', 'RESP', 'SR', '-v7.3')
+save('C:\SERVER\Units\lda_twocolor_optrode_SC_fullBootData_20250604.mat', 'bootLDA', 'pLDA', 'RESP', 'SR', '-v7.3')
 clear bootLDAStats;
 % Quick summary (99% CI, mean) of bootstrap for lick vs reach
 for iGroup = 1:length(GROUPNAME)
@@ -629,7 +629,7 @@ clear iGroup Y iExp nPress nLick isPress isLick groupName
 
 t = SR.(GROUPNAME{1}).t;
 
-save('C:\SERVER\Units\lda_twocolor_optrode_SC_20250602.mat', 'pLDA', 'likelihood', 'SR', 'RESP', 't', 'goodExpNames', 'nUnits', 'bootLDAStats')
+save('C:\SERVER\Units\lda_twocolor_optrode_SC_20250604.mat', 'pLDA', 'likelihood', 'SR', 'RESP', 't', 'goodExpNames', 'nUnits', 'bootLDAStats')
 %% Plot results (individual sessions)
 close all
 xl = [-0.5, 0];
@@ -657,14 +657,16 @@ for iGroup = 1:length(GROUPNAME)
 
         hold(ax, 'on')
         h = gobjects(2, 1);
-        X.(groupName)(iExp).truePress = mean(likelihood.(groupName)(iExp).press(isPress, :), 1, 'omitnan');
-        X.(groupName)(iExp).trueLick = mean(likelihood.(groupName)(iExp).lick(isLick, :), 1, 'omitnan');
-        X.(groupName)(iExp).falsePress = mean(likelihood.(groupName)(iExp).press(isLick, :), 1, 'omitnan');
-        X.(groupName)(iExp).falseLick = mean(likelihood.(groupName)(iExp).lick(isPress, :), 1, 'omitnan');
-        h(1) = plot(ax, t, X.(groupName)(iExp).truePress, 'red', LineWidth=1.5, DisplayName=sprintf('true reach (n=%i)', nnz(isPress)));
-        h(2) = plot(ax, t, X.(groupName)(iExp).trueLick, 'blue', LineWidth=1.5, DisplayName=sprintf('true lick (n=%i)', nnz(isLick)));
-        h(3) = plot(ax, t, X.(groupName)(iExp).falsePress, 'red', LineStyle='--', LineWidth=1.5, DisplayName=sprintf('false reach (n=%i)', nnz(isPress)));
-        h(4) = plot(ax, t, X.(groupName)(iExp).falseLick, 'blue', LineStyle='--', LineWidth=1.5, DisplayName=sprintf('false lick (n=%i)', nnz(isLick)));
+        X.(groupName)(iExp).pPressWhenPress = mean(likelihood.(groupName)(iExp).press(isPress, :), 1, 'omitnan');
+        X.(groupName)(iExp).pLickWhenLick = mean(likelihood.(groupName)(iExp).lick(isLick, :), 1, 'omitnan');
+        X.(groupName)(iExp).pPressWhenLick = mean(likelihood.(groupName)(iExp).press(isLick, :), 1, 'omitnan');
+        X.(groupName)(iExp).pLickWhenPress = mean(likelihood.(groupName)(iExp).lick(isPress, :), 1, 'omitnan');
+        X.(groupName)(iExp).movement = mean(likelihood.(groupName)(iExp).movement(:, :), 1, 'omitnan');
+        h(1) = plot(ax, t, X.(groupName)(iExp).pPressWhenPress, 'red', LineWidth=1.5, DisplayName=sprintf('true reach (n=%i)', nnz(isPress)));
+        h(2) = plot(ax, t, X.(groupName)(iExp).pLickWhenLick, 'blue', LineWidth=1.5, DisplayName=sprintf('true lick (n=%i)', nnz(isLick)));
+        h(3) = plot(ax, t, X.(groupName)(iExp).pPressWhenLick, 'red', LineStyle='--', LineWidth=1.5, DisplayName=sprintf('false reach (n=%i)', nnz(isPress)));
+        h(4) = plot(ax, t, X.(groupName)(iExp).pLickWhenPress, 'blue', LineStyle='--', LineWidth=1.5, DisplayName=sprintf('false lick (n=%i)', nnz(isLick)));
+        h(5) = plot(ax, t, X.(groupName)(iExp).movement, 'black', LineStyle='--', LineWidth=1.5, DisplayName=sprintf('movement (n=%i)', nnz(isLick) + nnz(isPress)));
         hold(ax, 'off')
         title(ax, sprintf('%s (%i units)', goodExpNames.(groupName)(iExp), nUnits.(groupName)(iExp)), Interpreter='none')
 
@@ -674,7 +676,7 @@ for iGroup = 1:length(GROUPNAME)
         % xline(ax, 0, 'k:')
         % yline(ax, 0, 'k:')
     
-        legend(ax, h, Location='southwest', Orientation='vertical')
+        % legend(ax, h, Location='southwest', Orientation='vertical')
     
         fontsize(ax, 9, 'points')
     end
@@ -687,10 +689,11 @@ ylabel(tlp, 'p(reach) - p(lick)', FontSize=9)
 % Plot LDA results, average across sessions
 for groupName = GROUPNAME
     groupName = groupName{:};
-    XMean.(groupName).truePress = mean(vertcat(X.(groupName).truePress), 1, 'omitnan');
-    XMean.(groupName).trueLick = mean(vertcat(X.(groupName).trueLick), 1, 'omitnan');
-    XMean.(groupName).falsePress = mean(vertcat(X.(groupName).falsePress), 1, 'omitnan');
-    XMean.(groupName).falseLick = mean(vertcat(X.(groupName).falseLick), 1, 'omitnan');
+    XMean.(groupName).pPressWhenPress = mean(vertcat(X.(groupName).pPressWhenPress), 1, 'omitnan');
+    XMean.(groupName).pLickWhenLick = mean(vertcat(X.(groupName).pLickWhenLick), 1, 'omitnan');
+    XMean.(groupName).pPressWhenLick = mean(vertcat(X.(groupName).pPressWhenLick), 1, 'omitnan');
+    XMean.(groupName).pLickWhenPress = mean(vertcat(X.(groupName).pLickWhenPress), 1, 'omitnan');
+    XMean.(groupName).movement = mean(vertcat(X.(groupName).movement), 1, 'omitnan');
 end
 
 fig = figure(Units='inches', Position=[0.2 0.2 8 3]);
@@ -703,15 +706,17 @@ for iGroup = 1:length(GROUPNAME)
     ax = nexttile(tl);
     hold(ax, 'on')
     h = gobjects(4, 1);
-    h(1) = plot(ax, t, XMean.(groupName).truePress, 'red', LineWidth=1.5, DisplayName='true reach');
-    h(2) = plot(ax, t, XMean.(groupName).trueLick, 'blue', LineWidth=1.5, DisplayName='true lick');
-    h(3) = plot(ax, t, XMean.(groupName).falsePress, 'red', LineStyle=':', LineWidth=1.5, DisplayName='false reach');
-    h(4) = plot(ax, t, XMean.(groupName).falseLick, 'blue', LineStyle=':', LineWidth=1.5, DisplayName='false lick');
-    patch(ax, [t, flip(t)], [bootLDAStats.(groupName).press.press.ci(1, :), flip(bootLDAStats.(groupName).press.press.ci(2, :))], 'red', EdgeColor='red', FaceAlpha=0.2, EdgeAlpha=0.5, DisplayName='99% CI');
+    h(1) = plot(ax, t, XMean.(groupName).pPressWhenPress, 'red', LineWidth=1.5, DisplayName='true reach');
+    h(2) = plot(ax, t, XMean.(groupName).pLickWhenLick, 'blue', LineWidth=1.5, DisplayName='true lick');
+    % h(3) = plot(ax, t, XMean.(groupName).pPressWhenLick, 'red', LineStyle=':', LineWidth=1.5, DisplayName='false reach');
+    % h(4) = plot(ax, t, XMean.(groupName).pLickWhenPress, 'blue', LineStyle=':', LineWidth=1.5, DisplayName='false lick');
+    % h(5) = plot(ax, t, XMean.(groupName).movement, 'black', LineWidth=1.5, DisplayName='movement');    
     patch(ax, [t, flip(t)], [bootLDAStats.(groupName).lick.lick.ci(1, :), flip(bootLDAStats.(groupName).lick.lick.ci(2, :))], 'blue', EdgeColor='blue', FaceAlpha=0.2, EdgeAlpha=0.5, DisplayName='99% CI');
+    patch(ax, [t, flip(t)], [bootLDAStats.(groupName).press.press.ci(1, :), flip(bootLDAStats.(groupName).press.press.ci(2, :))], 'red', EdgeColor='red', FaceAlpha=0.2, EdgeAlpha=0.5, DisplayName='99% CI');
+    % patch(ax, [t, flip(t)], [bootLDAStats.(groupName).movement.all.ci(1, :), flip(bootLDAStats.(groupName).movement.all.ci(2, :))], 'black', EdgeColor='black', FaceAlpha=0.2, EdgeAlpha=0.5, DisplayName='99% CI');
     patch(ax, [pLDA.responseWindow, flip(pLDA.responseWindow)], [-1, -1, 1, 1], 'yellow', FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName='training');
     hold(ax, 'off')
-    ylim(ax, [0, 1])
+    ylim(ax, [0, 0.5])
     xticks(ax, [-0.5 -0.2 0])
     xlim(ax, xl)
     % xline(ax, 0, 'k:')
