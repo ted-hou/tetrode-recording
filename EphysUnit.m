@@ -1473,6 +1473,49 @@ classdef EphysUnit < handle
                 end
             end
         end
+
+        function [data, t] = loadRaw(obj)
+            animalName = obj.getAnimalName();
+            expName = obj.ExpName;
+            pathSpikeSort = sprintf("C:\\SERVER\\%s\\SpikeSort\\tr_sorted*%s*.mat", animalName, expName);
+            files = dir(pathSpikeSort);
+            if isempty(files)
+                pathSpikeSort = sprintf("C:\\SERVER\\%s\\%s\\SpikeSort\\tr_sorted*%s*.mat", animalName, expName, expName);
+                files = dir(pathSpikeSort);
+                if isempty(files)
+                    error();
+                end
+            end
+            files = arrayfun(@(f) fullfile(f.folder, f.name), files, UniformOutput=false);
+            files = files{1};
+            tr = load(files);
+            tr = tr.tr;
+            tr.Spikes = [];
+            tr.Path = strrep(tr.Path, '\\research.files.med.harvard.edu\neurobio\NEUROBIOLOGY SHARED\Assad Lab\Lingfeng\Data\', 'C:\SERVER\');
+            tr.Path = strrep(tr.Path, 'daisy_2', 'daisy2');
+            tr.Path = strrep(tr.Path, 'daisy_3', 'daisy3');
+
+            switch lower(tr.System)
+                case 'blackrock'
+                    tr.ReadBlackrock(Channels=[obj.Channel], DigitalChannels={});
+                case 'intan'
+                    if size(tr.Files, 1) > 1 && size(tr.Files, 2) > 1
+                        tr.Files = tr.Files(1, :);
+                    end
+                    channel = [obj.Channel];
+                    if ismember(obj.getAnimalName(), {'daisy14', 'daisy15', 'daisy16', 'desmond23', 'desmond24', 'desmond25', 'desmond26', 'desmond27'}) && ~ismember(obj.ExpName, {'daisy14_20220506', 'daisy16_20220502'})
+                        channel = channel + 1;
+                        fprintf('Bad Session, channel count incremented, %s\n', obj.ExpName);
+                    end
+                    tr.ReadIntan(tr.Files, Channels=channel, ReadDigital=false, ReadAnalog=false, SubtractMedian=false, SubtractMean=false);
+                otherwise
+                    error()
+            end
+
+            data = tr.Amplifier.Data;
+            t = tr.Amplifier.Timestamps;
+
+        end
     end
 
     % static methods
@@ -2814,8 +2857,9 @@ classdef EphysUnit < handle
             if useResampleMethod
                 xAligned = NaN(length(trials), length(tAligned));
                 x = double(x);
+                tt = tAligned;
                 for iTrial = 1:length(trials)
-                    [xx, tt] = interp1(t, x, tAlignedGlobal(iTrial, :), 'linear');
+                    xx = interp1(t, x, tAlignedGlobal(iTrial, :), 'linear');
                     sel = select(tt, iTrial);
                     xAligned(iTrial, sel) = xx(sel);
                 end

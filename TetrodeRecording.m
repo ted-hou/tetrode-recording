@@ -721,7 +721,20 @@ classdef TetrodeRecording < handle
             
         end
 
-		function ReadIntan(obj, files)
+        function ReadIntan(obj, files, varargin)
+            p = inputParser();
+            p.addParameter('Channels', [], @isnumeric);
+            p.addParameter('ReadDigital', true, @islogical);
+            p.addParameter('ReadAnalog', true, @islogical);
+            p.addParameter('SubtractMedian', false, @islogical)
+            p.addParameter('SubtractMean', false, @islogical)
+            p.parse(varargin{:})
+            channels = p.Results.Channels;
+            readDigital = p.Results.ReadDigital;
+            readAnalog = p.Results.ReadAnalog;
+            subtractMedian = p.Results.SubtractMedian;
+            subtractMean = p.Results.SubtractMean;
+
 			TetrodeRecording.TTS(['	Loading data:\n'])
 			for iFile = 1:length(files)
 				filename = [obj.Path, files{iFile}];
@@ -1039,10 +1052,14 @@ classdef TetrodeRecording < handle
 
 				if (data_present)
 					% Extract digital input channels to separate variables.
-					for i=1:num_board_dig_in_channels
-						mask = 2^(objTemp(iFile).BoardDigIn.Channels(i).NativeOrder) * ones(size(board_dig_in_raw));
-						objTemp(iFile).BoardDigIn.Data(i, :) = (bitand(board_dig_in_raw, mask) > 0);
-					end
+                    if readDigital
+					    for i=1:num_board_dig_in_channels
+						    mask = 2^(objTemp(iFile).BoardDigIn.Channels(i).NativeOrder) * ones(size(board_dig_in_raw));
+						    objTemp(iFile).BoardDigIn.Data(i, :) = (bitand(board_dig_in_raw, mask) > 0);
+                        end
+                    else
+                        objTemp(iFile).BoardDigIn = [];
+                    end
 
 					% Scale voltage levels appropriately.
 					objTemp(iFile).Amplifier.Data = 0.195 * (objTemp(iFile).Amplifier.Data - 32768); % units = microvolts
@@ -1057,6 +1074,21 @@ classdef TetrodeRecording < handle
 					objTemp(iFile).Amplifier.Timestamps = objTemp(iFile).Amplifier.Timestamps / sample_rate;
 					objTemp(iFile).BoardDigIn.Timestamps = objTemp(iFile).Amplifier.Timestamps;
 					objTemp(iFile).BoardADC.Timestamps = objTemp(iFile).Amplifier.Timestamps;
+
+                    % Subtract median
+                    if subtractMedian
+                        objTemp(iFile).Amplifier.Data = objTemp(iFile).Amplifier.Data - median(objTemp(iFile).Amplifier.Data, 1, 'omitnan');
+                    end
+
+                    if subtractMean
+                        objTemp(iFile).Amplifier.Data = objTemp(iFile).Amplifier.Data - mean(objTemp(iFile).Amplifier.Data, 1, 'omitnan');
+                    end
+
+                    % Keep only the requested channels
+                    if ~isempty(channels)
+                        selChannels = ismember(1 + [objTemp(iFile).Amplifier.Channels.NativeOrder], channels);
+                        objTemp(iFile).Amplifier.Data = objTemp(iFile).Amplifier.Data(selChannels, :);
+                    end
 				end
 				TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
 			end
@@ -1079,8 +1111,12 @@ classdef TetrodeRecording < handle
             
             obj.Amplifier.Channels = objTemp(1).Amplifier.Channels;
             nChannels = max([objTemp(1).Amplifier.Channels.NativeOrder]) + 1;
-            obj.BoardDigIn.Channels = objTemp(1).BoardDigIn.Channels;
-            obj.BoardADC.Channels = objTemp(1).BoardADC.Channels;
+            if readDigital
+                obj.BoardDigIn.Channels = objTemp(1).BoardDigIn.Channels;
+            end
+            if readAnalog
+                obj.BoardADC.Channels = objTemp(1).BoardADC.Channels;
+            end
             % Find common channels in all files, some files may have more
             % channels than others, we will only keep channels that exist
             % in all files
@@ -1089,30 +1125,58 @@ classdef TetrodeRecording < handle
                 obj.Amplifier.Channels = obj.Amplifier.Channels(ia);
                 nChannels = max(nChannels, max([objTemp(iFile).Amplifier.Channels.NativeOrder]) + 1);
             end
+
+            if ~isempty(channels)
+                nChannels = length(channels);
+            end
             
 			obj.Amplifier.Timestamps = zeros(1, obj.Amplifier.NumSamples);
 			obj.Amplifier.Data = zeros(nChannels, obj.Amplifier.NumSamples);
-			obj.BoardDigIn.Timestamps = zeros(1, obj.BoardDigIn.NumSamples);
-			obj.BoardDigIn.Data = zeros(length(obj.BoardDigIn.Channels), obj.BoardDigIn.NumSamples);
-			obj.BoardADC.Timestamps = zeros(1, obj.BoardADC.NumSamples);
-			obj.BoardADC.Data = zeros(length(obj.BoardADC.Channels), obj.BoardADC.NumSamples);
+            if ~isempty(channels)
+                selChannels = ismember(1 + [objTemp(iFile).Amplifier.Channels.NativeOrder], channels);
+                obj.Amplifier.Channels = obj.Amplifier.Channels(selChannels);
+            end
+            if readDigital
+			    obj.BoardDigIn.Timestamps = zeros(1, obj.BoardDigIn.NumSamples);
+			    obj.BoardDigIn.Data = zeros(length(obj.BoardDigIn.Channels), obj.BoardDigIn.NumSamples);
+            end
+            if readAnalog
+			    obj.BoardADC.Timestamps = zeros(1, obj.BoardADC.NumSamples);
+			    obj.BoardADC.Data = zeros(length(obj.BoardADC.Channels), obj.BoardADC.NumSamples);
+            end
 
 			iSample.Amplifier = 0;
-			iSample.BoardDigIn = 0;
-			iSample.BoardADC = 0;
+            if readDigital
+			    iSample.BoardDigIn = 0;
+            end
+            if readAnalog
+			    iSample.BoardADC = 0;
+            end
 			for iFile = 1:length(files)
 				obj.Amplifier.Timestamps(1, iSample.Amplifier + 1:iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2)) = objTemp(iFile).Amplifier.Timestamps;
-                [~, ia, ib] = intersect(1:nChannels, [objTemp(iFile).Amplifier.Channels.NativeOrder] + 1);
-				obj.Amplifier.Data(ia, iSample.Amplifier + 1:iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2)) = objTemp(iFile).Amplifier.Data(ib, :);
-				obj.BoardDigIn.Timestamps(1, iSample.BoardDigIn + 1:iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2)) = objTemp(iFile).BoardDigIn.Timestamps;
-				obj.BoardDigIn.Data(:, iSample.BoardDigIn + 1:iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2)) = objTemp(iFile).BoardDigIn.Data;
-				obj.BoardADC.Timestamps(1, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Timestamps;
-				obj.BoardADC.Data(:, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Data;
+                if isempty(channels)
+                    [~, ia, ib] = intersect(1:nChannels, [objTemp(iFile).Amplifier.Channels.NativeOrder] + 1);
+				    obj.Amplifier.Data(ia, iSample.Amplifier + 1:iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2)) = objTemp(iFile).Amplifier.Data(ib, :);
+                else
+				    obj.Amplifier.Data(:, iSample.Amplifier + 1:iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2)) = objTemp(iFile).Amplifier.Data;
+                end
+                if readDigital
+				    obj.BoardDigIn.Timestamps(1, iSample.BoardDigIn + 1:iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2)) = objTemp(iFile).BoardDigIn.Timestamps;
+				    obj.BoardDigIn.Data(:, iSample.BoardDigIn + 1:iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2)) = objTemp(iFile).BoardDigIn.Data;
+                end
+                if readAnalog
+				    obj.BoardADC.Timestamps(1, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Timestamps;
+				    obj.BoardADC.Data(:, iSample.BoardADC + 1:iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2)) = objTemp(iFile).BoardADC.Data;
+                end
 
 				iSample.Amplifier = iSample.Amplifier + size(objTemp(iFile).Amplifier.Timestamps, 2);
-				iSample.BoardDigIn = iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2);
-				iSample.BoardADC = iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2);
-			end
+                if readDigital
+				    iSample.BoardDigIn = iSample.BoardDigIn + size(objTemp(iFile).BoardDigIn.Timestamps, 2);
+                end
+                if readAnalog
+				    iSample.BoardADC = iSample.BoardADC + size(objTemp(iFile).BoardADC.Timestamps, 2);
+                end
+            end
 			TetrodeRecording.TTS(['Done(', num2str(toc, '%.2f'), ' seconds).\n'])
         end
         
