@@ -120,60 +120,54 @@ end
 clear trialsCircLick;
 clear e iEu lickIsReward minLickInterval maxLickInterval nLicks
 
-%% Clear some RAM
-% for iEu = 1:length(eu)
-%     eu(iEu).SpikeTimes = [];
+%% Read raw data and resave (ALREADY DONE, BUT NEED TO REDO FOR BLACKROCK DATA)
+% if ~exist('C:\SERVER\Units\Lite_NonDuplicate_NonDrift\raw', 'dir')
+%     mkdir('C:\SERVER\Units\Lite_NonDuplicate_NonDrift\raw')
 % end
-% clear iEu
-
-%% Load raw data and save
-if ~exist('C:\SERVER\Units\Lite_NonDuplicate_NonDrift\raw', 'dir')
-    mkdir('C:\SERVER\Units\Lite_NonDuplicate_NonDrift\raw')
-end
-for iEu = 1:length(eu)
-    % if ismember(eu(iEu).getAnimalName(), {'daisy14', 'daisy15', 'daisy16', 'desmond23', 'desmond24', 'desmond25', 'desmond26', 'desmond27'}) && ~ismember(eu(iEu).ExpName, {'daisy14_20220506', 'daisy16_20220502'})
-    clear data t B selT
-    try
-        [data, t] = eu(iEu).loadRaw();
-        selT = false(size(t));
-        for trial = ["LeverDeploy", "LeverRetract", "TubeDeploy", "TubeRetract"]
-            trials = eu(iEu).Trials.(trial);
-            if isempty(trials)
-                continue
-            end
-            B = trials.inTrial(t, window=[-1, 1], windowMode='extend');
-            selT = selT | B;
-        end
-
-        for trial = ["CircLick"]
-            trials = eu(iEu).Trials.(trial);
-            if isempty(trials)
-                continue
-            end
-            B = trials.inTrial(t);
-            selT = selT | B;
-        end
-
-        for trial = ["Press", "Lick"]
-            trials = eu(iEu).Trials.(trial);
-            if isempty(trials)
-                continue
-            end
-            B = trials.inTrial(t, window=[0, 2], windowMode='extend');
-            selT = selT | B;
-        end
-
-        data = data(:, selT);
-        t = t(:, selT);
-        trials = eu(iEu).Trials;
-        name = eu(iEu).getName();
-        save(sprintf('C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat', eu(iEu).getName()), 'data', 't', 'trials', 'name')
-    catch
-        warning('Could not process unit %i, %s', iEu, eu(iEu).getName())
-    end
-    % end
-end
-clear data t B selT trial trials name
+% for iEu = 1:length(eu)
+%     % if ismember(eu(iEu).getAnimalName(), {'daisy14', 'daisy15', 'daisy16', 'desmond23', 'desmond24', 'desmond25', 'desmond26', 'desmond27'}) && ~ismember(eu(iEu).ExpName, {'daisy14_20220506', 'daisy16_20220502'})
+%     clear data t B selT
+%     try
+%         [data, t] = eu(iEu).loadRaw();
+%         selT = false(size(t));
+%         for trial = ["LeverDeploy", "LeverRetract", "TubeDeploy", "TubeRetract"]
+%             trials = eu(iEu).Trials.(trial);
+%             if isempty(trials)
+%                 continue
+%             end
+%             B = trials.inTrial(t, window=[-1, 1], windowMode='extend');
+%             selT = selT | B;
+%         end
+% 
+%         for trial = ["CircLick"]
+%             trials = eu(iEu).Trials.(trial);
+%             if isempty(trials)
+%                 continue
+%             end
+%             B = trials.inTrial(t);
+%             selT = selT | B;
+%         end
+% 
+%         for trial = ["Press", "Lick"]
+%             trials = eu(iEu).Trials.(trial);
+%             if isempty(trials)
+%                 continue
+%             end
+%             B = trials.inTrial(t, window=[0, 2], windowMode='extend');
+%             selT = selT | B;
+%         end
+% 
+%         data = data(:, selT);
+%         t = t(:, selT);
+%         trials = eu(iEu).Trials;
+%         name = eu(iEu).getName();
+%         save(sprintf('C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat', eu(iEu).getName()), 'data', 't', 'trials', 'name')
+%     catch
+%         warning('Could not process unit %i, %s', iEu, eu(iEu).getName())
+%     end
+%     % end
+% end
+% clear data t B selT trial trials name
 
 %% Find out which units failed raw data extraction
 clear names
@@ -430,102 +424,428 @@ for iEu = find(hasRaw(:)')
     end
 end
 
-%% Plot a few examples
-iEu = find(strcmpi(eu.getName(), 'desmond25_20220430_Channel12_Unit1')); % Little lick noise
-raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
-plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400)
-xlim([-200, 500])
-plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400)
-xlim([-25, 100])
-save(sprintf("E:\\Data\\%s_3trials.mat", eu(iEu).getName()), 'x', 't', 'st')
+% %% Plot a few examples
+% iEu = find(strcmpi(eu.getName(), 'desmond25_20220430_Channel12_Unit1')); % Little lick noise
+% raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
+% plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400)
+% xlim([-200, 500])
+% plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400)
+% xlim([-25, 100])
+% save(sprintf("E:\\Data\\%s_3trials.mat", eu(iEu).getName()), 'x', 't', 'st')
+% 
+% %% Big SNR unit with big lick artefact ****** send to Sophie/Prerau
+% iEu = find(strcmpi(eu.getName(), 'desmond26_20220531_Channel4_Unit1')); % Longer lick noise
+% raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
+% [x, t, st] = plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400);
+% xlim([-200, 500])
+% plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400)
+% xlim([-25, 100])
+% save(sprintf("E:\\Data\\%s_3trials.mat", eu(iEu).getName()), 'x', 't', 'st')
+% 
+% %% Big SNR unit with big lick artefact
+% iEu = find(strcmpi(eu.getName(), 'desmond26_20220531_Channel37_Unit1')); % Longer lick noise
+% raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
+% [x, t, st] = plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400);
+% xlim([-200, 500])
+% plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400)
+% xlim([-25, 100])
+% save(sprintf("E:\\Data\\%s_3trials.mat", eu(iEu).getName()), 'x', 't', 'st')
+% 
+% %% Low SNR unit with big lick artefact
+% iEu = find(strcmpi(eu.getName(), 'daisy14_20220506_Channel29_Unit1')); % Longer lick noise
+% raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
+% [x, t, st] = plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400);
+% xlim([-200, 500])
+% plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400);
+% xlim([-25, 100])
+% save(sprintf("E:\\Data\\%s_3trials.mat", eu(iEu).getName()), 'x', 't', 'st')
 
-%% Big SNR unit with big lick artefact ****** send to Sophie/Prerau
-iEu = find(strcmpi(eu.getName(), 'desmond26_20220531_Channel4_Unit1')); % Longer lick noise
-raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
-[x, t, st] = plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400);
-xlim([-200, 500])
-plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400)
-xlim([-25, 100])
-save(sprintf("E:\\Data\\%s_3trials.mat", eu(iEu).getName()), 'x', 't', 'st')
+%% Cool units with cool functional responses from John
+coolUnitNames = [
+    % "Daisy2_20180425_Channel17_Unit1", ... 
+    % "Daisy3_20180618_Channel29_Unit1", ... 
+    % "Daisy8_20210708_Channel10_Unit1", ... 
+    "Daisy14_20220506_Channel38_Unit1", ...
+    "Daisy15_20220511_Channel104_Unit1", ...
+];
+clear raw
+raw(length(coolUnitNames)) = struct(data=[], name=[], t=[], trials=[]);
+spikesFiltered(length(coolUnitNames)) = struct(sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[]);
+spikesRaw(length(coolUnitNames)) = struct(sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[]);
 
-%% Big SNR unit with big lick artefact
-iEu = find(strcmpi(eu.getName(), 'desmond26_20220531_Channel37_Unit1')); % Longer lick noise
-raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
-[x, t, st] = plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400);
-xlim([-200, 500])
-plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400)
-xlim([-25, 100])
-save(sprintf("E:\\Data\\%s_3trials.mat", eu(iEu).getName()), 'x', 't', 'st')
+%%
+close all
+fs = 30000;
 
-%% Low SNR unit with big lick artefact
-iEu = find(strcmpi(eu.getName(), 'daisy14_20220506_Channel29_Unit1')); % Longer lick noise
-raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
-[x, t, st] = plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400);
-xlim([-200, 500])
-plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400)
-xlim([-25, 100])
-save(sprintf("E:\\Data\\%s_3trials.mat", eu(iEu).getName()), 'x', 't', 'st')
+for iUnit = 1:length(coolUnitNames)
+    iEu = find(strcmpi(eu.getName(), coolUnitNames(iUnit))); % Longer lick noise
+    fig = figure(Unit='inches', Position=[1 1 18 6]);
+    tl = tiledlayout(fig, 1, 2);
+    ax(1) = nexttile(tl);
+    ax(2) = nexttile(tl);
+
+    if isempty(raw(iUnit).name) || ~strcmpi(raw(iUnit).name, eu(iEu).getName())
+        raw(iUnit) = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
+    end
+
+    % raw and filtered continuous data (xRawAbs, xAbs)
+    [xRawAbs, tAbs, stAbs] = parseRaw(eu(iEu), raw(iUnit), eu(iEu).Trials.Lick, alignTo='Stop', randomTrials=false, nTrials=10, timestampMode='absolute');
+    xFilteredAbs = removeArtifact(xRawAbs, tAbs, method='highpass', highpassCutoff=800, sampleRate=fs);
+
+
+    rawData = struct(data=xRawAbs, t=tAbs);
+    filteredData = struct(data=xFilteredAbs, t=tAbs);
+
+    % Find spikes in raw data
+    [spikesRaw(iUnit).sampleIndex, spikesRaw(iUnit).timestamps, spikesRaw(iUnit).waveforms, spikesRaw(iUnit).waveformTimestamps] = spikeDetect(rawData, SampleRate=fs, NumSigmas=1, NumSigmasReturn=0.5, NumSigmasReject=20, WaveformWindow=[-0.5, 0.5]);
+    isUnitRaw = ismember(round(spikesRaw(iUnit).timestamps*fs), round(stAbs*fs));
+    fprintf('(%i/%i) detected spikes matched timestamps of %i eu spikes\n', nnz(isUnitRaw), length(isUnitRaw), length(stAbs))
+    spikeTemplateRaw = mean(spikesRaw(iUnit).waveforms, 1, 'omitnan');
+    maxMicroVolts = max(abs(spikeTemplateRaw))*1.5;
+
+    % Detect spikes in filtered data
+    [spikesFiltered(iUnit).sampleIndex, spikesFiltered(iUnit).timestamps, spikesFiltered(iUnit).waveforms, spikesFiltered(iUnit).waveformTimestamps] = spikeDetect(filteredData, SampleRate=fs, NumSigmas=1, NumSigmasReturn=0.5, NumSigmasReject=20, WaveformWindow=[-0.5, 0.5], MaxMicroVolts=maxMicroVolts);
+
+    % % Extract template spikes in filtered data, using existing spiketimes
+    % % from eu
+    [spikeTemplate, ~] = getWaveforms(filteredData, [-0.5, 0.5], spikesRaw(iUnit).sampleIndex(isUnitRaw), IndexType='SampleIndex');
+    [noiseTemplate, tWaveform] = getWaveforms(filteredData, [-0.5, 0.5], spikesRaw(iUnit).sampleIndex(~isUnitRaw), IndexType='SampleIndex');
+
+
+    spikeTemplate = mean(spikeTemplate, 1, 'omitnan');
+    noiseTemplate = mean(noiseTemplate, 1, 'omitnan');
+    distToSpikeTemplate = sum((spikesFiltered(iUnit).waveforms - spikeTemplate).^2, 2);
+    distToNoiseTemplate = sum((spikesFiltered(iUnit).waveforms - noiseTemplate).^2, 2);
+    isUnitFiltered = distToSpikeTemplate < distToNoiseTemplate;
+
+    stFitlered = spikesFiltered(iUnit).timestamps(isUnitFiltered);
+
+    [~, I] = sort(distToSpikeTemplate, 'ascend');
+    ax2 = axes(figure); hold(ax2, 'on')
+    for i = 10:10:size(I)
+        if mean(isUnitFiltered(I((i-10)+1:i))) > 0.5
+            plot(ax2, tWaveform, mean(spikesFiltered(iUnit).waveforms(I((i-10)+1:i), :), 1, 'omitnan'), Color=[1 0 0 0.25])%, Color=[getColor(i/10, ceil(length(I)/10), 0.67), 0.25])
+        else
+            plot(ax2, tWaveform, mean(spikesFiltered(iUnit).waveforms(I((i-10)+1:i), :), 1, 'omitnan'), Color=[0.1 0.1 0.1, 0.1])%Color=[getColor(i/10, ceil(length(I)/10), 0.67, s=0.1, l=0.1), 0.1])
+        end
+    end
+    plot(ax2, tWaveform, spikeTemplate, LineWidth=4, Color='red')
+    plot(ax2, tWaveform, noiseTemplate, LineWidth=4, Color='green')
+    xlim(ax2, [-0.5, 0.5])
+    ylim(ax2, [-200, 200])
+    title(ax2, sprintf('Filtered: %i/%i spikes, %i/%i noise, %i original', nnz(isUnitFiltered), nnz(isUnitRaw), nnz(~isUnitFiltered), nnz(~isUnitRaw), nnz(stAbs)))
+
+    [xRawAligned, tAligned, stRawAligned] = parseRaw(eu(iEu), raw(iUnit), eu(iEu).Trials.Lick, alignTo='Stop', randomTrials=false, nTrials=10, timestampMode='relative');
+    xFilteredAligned = removeArtifact(xRawAligned, tAligned, method='highpass', highpassCutoff=800, sampleRate=fs);
+    [~, ~, stFilteredAligned] = parseRaw(eu(iEu), raw(iUnit), eu(iEu).Trials.Lick, spikeTimes=stFitlered, alignTo='Stop', randomTrials=false, nTrials=10, timestampMode='relative');
+
+    plotRaw(ax(1), xFilteredAligned, tAligned, stFilteredAligned, plotSpikes=true, spacing=250, xRaw=xRawAligned, stRaw=stRawAligned);
+    xlim(ax(1), [-200, 500])
+    plotRaw(ax(2), xFilteredAligned, tAligned, stFilteredAligned, plotSpikes=true, spacing=250, xRaw=xRawAligned, stRaw=stRawAligned);
+    xlim(ax(2), [-25, 50])
+
+    title(tl, eu(iEu).getName(), Interpreter='none')
+    % save(sprintf("E:\\Data\\%s_3trials.mat", eu(iEu).getName()), 'x', 't', 'st')
+end
+clear iUnit iEu fig tl ax
+
+%% Redo 
+
 
 %% Functions
-function [x, t, st] = plotRaw(ax, eu, raw, trials, varargin)
+function [x, t, st] = parseRaw(eu, raw, trials, varargin)
     p = inputParser();
-    p.addRequired('ax')
     p.addRequired('eu')
     p.addRequired('raw', @isstruct)
     p.addRequired('trials', @(x) isa(x, 'Trial'))
+    p.addParameter('spikeTimes', [], @isnumeric)
     p.addParameter('alignTo', 'Start', @(x) ismember(x, {'Start', 'Stop'}))
-    p.addParameter('plotSpikes', true, @islogical)
-    p.addParameter('spacing', 200, @isnumeric)
-    p.addParameter('spacingSigmas', 10, @isnumeric)
-    p.addParameter('randomTrials', true, @islogical)
     p.addParameter('window', [-1, 1], @isnumeric)
-    p.parse(ax, eu, raw, trials, varargin{:})
-    ax = p.Results.ax;
+    p.addParameter('randomTrials', true, @islogical)
+    p.addParameter('nTrials', 'all', @(x) isnumeric(x) || strcmpi(x, 'all'))
+    p.addParameter('timestampMode', 'relative', @(x) ismember(x, {'absolute', 'relative'}))
+    p.parse(eu, raw, trials, varargin{:})
     eu = p.Results.eu;
     raw = p.Results.raw;
     trials = p.Results.trials;
+    spikeTimes = p.Results.spikeTimes;
+    if isempty(spikeTimes)
+        spikeTimes = eu.SpikeTimes;
+    end
     alignTo = p.Results.alignTo;
-    plotSpikes = p.Results.plotSpikes;
-    spacing = p.Results.spacing;
-    spacingSigmas = p.Results.spacingSigmas;
-    randomTrials = p.Results.randomTrials;
     window = p.Results.window;
+    randomTrials = p.Results.randomTrials;
+    nTrials = p.Results.nTrials;
+    timestampMode = p.Results.timestampMode;
 
-    if length(trials) < 3
+    if ischar(nTrials) && strcmpi(nTrials, 'all')
+        nTrials = length(trials);
+    end
+
+    if length(trials) < nTrials
         return
     end
     if randomTrials
-        trials = trials(randi(length(trials), [3, 1]));
+        trials = trials(randi(length(trials), [nTrials, 1]));
     else
-        trials = trials(1:3);
+        trials = trials(1:nTrials);
     end
-    [x, t] = eu.getTrialAlignedData(raw.data, raw.t, trials=trials, alignTo=alignTo, window=window, resolution=1/30000);
+
     
+    
+    switch lower(timestampMode)
+        case 'absolute'
+            [x, ~, ~, t] = eu.getTrialAlignedData(raw.data, raw.t, trials=trials, alignTo=alignTo, window=window, resolution=1/30000);
+        case 'relative'
+            [x, t] = eu.getTrialAlignedData(raw.data, raw.t, trials=trials, alignTo=alignTo, window=window, resolution=1/30000);
+        otherwise
+            error('unknown timestampMode %s', timestampMode);
+    end
+
+    st = cell(nTrials, 1);
+    for iTrial = 1:nTrials
+        start = trials(iTrial).(alignTo);
+        sel = spikeTimes >= start + window(1) & spikeTimes <= start + window(2);
+        switch lower(timestampMode)
+            case 'absolute'
+                st{iTrial} = spikeTimes(sel);
+            case 'relative'
+                st{iTrial} = spikeTimes(sel) - start;
+        end
+    end
+    if strcmpi(timestampMode, 'absolute')
+        x = reshape(x', 1, []);
+        t = reshape(t', 1, []);
+        st = cat(2, st{:});
+    end
+end
+
+function x = removeArtifact(x, t, varargin)
+    p = inputParser();
+    p.addRequired('x', @isnumeric)
+    p.addRequired('t', @isnumeric)
+    p.addParameter('method', 'none', @(x) ismember(lower(x), {'none', 'highpass', 'movmean', 'spline'}))
+    p.addParameter('highpassCutoff', 400, @isnumeric)
+    p.addParameter('sampleRate', 30000, @isnumeric)
+    p.parse(x, t, varargin{:})
+    x = p.Results.x;
+    t = p.Results.t;
+    method = p.Results.method;
+    highpassCutoff = p.Results.highpassCutoff;
+    sampleRate = p.Results.sampleRate;
+
+    xRaw = x;
+
+    switch lower(method)
+        case 'highpass'
+            % x = bpfft(xRaw', sampleRate, highpassCutoff, sampleRate/2)';
+            x = highpass(xRaw', highpassCutoff, sampleRate)';
+        case 'movmean'
+
+    end
+end
+
+function varargout = plotRaw(ax, x, t, st, varargin)
+    p = inputParser();
+    p.addRequired('ax')
+    p.addRequired('x', @isnumeric)
+    p.addRequired('t', @isnumeric)
+    p.addRequired('st', @iscell)
+    p.addParameter('plotSpikes', true, @islogical)
+    p.addParameter('spacing', 200, @isnumeric)
+    p.addParameter('spacingSigmas', 10, @isnumeric)
+    p.addParameter('xRaw', [], @isnumeric)
+    p.addParameter('stRaw', {}, @iscell)
+    p.parse(ax, x, t, st, varargin{:})
+    ax = p.Results.ax;
+    x = p.Results.x;
+    t = p.Results.t;
+    st = p.Results.st;
+    plotSpikes = p.Results.plotSpikes;
+    spacing = p.Results.spacing;
+    spacingSigmas = p.Results.spacingSigmas;
+    xRaw = p.Results.xRaw;
+    stRaw = p.Results.stRaw;
+
     if ~isnan(spacingSigmas)
         sigma = mad(x, 1, 'all') / 0.67449;
         spacing = round(sigma * spacingSigmas);
     end
 
-    st = eu.SpikeTimes;
-    st = cell(3, 1);
-    for iTrial = 1:3
-        start = trials(iTrial).(alignTo);
-        sel = eu.SpikeTimes >= start + window(1) & eu.SpikeTimes <= start + window(2);
-        st{iTrial} = eu.SpikeTimes(sel) - start;
-    end
-
     hold(ax, 'on')
-    for iTrial = 1:3
-        plot(ax, 1000*t, x(iTrial, :) + spacing*(iTrial-2), Color=getColor(iTrial, 3, 0.67))
+    nTrials = size(x, 1);
+    for iTrial = 1:nTrials
+        plot(ax, 1000*t, x(iTrial, :) + spacing*(iTrial-1), Color=getColor(iTrial, nTrials, 0.67))
+
+        if ~isempty(xRaw)
+            plot(ax, 1000*t, xRaw(iTrial, :) + spacing*(iTrial-1), Color=[getColor(iTrial, nTrials, 0.67, 0.5, 0.3), 0.25], LineStyle='-')
+        end
 
         if plotSpikes
-            scatter(ax, 1000*st{iTrial}, -spacing/2 + spacing*(iTrial-2), 10, MarkerEdgeColor=getColor(iTrial, 3, 0.67))
+            if isempty(stRaw)
+                scatter(ax, 1000*st{iTrial}, -spacing/2 + spacing*(iTrial-1), 10, MarkerEdgeColor=getColor(iTrial, nTrials, 0.67))
+            else
+                scatter(ax, 1000*st{iTrial}, -spacing/2 + spacing*(iTrial-1), 80, 'x', MarkerEdgeColor=getColor(iTrial, nTrials, 0.67))
+                scatter(ax, 1000*stRaw{iTrial}, -spacing/2 + spacing*(iTrial-1), 20, 'o', MarkerEdgeColor=getColor(iTrial, nTrials, 0.67))
+            end
         end
     end
 
     xline(ax, 0, 'k--')
-    ylim(ax, 2*[-spacing, spacing])
+    ylim(ax, [-spacing, (nTrials)*spacing])
     xlabel(ax, 'Time (ms)')
     ylabel(ax, 'Voltage (uV)')
+
+    varargout = {x, t, st};
 end
 
+% Expand waveform window, fill unavailable data with NaN
+function varargout = getWaveforms(raw, waveformWindow, index, varargin)
+	p = inputParser;
+	addRequired(p, 'raw', @isstruct);
+	addRequired(p, 'WaveformWindow', @(x) isnumeric(x) && length(x) == 2);
+	addRequired(p, 'Index', @isnumeric);
+	addParameter(p, 'IndexType', 'SampleIndex', @ischar);
+	addParameter(p, 'SampleRate', 30000, @isnumeric);
+	parse(p, raw, waveformWindow, index, varargin{:});
+	raw 		    = p.Results.raw;
+	waveformWindow 	= p.Results.WaveformWindow;
+	index 			= p.Results.Index;
+	indexType 		= p.Results.IndexType;
+    sampleRate      = p.Results.SampleRate;
+
+	switch indexType
+		case 'SampleIndex'
+			sampleIndex = index;
+			% Only interpolate if sample index in non-integer
+			if sum(rem(sampleIndex, 1) == 0) == length(sampleIndex)
+				timestamps = raw.t(sampleIndex);
+			else
+				timestamps = interp1(1:length(raw.t), raw.t, sampleIndex, 'linear');
+			end
+		case 'Timestamps'
+			% Always interpolate if input index in timestamps. This will always be slower.
+			timestamps = index;
+			sampleIndex = round(interp1(raw.t, 1:length(raw.t), timestamps, 'linear'));
+		otherwise
+			error(['Unrecognized index type: ''', indexType, ''', must be ''SampleIndex'' or ''Timestamps''.'])
+	end
+
+	sampleRate = sampleRate/1000; % Convert to ms
+	t = [flip(0:-1/sampleRate:waveformWindow(1)), 1/sampleRate:1/sampleRate:waveformWindow(2)];
+	waveforms = NaN(length(sampleIndex), length(t));
+	i = sampleRate*t;
+	for iWaveform = 1:length(sampleIndex)
+		iQuery = sampleIndex(iWaveform) + i;
+		if (sum(rem(iQuery, 1) == 0) == length(iQuery)) && min(iQuery) > 0 && max(iQuery) <= size(raw.data, 2)
+			% waveforms(iWaveform, :) = obj.Amplifier.Data(obj.MapChannel_TetrodeToRecorded(channel), iQuery);
+			waveforms(iWaveform, :) = raw.data(1, iQuery);
+		else
+			% waveforms(iWaveform, :) = interp1(1:size(obj.Amplifier.Data, 2), double(obj.Amplifier.Data(obj.MapChannel_TetrodeToRecorded(channel), :)), iQuery, 'pchip', NaN);
+			waveforms(iWaveform, :) = interp1(1:size(raw.data, 2), double(raw.data(1, :)), iQuery, 'pchip', NaN);
+		end
+	end
+
+	% Output
+	varargout = {waveforms, t, timestamps, sampleIndex};
+end
+
+% Detect spike by simple thresholding
+function varargout = spikeDetect(raw, varargin)
+	p = inputParser;
+    addRequired(p, 'raw', @isstruct)
+    addOptional(p, 'sel', [], @(x) islogical(x) & isnumeric(x)) % Selected sampleIndices corresponding to raw struct (can use logical indices)
+	addParameter(p, 'SampleRate', 30000, @isnumeric);
+	addParameter(p, 'NumSigmas', 4, @isnumeric); % Spike detection threshold = (this*sigma*direction). Sigma is estimated noise standard deviation.
+	addParameter(p, 'NumSigmasReturn', 1.25, @isnumeric); % [] to disable. Waveform must return to this*sigma*direction after crossing threshold, helps remove noisy periods with non-zero baseline.
+	addParameter(p, 'NumSigmasReject', 40, @isnumeric); % [] to disable. Reject huge waveforms that exceed this many sigmas in either direction
+	addParameter(p, 'Direction', 'negative', @ischar);
+	addParameter(p, 'WaveformWindow', [-0.5, 0.5], @isnumeric);
+    addParameter(p, 'MaxMicroVolts', Inf, @isnumeric);
+    addParameter(p, 'MinThresholdMicroVolts', 0, @isnumeric);
+    addParameter(p, 'MaxThresholdMicroVolts', Inf, @isnumeric);
+    addParameter(p, 'UseClampedThresholdInsteadOfSigma', false, @islogical);
+	parse(p, raw, varargin{:});
+
+    raw = p.Results.raw;
+    sel = p.Results.sel;
+    if isempty(sel)
+        sel = true(size(raw.data));
+    end
+	sampleRate      = p.Results.SampleRate;
+	numSigmas 		= p.Results.NumSigmas;
+	numSigmasReturn = p.Results.NumSigmasReturn;
+	numSigmasReject = p.Results.NumSigmasReject;
+	directionMode 	= p.Results.Direction;
+	waveformWindow 	= p.Results.WaveformWindow;
+	maxMicroVolts 	= p.Results.MaxMicroVolts;
+    minThreshold    = p.Results.MinThresholdMicroVolts;
+    maxThreshold    = p.Results.MaxThresholdMicroVolts;
+    useClampedThresholdInsteadOfSigma = p.Results.UseClampedThresholdInsteadOfSigma;
+
+    cleanedSignal = abs(nonzeros(raw.data(1, sel)));
+    cleanedSignal = cleanedSignal(cleanedSignal <= maxMicroVolts);
+	sigma = median(cleanedSignal, 'all', 'omitnan')/0.6745;
+	threshold = max(minThreshold, numSigmas*sigma);
+    threshold = min(maxThreshold, threshold);
+    thresholdReturn = numSigmasReturn*sigma;
+    thresholdReject = numSigmasReject*sigma;
+    if useClampedThresholdInsteadOfSigma
+        if ~isempty(thresholdReturn)
+            thresholdReturn = threshold * numSigmasReturn / numSigmas;
+        end
+        if ~isempty(thresholdReject)
+            thresholdReject = threshold * numSigmasReject / numSigmas;
+        end
+    end
+
+    switch lower(directionMode)
+	    case 'negative'
+		    direction = -1;
+	    case 'positive'
+		    direction = 1;
+	    case 'auto'
+            error('Not implemented')
+		    % direction = sign(median(obj.Amplifier.Data(iChannel, abs(obj.Amplifier.Data(iChannel, :)) > 1.5*threshold))); % Check if spikes are positive or negative
+	    otherwise
+		    error(['Unrecognized spike detection mode ''', directionMode, '''.'])
+    end
+	
+	% Find spikes
+	[~, sampleIndex] = findpeaks(double(direction*raw.data(1, sel)), 'MinPeakHeight', threshold, 'MinPeakProminence', threshold);
+
+	% Extract waveforms
+	[waveforms, t] = getWaveforms(raw, waveformWindow, sampleIndex, IndexType='SampleIndex');
+
+	% Align waveforms to peak
+	i = sampleRate*t;
+	[~, maxIndex] = max(direction*waveforms, [], 2);
+	alignmentShift = i(maxIndex);
+	[waveforms, t, timestamps, sampleIndex] = getWaveforms(raw, waveformWindow, sampleIndex + alignmentShift, IndexType='SampleIndex');
+
+	% Reject waveforms that do not return to a certain level after crossing threshold
+	if ~isempty(numSigmasReturn)
+		if direction > 0
+			selected = min(waveforms(:, t > 0), [], 2) <= thresholdReturn;
+		else
+			selected = max(waveforms(:, t > 0), [], 2) >= -thresholdReturn;
+		end
+		waveforms = waveforms(selected, :);
+		timestamps = timestamps(selected);
+		sampleIndex = sampleIndex(selected);
+	end
+
+	% Reject waveforms that exceed a threshold
+	if ~isempty(numSigmasReject)
+		selected = max(abs(waveforms), [], 2) < abs(thresholdReject) | max(abs(waveforms), [], 2) < maxMicroVolts;
+		waveforms = waveforms(selected, :);
+		timestamps = timestamps(selected);
+		sampleIndex = sampleIndex(selected);
+	end
+
+	% Double data so we can do divisions and stuff
+	waveforms = double(waveforms);
+    waveformTimestamps = t;
+
+    varargout = {sampleIndex, timestamps, waveforms, waveformTimestamps, direction*threshold, direction*thresholdReturn, thresholdReject};
+end

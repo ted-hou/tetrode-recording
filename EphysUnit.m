@@ -2559,7 +2559,7 @@ classdef EphysUnit < handle
             t = single(t);
         end
 
-        function [xAligned, tAligned, requestedDuration] = getTrialAlignedData(obj, varargin)
+        function [xAligned, tAligned, requestedDuration, tAlignedGlobal] = getTrialAlignedData(obj, varargin)
             assert(length(obj) == 1)
             p = inputParser();
             if isnumeric(varargin{1}) && isnumeric(varargin{2})
