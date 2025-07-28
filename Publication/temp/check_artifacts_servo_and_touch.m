@@ -601,12 +601,14 @@ for iUnit = 1:length(coolUnitNames)
     % Get the original spike times
     eu(iEu).SpikeTimes = spikeTimesBak{iEu};
     % Calculate ETA
-    etaTemp.circLickNaiveRaw = eu(iEu).getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, lickArtifactLengthType='ms', lickArtifactLength=10);
+    etaTemp.circLickNaiveRaw = eu(iEu).getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
+        lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
     etaTemp.lickRaw = eu(iEu).getETA('count', 'lick', window=[-4, 2], resolution=0.025, normalize='none');
 
     % Get the new filtered spike times
     eu(iEu).SpikeTimes = spikeTimesFilteredBak{iEu};
-    etaTemp.circLickNaiveFiltered = eu(iEu).getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, lickArtifactLengthType='ms', lickArtifactLength=10);
+    etaTemp.circLickNaiveFiltered = eu(iEu).getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
+        lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
     etaTemp.lickFiltered = eu(iEu).getETA('count', 'lick', window=[-4, 2], resolution=0.025, normalize='none');
 
     ax = subplot(2, 1, 1);
@@ -619,6 +621,7 @@ for iUnit = 1:length(coolUnitNames)
     xlabel(ax, 'lick phase')
     legend(ax)
     title(ax, eu(iEu).getName(), Interpreter='none')
+    ylim(ax, [0, 150])
 
     ax = subplot(2, 1, 2);
     hold(ax, 'on')
@@ -627,8 +630,10 @@ for iUnit = 1:length(coolUnitNames)
     % ylabel(ax, 'spikes/s')
     xlabel(ax, 'Time to self-timed lick (s)')
     legend(ax)
+    ylim(ax, [0, 100])
+
 end
-clear iUnit iEu ax
+clear iUnit iEu ax 
 
 %% Functions
 function [x, t, st, trials] = parseRaw(eu, raw, trials, varargin)
