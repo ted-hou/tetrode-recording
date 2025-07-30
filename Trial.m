@@ -156,7 +156,8 @@ classdef Trial
                 case 'start'
                     % Find events in the left (pre-start) window
                     if window(1) < 0
-                        edges = reshape([start + window(1); start], [], 1);
+                        % edges = reshape([start + window(1); start], [], 1);
+                        edges = reshape([start + max(-diff([NaN, start]), window(1), 'omitnan'); start], [], 1);
                         [~, ~, bins] = histcounts(t, edges);
                         Bl = rem(bins, 2) ~= 0;
                         Il = (bins(Bl) + 1) / 2;
@@ -172,7 +173,9 @@ classdef Trial
                 case 'stop'
                     % Find events in the left (pre-stop) window
                     if window(1) < 0
-                        edges = reshape([stop + window(1); stop], [], 1);
+                        % edges = reshape([stop + window(1); stop], [], 1);
+                        edges = reshape([stop + max(-diff([NaN, stop]), window(1), 'omitnan'); stop], [], 1);
+                        
                         [~, ~, bins] = histcounts(t, edges);
                         Bl = rem(bins, 2) ~= 0;
                         Il = (bins(Bl) + 1) / 2;

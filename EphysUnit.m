@@ -1410,8 +1410,8 @@ classdef EphysUnit < handle
         function tEU = alignTimestamps(obj, tAC, varargin)
             p = inputParser();
             p.addRequired('tAC', @(x) isnumeric(x) || isstring(x));
-            p.addParameter('acRefEventName', "CUE_ON", @(x) isstring(x)); % Try ["CUE_ON", "LEVER_PRESSED"]
-            p.addParameter('euRefEventName', "Cue", @(x) isstring(x)); % Try ["Cue", "Press"]
+            p.addParameter('acRefEventName', "CUE_ON", @(x) isstring(x)); % Try ["CUE_ON", "LEVER_PRESSED"], ["REWARD_ON"]
+            p.addParameter('euRefEventName', "Cue", @(x) isstring(x)); % Try ["Cue", "Press"], ["RewardTimes"]
             p.addParameter('trialDurationTolerance', 0.1, @isnumeric)
             p.addParameter('shiftDurationTolerance', 0.5, @isnumeric)
             p.addParameter('ac', {}, @iscell)
@@ -1439,7 +1439,7 @@ classdef EphysUnit < handle
             end
 
             for iExp = 1:length(uniqueExpNames)
-                try
+                % try
                     acTemp = ac(euIndicesFirstInSession(iExp));
                     euTemp = obj(euIndicesFirstInSession(iExp));
     
@@ -1489,15 +1489,19 @@ classdef EphysUnit < handle
                     tEU(iExp).euIndices = euIndices;
                     for event = tAC
                         tACTemp = acTemp.GetEventMarker(char(event), 'millis')./1000;
-                        tEUTemp = interp1(tRefAC, tRefEU, tACTemp, 'linear', 'extrap');
+                        try
+                            tEUTemp = interp1(tRefAC, tRefEU, tACTemp, 'linear', 'extrap');
+                        catch
+                            error();
+                        end
                         tEU(iExp).(event) = tEUTemp;
                         for iEu = euIndices
                             obj(iEu).EventTimes.(event) = tEUTemp;
                         end
                     end
-                catch
-                    warning('Error when aligning timestamps for session %s', euTemp.ExpName)
-                end
+                % catch
+                %     warning('Error when aligning timestamps for session %s', euTemp.ExpName)
+                % end
             end
         end
 
