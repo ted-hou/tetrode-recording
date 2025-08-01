@@ -1489,10 +1489,10 @@ classdef EphysUnit < handle
                     tEU(iExp).euIndices = euIndices;
                     for event = tAC
                         tACTemp = acTemp.GetEventMarker(char(event), 'millis')./1000;
-                        try
+                        if ~isempty(tRefAC) && ~isempty(tRefEU) && ~isempty(tACTemp)
                             tEUTemp = interp1(tRefAC, tRefEU, tACTemp, 'linear', 'extrap');
-                        catch
-                            error();
+                        else
+                            tEUTemp = [];
                         end
                         tEU(iExp).(event) = tEUTemp;
                         for iEu = euIndices

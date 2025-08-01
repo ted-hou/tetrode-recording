@@ -33,7 +33,6 @@ eu = eu(c.isSNr & ~c.isDrifting);
 %     eu(iEu).Trials.Lick = eu(iEu).makeTrials('lick_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
 % end
 
-eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr')
 
 %% Make press and lick trials
 tEu = eu.alignTimestamps(["TIMEOUT_START", "WAITFORTOUCH", "LEVER_PRESSED", "LEVER_RELEASED", "LEVER_HELD", "LICK", "LICK_OFF", "REWARD_ON", "REWARD_OFF"], acRefEventName="REWARD_ON", euRefEventName="RewardOn");
@@ -48,37 +47,39 @@ for iSession = 1:length(tEu)
     end
 end
 
+eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr')
+
 %%
 % clear, clc
-% eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
+% eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
 
 % Make Raster
 clear rd
 rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shutterDelay=0, photoelectricBlankDuration=0.5e-3);
-rd.press = eu.getRasterData('press', window=[-4, 0], alignTo='stop');
-rd.lick = eu.getRasterData('lick', window=[-4, 0], alignTo='stop');
+rd.press = eu.getRasterData('press', window=[-4, 2], alignTo='stop', minTrialDuration=1);
+rd.lick = eu.getRasterData('lick', window=[-4, 2], alignTo='stop', minTrialDuration=1);
 
 % Make ETA
 clear eta
-eta.pressRaw = eu.getETA('count', 'press', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none');
-eta.lickRaw = eu.getETA('count', 'lick', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none');
-eta.press = eu.getETA('count', 'press', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2]);
-eta.lick = eu.getETA('count', 'lick', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2]);
+eta.pressRaw = eu.getETA('count', 'press', [-4, 3], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none', minTrialDuration=1);
+eta.lickRaw = eu.getETA('count', 'lick', [-4, 3], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none', minTrialDuration=1);
+eta.press = eu.getETA('count', 'press', [-4, 3], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2], minTrialDuration=1);
+eta.lick = eu.getETA('count', 'lick', [-4, 3], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2], minTrialDuration=1);
 eta.pressRaw.X = eta.pressRaw.X ./ 0.1;
 eta.lickRaw.X = eta.lickRaw.X ./ 0.1;
 
 % ETA Stim
 p.isiBaselineWindow = [-0.1, 0];
-p.stimBluePowers = [25, 50, 100, 500]*1e-6; 
-p.stimRedPowers = [25, 50, 100, 500, 2000, 8000, 16000]*1e-6;
+p.stimBluePowers = [500, 2000, 8000, 16000]*1e-6; 
+p.stimRedPowers = [500, 2000, 8000, 16000]*1e-6;
 p.stimBlueDurations = [10, 20]*1e-3;
 p.stimRedDurations = [10, 20]*1e-3;
 
 p.isiWindow = [-0.4, 0.4];
 p.isiRes = 1e-3;
 p.xlim.stim = [-0.1, 0.3];
-p.xlim.move = [-4, 0];
-p.path = 'C:\SERVER\Figures\TwoColor_SNr_SCRetro';
+p.xlim.move = [-4, 3];
+p.path = 'C:\SERVER\Figures\TwoColor_SNr_SCRetro\ReverseInjection';
 p.rasterSzStim = 1;
 p.rasterSzMove = 1;
 
@@ -335,6 +336,7 @@ for iEu = 1:length(eu)
             ax = layout.ax(iTrialType, 2);
             EphysUnit.plotRaster(ax, rd.(trialType)(iEu), xlim=p.xlim.move, sz=p.rasterSzMove);
             title(ax, trialType, Interpreter="none")
+            xline(ax, 0, '--')
 
             ax = layout.ax(3, 2);
             hold(ax, 'on')
@@ -345,6 +347,9 @@ for iEu = 1:length(eu)
             xlabel(ax, 'Time to bar/spout contact (s)')
             ylabel(ax, 'sp/s')
             legend(ax, Location='northwest')
+            if iTrialType == 1
+                xline(ax, 0, '--')
+            end
         end
 
         print(fig, sprintf('%s\\%s.png', p.path, eu(iEu).getName()), '-dpng')

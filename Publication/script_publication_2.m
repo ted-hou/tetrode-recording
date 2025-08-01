@@ -481,7 +481,7 @@ xlim(ax, [-2.5, 0.5])
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
-%% Fig S3 top
+%% Fig S2 top
 close all
 
 clear layout
@@ -507,7 +507,7 @@ l = layout.bottom.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.bot
 layout.bottom.right.tl = tiledlayout(layout.bottom.tl, 1, 2, TileSpacing='tight', Padding='tight');
 l = layout.bottom.right.tl; l.Layout.Tile = 1 + layout.bottom.left.w; l.Layout.TileSpan = [1, layout.bottom.right.w];
 
-% S3a
+% S2a
 % YL = {[30, 90], [10, 70]};
 YL = {[-2, 2], [-2, 2]};
 SEL = {c.hasPress & c.isPressUp, c.hasPress & c.isPressDown};
@@ -576,7 +576,7 @@ for iRow = 1:2
 end
 ylabel(layout.top.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
 
-% S3b
+% S2b
 ax = nexttile(layout.bottom.left.tl);
 hold(ax, 'on')
 
@@ -610,7 +610,7 @@ title('Cue vs. reach response')
 
 fontsize(ax, p.fontSize, 'points')
 
-% S3c/d (correct/incorrect press trial video-tracked paw/spine/lick)
+% S2c/d (correct/incorrect press trial video-tracked paw/spine/lick)
 SELTRIALS = {~fAll.press.correct, fAll.press.correct};
 RESULTNAMES = {'incorrect', 'correct'};
 RESULTNAMESDISP = {'Incorrect reach', 'Correct reach'};
@@ -663,7 +663,7 @@ lgd.Position(1) = lgd.Position(1) - 0.15;
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
-%% S3 bottom
+%% S2 bottom
 p.fontSize = 9;
 
 nBTABins = length(p.binnedTrialEdgesFine) - 1;

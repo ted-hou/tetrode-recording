@@ -12,7 +12,7 @@ load('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift_20250705.mat')
 eu = eu(c.hasPress & c.hasLick);
 clearvars -except eu
 
-%% Load euComplete (complete with ITI spikes)
+% Load euComplete (complete with ITI spikes)
 euNames = lower(eu.getName());
 
 files = dir('C:\SERVER\Units\NonLite_PressVsLick\*.mat');
@@ -21,13 +21,19 @@ files = files(sel);
 cd('C:\SERVER\Units\NonLite_PressVsLick\')
 euComplete = EphysUnit.load({files.name}, waveforms=false, spikecounts=false, spikerates=false);
 
-% euComplete.save('C:\SERVER\Units\NonLite_PressVsLick_NonDuplicate_NonDrift');
+euComplete.save('C:\SERVER\Units\NonLite_PressVsLick_NonDuplicate_NonDrift');
 
 [lia, locb] = ismember(eu.getName(), euComplete.getName());
 eu(lia) = euComplete(locb(lia));
 
-clear euComplete files sel lia locb
+clearvars -except eu
 
+clear spikeTimesCache
+spikeTimesCache(length(eu)) = struct(index=[], name=[], data=[]);
+
+for iEu = 1:length(eu)
+    spikeTimesCache(iEu) = struct(index=iEu, name=eu(iEu).getName(), data=eu(iEu).SpikeTimes);
+end
 
 %% Copy digital events from ArduinoConnection to EphysUnit (using CueOn to correct for clock drift)
 
@@ -186,7 +192,7 @@ names.found = string(names.found(:));
 hasRaw = ismember(names.expected, names.found);
 clear files
 
-%% Find out which units use intan
+% Find out which units use intan
 isIntan = false(length(eu), 1);
 for iEu = 1:length(eu)
     animalName = eu(iEu).getAnimalName();
@@ -204,311 +210,306 @@ clear iEu animalName expName files
 
 
 %% Make behavioral trials and PETH/RD
-tEU = eu.alignTimestamps(["REWARD_ON", "LEVER_RELEASED", "LEVER_RETRACT_START", "LEVER_RETRACTED", "LEVER_RETRACT_END", "TUBE_RETRACT_START", "TUBE_RETRACT_END", "LICK", "LICK_OFF"], ac={ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames});
-
-for iEu = 1:length(eu)
-    try
-        leverReleaseTimes = eu(iEu).EventTimes.LEVER_RELEASED;
-        leverRetractTimes = eu(iEu).EventTimes.LEVER_RETRACT_START;
-        if isempty(leverRetractTimes)
-            leverRetractTimes = eu(iEu).EventTimes.LEVER_RETRACTED;
-        end
-        eu(iEu).Trials.Press = Trial(eu(iEu).EventTimes.Cue, eu(iEu).EventTimes.Press, 'first');
-        eu(iEu).Trials.PressIncorrect = eu(iEu).Trials.Press(eu(iEu).Trials.Press.duration() < 4 & eu(iEu).Trials.Press.duration() >= 2);
-        eu(iEu).Trials.PressCorrect = eu(iEu).Trials.Press(eu(iEu).Trials.Press.duration() >= 4);
-        [~, leverRetractTimesIncorrect] = eu(iEu).Trials.PressIncorrect.inTrial(leverRetractTimes, [0, 2], windowMode='stop');
-        assert(nnz(leverRetractTimesIncorrect) > 0)
-        [~, leverRetractTimesCorrect] = eu(iEu).Trials.PressCorrect.inTrial(leverRetractTimes, [-0.1, 8], windowMode='stop');
-        eu(iEu).Trials.RetractReleaseIncorrect = Trial([leverRetractTimesIncorrect, Inf], leverReleaseTimes, 'first');
-        eu(iEu).Trials.RetractReleaseCorrect = Trial([leverRetractTimesCorrect, Inf], leverReleaseTimes, 'first');
-        eu(iEu).Trials.PressReleaseIncorrect = Trial([eu(iEu).Trials.PressIncorrect.Start, Inf], [eu(iEu).Trials.RetractReleaseIncorrect.Stop], 'first');
-        eu(iEu).Trials.PressReleaseCorrect = Trial([eu(iEu).Trials.PressCorrect.Stop, Inf], [eu(iEu).Trials.RetractReleaseCorrect.Stop], 'first');
-        eu(iEu).Trials.PressRetractIncorrect = Trial([eu(iEu).Trials.PressIncorrect.Stop], leverRetractTimesIncorrect, 'first');
-        eu(iEu).Trials.PressRetractCorrect = Trial([eu(iEu).Trials.PressCorrect.Stop], leverRetractTimesCorrect, 'first');
-        % 
-        % fprintf(['press=%i\npressIncorrect=%i, pressCorrect=%i;\nleverRetractTimesIncorrect=%i, leverRetractTimesCorrect=%i;\n' ...
-        %     'eu(iEu).Trials.RetractReleaseIncorrect=%i, eu(iEu).Trials.RetractReleaseCorrect=%i;\n' ...
-        %     'eu(iEu).Trials.PressReleaseIncorrect=%i, eu(iEu).Trials.PressReleaseCorrect=%i\n'], length(eu(iEu).Trials.Press), length(eu(iEu).Trials.PressIncorrect), length(eu(iEu).Trials.PressCorrect), ...
-        %     length(leverRetractTimesIncorrect), length(leverRetractTimesCorrect), ...
-        %     length(eu(iEu).Trials.RetractReleaseIncorrect), length(eu(iEu).Trials.RetractReleaseCorrect), ...
-        %     length(eu(iEu).Trials.PressReleaseIncorrect), length(eu(iEu).Trials.PressReleaseCorrect));
-        % disp(1)
-    catch
-        warning('Counld not process iEu = %i, "%s"', iEu, eu(iEu).getName())
-    end
-end
-
-% Find and correct bad lick labels
-for iEu = 1:length(eu)
-    eu(iEu).EventTimes.LICK = [];
-    eu(iEu).EventTimes.LICK_OFF = [];
-end
-eu.alignTimestamps(["LICK", "LICK_OFF"], ac={ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames});
-clear nLicks
-nLicks.EUvAC = arrayfun(@(eu) [length(eu.EventTimes.Lick), length(eu.EventTimes.LICK)], eu, UniformOutput=false);
-nLicks.EUvAC = cat(1, nLicks.EUvAC{:});
-nLicks.EUvReward = arrayfun(@(eu) [length(eu.EventTimes.Lick), length(eu.EventTimes.RewardTimes)], eu, UniformOutput=false);
-nLicks.EUvReward = cat(1, nLicks.EUvReward{:});
-
-lickIsReward = diff(nLicks.EUvReward, 1, 2) == 0; lickIsReward = lickIsReward(:)';
-
-for iEu = find(lickIsReward)
-    eu(iEu).Trials.Lick = Trial(eu(iEu).EventTimes.Cue, eu(iEu).EventTimes.LICK, 'first', eu(iEu).EventTimes.Press);
-end
-
-for iEu = 1:length(eu)
-    eu(iEu).Trials.LickIncorrect = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() < 4 & eu(iEu).Trials.Lick.duration() >= 2);
-    eu(iEu).Trials.LickCorrect = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() >= 4);
-end
-
-% Make rd and eta
-clear rd
-rd.press = eu.getRasterData('press', [-4, 4], minTrialDuration=2, maxTrialDuration=Inf);
-rd.releaseCorrect = eu.getRasterData('press_release_correct', [-4, 4], minTrialDuration=0, maxTrialDuration=Inf);
-rd.releaseIncorrect = eu.getRasterData('press_release_incorrect', [-4, 4], minTrialDuration=0, maxTrialDuration=Inf);
-rd.retractCorrect = eu.getRasterData('press_retract_correct', [-4, 4], minTrialDuration=0, maxTrialDuration=Inf);
-rd.retractIncorrect = eu.getRasterData('press_retract_incorrect', [-4, 4], minTrialDuration=0, maxTrialDuration=Inf);
-rd.lick = eu.getRasterData('lick', [-4, 4], minTrialDuration=2, maxTrialDuration=Inf);
-
-eta.correctPress = eu.getETA('count', 'press', [-4, 4], minTrialDuration=4, normalize='none', resolution=0.1);
-eta.incorrectPress = eu.getETA('count', 'press', [-4, 4], minTrialDuration=2, maxTrialDuration=4, normalize='none', resolution=0.1);
-
-eta.correctRetract = eu.getETA('count', 'press_retract_correct', [-4, 4], alignTo='stop', normalize='none', resolution=0.1);
-eta.incorrectRetract = eu.getETA('count', 'press_retract_incorrect', [-4, 4], alignTo='stop', normalize='none', resolution=0.1);
-
-eta.correctRelease = eu.getETA('count', 'press_release_correct', [-4, 4], alignTo='stop', normalize='none', resolution=0.1);
-eta.incorrectRelease = eu.getETA('count', 'press_release_incorrect', [-4, 4], alignTo='stop', normalize='none', resolution=0.1);
-
-eta.correctLick = eu.getETA('count', 'lick', [-4, 4], minTrialDuration=4, normalize='none', resolution=0.1);
-eta.incorrectLick= eu.getETA('count', 'lick', [-4, 4], minTrialDuration=2, maxTrialDuration=4, normalize='none', resolution=0.1);
-
-for field = ["correctPress", "incorrectPress", "correctLick", "incorrectLick", "correctRelease", "incorrectRelease", "correctRetract", "incorrectRetract"]
-    eta.(field).X = eta.(field).X ./ 0.1;
-end
+% tEU = eu.alignTimestamps(["REWARD_ON", "LEVER_RELEASED", "LEVER_RETRACT_START", "LEVER_RETRACTED", "LEVER_RETRACT_END", "TUBE_RETRACT_START", "TUBE_RETRACT_END", "LICK", "LICK_OFF"], ac={ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames});
+% 
+% for iEu = 1:length(eu)
+%     try
+%         leverReleaseTimes = eu(iEu).EventTimes.LEVER_RELEASED;
+%         leverRetractTimes = eu(iEu).EventTimes.LEVER_RETRACT_START;
+%         if isempty(leverRetractTimes)
+%             leverRetractTimes = eu(iEu).EventTimes.LEVER_RETRACTED;
+%         end
+%         eu(iEu).Trials.Press = Trial(eu(iEu).EventTimes.Cue, eu(iEu).EventTimes.Press, 'first');
+%         eu(iEu).Trials.PressIncorrect = eu(iEu).Trials.Press(eu(iEu).Trials.Press.duration() < 4 & eu(iEu).Trials.Press.duration() >= 2);
+%         eu(iEu).Trials.PressCorrect = eu(iEu).Trials.Press(eu(iEu).Trials.Press.duration() >= 4);
+%         [~, leverRetractTimesIncorrect] = eu(iEu).Trials.PressIncorrect.inTrial(leverRetractTimes, [0, 2], windowMode='stop');
+%         assert(nnz(leverRetractTimesIncorrect) > 0)
+%         [~, leverRetractTimesCorrect] = eu(iEu).Trials.PressCorrect.inTrial(leverRetractTimes, [-0.1, 8], windowMode='stop');
+%         eu(iEu).Trials.RetractReleaseIncorrect = Trial([leverRetractTimesIncorrect, Inf], leverReleaseTimes, 'first');
+%         eu(iEu).Trials.RetractReleaseCorrect = Trial([leverRetractTimesCorrect, Inf], leverReleaseTimes, 'first');
+%         eu(iEu).Trials.PressReleaseIncorrect = Trial([eu(iEu).Trials.PressIncorrect.Start, Inf], [eu(iEu).Trials.RetractReleaseIncorrect.Stop], 'first');
+%         eu(iEu).Trials.PressReleaseCorrect = Trial([eu(iEu).Trials.PressCorrect.Stop, Inf], [eu(iEu).Trials.RetractReleaseCorrect.Stop], 'first');
+%         eu(iEu).Trials.PressRetractIncorrect = Trial([eu(iEu).Trials.PressIncorrect.Stop], leverRetractTimesIncorrect, 'first');
+%         eu(iEu).Trials.PressRetractCorrect = Trial([eu(iEu).Trials.PressCorrect.Stop], leverRetractTimesCorrect, 'first');
+%         % 
+%         % fprintf(['press=%i\npressIncorrect=%i, pressCorrect=%i;\nleverRetractTimesIncorrect=%i, leverRetractTimesCorrect=%i;\n' ...
+%         %     'eu(iEu).Trials.RetractReleaseIncorrect=%i, eu(iEu).Trials.RetractReleaseCorrect=%i;\n' ...
+%         %     'eu(iEu).Trials.PressReleaseIncorrect=%i, eu(iEu).Trials.PressReleaseCorrect=%i\n'], length(eu(iEu).Trials.Press), length(eu(iEu).Trials.PressIncorrect), length(eu(iEu).Trials.PressCorrect), ...
+%         %     length(leverRetractTimesIncorrect), length(leverRetractTimesCorrect), ...
+%         %     length(eu(iEu).Trials.RetractReleaseIncorrect), length(eu(iEu).Trials.RetractReleaseCorrect), ...
+%         %     length(eu(iEu).Trials.PressReleaseIncorrect), length(eu(iEu).Trials.PressReleaseCorrect));
+%         % disp(1)
+%     catch
+%         warning('Counld not process iEu = %i, "%s"', iEu, eu(iEu).getName())
+%     end
+% end
+% 
+% % Find and correct bad lick labels
+% for iEu = 1:length(eu)
+%     eu(iEu).EventTimes.LICK = [];
+%     eu(iEu).EventTimes.LICK_OFF = [];
+% end
+% eu.alignTimestamps(["LICK", "LICK_OFF"], ac={ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames});
+% clear nLicks
+% nLicks.EUvAC = arrayfun(@(eu) [length(eu.EventTimes.Lick), length(eu.EventTimes.LICK)], eu, UniformOutput=false);
+% nLicks.EUvAC = cat(1, nLicks.EUvAC{:});
+% nLicks.EUvReward = arrayfun(@(eu) [length(eu.EventTimes.Lick), length(eu.EventTimes.RewardTimes)], eu, UniformOutput=false);
+% nLicks.EUvReward = cat(1, nLicks.EUvReward{:});
+% 
+% lickIsReward = diff(nLicks.EUvReward, 1, 2) == 0; lickIsReward = lickIsReward(:)';
+% 
+% for iEu = find(lickIsReward)
+%     eu(iEu).Trials.Lick = Trial(eu(iEu).EventTimes.Cue, eu(iEu).EventTimes.LICK, 'first', eu(iEu).EventTimes.Press);
+% end
+% 
+% for iEu = 1:length(eu)
+%     eu(iEu).Trials.LickIncorrect = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() < 4 & eu(iEu).Trials.Lick.duration() >= 2);
+%     eu(iEu).Trials.LickCorrect = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() >= 4);
+% end
+% 
+% % Make rd and eta
+% clear rd
+% rd.press = eu.getRasterData('press', [-4, 4], minTrialDuration=2, maxTrialDuration=Inf);
+% rd.releaseCorrect = eu.getRasterData('press_release_correct', [-4, 4], minTrialDuration=0, maxTrialDuration=Inf);
+% rd.releaseIncorrect = eu.getRasterData('press_release_incorrect', [-4, 4], minTrialDuration=0, maxTrialDuration=Inf);
+% rd.retractCorrect = eu.getRasterData('press_retract_correct', [-4, 4], minTrialDuration=0, maxTrialDuration=Inf);
+% rd.retractIncorrect = eu.getRasterData('press_retract_incorrect', [-4, 4], minTrialDuration=0, maxTrialDuration=Inf);
+% rd.lick = eu.getRasterData('lick', [-4, 4], minTrialDuration=2, maxTrialDuration=Inf);
+% 
+% eta.correctPress = eu.getETA('count', 'press', [-4, 4], minTrialDuration=4, normalize='none', resolution=0.1);
+% eta.incorrectPress = eu.getETA('count', 'press', [-4, 4], minTrialDuration=2, maxTrialDuration=4, normalize='none', resolution=0.1);
+% 
+% eta.correctRetract = eu.getETA('count', 'press_retract_correct', [-4, 4], alignTo='stop', normalize='none', resolution=0.1);
+% eta.incorrectRetract = eu.getETA('count', 'press_retract_incorrect', [-4, 4], alignTo='stop', normalize='none', resolution=0.1);
+% 
+% eta.correctRelease = eu.getETA('count', 'press_release_correct', [-4, 4], alignTo='stop', normalize='none', resolution=0.1);
+% eta.incorrectRelease = eu.getETA('count', 'press_release_incorrect', [-4, 4], alignTo='stop', normalize='none', resolution=0.1);
+% 
+% eta.correctLick = eu.getETA('count', 'lick', [-4, 4], minTrialDuration=4, normalize='none', resolution=0.1);
+% eta.incorrectLick= eu.getETA('count', 'lick', [-4, 4], minTrialDuration=2, maxTrialDuration=4, normalize='none', resolution=0.1);
+% 
+% for field = ["correctPress", "incorrectPress", "correctLick", "incorrectLick", "correctRelease", "incorrectRelease", "correctRetract", "incorrectRetract"]
+%     eta.(field).X = eta.(field).X ./ 0.1;
+% end
 
 
 
 %% Plot reach raster, peth, DLC trajectories for reach-dec DLC cells (among 163)
-% close all
-if ~exist('E:\DATA\Figures\reach_retract_dlc', 'dir')
-    mkdir('E:\DATA\Figures\reach_retract_dlc')
-end
-
-fig = figure(Units='normalized', InnerPosition=[0 0 1 1]);
-tl = tiledlayout(fig, 5, 3, TileIndexing='columnmajor');
-ax = gobjects(15, 1);
-for iAx = 1:15
-    ax(iAx) = nexttile(tl);
-end
-% for iEu = find(hasRaw(:)' & isIntan(:)')
-for iEu = find(hasRaw(:)')
-    try
-        raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
-        % 1: Raster
-        for iAx = 1:15
-            cla(ax(iAx), 'reset');
-        end
-        EphysUnit.plotRaster(ax(1), rd.press(iEu), xlim=[-4, 4]);
-        set(ax(1).Legend, AutoUpdate=false)
-        xline(ax(1), 0, 'k-', LineWidth=1.5)
-        yline(ax(1), find(rd.press(iEu).duration>4, 1), 'k-', LineWidth=3)
-        delete(ax(1).Legend)
-        legend(ax(1), ["", "trial start"])
-    
-        % 2: PETH
-        hold(ax(2), 'on')
-        h = gobjects(2, 1);
-        h(1) = plot(ax(2), eta.incorrectPress.t, eta.incorrectPress.X(iEu, :), Color=hsl2rgb([0.4, 0.4, 0.4]), LineStyle='-', DisplayName=sprintf('Incorrect (n=%i)', eta.incorrectPress.N(iEu)), LineWidth=2);
-        h(2) = plot(ax(2), eta.correctPress.t, eta.correctPress.X(iEu, :), 'k-', DisplayName=sprintf('Correct (n=%i)', eta.correctPress.N(iEu)), LineWidth=2);
-        legend(h, AutoUpdate=false, Location='southwest')
-        xline(ax(2), 0, 'k--')
-        yline(ax(2), 0, 'k--')
-        xlim(ax(2), [-4, 4])
-        % ylim(ax(2), [0, 100])
-    
-        title(ax(1), 'Reach Raster')
-        title(ax(2), 'Reach PETH')
-
-        % 3: Reach incorrect (raw)
-        % [xAligned, tAligned] = eu(iEu).getTrialAlignedData(raw.data, raw.t, trials=eu(iEu).Trials.PressIncorrect, alignTo='stop', window=[-1, 1], resolution=1/30000);
-        plotRaw(ax(3), eu(iEu), raw, eu(iEu).Trials.PressIncorrect, alignTo='Stop', window=[-0.5, 1.5]);
-        title(ax(3), 'PressIncorrect')
-
-        % 4: Reach correct (raw)
-        plotRaw(ax(4), eu(iEu), raw, eu(iEu).Trials.PressCorrect, alignTo='Stop', window=[-0.5, 1.5]);
-        title(ax(4), 'PressCorrect')
-
-        % 5: Tube servo deploy (raw)
-        plotRaw(ax(5), eu(iEu), raw, eu(iEu).Trials.TubeDeploy, alignTo='Start', window=[-0.5, 1.5]);
-        title(ax(5), 'TubeDeploy')
-
-
-        % 6: Raster
-        EphysUnit.plotRaster(ax(6), rd.retractCorrect(iEu), xlim=[-4, 4]);
-        set(ax(6).Legend, AutoUpdate=false)
-        xline(ax(6), 0, 'k-', LineWidth=1.5)
-        % yline(ax(6), find(rd.lick(i).duration>4, 1), 'k-', LineWidth=1.5)
-        delete(ax(6).Legend)
-        legend(ax(6), ["", "bar-contact"])
-    
-        % 7 PETH
-        hold(ax(7), 'on')
-        h = gobjects(2, 1);
-        h(1) = plot(ax(7), eta.incorrectRetract.t, eta.incorrectRetract.X(iEu, :), Color=hsl2rgb([0.4, 0.4, 0.4]), LineStyle='-', DisplayName=sprintf('Incorrect (n=%i)', eta.incorrectRetract.N(iEu)), LineWidth=2);
-        h(2) = plot(ax(7), eta.correctRetract.t, eta.correctRetract.X(iEu, :), 'k-', DisplayName=sprintf('Correct (n=%i)', eta.correctRetract.N(iEu)), LineWidth=2);
-        legend(h, AutoUpdate=false, Location='southwest')
-        xline(ax(7), 0, 'k--')
-        yline(ax(7), 0, 'k--')
-        xlim(ax(7), [-4, 4])
-        % ylim(ax(7), [0, 100])
-    
-        % 8: reach retract (raw)
-        plotRaw(ax(8), eu(iEu), raw, eu(iEu).Trials.PressRetractCorrect, alignTo='Stop', window=[-0.5, 1.5]);
-        title(ax(8), 'PressRetractCorrect')
-
-        % 9: lever servo deploy (raw)
-        plotRaw(ax(9), eu(iEu), raw, eu(iEu).Trials.LeverDeploy, alignTo='Start', window=[-0.5, 1.5]);
-        title(ax(9), 'LeverDeploy')
-
-        % 10: lever servo retract (raw)
-        plotRaw(ax(10), eu(iEu), raw, eu(iEu).Trials.LeverRetract, alignTo='Start', window=[-0.5, 1.5]);
-        title(ax(10), 'LeverRetract')
-    
-        % 11: Raster
-        EphysUnit.plotRaster(ax(11), rd.lick(iEu), xlim=[-4, 4]);
-        set(ax(11).Legend, AutoUpdate=false)
-        xline(ax(11), 0, 'k-', LineWidth=1.5)
-        yline(ax(11), find(rd.lick(iEu).duration>4, 1), 'k-', LineWidth=3)
-        delete(ax(11).Legend)
-        legend(ax(11), ["", "trial start"])
-    
-        % 12 PETH
-        hold(ax(12), 'on')
-        h = gobjects(2, 1);
-        h(1) = plot(ax(12), eta.incorrectLick.t, eta.incorrectLick.X(iEu, :), Color=hsl2rgb([0.4, 0.4, 0.4]), LineStyle='-', DisplayName=sprintf('Incorrect (n=%i)', eta.incorrectLick.N(iEu)), LineWidth=2);
-        h(2) = plot(ax(12), eta.correctLick.t, eta.correctLick.X(iEu, :), 'k-', DisplayName=sprintf('Correct (n=%i)', eta.correctLick.N(iEu)), LineWidth=2);
-        legend(h, AutoUpdate=false, Location='southwest')
-        xline(ax(12), 0, 'k--')
-        yline(ax(12), 0, 'k--')
-        xlim(ax(12), [-4, 4])
-        % ylim(ax(12), [0, 100])
-    
-        % 13: Lick incorrect (raw)
-        plotRaw(ax(13), eu(iEu), raw, eu(iEu).Trials.LickIncorrect, alignTo='Stop', window=[-0.5, 1.5]);
-        title(ax(13), 'LickIncorrect')
-
-        % 14: Lick correct (raw)
-        plotRaw(ax(14), eu(iEu), raw, eu(iEu).Trials.LickCorrect, alignTo='Stop', window=[-0.5, 1.5]);
-        title(ax(14), 'LickCorrect')
-
-        % 15: Tube servo retract (raw)
-        plotRaw(ax(15), eu(iEu), raw, eu(iEu).Trials.TubeRetract, alignTo='Start', window=[-0.5, 1.5]);
-        title(ax(15), 'TubeRetract')
-    
-        title(ax(1), 'Reach Raster')
-        title(ax(2), 'Reach PETH')
-        title(ax(6), 'Retract Raster (correct trials)')
-        title(ax(7), 'Retract PETH')
-        title(ax(11), 'Lick Raster')
-        title(ax(12), 'Lick PETH')
-
-        title(tl, rd.press(iEu).name, Interpreter='none')
-    
-        xlim(ax, [-3, 3])
-        xlim(ax([3:5, 8:10, 13:15]), [-500, 1500])
-    
-        ylim(ax([2, 7, 12]), [min([ax(2).YLim, ax(7).YLim, ax(12).YLim]), max([ax(2).YLim, ax(7).YLim, ax(12).YLim])]);
-        print(fig, sprintf('E:\\DATA\\Figures\\reach_retract_dlc\\%s.png', eu(iEu).getName()), '-dpng')
-    catch
-        warning('Error processing unit %i', iEu)
-    end
-end
-
-% %% Plot a few examples
-% iEu = find(strcmpi(eu.getName(), 'desmond25_20220430_Channel12_Unit1')); % Little lick noise
-% raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
-% plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400)
-% xlim([-200, 500])
-% plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400)
-% xlim([-25, 100])
-% save(sprintf("E:\\Data\\%s_3trials.mat", eu(iEu).getName()), 'x', 't', 'st')
+% % close all
+% if ~exist('E:\DATA\Figures\reach_retract_dlc', 'dir')
+%     mkdir('E:\DATA\Figures\reach_retract_dlc')
+% end
 % 
-% %% Big SNR unit with big lick artefact ****** send to Sophie/Prerau
-% iEu = find(strcmpi(eu.getName(), 'desmond26_20220531_Channel4_Unit1')); % Longer lick noise
-% raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
-% [x, t, st] = plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400);
-% xlim([-200, 500])
-% plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400)
-% xlim([-25, 100])
-% save(sprintf("E:\\Data\\%s_3trials.mat", eu(iEu).getName()), 'x', 't', 'st')
+% fig = figure(Units='normalized', InnerPosition=[0 0 1 1]);
+% tl = tiledlayout(fig, 5, 3, TileIndexing='columnmajor');
+% ax = gobjects(15, 1);
+% for iAx = 1:15
+%     ax(iAx) = nexttile(tl);
+% end
+% % for iEu = find(hasRaw(:)' & isIntan(:)')
+% for iEu = find(hasRaw(:)')
+%     try
+%         raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
+%         % 1: Raster
+%         for iAx = 1:15
+%             cla(ax(iAx), 'reset');
+%         end
+%         EphysUnit.plotRaster(ax(1), rd.press(iEu), xlim=[-4, 4]);
+%         set(ax(1).Legend, AutoUpdate=false)
+%         xline(ax(1), 0, 'k-', LineWidth=1.5)
+%         yline(ax(1), find(rd.press(iEu).duration>4, 1), 'k-', LineWidth=3)
+%         delete(ax(1).Legend)
+%         legend(ax(1), ["", "trial start"])
 % 
-% %% Big SNR unit with big lick artefact
-% iEu = find(strcmpi(eu.getName(), 'desmond26_20220531_Channel37_Unit1')); % Longer lick noise
-% raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
-% [x, t, st] = plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400);
-% xlim([-200, 500])
-% plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400)
-% xlim([-25, 100])
-% save(sprintf("E:\\Data\\%s_3trials.mat", eu(iEu).getName()), 'x', 't', 'st')
+%         % 2: PETH
+%         hold(ax(2), 'on')
+%         h = gobjects(2, 1);
+%         h(1) = plot(ax(2), eta.incorrectPress.t, eta.incorrectPress.X(iEu, :), Color=hsl2rgb([0.4, 0.4, 0.4]), LineStyle='-', DisplayName=sprintf('Incorrect (n=%i)', eta.incorrectPress.N(iEu)), LineWidth=2);
+%         h(2) = plot(ax(2), eta.correctPress.t, eta.correctPress.X(iEu, :), 'k-', DisplayName=sprintf('Correct (n=%i)', eta.correctPress.N(iEu)), LineWidth=2);
+%         legend(h, AutoUpdate=false, Location='southwest')
+%         xline(ax(2), 0, 'k--')
+%         yline(ax(2), 0, 'k--')
+%         xlim(ax(2), [-4, 4])
+%         % ylim(ax(2), [0, 100])
 % 
-% %% Low SNR unit with big lick artefact
-% iEu = find(strcmpi(eu.getName(), 'daisy14_20220506_Channel29_Unit1')); % Longer lick noise
-% raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
-% [x, t, st] = plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400);
-% xlim([-200, 500])
-% plotRaw(axes(figure), eu(iEu), raw, eu(iEu).Trials.Lick, alignTo='Stop', plotSpikes=true, spacing=400);
-% xlim([-25, 100])
-% save(sprintf("E:\\Data\\%s_3trials.mat", eu(iEu).getName()), 'x', 't', 'st')
+%         title(ax(1), 'Reach Raster')
+%         title(ax(2), 'Reach PETH')
+% 
+%         % 3: Reach incorrect (raw)
+%         % [xAligned, tAligned] = eu(iEu).getTrialAlignedData(raw.data, raw.t, trials=eu(iEu).Trials.PressIncorrect, alignTo='stop', window=[-1, 1], resolution=1/30000);
+%         plotRaw(ax(3), eu(iEu), raw, eu(iEu).Trials.PressIncorrect, alignTo='Stop', window=[-0.5, 1.5]);
+%         title(ax(3), 'PressIncorrect')
+% 
+%         % 4: Reach correct (raw)
+%         plotRaw(ax(4), eu(iEu), raw, eu(iEu).Trials.PressCorrect, alignTo='Stop', window=[-0.5, 1.5]);
+%         title(ax(4), 'PressCorrect')
+% 
+%         % 5: Tube servo deploy (raw)
+%         plotRaw(ax(5), eu(iEu), raw, eu(iEu).Trials.TubeDeploy, alignTo='Start', window=[-0.5, 1.5]);
+%         title(ax(5), 'TubeDeploy')
+% 
+% 
+%         % 6: Raster
+%         EphysUnit.plotRaster(ax(6), rd.retractCorrect(iEu), xlim=[-4, 4]);
+%         set(ax(6).Legend, AutoUpdate=false)
+%         xline(ax(6), 0, 'k-', LineWidth=1.5)
+%         % yline(ax(6), find(rd.lick(i).duration>4, 1), 'k-', LineWidth=1.5)
+%         delete(ax(6).Legend)
+%         legend(ax(6), ["", "bar-contact"])
+% 
+%         % 7 PETH
+%         hold(ax(7), 'on')
+%         h = gobjects(2, 1);
+%         h(1) = plot(ax(7), eta.incorrectRetract.t, eta.incorrectRetract.X(iEu, :), Color=hsl2rgb([0.4, 0.4, 0.4]), LineStyle='-', DisplayName=sprintf('Incorrect (n=%i)', eta.incorrectRetract.N(iEu)), LineWidth=2);
+%         h(2) = plot(ax(7), eta.correctRetract.t, eta.correctRetract.X(iEu, :), 'k-', DisplayName=sprintf('Correct (n=%i)', eta.correctRetract.N(iEu)), LineWidth=2);
+%         legend(h, AutoUpdate=false, Location='southwest')
+%         xline(ax(7), 0, 'k--')
+%         yline(ax(7), 0, 'k--')
+%         xlim(ax(7), [-4, 4])
+%         % ylim(ax(7), [0, 100])
+% 
+%         % 8: reach retract (raw)
+%         plotRaw(ax(8), eu(iEu), raw, eu(iEu).Trials.PressRetractCorrect, alignTo='Stop', window=[-0.5, 1.5]);
+%         title(ax(8), 'PressRetractCorrect')
+% 
+%         % 9: lever servo deploy (raw)
+%         plotRaw(ax(9), eu(iEu), raw, eu(iEu).Trials.LeverDeploy, alignTo='Start', window=[-0.5, 1.5]);
+%         title(ax(9), 'LeverDeploy')
+% 
+%         % 10: lever servo retract (raw)
+%         plotRaw(ax(10), eu(iEu), raw, eu(iEu).Trials.LeverRetract, alignTo='Start', window=[-0.5, 1.5]);
+%         title(ax(10), 'LeverRetract')
+% 
+%         % 11: Raster
+%         EphysUnit.plotRaster(ax(11), rd.lick(iEu), xlim=[-4, 4]);
+%         set(ax(11).Legend, AutoUpdate=false)
+%         xline(ax(11), 0, 'k-', LineWidth=1.5)
+%         yline(ax(11), find(rd.lick(iEu).duration>4, 1), 'k-', LineWidth=3)
+%         delete(ax(11).Legend)
+%         legend(ax(11), ["", "trial start"])
+% 
+%         % 12 PETH
+%         hold(ax(12), 'on')
+%         h = gobjects(2, 1);
+%         h(1) = plot(ax(12), eta.incorrectLick.t, eta.incorrectLick.X(iEu, :), Color=hsl2rgb([0.4, 0.4, 0.4]), LineStyle='-', DisplayName=sprintf('Incorrect (n=%i)', eta.incorrectLick.N(iEu)), LineWidth=2);
+%         h(2) = plot(ax(12), eta.correctLick.t, eta.correctLick.X(iEu, :), 'k-', DisplayName=sprintf('Correct (n=%i)', eta.correctLick.N(iEu)), LineWidth=2);
+%         legend(h, AutoUpdate=false, Location='southwest')
+%         xline(ax(12), 0, 'k--')
+%         yline(ax(12), 0, 'k--')
+%         xlim(ax(12), [-4, 4])
+%         % ylim(ax(12), [0, 100])
+% 
+%         % 13: Lick incorrect (raw)
+%         plotRaw(ax(13), eu(iEu), raw, eu(iEu).Trials.LickIncorrect, alignTo='Stop', window=[-0.5, 1.5]);
+%         title(ax(13), 'LickIncorrect')
+% 
+%         % 14: Lick correct (raw)
+%         plotRaw(ax(14), eu(iEu), raw, eu(iEu).Trials.LickCorrect, alignTo='Stop', window=[-0.5, 1.5]);
+%         title(ax(14), 'LickCorrect')
+% 
+%         % 15: Tube servo retract (raw)
+%         plotRaw(ax(15), eu(iEu), raw, eu(iEu).Trials.TubeRetract, alignTo='Start', window=[-0.5, 1.5]);
+%         title(ax(15), 'TubeRetract')
+% 
+%         title(ax(1), 'Reach Raster')
+%         title(ax(2), 'Reach PETH')
+%         title(ax(6), 'Retract Raster (correct trials)')
+%         title(ax(7), 'Retract PETH')
+%         title(ax(11), 'Lick Raster')
+%         title(ax(12), 'Lick PETH')
+% 
+%         title(tl, rd.press(iEu).name, Interpreter='none')
+% 
+%         xlim(ax, [-3, 3])
+%         xlim(ax([3:5, 8:10, 13:15]), [-500, 1500])
+% 
+%         ylim(ax([2, 7, 12]), [min([ax(2).YLim, ax(7).YLim, ax(12).YLim]), max([ax(2).YLim, ax(7).YLim, ax(12).YLim])]);
+%         print(fig, sprintf('E:\\DATA\\Figures\\reach_retract_dlc\\%s.png', eu(iEu).getName()), '-dpng')
+%     catch
+%         warning('Error processing unit %i', iEu)
+%     end
+% end
 
 %% Cool units with cool functional responses from John
+% coolUnitNames = [
+%     % "Daisy2_20180425_Channel17_Unit1", ... 
+%     % "Daisy3_20180618_Channel29_Unit1", ... 
+%     % "Daisy8_20210708_Channel10_Unit1", ... 
+%     "Daisy14_20220506_Channel38_Unit1", ...
+%     "Daisy15_20220511_Channel104_Unit1", ...
+% ];
 coolUnitNames = [
-    % "Daisy2_20180425_Channel17_Unit1", ... 
-    % "Daisy3_20180618_Channel29_Unit1", ... 
-    % "Daisy8_20210708_Channel10_Unit1", ... 
-    "Daisy14_20220506_Channel38_Unit1", ...
-    "Daisy15_20220511_Channel104_Unit1", ...
+    "daisy14_20220506_Channel38_Unit1", ... % Big unit, brief artifact
+    "daisy15_20220511_Channel104_Unit1", ... % Big unit, long artifact
+    "desmond27_20220526_Channel106_Unit1", ... % Randomly chosen medium-SNR unit
+    "desmond25_20220430_Channel124_Unit1", ... % Two units one channel
+    "desmond25_20220430_Channel124_Unit2", ... % Two units one channel 2, electric boogaloo
+    "desmond26_20220531_Channel4_Unit1", ... % Huge unit but missing some spikes due to scaling/shrinkning waveforms
 ];
-clear raw
-raw(length(coolUnitNames)) = struct(data=[], name=[], t=[], trials=[]);
-filtered(length(coolUnitNames)) = struct(data=[], name=[], t=[], trials=[]);
-spikesFiltered(length(coolUnitNames)) = struct(sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[]);
-spikesRaw(length(coolUnitNames)) = struct(sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[]);
-
-spikeTimesFilteredBak = cell(size(eu));
-spikeTimesBak = cell(size(eu));
 
 %% Filter raw and then redo spike detection
 close all
 fs = 30000;
-pTemplateMatching.distanceFactor = 1.5;
-pTemplateMatching.nSigmas = 3;
+pTemplateMatching.distanceFactor = 1;
+pTemplateMatching.nSigmas = 5;
 pTemplateMatching.rateExceed = 0.05;
+pTemplateMatching.method = 'euclidean';
+savePath = "E:\Figures\lick_artifact_removal\euclidean";
+if ~exist(savePath, 'dir')
+    mkdir(savePath);
+end
+save(sprintf("%s\\pTemplateMatching.mat", savePath), 'pTemplateMatching')
 
-fig1 = figure();
-ax1 = axes(fig1);
+selUnits = find(hasRaw & isIntan); useRawCache = false;
+% selUnits = find(ismember(eu.getName(), coolUnitNames)); useRawCache = true;
+unitNames = eu.getName();
 
-fig2 = figure(Unit='inches', Position=[1 1 18 6]);
-tl2 = tiledlayout(fig2, 1, 2);
-ax2(1) = nexttile(tl2);
-ax2(2) = nexttile(tl2);
+clear layout
+layout.fig = figure(Unit='inches', Position=[1 0 18 10]);
+layout.h = [2, 5];
+layout.w = [2, 5, 2];
+layout.tl = tiledlayout(layout.fig, sum(layout.h), sum(layout.w), TileSpacing='tight', Padding='compact');
+layout.ax.waveform = nexttile(layout.tl, [layout.h(1), layout.w(1)]);
+layout.ax.etaLick = nexttile(layout.tl, [layout.h(1), layout.w(2)]);
+layout.ax.etaCircLick = nexttile(layout.tl, [layout.h(1), layout.w(3)]);
+layout.ax.raw = nexttile(layout.tl, [layout.h(2), sum(layout.w)]);
 
-selUnits = find(hasRaw & isIntan);
-% for iUnit = 1:length(coolUnitNames)
-for iUnit = 1:length(selUnits)
+
+clear rawCache spikesFiltered spikesRaw
+if useRawCache
+    rawCache(length(eu)) = struct(index=[], name=[], data=[], t=[], trials=[]);
+end
+spikesFiltered = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
+spikesRaw = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
+
+for iUnit = length(selUnits)
     try
-        clear raw filtered spikesFiltered spikesRaw
-        iEu = selUnits(iUnit); % Longer lick noise
+        cla(layout.ax.waveform)
+        cla(layout.ax.etaLick)
+        cla(layout.ax.etaCircLick)
+        cla(layout.ax.raw)
+        
+        clear raw filtered
+        iEu = selUnits(iUnit);
         fprintf('Processing unit %i (%i/%i):\n', iEu, iUnit, length(selUnits))
         tTic = tic();
         fprintf('\tLoading raw data...');
-        raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
+        if useRawCache
+            if isempty(rawCache(iEu).data)
+                raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
+                raw.index = iEu;
+                rawCache(iEu) = raw;
+            else
+                raw = rawCache(iEu);
+            end
+        else
+            raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
+            raw.index = iEu;
+        end
         fprintf('Done (%.2f s)\n', toc(tTic));
     
-        if exist('spikeTimesBak', 'var') && length(spikeTimesBak) >= iEu && ~isempty(spikeTimesBak{iEu})
-            eu(iEu).SpikeTimes = spikeTimesBak{iEu};
-        end
-    
-        tTic = tic();
+        eu(iEu).SpikeTimes = spikeTimesCache([spikeTimesCache.index]==iEu).data;
+        oldSpikeTimes = eu(iEu).SpikeTimes;
     
         % Filter the whole continuous data
         tTic = tic();
@@ -521,9 +522,11 @@ for iUnit = 1:length(selUnits)
         % Find spikes in raw data
         tTic = tic();
         fprintf('\tDetecting spikes in raw data...');
+        spikesRaw.index = iEu;
+        spikesRaw.name = eu(iEu).getName();
         [spikesRaw.sampleIndex, spikesRaw.timestamps, spikesRaw.waveforms, spikesRaw.waveformTimestamps] = spikeDetect(raw, SampleRate=fs, NumSigmas=2.5, NumSigmasReturn=1.25, NumSigmasReject=20, WaveformWindow=[-0.5, 0.5]);
-        isUnitRaw = ismember(round(spikesRaw.timestamps*fs), round(stAbs*fs));
-        fprintf('(%i/%i) detected spikes matched timestamps of %i eu spikes\n', nnz(isUnitRaw), length(isUnitRaw), length(stAbs))
+        spikesRaw.isUnit = ismember(round(spikesRaw.timestamps*fs), round(stAbs*fs));
+        fprintf('(%i/%i detected spikes matched timestamps of %i eu spikes)...', nnz(spikesRaw.isUnit), length(spikesRaw.isUnit), length(stAbs))
         spikeTemplateRaw = mean(spikesRaw.waveforms, 1, 'omitnan');
         maxMicroVolts = max(abs(spikeTemplateRaw))*2;
         fprintf('Done (%.2f s)\n', toc(tTic));
@@ -531,123 +534,144 @@ for iUnit = 1:length(selUnits)
         % Detect spikes in filtered data
         tTic = tic();
         fprintf('\tDetecting spikes in filtered data...');
+        spikesFiltered.index = iEu;
+        spikesFiltered.name = eu(iEu).getName();
         [spikesFiltered.sampleIndex, spikesFiltered.timestamps, spikesFiltered.waveforms, spikesFiltered.waveformTimestamps] = spikeDetect(filtered, SampleRate=fs, NumSigmas=2.5, NumSigmasReturn=1.25, NumSigmasReject=20, WaveformWindow=[-0.5, 0.5], MaxMicroVolts=maxMicroVolts);
         fprintf('Done (%.2f s)\n', toc(tTic));
-    
+
         % % Extract template spikes in filtered data, using existing spiketimes
         % % from eu
         tTic = tic();
         fprintf('\tExtracing waveforms to use as templates from filtered data...');
-        [spikeTemplate, ~] = getWaveforms(filtered, [-0.5, 0.5], spikesRaw.sampleIndex(isUnitRaw), IndexType='SampleIndex');
-        [noiseTemplate, tWaveform] = getWaveforms(filtered, [-0.5, 0.5], spikesRaw.sampleIndex(~isUnitRaw), IndexType='SampleIndex');
+        [spikeTemplate, ~] = getWaveforms(filtered, [-0.5, 0.5], spikesRaw.sampleIndex(spikesRaw.isUnit), IndexType='SampleIndex');
+        [noiseTemplate, tWaveform] = getWaveforms(filtered, [-0.5, 0.5], spikesRaw.sampleIndex(~spikesRaw.isUnit), IndexType='SampleIndex');
         fprintf('Done (%.2f s)\n', toc(tTic));
-    
-    
+
         spikeTemplate = mean(spikeTemplate, 1, 'omitnan');
         noiseTemplate = mean(noiseTemplate, 1, 'omitnan');
     
-        % Compare to template based on euclidean distance
-        distToSpikeTemplate = sum((spikesFiltered.waveforms - spikeTemplate).^2, 2);
-        distToNoiseTemplate = sum((spikesFiltered.waveforms - noiseTemplate).^2, 2);   
-        isUnitFiltered = distToSpikeTemplate < distToNoiseTemplate * pTemplateMatching.distanceFactor;
-    
+        switch pTemplateMatching.method
+        % Template matching method 1: Compare to template based on euclidean distance
+            case 'euclidean'
+                distToSpikeTemplate = sum((spikesFiltered.waveforms - spikeTemplate).^2, 2);
+                distToNoiseTemplate = sum((spikesFiltered.waveforms - noiseTemplate).^2, 2);  
+                spikesFiltered.isUnit = distToSpikeTemplate < distToNoiseTemplate * pTemplateMatching.distanceFactor; 
+                [~, I] = sort(distToSpikeTemplate, 'ascend');
+                clear distToSpikeTemplate distToNoiseTemplate
+        % Template matching method 1: Compare to template based on corrcoef
+            case 'corr'
+                X = spikesFiltered.waveforms - mean(spikesFiltered.waveforms, 2);
+                Y = spikeTemplate - mean(spikeTemplate, 2);
+                Z = noiseTemplate - mean(noiseTemplate, 2);
+                corrWithSpikeTemplate = (X*Y') ./ (sqrt(sum(X.^2, 2)) * sqrt(sum(Y.^2, 2)));
+                corrWithNoiseTemplate = (X*Z') ./ (sqrt(sum(X.^2, 2)) * sqrt(sum(Z.^2, 2)));
+                spikesFiltered.isUnit = corrWithSpikeTemplate * pTemplateMatching.distanceFactor > corrWithNoiseTemplate; 
+                [~, I] = sort(corrWithSpikeTemplate./corrWithNoiseTemplate, 'descend');
+                clear X Y Z corrWithNoiseTemplate corrWithSpikeTemplate
+        end
+
         % Stricter template matching to remove other units/artifacts
         residuals = spikesFiltered.waveforms - spikeTemplate;
-        sigma = mad(residuals(isUnitFiltered, :), 1, 'all') / 0.67449;
+        sigma = mad(residuals(spikesFiltered.isUnit, :), 1, 'all') / 0.67449;
         pOutlier = sum(residuals > pTemplateMatching.nSigmas*sigma, 2)./size(residuals, 2);
-        isUnitFiltered = isUnitFiltered & pOutlier<pTemplateMatching.rateExceed;
+        spikesFiltered.isUnit = spikesFiltered.isUnit & pOutlier<pTemplateMatching.rateExceed;
         fprintf('\tRemoved %i/%i as outliers.\n', nnz(pOutlier>=pTemplateMatching.rateExceed), length(pOutlier));
     
-        spikeTimesFilteredBak{iEu} = spikesFiltered.timestamps(isUnitFiltered);
-        
-        spikeTimesBak{iEu} = eu(iEu).SpikeTimes;
-        eu(iEu).SpikeTimes = spikeTimesFilteredBak{iEu};
-    
-        cla(ax1)
-        hold(ax1, 'on')
-        [~, I] = sort(distToSpikeTemplate, 'ascend');
-        for i = 100:100:size(I)
-            if mean(isUnitFiltered(I((i-100)+1:i))) > 0.5
-                plot(ax1, tWaveform, mean(spikesFiltered.waveforms(I(i-100+1:i), :), 1, 'omitnan'), Color=[1 0 0 0.1]) %, Color=[getColor(i/10, ceil(length(I)/10), 0.67), 0.25])
+        eu(iEu).SpikeTimes = spikesFiltered.timestamps(spikesFiltered.isUnit);
+
+        tTic = tic();
+        fprintf('\tGenerating plots...');
+
+        hold(layout.ax.waveform, 'on')
+        for iWave = 100:100:size(I)
+            if mean(spikesFiltered.isUnit(I((iWave-100)+1:iWave))) > 0.5
+                plot(layout.ax.waveform, tWaveform, spikesFiltered.waveforms(I(iWave), :), Color=[1 0 0 0.1]) %, Color=[getColor(i/10, ceil(length(I)/10), 0.67), 0.25])
+                % plot(layout.ax.waveform, tWaveform, mean(spikesFiltered.waveforms(I(iWave-100+1:iWave), :), 1, 'omitnan'), Color=[1 0 0 0.1]) %, Color=[getColor(i/10, ceil(length(I)/10), 0.67), 0.25])
             else
-                plot(ax1, tWaveform, mean(spikesFiltered.waveforms(I(i-100+1:i), :), 1, 'omitnan'), Color=[0.1 0.1 0.1, 0.025]) %Color=[getColor(i/10, ceil(length(I)/10), 0.67, s=0.1, l=0.1), 0.1])
+                plot(layout.ax.waveform, tWaveform, spikesFiltered.waveforms(I(iWave), :), Color=[0.1 0.1 0.1, 0.025]) %Color=[getColor(i/10, ceil(length(I)/10), 0.67, s=0.1, l=0.1), 0.1])
+                % plot(layout.ax.waveform, tWaveform, mean(spikesFiltered.waveforms(I(iWave-100+1:iWave), :), 1, 'omitnan'), Color=[0.1 0.1 0.1, 0.025]) %Color=[getColor(i/10, ceil(length(I)/10), 0.67, s=0.1, l=0.1), 0.1])
             end
         end
-        plot(ax1, tWaveform, spikeTemplate, LineWidth=2, Color='blue')
-        plot(ax1, tWaveform, noiseTemplate, LineWidth=2, Color='green')
-        plot(ax1, tWaveform, spikeTemplate + pTemplateMatching.nSigmas*sigma, Color='blue', LineStyle='--')
-        plot(ax1, tWaveform, spikeTemplate - pTemplateMatching.nSigmas*sigma, Color='blue', LineStyle='--')
-        xlim(ax1, [-0.5, 0.5])
-        ylim(ax1, [-200, 200])
-        title(ax1, sprintf('Filtered: %i/%i spikes, %i/%i noise, %i original', nnz(isUnitFiltered), nnz(isUnitRaw), nnz(~isUnitFiltered), nnz(~isUnitRaw), nnz(stAbs)))
-        print(fig1, sprintf('E:\\Figures\\lick_artifact_removal\\%s_waveforms.png', eu(iEu).getName()), '-dpng')
-        % 
-        % save(sprintf("E:\\Data\\%s_3trials.mat", eu(iEu).getName()), 'x', 't', 'st')
+        plot(layout.ax.waveform, tWaveform, spikeTemplate, LineWidth=2, Color='blue')
+        plot(layout.ax.waveform, tWaveform, noiseTemplate, LineWidth=2, Color='green')
+        plot(layout.ax.waveform, tWaveform, spikeTemplate + pTemplateMatching.nSigmas*sigma, Color='blue', LineStyle='--')
+        plot(layout.ax.waveform, tWaveform, spikeTemplate - pTemplateMatching.nSigmas*sigma, Color='blue', LineStyle='--')
+        xlim(layout.ax.waveform, [-0.5, 0.5])
+        ylim(layout.ax.waveform, [min(spikeTemplate - pTemplateMatching.nSigmas*sigma), max(spikeTemplate + pTemplateMatching.nSigmas*sigma)])
+        xlabel(layout.ax.waveform, 'ms')
+        ylabel(layout.ax.waveform, '\muV')
+        title(layout.ax.waveform, sprintf('Filtered: %i/%i spikes, %i/%i noise, %i original', nnz(spikesFiltered.isUnit), nnz(spikesRaw.isUnit), nnz(~spikesFiltered.isUnit), nnz(~spikesRaw.isUnit), nnz(stAbs)))
+
+        % Plot raw trace by trial, see if there's false positives
+        [xRawAligned, tAligned, stRawAligned, trials] = parseRaw(eu(iEu), raw, eu(iEu).getTrials('circlick_naive', minInterval=0.05, maxInterval=0.20), spikeTimes=oldSpikeTimes, window=[-0, 0.15], alignTo='Start', randomTrials=true, nTrials=15, timestampMode='relative');
+        [xFilteredAligned, ~, stFilteredAligned] = parseRaw(eu(iEu), filtered, trials, spikeTimes=spikesFiltered.timestamps(spikesFiltered.isUnit), window=[-0, 0.15], alignTo='Start', randomTrials=false, nTrials='all', timestampMode='relative');
     
+        plotRaw(layout.ax.raw, xFilteredAligned, tAligned, stFilteredAligned, plotSpikes=true, spacing=250, xRaw=xRawAligned, stRaw=stRawAligned);
+        xlim(layout.ax.raw, [0, 150])
+        xticks(layout.ax.raw, [0, 10, 50, 100, 150])
     
-        % See if there's false positives
-        cla(ax2(1))
-        cla(ax2(2))
+        % Get the original spike times
+        eu(iEu).SpikeTimes = oldSpikeTimes;
+        % Calculate ETA
+        etaTemp.circLickNaiveRaw = eu(iEu).getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
+            lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+        etaTemp.lickRaw = eu(iEu).getETA('count', 'lick', window=[-4, 2], resolution=0.025, normalize='none');
     
-        [xRawAligned, tAligned, stRawAligned, trials] = parseRaw(eu(iEu), raw, eu(iEu).getTrials('circlick_naive', minInterval=0.05, maxInterval=0.20), spikeTimes=spikeTimesBak{iEu}, window=[-0, 0.8], alignTo='Start', randomTrials=true, nTrials=15, timestampMode='relative');
-        [xFilteredAligned, ~, stFilteredAligned] = parseRaw(eu(iEu), filtered, trials, spikeTimes=spikeTimesFilteredBak{iEu}, window=[-0, 0.8], alignTo='Start', randomTrials=false, nTrials='all', timestampMode='relative');
+        % Get the new filtered spike times
+        eu(iEu).SpikeTimes = spikesFiltered.timestamps(spikesFiltered.isUnit);
+        etaTemp.circLickNaiveFiltered = eu(iEu).getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
+            lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+        etaTemp.lickFiltered = eu(iEu).getETA('count', 'lick', window=[-4, 2], resolution=0.025, normalize='none');
     
-        plotRaw(ax2(1), xFilteredAligned, tAligned, stFilteredAligned, plotSpikes=true, spacing=250, xRaw=xRawAligned, stRaw=stRawAligned);
-        xlim(ax2(1), [0, 800])
-        plotRaw(ax2(2), xFilteredAligned, tAligned, stFilteredAligned, plotSpikes=true, spacing=250, xRaw=xRawAligned, stRaw=stRawAligned);
-        xlim(ax2(2), [0, 100])
+        hold(layout.ax.etaCircLick, 'on')
+        plot(layout.ax.etaCircLick, etaTemp.circLickNaiveRaw.t, etaTemp.circLickNaiveRaw.X, 'blue', DisplayName='raw')
+        plot(layout.ax.etaCircLick, etaTemp.circLickNaiveFiltered.t, etaTemp.circLickNaiveFiltered.X, 'red', DisplayName='filtered')
+        xlim(layout.ax.etaCircLick, [0, 2*pi])
+        xticks(layout.ax.etaCircLick, [0, pi, 2*pi])
+        xticklabels(layout.ax.etaCircLick, {'0', '\pi', '2\pi'})
+        ylabel(layout.ax.etaCircLick, 'spikes/s')
+        xlabel(layout.ax.etaCircLick, 'lick phase')
+        legend(layout.ax.etaCircLick)
+        title(layout.ax.etaCircLick, eu(iEu).getName(), Interpreter='none')
     
-        title(tl2, eu(iEu).getName(), Interpreter='none')
-        print(fig2, sprintf('E:\\Figures\\lick_artifact_removal\\%s_checkSpikeSort.png', eu(iEu).getName()), '-dpng')
-    catch
+        hold(layout.ax.etaLick, 'on')
+        plot(layout.ax.etaLick, etaTemp.lickRaw.t, etaTemp.lickRaw.X./0.025, 'blue', DisplayName='raw')
+        plot(layout.ax.etaLick, etaTemp.lickFiltered.t, etaTemp.lickFiltered.X./0.025, 'red', DisplayName='filtered')
+        xlabel(layout.ax.etaLick, 'Time to self-timed lick (s)')
+        ylabel(layout.ax.etaLick, 'spikes/s')
+        legend(layout.ax.etaLick)
+
+        ylim(layout.ax.etaLick, 'auto')
+        ylim(layout.ax.etaCircLick, 'auto')
+        drawnow()
+        ylim([layout.ax.etaLick, layout.ax.etaCircLick], ...
+            [min(arrayfun(@(ax) ax.YLim(1), [layout.ax.etaLick, layout.ax.etaCircLick])), ...
+            max(arrayfun(@(ax) ax.YLim(2), [layout.ax.etaLick, layout.ax.etaCircLick]))]);
+
+        title(layout.tl, eu(iEu).getName(), Interpreter='none')
+        fprintf('Done (%.2f s)\n', toc(tTic));
+
+        tTic = tic();
+        fprintf('\tSaving plots...');
+        print(layout.fig, sprintf('%s\\%s.png', savePath, eu(iEu).getName()), '-dpng')
+        fprintf('Done (%.2f s)\n', toc(tTic));
+    
+        index = iEu;
+        name = eu(iEu).getName();
+        tTic = tic();
+        fprintf('\tSaving data...');
+        save(sprintf("%s\\%s.mat", savePath, name), 'index', 'name', 'spikesFiltered', 'spikesRaw', 'oldSpikeTimes', '-v7.3')
+        fprintf('Done (%.2f s)\n', toc(tTic));
+    catch ME
         warning('Error processing unit %i (%i)', iEu, iUnit);
+        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
     end
 end
-clear iUnit iEu ax1 tTic trials stAbs isUnitRaw spikeTemplateRaw maxMicroVolts spikeTemplate noiseTemplate tWaveform distToSpikeTemplate distToNoiseTemplate isUnitFiltered ax I i
-clear iUnit iEu fig ax2 tl xRawAligned tAligned stRawAligned trials xFilteredAligned stFilteredAligned
 
-%% Plot raw vs filtered PETHs (circlick)
-% close all
-for iUnit = 1:length(coolUnitNames)
-    iEu = find(strcmpi(eu.getName(), coolUnitNames{iUnit}));
-    fig = figure();
+clear selUnits useRawCache iUnit iEu tTic raw filtered stAbs spikeTemplateRaw maxMicroVolts spikeTemplate tWaveform noiseTemplate distToSpikeTemplate distToNoiseTemplate residuals sigma pOutlier I iWave xRawAligned tAligned stRawAligned trials xFilteredAligned stFilteredAligned etaTemp
+clear index name tTic
 
-    % Get the original spike times
-    eu(iEu).SpikeTimes = spikeTimesBak{iEu};
-    % Calculate ETA
-    etaTemp.circLickNaiveRaw = eu(iEu).getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-        lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
-    etaTemp.lickRaw = eu(iEu).getETA('count', 'lick', window=[-4, 2], resolution=0.025, normalize='none');
-
-    % Get the new filtered spike times
-    eu(iEu).SpikeTimes = spikeTimesFilteredBak{iEu};
-    etaTemp.circLickNaiveFiltered = eu(iEu).getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-        lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
-    etaTemp.lickFiltered = eu(iEu).getETA('count', 'lick', window=[-4, 2], resolution=0.025, normalize='none');
-
-    ax = subplot(2, 1, 1);
-    hold(ax, 'on')
-    plot(ax, etaTemp.circLickNaiveRaw.t, etaTemp.circLickNaiveRaw.X, 'blue', DisplayName='raw')
-    plot(ax, etaTemp.circLickNaiveFiltered.t, etaTemp.circLickNaiveFiltered.X, 'red', DisplayName='filtered')
-    xticks(ax, [0, pi, 2*pi])
-    xticklabels(ax, {'0', '\pi', '2\pi'})
-    ylabel(ax, 'spikes/s')
-    xlabel(ax, 'lick phase')
-    legend(ax)
-    title(ax, eu(iEu).getName(), Interpreter='none')
-    ylim(ax, [0, 150])
-
-    ax = subplot(2, 1, 2);
-    hold(ax, 'on')
-    plot(ax, etaTemp.lickRaw.t, etaTemp.lickRaw.X./0.025, 'blue', DisplayName='raw')
-    plot(ax, etaTemp.lickFiltered.t, etaTemp.lickFiltered.X./0.025, 'red', DisplayName='filtered')
-    % ylabel(ax, 'spikes/s')
-    xlabel(ax, 'Time to self-timed lick (s)')
-    legend(ax)
-    ylim(ax, [0, 100])
-
-end
-clear iUnit iEu ax 
+%% Load a unit a
 
 %% Functions
 function [x, t, st, trials] = parseRaw(eu, raw, trials, varargin)
