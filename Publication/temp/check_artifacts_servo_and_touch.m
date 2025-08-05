@@ -438,13 +438,23 @@ clear iEu animalName expName files
 %     "Daisy14_20220506_Channel38_Unit1", ...
 %     "Daisy15_20220511_Channel104_Unit1", ...
 % ];
+% coolUnitNames = [
+%     "daisy14_20220506_Channel38_Unit1", ... % Big unit, brief artifact
+%     "daisy15_20220511_Channel104_Unit1", ... % Big unit, long artifact
+%     "desmond27_20220526_Channel106_Unit1", ... % Randomly chosen medium-SNR unit
+%     "desmond25_20220430_Channel124_Unit1", ... % Two units one channel
+%     "desmond25_20220430_Channel124_Unit2", ... % Two units one channel 2, electric boogaloo
+%     "desmond26_20220531_Channel4_Unit1", ... % Huge unit but missing some spikes due to scaling/shrinkning waveforms
+% ];
+
 coolUnitNames = [
-    "daisy14_20220506_Channel38_Unit1", ... % Big unit, brief artifact
-    "daisy15_20220511_Channel104_Unit1", ... % Big unit, long artifact
-    "desmond27_20220526_Channel106_Unit1", ... % Randomly chosen medium-SNR unit
-    "desmond25_20220430_Channel124_Unit1", ... % Two units one channel
-    "desmond25_20220430_Channel124_Unit2", ... % Two units one channel 2, electric boogaloo
-    "desmond26_20220531_Channel4_Unit1", ... % Huge unit but missing some spikes due to scaling/shrinkning waveforms
+    "daisy15_20220601_Channel114_Unit1", ... % Big unit, long artifact
+    % "daisy14_20220506_Channel38_Unit1", ... % Big unit, brief artifact
+    % "daisy15_20220511_Channel104_Unit1", ... % Big unit, long artifact
+    % "desmond27_20220526_Channel106_Unit1", ... % Randomly chosen medium-SNR unit
+    % "desmond25_20220430_Channel124_Unit1", ... % Two units one channel
+    % "desmond25_20220430_Channel124_Unit2", ... % Two units one channel 2, electric boogaloo
+    % "desmond26_20220531_Channel4_Unit1", ... % Huge unit but missing some spikes due to scaling/shrinkning waveforms
 ];
 
 %% Filter raw and then redo spike detection
@@ -465,24 +475,31 @@ selUnits = find(hasRaw & isIntan); useRawCache = false;
 unitNames = eu.getName();
 
 clear layout
-layout.fig = figure(Unit='inches', Position=[1 0 18 10]);
-layout.h = [2, 5];
+layout.fig = figure(Unit='normalized', Position=[0 0 1 1]);
+layout.h = [4, 10, 4, 1];
 layout.w = [2, 5, 2];
 layout.tl = tiledlayout(layout.fig, sum(layout.h), sum(layout.w), TileSpacing='tight', Padding='compact');
 layout.ax.waveform = nexttile(layout.tl, [layout.h(1), layout.w(1)]);
 layout.ax.etaLick = nexttile(layout.tl, [layout.h(1), layout.w(2)]);
 layout.ax.etaCircLick = nexttile(layout.tl, [layout.h(1), layout.w(3)]);
 layout.ax.raw = nexttile(layout.tl, [layout.h(2), sum(layout.w)]);
+layout.ax.binnedWaveforms = nexttile(layout.tl, [layout.h(3), sum(layout.w)]);
+layout.ax.binnedHistograms = nexttile(layout.tl, [layout.h(4), sum(layout.w)]);
 
 
-clear rawCache spikesFiltered spikesRaw
+clear spikesFiltered spikesRaw
 if useRawCache
-    rawCache(length(eu)) = struct(index=[], name=[], data=[], t=[], trials=[]);
+    if ~exist('rawCache', 'var')
+        rawCache(length(eu)) = struct(index=[], name=[], data=[], t=[], trials=[]);
+    end
+else
+    clear rawCache
 end
 spikesFiltered = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
 spikesRaw = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
 
-for iUnit = length(selUnits)
+for iUnit = 1:length(selUnits)
+% for iUnit = 179
     try
         cla(layout.ax.waveform)
         cla(layout.ax.etaLick)
@@ -588,12 +605,12 @@ for iUnit = length(selUnits)
                 plot(layout.ax.waveform, tWaveform, spikesFiltered.waveforms(I(iWave), :), Color=[1 0 0 0.1]) %, Color=[getColor(i/10, ceil(length(I)/10), 0.67), 0.25])
                 % plot(layout.ax.waveform, tWaveform, mean(spikesFiltered.waveforms(I(iWave-100+1:iWave), :), 1, 'omitnan'), Color=[1 0 0 0.1]) %, Color=[getColor(i/10, ceil(length(I)/10), 0.67), 0.25])
             else
-                plot(layout.ax.waveform, tWaveform, spikesFiltered.waveforms(I(iWave), :), Color=[0.1 0.1 0.1, 0.025]) %Color=[getColor(i/10, ceil(length(I)/10), 0.67, s=0.1, l=0.1), 0.1])
+                plot(layout.ax.waveform, tWaveform, spikesFiltered.waveforms(I(iWave), :), Color=[0.1 0.1 0.1, 0.015]) %Color=[getColor(i/10, ceil(length(I)/10), 0.67, s=0.1, l=0.1), 0.1])
                 % plot(layout.ax.waveform, tWaveform, mean(spikesFiltered.waveforms(I(iWave-100+1:iWave), :), 1, 'omitnan'), Color=[0.1 0.1 0.1, 0.025]) %Color=[getColor(i/10, ceil(length(I)/10), 0.67, s=0.1, l=0.1), 0.1])
             end
         end
-        plot(layout.ax.waveform, tWaveform, spikeTemplate, LineWidth=2, Color='blue')
         plot(layout.ax.waveform, tWaveform, noiseTemplate, LineWidth=2, Color='green')
+        plot(layout.ax.waveform, tWaveform, spikeTemplate, LineWidth=2, Color='blue')
         plot(layout.ax.waveform, tWaveform, spikeTemplate + pTemplateMatching.nSigmas*sigma, Color='blue', LineStyle='--')
         plot(layout.ax.waveform, tWaveform, spikeTemplate - pTemplateMatching.nSigmas*sigma, Color='blue', LineStyle='--')
         xlim(layout.ax.waveform, [-0.5, 0.5])
@@ -609,6 +626,7 @@ for iUnit = length(selUnits)
         plotRaw(layout.ax.raw, xFilteredAligned, tAligned, stFilteredAligned, plotSpikes=true, spacing=250, xRaw=xRawAligned, stRaw=stRawAligned);
         xlim(layout.ax.raw, [0, 150])
         xticks(layout.ax.raw, [0, 10, 50, 100, 150])
+        xline(layout.ax.raw, 0:10:150, 'k--')
     
         % Get the original spike times
         eu(iEu).SpikeTimes = oldSpikeTimes;
@@ -650,10 +668,65 @@ for iUnit = length(selUnits)
 
         title(layout.tl, eu(iEu).getName(), Interpreter='none')
         fprintf('Done (%.2f s)\n', toc(tTic));
+        
+        % Plot waveforms by bin (aligned to lick)
+        cla(layout.ax.binnedWaveforms)
+        cla(layout.ax.binnedHistograms)
+        hold(layout.ax.binnedWaveforms, 'on')
+        hold(layout.ax.binnedHistograms, 'on')
+        trials = eu(iEu).getTrials('circlick_naive', minInterval=0.05, maxInterval=0.20);
+        edges = 0:0.01:0.15;
+        h = gobjects(2, 1);
+        for iBin = 1:length(edges)-1
+            window = edges(iBin:iBin+1);
+            tempTrials = Trial([trials.Start]+window(1), [trials.Start]+window(2), advancedValidation=false);
+            [inBin, ~] = tempTrials.inTrial(spikesFiltered.timestamps);
+            waveforms = spikesFiltered.waveforms(inBin(:) & spikesFiltered.isUnit(:), :);
+            tWave = spikesFiltered.waveformTimestamps*10+mean(window)*1e3;
+            mu = mean(waveforms, 1, 'omitnan');
 
+            distToSpikeTemplate = sum((waveforms - spikeTemplate).^2, 2);
+            distToNoiseTemplate = sum((waveforms - noiseTemplate).^2, 2);
+            distRatio = distToNoiseTemplate ./ distToSpikeTemplate;
+            [~, IBinned] = sort(distRatio, 'ascend');
+            waveforms = waveforms(IBinned, :);
+
+            waveformBinSize = 10;
+            for iWaveform = 1:waveformBinSize:size(waveforms, 1)
+                plot(layout.ax.binnedWaveforms, tWave, mean(waveforms(iWaveform:min(iWaveform+waveformBinSize-1, size(waveforms, 1)), :), 1), Color=[getColor(iWaveform/waveformBinSize, length(IBinned)/waveformBinSize, 0.67), 0.25], LineWidth=0.5)
+                % plot(layout.ax.binnedWaveforms, tWave, waveforms(iWaveform, :), Color=[getColor(iWaveform/waveformBinSize, length(IBinned)/waveformBinSize, 0.67), 0.25], LineWidth=0.5)
+            end
+            h(1) = plot(layout.ax.binnedWaveforms, tWave, spikeTemplate, Color='blue', LineWidth=1, LineStyle='--', DisplayName='template');
+            h(2) = plot(layout.ax.binnedWaveforms, tWave, mu, Color='red', LineWidth=1, LineStyle='--', DisplayName='unit mean');
+
+            text(layout.ax.binnedWaveforms, tWave(16), min(spikeTemplate - 2*sigma), sprintf('%i', size(waveforms, 1)), HorizontalAlignment='center', VerticalAlignment='bottom')
+            % text(layout.ax.binnedWaveforms, tWave(16), 0, sprintf('%i', size(waveforms, 1)), HorizontalAlignment='center', VerticalAlignment='bottom')
+
+            % Embed a histogram of distanceToTemplate
+            [ratioN, ~] = histcounts(log2(distRatio), [0:0.05:1.95, Inf]);
+            ratioEdges = (0:0.05:2) + (iBin-1)*2;
+            histogram(layout.ax.binnedHistograms, BinEdges=ratioEdges, BinCounts=ratioN, EdgeColor='black', FaceColor='black');
+        end
+        xticks(layout.ax.binnedWaveforms, 0:10:150)
+        xline(layout.ax.binnedWaveforms, 0:10:150, 'k--')
+        xlim(layout.ax.binnedWaveforms, [0, 150])
+        ylim(layout.ax.binnedWaveforms, [min(spikeTemplate - 2*sigma), max(spikeTemplate + 2*sigma)])
+        ylabel(layout.ax.binnedWaveforms, '\muV')
+        xlabel(layout.ax.binnedWaveforms, 'Time (ms)')
+        legend(layout.ax.binnedWaveforms, h, Orientation='horizontal', Location='northeast')
+
+        xlim(layout.ax.binnedHistograms, [0, 2*(length(edges)-1)])
+        xticks(layout.ax.binnedHistograms, 0:1:2*(length(edges)-1))
+        xticklabels(layout.ax.binnedHistograms, string(repmat([0, 1], 1, length(edges)-1)))
+        xline(layout.ax.binnedHistograms, 0:2:2*(length(edges)-1), 'k--')
+        ylabel(layout.ax.binnedHistograms, 'SpikeCount')
+        xlabel(layout.ax.binnedHistograms, 'log_2(distToNoise/distToTemplate)')
+
+        clear trials edges iBin window iBin spikeTimesInBin t waveforms IBinned distToSpikeTemplate distToNoiseTemplate distRatio waveformBinSize
+        
         tTic = tic();
         fprintf('\tSaving plots...');
-        print(layout.fig, sprintf('%s\\%s.png', savePath, eu(iEu).getName()), '-dpng')
+        print(layout.fig, sprintf('%s\\%s.png', savePath, eu(iEu).getName()), '-dpng', '-r0')
         fprintf('Done (%.2f s)\n', toc(tTic));
     
         index = iEu;
@@ -668,10 +741,15 @@ for iUnit = length(selUnits)
     end
 end
 
-clear selUnits useRawCache iUnit iEu tTic raw filtered stAbs spikeTemplateRaw maxMicroVolts spikeTemplate tWaveform noiseTemplate distToSpikeTemplate distToNoiseTemplate residuals sigma pOutlier I iWave xRawAligned tAligned stRawAligned trials xFilteredAligned stFilteredAligned etaTemp
+clear useRawCache iUnit iEu tTic raw filtered stAbs spikeTemplateRaw maxMicroVolts spikeTemplate tWaveform noiseTemplate distToSpikeTemplate distToNoiseTemplate residuals sigma pOutlier I iWave xRawAligned tAligned stRawAligned trials xFilteredAligned stFilteredAligned etaTemp
 clear index name tTic
+clear trials edges iBin window tempTrials inBin spikeTimesInBin waveforms tWave mu distToSpikeTemplate distToNoiseTemplate distRatio IBinned waveformBinSize iWaveform
 
-%% Load a unit a
+%% Load a unit
+iUnit = 129;
+iEu = selUnits(iUnit);
+load(sprintf("%s\\%s.mat", savePath, eu(iEu).getName()))
+
 
 %% Functions
 function [x, t, st, trials] = parseRaw(eu, raw, trials, varargin)
