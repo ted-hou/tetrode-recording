@@ -86,11 +86,12 @@ end
     % 'C:\SERVER\daisy27\daisy27_20250717', ...
     % 'C:\SERVER\daisy27\daisy27_20250721', ...
 
-    %daisy28_20250728  18 16 02
+    %daisy28_20250728  18 16
+    % 02
 
 clear, clc
 tr = TetrodeRecording();
-tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy28\daisy28_20250728')
+tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy28\daisy28_20250702')
 tr.LoadNeuropixelIO();
 tr.ParseNeuropixelIO();
 
@@ -120,7 +121,9 @@ folders = { ...
    % 'C:\SERVER\daisy27\daisy27_20250717', ...
    % 'C:\SERVER\daisy27\daisy27_20250721', ...
  % 'C:\SERVER\daisy28\daisy28_20250729'...
- 'C:\SERVER\daisy28\daisy28_20250728' ...
+% 'C:\SERVER\daisy28\daisy28_20250728' ...
+'C:\SERVER\daisy28\daisy28_20250718' ...
+'C:\SERVER\daisy28\daisy28_20250716' ...
     };
 
 chunkSize = 32; % NumChannelsPerChunk
@@ -145,7 +148,7 @@ for iSession = 1:length(folders)
 
             ar = AcuteRecording(tr, 'N/A');
             ar.binMoveResponse(tr, 'none', Window=[-1, 0], Store=true);
-            eu = EphysUnit(ar, readWaveforms=false, cullITI=false, savepath='C:\SERVER\Units\TwoColor_SNr_SCRetro\Batch2', tr=tr);
+            eu = EphysUnit(ar, readWaveforms=false, cullITI=false, savepath='C:\SERVER\Units\TwoColor_SNr_SCRetro\Batch3', tr=tr);
 
             tr.Spikes = [];
             clear eu

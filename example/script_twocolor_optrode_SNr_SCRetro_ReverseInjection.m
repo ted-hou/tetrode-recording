@@ -1,21 +1,15 @@
 
 
-%% Remove duplicates (Slow)
-eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection', waveforms=false, spikecounts=false, spikerates=false);
-%
-euAll = eu;
+%% Remove vad units (Slow)
+euAll = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection', waveforms=false, spikecounts=false, spikerates=false);
 
+%% Remove multiunits, fast (ISS test)
 eu = eu.removeMultiUnits(cullZeros=true);
-[eu, isDuplicate] = eu.removeDuplicates(0.7);
-% eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate')
 
-% Remove drift, low spike rate units
+% Remove drift, low spike rate units, fast
 clear c
-% eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
-
 % Remove drift
 c.isDrifting = detectDriftingUnits(eu, smoothWindow=300, tolerance=0.05, spikeRateThreshold=15, includeITI=true);
-
 
 % Filter by spike rate
 msr = arrayfun(@(eu) eu.SpikeRateStats.median, eu);
@@ -24,14 +18,9 @@ c.isSNr = msr >= p.minSpikeRate;
 
 eu = eu(c.isSNr & ~c.isDrifting);
 
-% eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr')
+% Remove duplicates (slow, pairwise comparisons)
+[eu, isDuplicate] = eu.removeDuplicates(0.7);
 
-% Make spontaneous reach/lick trials
-% p.minTrialLength = 4;
-% for iEu = 1:length(eu)
-%     eu(iEu).Trials.Press = eu(iEu).makeTrials('press_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
-%     eu(iEu).Trials.Lick = eu(iEu).makeTrials('lick_spontaneous_clean', minSpontaneousTrialDuration=p.minTrialLength);
-% end
 
 
 %% Make press and lick trials
@@ -55,7 +44,7 @@ eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units
 
 % Make Raster
 clear rd
-rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shutterDelay=0, photoelectricBlankDuration=0.5e-3);
+rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shutterDelay=0, photoelectricBlankDuration=1.5e-3);
 rd.press = eu.getRasterData('press', window=[-4, 2], alignTo='stop', minTrialDuration=1);
 rd.lick = eu.getRasterData('lick', window=[-4, 2], alignTo='stop', minTrialDuration=1);
 
@@ -69,16 +58,16 @@ eta.pressRaw.X = eta.pressRaw.X ./ 0.1;
 eta.lickRaw.X = eta.lickRaw.X ./ 0.1;
 
 % ETA Stim
-p.isiBaselineWindow = [-0.1, 0];
-p.stimBluePowers = [500, 2000, 8000, 16000]*1e-6; 
-p.stimRedPowers = [500, 2000, 8000, 16000]*1e-6;
-p.stimBlueDurations = [10, 20]*1e-3;
-p.stimRedDurations = [10, 20]*1e-3;
+p.isiBaselineWindow = [-0.2, 0];
+p.stimBluePowers = [2000, 8000, 16000]*1e-6; 
+p.stimRedPowers = [2000, 8000, 16000]*1e-6;
+p.stimBlueDurations = [20]*1e-3;
+p.stimRedDurations = [20]*1e-3;
 
 p.isiWindow = [-0.4, 0.4];
 p.isiRes = 1e-3;
 p.xlim.stim = [-0.1, 0.3];
-p.xlim.move = [-4, 3];
+p.xlim.move = [-4, 2];
 p.path = 'C:\SERVER\Figures\TwoColor_SNr_SCRetro\ReverseInjection';
 p.rasterSzStim = 1;
 p.rasterSzMove = 1;
@@ -93,13 +82,13 @@ for iEu = 1:length(eu)
     % rd = eu(iEu).getRasterData('stimtwocolor', p.isiWindow, trials=[groupsRed.trials], alignTo='start', shutterDelay=0, sort=false, photoelectricBlankDuration=0.5e-3);
     % EphysUnit.plotRaster(rd)
 
-    [isi, t] = eu(iEu).getMeanPEISI('stimtwocolor', [groupsBlue.trials], window=p.isiWindow, resolution=p.isiRes, photoelectricBlankDuration=0.5e-3);
+    [isi, t] = eu(iEu).getMeanPEISI('stimtwocolor', [groupsBlue.trials], window=p.isiWindow, resolution=p.isiRes, photoelectricBlankDuration=1.5e-3);
     selBaseline = t>p.isiBaselineWindow(1) & t<p.isiBaselineWindow(2);
     normSR = (1./isi - mean(1./isi(:, selBaseline), 'omitnan')) ./ std(1./isi(:, selBaseline), 0, 2, 'omitnan');
     XBlue{iEu} = normSR;
 
     [isi, t] = eu(iEu).getMeanPEISI('stimtwocolor', [groupsRed.trials], window=p.isiWindow, resolution=p.isiRes, ...
-        photoelectricBlankDuration=0.5e-3);
+        photoelectricBlankDuration=1.5e-3);
     selBaseline = t>p.isiBaselineWindow(1) & t<p.isiBaselineWindow(2);
     normSR = (1./isi - mean(1./isi(:, selBaseline), 'omitnan')) ./ std(1./isi(:, selBaseline), 0, 2, 'omitnan');
     XRed{iEu} = normSR;
@@ -125,7 +114,7 @@ meta.pressRaw = mean(eta.press.X(:, t>=p.metaWindow(1) & t<=p.metaWindow(2)), 2,
 meta.lickRaw = mean(eta.lick.X(:, t>=p.metaWindow(1) & t<=p.metaWindow(2)), 2, 'omitnan');
 clear t
 
-p.metaWindowStim = [0.005, 0.050];
+p.metaWindowStim = [0.005, 0.019];
 p.posRespThresholdStim = 2;
 p.negRespThresholdStim = -1;
 
@@ -155,6 +144,8 @@ c.isStimBlueUpRedUpThereforeChrimsonMaybe = c.isStimBlueUp & c.isStimRedUp;
 c.isStimBlueUpRedNotUpThereforeCoChrMaybe = c.isStimBlueUp & ~c.isStimRedUp;
 c.isStimBlueNotUpRedUpThereforeChrimsonMaybe = ~c.isStimBlueUp & c.isStimRedUp;
 c.isStimBlueNotUpRedNotUp = ~c.isStimBlueUp & ~c.isStimRedUp;
+
+fprintf('ChrimsonR %i, CoChR %i\n', nnz(c.isStimRedUp), nnz(c.isStimBlueUpRedNotUpThereforeCoChrMaybe))
 
 %% Boot response dir
 p.bootAlpha = 0.05;
@@ -290,16 +281,21 @@ layout.ax(1, 2) = nexttile(layout.tl, [layout.h(1), layout.w(2)]);
 layout.ax(2, 2) = nexttile(layout.tl, [layout.h(2), layout.w(2)]);
 layout.ax(3, 2) = nexttile(layout.tl, [layout.h(3), layout.w(2)]);
 
+p.path = 'C:\SERVER\Figures\TwoColor_SNr_SCRetro\ReverseInjection\CoChR';
+selUnits = find(c.isStimBlueUpRedNotUpThereforeCoChrMaybe);
+
+% p.path = 'C:\SERVER\Figures\TwoColor_SNr_SCRetro\ReverseInjection\ChrimsonR';
+% selUnits = find(c.isStimRedUp);
+
 if ~exist(p.path, 'dir')
     mkdir(p.path)
 end
 
-for iEu = 1:length(eu)
+for iEu = selUnits(:)'%1:length(eu)
     % try
-        cla(layout.ax(1:2, 1))
-        cla(layout.ax(:, 2))
         % Make Raster
         ax = layout.ax(1, 1);
+        cla(ax)
         EphysUnit.plotRaster(ax, rd.stim(iEu), xlim=p.xlim.stim*1e3, sz=p.rasterSzStim, timeUnit='ms');
         ax.Legend.Location = 'northeast';
         ax.Legend.FontSize = 6;
@@ -307,6 +303,7 @@ for iEu = 1:length(eu)
 
         % Make PE-ISI
         ax = layout.ax(2, 1);
+        cla(ax)
         groups = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power'});
         isi = NaN(length(groups), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)));
         deltaSR = isi;
@@ -331,12 +328,15 @@ for iEu = 1:length(eu)
         % Make Raster Press
         trialTypes = ["press", "lick"];
         colors = ["red", "blue"];
+        cla(layout.ax(1, 2))
+        cla(layout.ax(2, 2))
+        cla(layout.ax(3, 2))
         for iTrialType = 1:2
             trialType = trialTypes(iTrialType);
             ax = layout.ax(iTrialType, 2);
             EphysUnit.plotRaster(ax, rd.(trialType)(iEu), xlim=p.xlim.move, sz=p.rasterSzMove);
             title(ax, trialType, Interpreter="none")
-            xline(ax, 0, '--')
+            xline(ax, 0, '--', DisplayName=trialType)
 
             ax = layout.ax(3, 2);
             hold(ax, 'on')
@@ -348,7 +348,7 @@ for iEu = 1:length(eu)
             ylabel(ax, 'sp/s')
             legend(ax, Location='northwest')
             if iTrialType == 1
-                xline(ax, 0, '--')
+                xline(ax, 0, '--', DisplayName='bar/spout contact')
             end
         end
 
