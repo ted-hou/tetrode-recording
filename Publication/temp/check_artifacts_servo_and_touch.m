@@ -464,7 +464,7 @@ pTemplateMatching.distanceFactor = 1;
 pTemplateMatching.nSigmas = 5;
 pTemplateMatching.rateExceed = 0.05;
 pTemplateMatching.method = 'euclidean';
-savePath = "E:\Figures\lick_artifact_removal\euclidean";
+savePath = "C:\SERVER\Figures\lick_artifact_removal_run2\euclidean";
 if ~exist(savePath, 'dir')
     mkdir(savePath);
 end
@@ -746,10 +746,29 @@ clear index name tTic
 clear trials edges iBin window tempTrials inBin spikeTimesInBin waveforms tWave mu distToSpikeTemplate distToNoiseTemplate distRatio IBinned waveformBinSize iWaveform
 
 %% Load a unit
-iUnit = 129;
-iEu = selUnits(iUnit);
-load(sprintf("%s\\%s.mat", savePath, eu(iEu).getName()))
+savePath = "C:\SERVER\Figures\lick_artifact_removal\euclidean";
 
+spikesFiltered(length(eu)) = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
+oldSpikeTimes = cell(length(eu), 1);
+lineLength = 0;
+tTicTotal = tic();
+for iUnit = 1:length(selUnits)
+    try
+        iEu = selUnits(iUnit);
+        tTic = tic();
+        S = load(sprintf("%s\\%s.mat", savePath, eu(iEu).getName()), 'index', 'name', 'spikesFiltered', 'oldSpikeTimes');
+        assert(S.index == iEu && strcmpi(S.name, eu(iEu).getName()))
+        spikesFiltered(iEu) = S.spikesFiltered;
+        oldSpikeTimes{iEu} = S.oldSpikeTimes;
+        fprintf(repmat('\b', 1, lineLength))
+        lineLength = fprintf("Loaded unit %i/%i, iEu=%i, name='%s' (%.2fs, %.2fs total)\n", iUnit, length(selUnits), iEu, eu(iEu).getName(), toc(tTic), toc(tTicTotal));
+    catch ME
+        warning('Error processing unit %i', iUnit);
+        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+    end
+end
+
+clear iEu S lineLength tTic tTicTotal iUnit
 
 %% Functions
 function [x, t, st, trials] = parseRaw(eu, raw, trials, varargin)
