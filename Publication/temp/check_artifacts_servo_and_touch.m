@@ -471,14 +471,14 @@ pTemplateMatching.method = 'euclidean';
 pTemplateMatching.maxLog = maxLog;
 pTemplateMatching.ksAlpha = ksAlpha;
 pTemplateMatching.ksHitRateThreshold = ksHitRateThreshold;
-savePath = "C:\SERVER\Figures\lick_artifact_removal\euclidean_with_binnedPeriLickWaveforms";
+savePath = "C:\SERVER\Figures\lick_artifact_removal\euclidean_run2";
 if ~exist(savePath, 'dir')
     mkdir(savePath);
 end
 save(sprintf("%s\\pTemplateMatching.mat", savePath), 'pTemplateMatching')
 
-% selUnits = find(hasRaw & isIntan); useRawCache = false;
-selUnits = find(ismember(eu.getName(), coolUnitNames)); useRawCache = true;
+selUnits = find(hasRaw & isIntan); useRawCache = false;
+% selUnits = find(ismember(eu.getName(), coolUnitNames)); useRawCache = true;
 unitNames = eu.getName();
 edgesPeriLick = 0:0.01:0.1; nBinsQQPeriLick = min(length(edgesPeriLick) - 1, 10);
 n = 11; edgesCircLick = linspace(pi/n, (2-1/n)*pi, n); nBinsQQCircLick = n - 1; 
@@ -564,7 +564,7 @@ else
     spikesRaw = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
 end
 for iUnit = 1:length(selUnits)
-    % try
+    try
         cla(layout.ax.waveform)
         cla(layout.ax.etaLick)
         cla(layout.ax.etaCircLick)
@@ -958,11 +958,15 @@ for iUnit = 1:length(selUnits)
         set(layout.qq(2).ax, Visible=false)
 
         % Plot histograms (circlick)
+        circLickArtifactRate = 0;
+        validCircLickBins = 0;
         for iBin = 1:nBins
             if isempty(binnedCircLickWaveformsByPhase(iBin).distRatio)
                 continue
             end
+            validCircLickBins = validCircLickBins + 1;
             if binnedCircLickWaveformsByPhase(iBin).nKSTestHits / (nBins-1) >= ksHitRateThreshold
+                circLickArtifactRate = circLickArtifactRate + 1;
                 color = 'red';
                 text(layout.ax.etaCircLick, mean(binnedCircLickWaveformsByPhase(iBin).window), mean(layout.ax.etaCircLick.YLim), '*', VerticalAlignment='bottom', HorizontalAlignment='center', FontSize=14, Color='red')
             else
@@ -970,6 +974,7 @@ for iUnit = 1:length(selUnits)
             end
             histogram(layout.ax.binnedHistogramsByPhase, BinEdges=binnedCircLickWaveformsByPhase(iBin).ratioEdges, BinCounts=binnedCircLickWaveformsByPhase(iBin).ratioN, EdgeColor='none', FaceColor=color);
         end
+        circLickArtifactRate = circLickArtifactRate/validCircLickBins;
         xlim(layout.ax.binnedHistogramsByPhase, [0, maxLog*nBins])
         xticks(layout.ax.binnedHistogramsByPhase, 0:1:maxLog*nBins)
         xticklabels(layout.ax.binnedHistogramsByPhase, string(repmat(0:1:(maxLog-1), 1, nBins)))
@@ -991,12 +996,12 @@ for iUnit = 1:length(selUnits)
         name = eu(iEu).getName();
         tTic = tic();
         fprintf('\tSaving data...');
-        save(sprintf("%s\\%s.mat", savePath, name), 'index', 'name', 'spikesFiltered', 'spikesRaw', 'oldSpikeTimes', 'spikeTemplate', 'noiseTemplate', 'binnedPeriLickWaveforms', 'binnedCircLickWaveformsByPhase', '-v7.3')
+        save(sprintf("%s\\%s.mat", savePath, name), 'index', 'name', 'spikesFiltered', 'spikesRaw', 'oldSpikeTimes', 'spikeTemplate', 'noiseTemplate', 'binnedPeriLickWaveforms', 'binnedCircLickWaveformsByPhase', 'circLickArtifactRate', '-v7.3')
         fprintf('Done (%.2f s)\n', toc(tTic));
-    % catch ME
-    %     warning('Error processing unit %i (%i)', iEu, iUnit);
-    %     warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
-    % end
+    catch ME
+        warning('Error processing unit %i (%i)', iEu, iUnit);
+        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+    end
 end
 
 clear useRawCache iUnit iEu tTic raw filtered stAbs spikeTemplateRaw maxMicroVolts spikeTemplate tWaveform noiseTemplate distToSpikeTemplate distToNoiseTemplate residuals sigma pOutlier I iWave xRawAligned tAligned stRawAligned trials xFilteredAligned stFilteredAligned etaTemp
