@@ -1028,6 +1028,17 @@ end
 
 clear iEu S lineLength tTic tTicTotal iUnit
 
+%% Reget templates
+for iEu = selUnits(:)'
+    tTic = tic();
+    fprintf('\tExtracing waveforms to use as templates from filtered data...');
+    [spikeTemplate, ~] = getWaveforms(filtered, [-0.5, 0.5], spikesRaw.sampleIndex(spikesRaw.isUnit), IndexType='SampleIndex');
+    [noiseTemplate, tWaveform] = getWaveforms(filtered, [-0.5, 0.5], spikesRaw.sampleIndex(~spikesRaw.isUnit), IndexType='SampleIndex');
+    fprintf('Done (%.2f s)\n', toc(tTic));
+
+    spikeTemplate = mean(spikeTemplate, 1, 'omitnan');
+    noiseTemplate = mean(noiseTemplate, 1, 'omitnan');
+end
 %% Functions
 function [x, t, st, trials] = parseRaw(eu, raw, trials, varargin)
     p = inputParser();
