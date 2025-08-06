@@ -7,26 +7,27 @@
 % files = arrayfun(@(f) sprintf('%s\\%s', f.folder, f.name), files, UniformOutput=false);
 % eu = EphysUnit.load(files, waveforms=false, spikecounts=false, spikerates=false);
 
-eu = EphysUnit.load('C:\SERVER\Units\Lite_NonDuplicate_NonDrift', waveforms=false, spikecounts=false, spikerates=false);
-load('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift_20250705.mat')
-eu = eu(c.hasPress & c.hasLick);
-clearvars -except eu
-
-% Load euComplete (complete with ITI spikes)
-euNames = lower(eu.getName());
-
-files = dir('C:\SERVER\Units\NonLite_PressVsLick\*.mat');
-sel = ismember(cellfun(@(n) lower(strrep(n, '.mat', '')), {files.name}, UniformOutput=false), euNames);
-files = files(sel);
-cd('C:\SERVER\Units\NonLite_PressVsLick\')
-euComplete = EphysUnit.load({files.name}, waveforms=false, spikecounts=false, spikerates=false);
-
-euComplete.save('C:\SERVER\Units\NonLite_PressVsLick_NonDuplicate_NonDrift');
-
-[lia, locb] = ismember(eu.getName(), euComplete.getName());
-eu(lia) = euComplete(locb(lia));
-
-clearvars -except eu
+% eu = EphysUnit.load('C:\SERVER\Units\Lite_NonDuplicate_NonDrift', waveforms=false, spikecounts=false, spikerates=false);
+% load('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift_20250705.mat')
+% eu = eu(c.hasPress & c.hasLick);
+% clearvars -except eu
+% 
+% % Load euComplete (complete with ITI spikes)
+% euNames = lower(eu.getName());
+% 
+% files = dir('C:\SERVER\Units\NonLite_PressVsLick\*.mat');
+% sel = ismember(cellfun(@(n) lower(strrep(n, '.mat', '')), {files.name}, UniformOutput=false), euNames);
+% files = files(sel);
+% cd('C:\SERVER\Units\NonLite_PressVsLick\')
+% euComplete = EphysUnit.load({files.name}, waveforms=false, spikecounts=false, spikerates=false);
+% 
+% euComplete.save('C:\SERVER\Units\NonLite_PressVsLick_NonDuplicate_NonDrift');
+% 
+% [lia, locb] = ismember(eu.getName(), euComplete.getName());
+% eu(lia) = euComplete(locb(lia));
+% 
+% clearvars -except eu
+eu = EphysUnit.load('C:\SERVER\Units\NonLite_PressVsLick_NonDuplicate_NonDrift', waveforms=false, spikecounts=false, spikerates=false);
 
 clear spikeTimesCache
 spikeTimesCache(length(eu)) = struct(index=[], name=[], data=[]);
@@ -461,7 +462,7 @@ coolUnitNames = [
 close all
 fs = 30000;
 maxLog = 4;
-ksAlpha = 0.05;
+ksAlpha = 0.01;
 ksHitRateThreshold = 0.5;
 
 pTemplateMatching.distanceFactor = 1;
@@ -471,7 +472,7 @@ pTemplateMatching.method = 'euclidean';
 pTemplateMatching.maxLog = maxLog;
 pTemplateMatching.ksAlpha = ksAlpha;
 pTemplateMatching.ksHitRateThreshold = ksHitRateThreshold;
-savePath = "C:\SERVER\Figures\lick_artifact_removal\euclidean_run2";
+savePath = "C:\SERVER\Figures\lick_artifact_removal\euclidean_run2_office";
 if ~exist(savePath, 'dir')
     mkdir(savePath);
 end
@@ -564,7 +565,7 @@ else
     spikesRaw = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
 end
 for iUnit = 1:length(selUnits)
-    % try
+    try
         cla(layout.ax.waveform)
         cla(layout.ax.etaLick)
         cla(layout.ax.etaCircLick)
@@ -1009,10 +1010,10 @@ for iUnit = 1:length(selUnits)
         fprintf('\tSaving data...');
         save(sprintf("%s\\%s.mat", savePath, name), 'index', 'name', 'spikesFiltered', 'spikesRaw', 'oldSpikeTimes', 'spikeTemplate', 'noiseTemplate', 'binnedPeriLickWaveforms', 'binnedCircLickWaveformsByPhase', 'circLickArtifactRate', '-v7.3')
         fprintf('Done (%.2f s)\n', toc(tTic));
-    % catch ME
-    %     warning('Error processing unit %i (%i)', iEu, iUnit);
-    %     warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
-    % end
+    catch ME
+        warning('Error processing unit %i (%i)', iEu, iUnit);
+        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+    end
 end
 
 clear useRawCache iUnit iEu tTic raw filtered stAbs spikeTemplateRaw maxMicroVolts spikeTemplate tWaveform noiseTemplate distToSpikeTemplate distToNoiseTemplate residuals sigma pOutlier I iWave xRawAligned tAligned stRawAligned trials xFilteredAligned stFilteredAligned etaTemp
