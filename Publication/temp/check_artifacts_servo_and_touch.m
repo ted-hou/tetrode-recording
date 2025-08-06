@@ -449,58 +449,122 @@ clear iEu animalName expName files
 
 coolUnitNames = [
     "daisy15_20220601_Channel114_Unit1", ... % Big unit, long artifact
-    % "daisy14_20220506_Channel38_Unit1", ... % Big unit, brief artifact
-    % "daisy15_20220511_Channel104_Unit1", ... % Big unit, long artifact
-    % "desmond27_20220526_Channel106_Unit1", ... % Randomly chosen medium-SNR unit
-    % "desmond25_20220430_Channel124_Unit1", ... % Two units one channel
-    % "desmond25_20220430_Channel124_Unit2", ... % Two units one channel 2, electric boogaloo
-    % "desmond26_20220531_Channel4_Unit1", ... % Huge unit but missing some spikes due to scaling/shrinkning waveforms
+    "daisy14_20220506_Channel38_Unit1", ... % Big unit, brief artifact
+    "daisy15_20220511_Channel104_Unit1", ... % Big unit, long artifact
+    "desmond27_20220526_Channel106_Unit1", ... % Randomly chosen medium-SNR unit
+    "desmond25_20220430_Channel124_Unit1", ... % Two units one channel
+    "desmond25_20220430_Channel124_Unit2", ... % Two units one channel 2, electric boogaloo
+    "desmond26_20220531_Channel4_Unit1", ... % Huge unit but missing some spikes due to scaling/shrinkning waveforms
 ];
 
 %% Filter raw and then redo spike detection
 close all
 fs = 30000;
+maxLog = 4;
+ksAlpha = 0.05;
+ksHitRateThreshold = 0.5;
+
 pTemplateMatching.distanceFactor = 1;
 pTemplateMatching.nSigmas = 5;
 pTemplateMatching.rateExceed = 0.05;
 pTemplateMatching.method = 'euclidean';
-savePath = "C:\SERVER\Figures\lick_artifact_removal_run2\euclidean";
+pTemplateMatching.maxLog = maxLog;
+pTemplateMatching.ksAlpha = ksAlpha;
+pTemplateMatching.ksHitRateThreshold = ksHitRateThreshold;
+savePath = "C:\SERVER\Figures\lick_artifact_removal\euclidean_with_binnedPeriLickWaveforms";
 if ~exist(savePath, 'dir')
     mkdir(savePath);
 end
 save(sprintf("%s\\pTemplateMatching.mat", savePath), 'pTemplateMatching')
 
-selUnits = find(hasRaw & isIntan); useRawCache = false;
-% selUnits = find(ismember(eu.getName(), coolUnitNames)); useRawCache = true;
+% selUnits = find(hasRaw & isIntan); useRawCache = false;
+selUnits = find(ismember(eu.getName(), coolUnitNames)); useRawCache = true;
 unitNames = eu.getName();
+edgesPeriLick = 0:0.01:0.1; nBinsQQPeriLick = min(length(edgesPeriLick) - 1, 10);
+n = 11; edgesCircLick = linspace(pi/n, (2-1/n)*pi, n); nBinsQQCircLick = n - 1; 
+clear n
 
 clear layout
-layout.fig = figure(Unit='normalized', Position=[0 0 1 1]);
-layout.h = [4, 10, 4, 1];
-layout.w = [2, 5, 2];
+layout.fig = figure(Unit='normalized', InnerPosition=[0 0 1 1]);
+layout.h = [4, 6, 3, 2, 3, 2];
+layout.w = [2, 1, 1, 1, 4];
 layout.tl = tiledlayout(layout.fig, sum(layout.h), sum(layout.w), TileSpacing='tight', Padding='compact');
 layout.ax.waveform = nexttile(layout.tl, [layout.h(1), layout.w(1)]);
-layout.ax.etaLick = nexttile(layout.tl, [layout.h(1), layout.w(2)]);
-layout.ax.etaCircLick = nexttile(layout.tl, [layout.h(1), layout.w(3)]);
+
+% Two QQPlot axis, needs additional schenannnnnnnegans
+for iQQ = 1:2
+    switch iQQ
+        case 1
+            nBinsQQ = nBinsQQPeriLick;
+            edges = edgesPeriLick;
+        case 2
+            nBinsQQ = nBinsQQCircLick;
+            edges = edgesCircLick;
+    end
+    layout.qq(iQQ).tl = tiledlayout(layout.tl, nBinsQQ, nBinsQQ, TileSpacing='none', Padding='none');
+    layout.qq(iQQ).tl.Layout.Tile = tilenum(layout.tl, 1, sum(layout.w(1:iQQ)) + 1);
+    layout.qq(iQQ).tl.Layout.TileSpan = [layout.h(1), layout.w(iQQ+1)];
+    layout.qq(iQQ).axDummy = axes(layout.qq(iQQ).tl);
+    layout.qq(iQQ).axDummy.Layout.TileSpan = [nBinsQQ, nBinsQQ];
+    for i = 1:nBinsQQ
+        for j = 1:nBinsQQ
+            layout.qq(iQQ).ax(i, j) = axes(layout.qq(iQQ).tl);
+            layout.qq(iQQ).ax(i, j).Layout.Tile = tilenum(layout.qq(iQQ).tl, i, j);
+            xticks(layout.qq(iQQ).ax(i, j), [])
+            yticks(layout.qq(iQQ).ax(i, j), [])
+            layout.qq(iQQ).ax(i, j).Visible = false;
+        end
+    end
+    hold(layout.qq(iQQ).ax, 'on')
+    switch iQQ
+        case 1
+            xlim(layout.qq(iQQ).axDummy, round([0, edges(nBinsQQ+1)]*1e3))
+            ylim(layout.qq(iQQ).axDummy, round([0, edges(nBinsQQ+1)]*1e3))
+            xticks(layout.qq(iQQ).axDummy, [10, 50, 100])
+            yticks(layout.qq(iQQ).axDummy, [10, 50, 100])
+            xline(layout.qq(iQQ).axDummy, [10], 'k--')
+            yline(layout.qq(iQQ).axDummy, [10], 'k--')
+            xlabel(layout.qq(iQQ).axDummy, 'time to lick (ms)')
+            ylabel(layout.qq(iQQ).axDummy, 'time to lick (ms)')
+        case 2
+            xlim(layout.qq(iQQ).axDummy, [edges(1), edges(end)])
+            ylim(layout.qq(iQQ).axDummy, [edges(1), edges(end)])
+            % xticks(layout.qq(iQQ).axDummy, [0, edges(1), pi, edges(end), 2*pi])
+            % yticks(layout.qq(iQQ).axDummy, [0, edges(1), pi, edges(end), 2*pi])
+            % xticklabels(layout.qq(iQQ).axDummy, ["0", string(arrayfun(@(t) sprintf("%i/%i\\pi", round(t/pi*(nBins+1)), nBins+1), [edges(1), pi, edges(end)])), "2\pi"])
+            % yticklabels(layout.qq(iQQ).axDummy, ["0", string(arrayfun(@(t) sprintf("%i/%i\\pi", round(t/pi*(nBins+1)), nBins+1), [edges(1), pi, edges(end)])), "2\pi"])
+            xticks(layout.qq(iQQ).axDummy, [edges(1), pi, edges(end)])
+            yticks(layout.qq(iQQ).axDummy, [edges(1), pi, edges(end)])
+            xticklabels(layout.qq(iQQ).axDummy, [">0", "\pi", "<2\pi"])
+            yticklabels(layout.qq(iQQ).axDummy, [">0", "\pi", "<2\pi"])
+            xline(layout.qq(iQQ).axDummy, edges(2), 'k--')
+            yline(layout.qq(iQQ).axDummy, edges(2), 'k--')
+            xlabel(layout.qq(iQQ).axDummy, 'lick phase')
+            ylabel(layout.qq(iQQ).axDummy, 'lick phase')
+    end
+    title(layout.qq(iQQ).axDummy, 'QQ-Plot & -logp_{KS}', FontSize=9)
+end
+layout.ax.etaCircLick = nexttile(layout.tl, [layout.h(1), layout.w(4)]);
+layout.ax.etaLick = nexttile(layout.tl, [layout.h(1), layout.w(5)]);
 layout.ax.raw = nexttile(layout.tl, [layout.h(2), sum(layout.w)]);
 layout.ax.binnedWaveforms = nexttile(layout.tl, [layout.h(3), sum(layout.w)]);
 layout.ax.binnedHistograms = nexttile(layout.tl, [layout.h(4), sum(layout.w)]);
+layout.ax.binnedWaveformsByPhase = nexttile(layout.tl, [layout.h(5), sum(layout.w)]);
+layout.ax.binnedHistogramsByPhase = nexttile(layout.tl, [layout.h(6), sum(layout.w)]);
 
 
-clear spikesFiltered spikesRaw
 if useRawCache
     if ~exist('rawCache', 'var')
         rawCache(length(eu)) = struct(index=[], name=[], data=[], t=[], trials=[]);
     end
 else
+    clear spikesFiltered spikesRaw
     clear rawCache
+    spikesFiltered = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
+    spikesRaw = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
 end
-spikesFiltered = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
-spikesRaw = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
-
-for iUnit = 1:length(selUnits)
-% for iUnit = 179
-    try
+for iUnit = 7%1:length(selUnits)
+    % try
         cla(layout.ax.waveform)
         cla(layout.ax.etaLick)
         cla(layout.ax.etaCircLick)
@@ -539,10 +603,14 @@ for iUnit = 1:length(selUnits)
         % Find spikes in raw data
         tTic = tic();
         fprintf('\tDetecting spikes in raw data...');
-        spikesRaw.index = iEu;
-        spikesRaw.name = eu(iEu).getName();
-        [spikesRaw.sampleIndex, spikesRaw.timestamps, spikesRaw.waveforms, spikesRaw.waveformTimestamps] = spikeDetect(raw, SampleRate=fs, NumSigmas=2.5, NumSigmasReturn=1.25, NumSigmasReject=20, WaveformWindow=[-0.5, 0.5]);
-        spikesRaw.isUnit = ismember(round(spikesRaw.timestamps*fs), round(stAbs*fs));
+        if useRawCache && strcmpi(spikesRaw.name, eu(iEu).getName())
+            fprintf('Cache found...')
+        else
+            spikesRaw.index = iEu;
+            spikesRaw.name = eu(iEu).getName();
+            [spikesRaw.sampleIndex, spikesRaw.timestamps, spikesRaw.waveforms, spikesRaw.waveformTimestamps] = spikeDetect(raw, SampleRate=fs, NumSigmas=2.5, NumSigmasReturn=1.25, NumSigmasReject=20, WaveformWindow=[-0.5, 0.5]);
+            spikesRaw.isUnit = ismember(round(spikesRaw.timestamps*fs), round(stAbs*fs));
+        end
         fprintf('(%i/%i detected spikes matched timestamps of %i eu spikes)...', nnz(spikesRaw.isUnit), length(spikesRaw.isUnit), length(stAbs))
         spikeTemplateRaw = mean(spikesRaw.waveforms, 1, 'omitnan');
         maxMicroVolts = max(abs(spikeTemplateRaw))*2;
@@ -551,9 +619,13 @@ for iUnit = 1:length(selUnits)
         % Detect spikes in filtered data
         tTic = tic();
         fprintf('\tDetecting spikes in filtered data...');
-        spikesFiltered.index = iEu;
-        spikesFiltered.name = eu(iEu).getName();
-        [spikesFiltered.sampleIndex, spikesFiltered.timestamps, spikesFiltered.waveforms, spikesFiltered.waveformTimestamps] = spikeDetect(filtered, SampleRate=fs, NumSigmas=2.5, NumSigmasReturn=1.25, NumSigmasReject=20, WaveformWindow=[-0.5, 0.5], MaxMicroVolts=maxMicroVolts);
+        if useRawCache && strcmpi(spikesFiltered.name, eu(iEu).getName())
+            fprintf('Cache found...')
+        else
+            spikesFiltered.index = iEu;
+            spikesFiltered.name = eu(iEu).getName();
+            [spikesFiltered.sampleIndex, spikesFiltered.timestamps, spikesFiltered.waveforms, spikesFiltered.waveformTimestamps] = spikeDetect(filtered, SampleRate=fs, NumSigmas=2.5, NumSigmasReturn=1.25, NumSigmasReject=20, WaveformWindow=[-0.5, 0.5], MaxMicroVolts=maxMicroVolts);
+        end
         fprintf('Done (%.2f s)\n', toc(tTic));
 
         % % Extract template spikes in filtered data, using existing spiketimes
@@ -577,6 +649,7 @@ for iUnit = 1:length(selUnits)
                 clear distToSpikeTemplate distToNoiseTemplate
         % Template matching method 1: Compare to template based on corrcoef
             case 'corr'
+                warning("Are you sure laddie? Corr does not work as well as euclidean.")
                 X = spikesFiltered.waveforms - mean(spikesFiltered.waveforms, 2);
                 Y = spikeTemplate - mean(spikeTemplate, 2);
                 Z = noiseTemplate - mean(noiseTemplate, 2);
@@ -620,13 +693,13 @@ for iUnit = 1:length(selUnits)
         title(layout.ax.waveform, sprintf('Filtered: %i/%i spikes, %i/%i noise, %i original', nnz(spikesFiltered.isUnit), nnz(spikesRaw.isUnit), nnz(~spikesFiltered.isUnit), nnz(~spikesRaw.isUnit), nnz(stAbs)))
 
         % Plot raw trace by trial, see if there's false positives
-        [xRawAligned, tAligned, stRawAligned, trials] = parseRaw(eu(iEu), raw, eu(iEu).getTrials('circlick_naive', minInterval=0.05, maxInterval=0.20), spikeTimes=oldSpikeTimes, window=[-0, 0.15], alignTo='Start', randomTrials=true, nTrials=15, timestampMode='relative');
-        [xFilteredAligned, ~, stFilteredAligned] = parseRaw(eu(iEu), filtered, trials, spikeTimes=spikesFiltered.timestamps(spikesFiltered.isUnit), window=[-0, 0.15], alignTo='Start', randomTrials=false, nTrials='all', timestampMode='relative');
+        [xRawAligned, tAligned, stRawAligned, trials] = parseRaw(eu(iEu), raw, eu(iEu).getTrials('circlick_naive', minInterval=0.05, maxInterval=0.20), spikeTimes=oldSpikeTimes, window=[-0, 0.10], alignTo='Start', randomTrials=true, nTrials=15, timestampMode='relative');
+        [xFilteredAligned, ~, stFilteredAligned] = parseRaw(eu(iEu), filtered, trials, spikeTimes=spikesFiltered.timestamps(spikesFiltered.isUnit), window=[-0, 0.10], alignTo='Start', randomTrials=false, nTrials='all', timestampMode='relative');
     
         plotRaw(layout.ax.raw, xFilteredAligned, tAligned, stFilteredAligned, plotSpikes=true, spacing=250, xRaw=xRawAligned, stRaw=stRawAligned);
-        xlim(layout.ax.raw, [0, 150])
-        xticks(layout.ax.raw, [0, 10, 50, 100, 150])
-        xline(layout.ax.raw, 0:10:150, 'k--')
+        xlim(layout.ax.raw, [0, 100])
+        xticks(layout.ax.raw, [0, 10, 50, 100])
+        xline(layout.ax.raw, 0:10:100, 'k--')
     
         % Get the original spike times
         eu(iEu).SpikeTimes = oldSpikeTimes;
@@ -641,16 +714,20 @@ for iUnit = 1:length(selUnits)
             lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
         etaTemp.lickFiltered = eu(iEu).getETA('count', 'lick', window=[-4, 2], resolution=0.025, normalize='none');
     
+        h = gobjects(2, 1);
         hold(layout.ax.etaCircLick, 'on')
-        plot(layout.ax.etaCircLick, etaTemp.circLickNaiveRaw.t, etaTemp.circLickNaiveRaw.X, 'blue', DisplayName='raw')
-        plot(layout.ax.etaCircLick, etaTemp.circLickNaiveFiltered.t, etaTemp.circLickNaiveFiltered.X, 'red', DisplayName='filtered')
+        h(1) = plot(layout.ax.etaCircLick, etaTemp.circLickNaiveRaw.t, etaTemp.circLickNaiveRaw.X, 'blue', DisplayName='raw');
+        h(2) = plot(layout.ax.etaCircLick, etaTemp.circLickNaiveFiltered.t, etaTemp.circLickNaiveFiltered.X, 'red', DisplayName='filtered');
+
         xlim(layout.ax.etaCircLick, [0, 2*pi])
+        xline(layout.ax.etaCircLick, [0, edgesCircLick, 2*pi], ':', Color=[0.2, 0.2, 0.2, 0.2])
         xticks(layout.ax.etaCircLick, [0, pi, 2*pi])
         xticklabels(layout.ax.etaCircLick, {'0', '\pi', '2\pi'})
+
         ylabel(layout.ax.etaCircLick, 'spikes/s')
         xlabel(layout.ax.etaCircLick, 'lick phase')
-        legend(layout.ax.etaCircLick)
-        title(layout.ax.etaCircLick, eu(iEu).getName(), Interpreter='none')
+        legend(layout.ax.etaCircLick, h)
+        title(layout.ax.etaCircLick, 'PETH (Self-timed lick)')
     
         hold(layout.ax.etaLick, 'on')
         plot(layout.ax.etaLick, etaTemp.lickRaw.t, etaTemp.lickRaw.X./0.025, 'blue', DisplayName='raw')
@@ -658,6 +735,7 @@ for iUnit = 1:length(selUnits)
         xlabel(layout.ax.etaLick, 'Time to self-timed lick (s)')
         ylabel(layout.ax.etaLick, 'spikes/s')
         legend(layout.ax.etaLick)
+        title(layout.ax.etaCircLick, 'PETH (Self-timed lick)')
 
         ylim(layout.ax.etaLick, 'auto')
         ylim(layout.ax.etaCircLick, 'auto')
@@ -667,7 +745,6 @@ for iUnit = 1:length(selUnits)
             max(arrayfun(@(ax) ax.YLim(2), [layout.ax.etaLick, layout.ax.etaCircLick]))]);
 
         title(layout.tl, eu(iEu).getName(), Interpreter='none')
-        fprintf('Done (%.2f s)\n', toc(tTic));
         
         % Plot waveforms by bin (aligned to lick)
         cla(layout.ax.binnedWaveforms)
@@ -675,10 +752,12 @@ for iUnit = 1:length(selUnits)
         hold(layout.ax.binnedWaveforms, 'on')
         hold(layout.ax.binnedHistograms, 'on')
         trials = eu(iEu).getTrials('circlick_naive', minInterval=0.05, maxInterval=0.20);
-        edges = 0:0.01:0.15;
         h = gobjects(2, 1);
-        for iBin = 1:length(edges)-1
-            window = edges(iBin:iBin+1);
+        clear binnedPeriLickWaveforms
+        nBins = length(edgesPeriLick) - 1;
+        binnedPeriLickWaveforms(nBins) = struct(iBin=[], tWave=[], meanWaveform=[], window=[], distToSpikeTemplate=[], distToNoiseTemplate=[], distRatio=[], ratioN=[], ratioEdges=[], nKSTestHits=[]);
+        for iBin = 1:nBins
+            window = edgesPeriLick(iBin:iBin+1);
             tempTrials = Trial([trials.Start]+window(1), [trials.Start]+window(2), advancedValidation=false);
             [inBin, ~] = tempTrials.inTrial(spikesFiltered.timestamps);
             waveforms = spikesFiltered.waveforms(inBin(:) & spikesFiltered.isUnit(:), :);
@@ -699,31 +778,201 @@ for iUnit = 1:length(selUnits)
             h(1) = plot(layout.ax.binnedWaveforms, tWave, spikeTemplate, Color='blue', LineWidth=1, LineStyle='--', DisplayName='template');
             h(2) = plot(layout.ax.binnedWaveforms, tWave, mu, Color='red', LineWidth=1, LineStyle='--', DisplayName='unit mean');
 
-            text(layout.ax.binnedWaveforms, tWave(16), min(spikeTemplate - 2*sigma), sprintf('%i', size(waveforms, 1)), HorizontalAlignment='center', VerticalAlignment='bottom')
+            text(layout.ax.binnedWaveforms, tWave(16), min(spikeTemplate - 2*sigma), sprintf('%.1f sp/s', size(waveforms, 1)/length(tempTrials)/0.01), HorizontalAlignment='center', VerticalAlignment='bottom')
             % text(layout.ax.binnedWaveforms, tWave(16), 0, sprintf('%i', size(waveforms, 1)), HorizontalAlignment='center', VerticalAlignment='bottom')
 
             % Embed a histogram of distanceToTemplate
-            [ratioN, ~] = histcounts(log2(distRatio), [0:0.05:1.95, Inf]);
-            ratioEdges = (0:0.05:2) + (iBin-1)*2;
-            histogram(layout.ax.binnedHistograms, BinEdges=ratioEdges, BinCounts=ratioN, EdgeColor='black', FaceColor='black');
+            [ratioN, ~] = histcounts(log2(distRatio), [0:0.05:maxLog-0.05, Inf], Normalization='probability');
+            ratioEdges = (0:0.05:maxLog) + (iBin-1)*maxLog;
+
+            binnedPeriLickWaveforms(iBin) = struct(iBin=iBin, tWave=tWave, meanWaveform=mu, window=window, distToSpikeTemplate=distToSpikeTemplate, distToNoiseTemplate=distToNoiseTemplate, distRatio=distRatio, ratioN=ratioN, ratioEdges=ratioEdges, nKSTestHits=0);
         end
-        xticks(layout.ax.binnedWaveforms, 0:10:150)
-        xline(layout.ax.binnedWaveforms, 0:10:150, 'k--')
-        xlim(layout.ax.binnedWaveforms, [0, 150])
+        xticks(layout.ax.binnedWaveforms, 0:10:100)
+        xline(layout.ax.binnedWaveforms, 0:10:100, 'k--')
+        xlim(layout.ax.binnedWaveforms, [0, 100])
         ylim(layout.ax.binnedWaveforms, [min(spikeTemplate - 2*sigma), max(spikeTemplate + 2*sigma)])
         ylabel(layout.ax.binnedWaveforms, '\muV')
         xlabel(layout.ax.binnedWaveforms, 'Time (ms)')
         legend(layout.ax.binnedWaveforms, h, Orientation='horizontal', Location='northeast')
 
-        xlim(layout.ax.binnedHistograms, [0, 2*(length(edges)-1)])
-        xticks(layout.ax.binnedHistograms, 0:1:2*(length(edges)-1))
-        xticklabels(layout.ax.binnedHistograms, string(repmat([0, 1], 1, length(edges)-1)))
-        xline(layout.ax.binnedHistograms, 0:2:2*(length(edges)-1), 'k--')
-        ylabel(layout.ax.binnedHistograms, 'SpikeCount')
-        xlabel(layout.ax.binnedHistograms, 'log_2(distToNoise/distToTemplate)')
+        % QQ-plot matrix for waveform distRatio
+        cla(layout.qq(1).ax)
+        for i = 1:nBinsQQPeriLick
+            for j = 1:i
+                axQQ = layout.qq(1).ax(nBinsQQPeriLick+1-j, i);
+                axPKS = layout.qq(1).ax(nBinsQQPeriLick+1-i, j);
+                [ks.h, ks.p] = kstest2(log2(binnedPeriLickWaveforms(i).distRatio), log2(binnedPeriLickWaveforms(j).distRatio), Alpha=ksAlpha/(nBinsQQPeriLick*(nBinsQQPeriLick-1)/2));
+                Qi = quantile(log2(binnedPeriLickWaveforms(i).distRatio), 0:0.025:1);
+                Qj = quantile(log2(binnedPeriLickWaveforms(j).distRatio), 0:0.025:1);
+                if ks.h
+                    color = 'red';
+                    binnedPeriLickWaveforms(i).nKSTestHits = binnedPeriLickWaveforms(i).nKSTestHits + 1;
+                    binnedPeriLickWaveforms(j).nKSTestHits = binnedPeriLickWaveforms(j).nKSTestHits + 1;
+                else
+                    color = 'black';
+                end
+                plot(axQQ, Qi, Qj, Color=color)
+                plot(axPKS, Qi, Qj, Color=color)
+                text(axPKS, 0.1, 0.9, sprintf('%i', round(-log10(ks.p))), Color=color, FontSize=6, VerticalAlignment='top', HorizontalAlignment='left', Units='normalized')
+            end
+        end
+        xticks(layout.qq(1).ax, [])
+        yticks(layout.qq(1).ax, [])
+        set(layout.qq(1).ax, Visible=false)
 
-        clear trials edges iBin window iBin spikeTimesInBin t waveforms IBinned distToSpikeTemplate distToNoiseTemplate distRatio waveformBinSize
-        
+        % Plot histograms
+        for iBin = 1:nBins
+            if binnedPeriLickWaveforms(iBin).nKSTestHits / (nBins-1) >= ksHitRateThreshold
+                color = 'red';
+            else
+                color = 'black';
+            end
+            histogram(layout.ax.binnedHistograms, BinEdges=binnedPeriLickWaveforms(iBin).ratioEdges, BinCounts=binnedPeriLickWaveforms(iBin).ratioN, EdgeColor='none', FaceColor=color);
+        end
+        xlim(layout.ax.binnedHistograms, [0, maxLog*nBins])
+        xticks(layout.ax.binnedHistograms, 0:1:maxLog*nBins)
+        xticklabels(layout.ax.binnedHistograms, string(repmat(0:1:(maxLog-1), 1, nBins)))
+        xline(layout.ax.binnedHistograms, 0:maxLog:maxLog*nBins, 'k--')
+        yticks(layout.ax.binnedHistograms, [])
+        ylabel(layout.ax.binnedHistograms, 'p')
+        xlabel(layout.ax.binnedHistograms, 'log_2(distToNoise/distToTemplate)')
+        layout.ax.binnedHistograms.TickLength = [0, 0];
+
+        % Plot waveforms by bin (aligned to circlick)
+        cla(layout.ax.binnedWaveformsByPhase)
+        cla(layout.ax.binnedHistogramsByPhase)
+        hold(layout.ax.binnedWaveformsByPhase, 'on')
+        hold(layout.ax.binnedHistogramsByPhase, 'on')
+        trials = eu(iEu).getTrials('circlick_naive', minInterval=0.05, maxInterval=0.20);
+        durations = trials.duration();
+        % Do lickOff artifact blanking
+        if isfield(eu(iEu).EventTimes, 'LickOff')
+            lickOff = eu(iEu).EventTimes.LickOff;
+        elseif isfield(eu(iEu).EventTimes, 'LICK_OFF')
+            lickOff = eu(iEu).EventTimes.LICK_OFF;
+        else
+            error('Could not find lick off event under either eu.EventTimes.LICK_OFF or eu.EventTimes.LickOff');
+        end
+        [~, lickOff, lickOffTrialIndices] = trials.inTrial(lickOff);
+        % Well by difinition there needs to be a lickOff before the next lickOn
+        assert(issorted(lickOffTrialIndices, 'ascend') && length(lickOff)==length(trials), "Well by difinition there needs to be a lickOff before the next lickOn")
+        assert(size(durations, 1) == 1 && size(lickOffTrialIndices, 1) == 1 && size(lickOff, 1) == 1)
+        clear lickOffTrialIndices
+
+        h = gobjects(2, 1);
+        clear binnedCircLickWaveformsByPhase
+        nBins = length(edgesCircLick) - 1;
+        binnedCircLickWaveformsByPhase(nBins) = struct( ...
+            iBin=[], tWave=[], meanWaveform=[], window=[], windowReal=[], hasArtifact=[],...
+            distToSpikeTemplate=[], distToNoiseTemplate=[], distRatio=[], ratioN=[], ratioEdges=[], nKSTestHits=[]);
+        for iBin = 1:nBins
+            window = edgesCircLick(iBin:iBin+1);
+            windowReal = [(window(1)/(2*pi))*durations; (window(2)/(2*pi))*durations];            
+            tempTrials = Trial([trials.Start] + windowReal(1, :), [trials.Start] + windowReal(2, :), advancedValidation=false);
+            % Do lickOn artifact blanking
+            hasArtifact = windowReal(1, :) < 10e-3;
+            % Do lickOff artifact blanking
+            hasArtifact = hasArtifact | ~(([tempTrials.Start]>=(lickOff+10e-3)) | ([tempTrials.Stop]<=(lickOff-10e-3)));
+
+            tempTrials = tempTrials(~hasArtifact);
+            if isempty(tempTrials)
+                binnedCircLickWaveformsByPhase(iBin) = struct( ...
+                    iBin=iBin, tWave=[], meanWaveform=[], window=window, windowReal=windowReal, hasArtifact=hasArtifact, ...
+                    distToSpikeTemplate=[], distToNoiseTemplate=[], distRatio=[], ratioN=[], ratioEdges=[], nKSTestHits=[]);
+            else
+                [inBin, ~] = tempTrials.inTrial(spikesFiltered.timestamps);
+                waveforms = spikesFiltered.waveforms(inBin(:) & spikesFiltered.isUnit(:), :);
+                tWave = spikesFiltered.waveformTimestamps*diff(window)+mean(window);
+                mu = mean(waveforms, 1, 'omitnan');
+    
+                distToSpikeTemplate = sum((waveforms - spikeTemplate).^2, 2);
+                distToNoiseTemplate = sum((waveforms - noiseTemplate).^2, 2);
+                distRatio = distToNoiseTemplate ./ distToSpikeTemplate;
+                [~, IBinned] = sort(distRatio, 'ascend');
+                waveforms = waveforms(IBinned, :);
+    
+                waveformBinSize = 10;
+                for iWaveform = 1:waveformBinSize:size(waveforms, 1)
+                    plot(layout.ax.binnedWaveformsByPhase, tWave, mean(waveforms(iWaveform:min(iWaveform+waveformBinSize-1, size(waveforms, 1)), :), 1), Color=[getColor(iWaveform/waveformBinSize, length(IBinned)/waveformBinSize, 0.67), 0.25], LineWidth=0.5)
+                    % plot(layout.ax.binnedWaveforms, tWave, waveforms(iWaveform, :), Color=[getColor(iWaveform/waveformBinSize, length(IBinned)/waveformBinSize, 0.67), 0.25], LineWidth=0.5)
+                end
+                h(1) = plot(layout.ax.binnedWaveformsByPhase, tWave, spikeTemplate, Color='blue', LineWidth=1, LineStyle='--', DisplayName='template');
+                h(2) = plot(layout.ax.binnedWaveformsByPhase, tWave, mu, Color='red', LineWidth=1, LineStyle='--', DisplayName='unit mean');
+    
+                text(layout.ax.binnedWaveformsByPhase, tWave(16), min(spikeTemplate - 2*sigma), sprintf('%.1f sp \\times %i trials', size(waveforms, 1)/length(tempTrials), length(tempTrials)), HorizontalAlignment='center', VerticalAlignment='bottom')
+                % text(layout.ax.binnedWaveforms, tWave(16), 0, sprintf('%i', size(waveforms, 1)), HorizontalAlignment='center', VerticalAlignment='bottom')
+    
+                % Embed a histogram of distanceToTemplate
+                [ratioN, ~] = histcounts(log2(distRatio), [0:0.05:maxLog-0.05, Inf], Normalization='probability');
+                ratioEdges = (0:0.05:maxLog) + (iBin-1)*maxLog;
+                binnedCircLickWaveformsByPhase(iBin) = struct( ...
+                    iBin=iBin, tWave=tWave, meanWaveform=mu, window=window, windowReal=windowReal, hasArtifact=hasArtifact, ...
+                    distToSpikeTemplate=distToSpikeTemplate, distToNoiseTemplate=distToNoiseTemplate, distRatio=distRatio, ratioN=ratioN, ratioEdges=ratioEdges, nKSTestHits=0);
+            end
+        end
+        xline(layout.ax.binnedWaveformsByPhase, edgesCircLick, 'k--')
+        xticks(layout.ax.binnedWaveformsByPhase, [0, edgesCircLick, 2*pi])
+        xticklabels(layout.ax.binnedWaveformsByPhase, ["0", string(arrayfun(@(t) sprintf("%i/%i\\pi", round(t/pi*(nBins+1)), nBins+1), edgesCircLick)), "2\pi"])
+        xlim(layout.ax.binnedWaveformsByPhase, [edgesCircLick(1), edgesCircLick(end)])
+        ylim(layout.ax.binnedWaveformsByPhase, [min(spikeTemplate - 2*sigma), max(spikeTemplate + 2*sigma)])
+        ylabel(layout.ax.binnedWaveformsByPhase, '\muV')
+        xlabel(layout.ax.binnedWaveformsByPhase, 'lick phase')
+        legend(layout.ax.binnedWaveformsByPhase, h, Orientation='horizontal', Location='northeast')
+
+        % QQ-plot matrix for waveform distRatio
+        cla(layout.qq(2).ax)
+        for i = 1:nBinsQQCircLick
+            for j = 1:i
+                if isempty(binnedCircLickWaveformsByPhase(i).distRatio) || isempty(binnedCircLickWaveformsByPhase(j).distRatio)
+                    continue;
+                end
+                axQQ = layout.qq(2).ax(nBinsQQCircLick+1-j, i);
+                axPKS = layout.qq(2).ax(nBinsQQCircLick+1-i, j);
+                
+                [ks.h, ks.p] = kstest2(log2(binnedCircLickWaveformsByPhase(i).distRatio), log2(binnedCircLickWaveformsByPhase(j).distRatio), Alpha=ksAlpha/(nBinsQQCircLick*(nBinsQQCircLick-1)/2));
+                Qi = quantile(log2(binnedCircLickWaveformsByPhase(i).distRatio), 0:0.025:1);
+                Qj = quantile(log2(binnedCircLickWaveformsByPhase(j).distRatio), 0:0.025:1);
+                if ks.h
+                    color = 'red';
+                    binnedCircLickWaveformsByPhase(i).nKSTestHits = binnedCircLickWaveformsByPhase(i).nKSTestHits + 1;
+                    binnedCircLickWaveformsByPhase(j).nKSTestHits = binnedCircLickWaveformsByPhase(j).nKSTestHits + 1;
+                else
+                    color = 'black';
+                end
+                plot(axQQ, Qi, Qj, Color=color)
+                plot(axPKS, Qi, Qj, Color=color)
+                text(axPKS, 0.1, 0.9, sprintf('%i', round(-log10(ks.p))), Color=color, FontSize=6, VerticalAlignment='top', HorizontalAlignment='left', Units='normalized')
+            end
+        end
+        xticks(layout.qq(2).ax, [])
+        yticks(layout.qq(2).ax, [])
+        set(layout.qq(2).ax, Visible=false)
+
+        % Plot histograms (circlick)
+        for iBin = 1:nBins
+            if isempty(binnedCircLickWaveformsByPhase(iBin).distRatio)
+                continue
+            end
+            if binnedCircLickWaveformsByPhase(iBin).nKSTestHits / (nBins-1) >= ksHitRateThreshold
+                color = 'red';
+                text(layout.ax.etaCircLick, mean(binnedCircLickWaveformsByPhase(iBin).window), mean(layout.ax.etaCircLick.YLim), '*', VerticalAlignment='bottom', HorizontalAlignment='center', FontSize=14, Color='red')
+            else
+                color = 'black';
+            end
+            histogram(layout.ax.binnedHistogramsByPhase, BinEdges=binnedCircLickWaveformsByPhase(iBin).ratioEdges, BinCounts=binnedCircLickWaveformsByPhase(iBin).ratioN, EdgeColor='none', FaceColor=color);
+        end
+        xlim(layout.ax.binnedHistogramsByPhase, [0, maxLog*nBins])
+        xticks(layout.ax.binnedHistogramsByPhase, 0:1:maxLog*nBins)
+        xticklabels(layout.ax.binnedHistogramsByPhase, string(repmat(0:1:(maxLog-1), 1, nBins)))
+        xline(layout.ax.binnedHistogramsByPhase, 0:maxLog:maxLog*nBins, 'k--')
+        yticks(layout.ax.binnedHistogramsByPhase, [])
+        ylabel(layout.ax.binnedHistogramsByPhase, 'p')
+        xlabel(layout.ax.binnedHistogramsByPhase, 'log_2(distToNoise/distToTemplate)')
+        layout.ax.binnedHistogramsByPhase.TickLength = [0, 0];
+
+        fprintf('Done (%.2f s)\n', toc(tTic));
+        clear trials iBin window spikeTimesInBin t waveforms IBinned distToSpikeTemplate distToNoiseTemplate distRatio waveformBinSize ks i j Qi Qj color ks
+
         tTic = tic();
         fprintf('\tSaving plots...');
         print(layout.fig, sprintf('%s\\%s.png', savePath, eu(iEu).getName()), '-dpng', '-r0')
@@ -733,17 +982,17 @@ for iUnit = 1:length(selUnits)
         name = eu(iEu).getName();
         tTic = tic();
         fprintf('\tSaving data...');
-        save(sprintf("%s\\%s.mat", savePath, name), 'index', 'name', 'spikesFiltered', 'spikesRaw', 'oldSpikeTimes', '-v7.3')
+        save(sprintf("%s\\%s.mat", savePath, name), 'index', 'name', 'spikesFiltered', 'spikesRaw', 'oldSpikeTimes', 'spikeTemplate', 'noiseTemplate', 'binnedPeriLickWaveforms', 'binnedCircLickWaveformsByPhase', '-v7.3')
         fprintf('Done (%.2f s)\n', toc(tTic));
-    catch ME
-        warning('Error processing unit %i (%i)', iEu, iUnit);
-        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
-    end
+    % catch ME
+    %     warning('Error processing unit %i (%i)', iEu, iUnit);
+    %     warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+    % end
 end
 
 clear useRawCache iUnit iEu tTic raw filtered stAbs spikeTemplateRaw maxMicroVolts spikeTemplate tWaveform noiseTemplate distToSpikeTemplate distToNoiseTemplate residuals sigma pOutlier I iWave xRawAligned tAligned stRawAligned trials xFilteredAligned stFilteredAligned etaTemp
 clear index name tTic
-clear trials edges iBin window tempTrials inBin spikeTimesInBin waveforms tWave mu distToSpikeTemplate distToNoiseTemplate distRatio IBinned waveformBinSize iWaveform
+clear trials edgesPeriLick iBin window tempTrials inBin spikeTimesInBin waveforms tWave mu distToSpikeTemplate distToNoiseTemplate distRatio IBinned waveformBinSize iWaveform binnedPeriLickWaveforms nBinsQQPeriLick
 
 %% Load a unit
 savePath = "C:\SERVER\Figures\lick_artifact_removal\euclidean";
@@ -911,8 +1160,8 @@ function varargout = plotRaw(ax, x, t, st, varargin)
 
     xline(ax, 0, 'k--')
     ylim(ax, [-spacing, (nTrials)*spacing])
-    xlabel(ax, 'Time (ms)')
-    ylabel(ax, 'Voltage (uV)')
+    xlabel(ax, 'time (ms)')
+    ylabel(ax, 'voltage (uV)')
 
     varargout = {x, t, st};
 end

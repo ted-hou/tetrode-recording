@@ -21,5 +21,7 @@ function c = getColor(i, n, maxHue, varargin)
         return
     else
         c = hsl2rgb([maxHue*(i-1)./(n-1), s, l]);
+        c = min(c, [1, 1, 1]);
+        c = max(c, [0, 0, 0]);
     end
 end
