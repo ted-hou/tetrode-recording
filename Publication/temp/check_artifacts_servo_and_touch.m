@@ -563,7 +563,7 @@ else
     spikesFiltered = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
     spikesRaw = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
 end
-for iUnit = 7%1:length(selUnits)
+for iUnit = 1:length(selUnits)
     % try
         cla(layout.ax.waveform)
         cla(layout.ax.etaLick)
@@ -853,11 +853,13 @@ for iUnit = 7%1:length(selUnits)
         else
             error('Could not find lick off event under either eu.EventTimes.LICK_OFF or eu.EventTimes.LickOff');
         end
-        [~, lickOff, lickOffTrialIndices] = trials.inTrial(lickOff);
+        [~, lickOffNonNan, lickOffTrialIndices] = trials.inTrial(lickOff);
+        lickOff = NaN(1, length(trials));
+        lickOff(lickOffTrialIndices) = lickOffNonNan;
         % Well by difinition there needs to be a lickOff before the next lickOn
         assert(issorted(lickOffTrialIndices, 'ascend') && length(lickOff)==length(trials), "Well by difinition there needs to be a lickOff before the next lickOn")
         assert(size(durations, 1) == 1 && size(lickOffTrialIndices, 1) == 1 && size(lickOff, 1) == 1)
-        clear lickOffTrialIndices
+        clear lickOffTrialIndices lickOffNonNan
 
         h = gobjects(2, 1);
         clear binnedCircLickWaveformsByPhase
@@ -870,9 +872,16 @@ for iUnit = 7%1:length(selUnits)
             windowReal = [(window(1)/(2*pi))*durations; (window(2)/(2*pi))*durations];            
             tempTrials = Trial([trials.Start] + windowReal(1, :), [trials.Start] + windowReal(2, :), advancedValidation=false);
             % Do lickOn artifact blanking
-            hasArtifact = windowReal(1, :) < 10e-3;
+            hasArtifactOn = windowReal(1, :) < 10e-3;
             % Do lickOff artifact blanking
-            hasArtifact = hasArtifact | ~(([tempTrials.Start]>=(lickOff+10e-3)) | ([tempTrials.Stop]<=(lickOff-10e-3)));
+            A = [tempTrials.Start];
+            B = [tempTrials.Stop];
+            C = lickOff - 0.010;
+            D = lickOff + 0.010;
+            hasArtifactOff = ~(A>=D | B<=C);
+            hasArtifactOff = hasArtifactOff & ~isnan(lickOff);
+            hasArtifact = hasArtifactOn | hasArtifactOff;
+            clear hasArtifactOn hasArtifactOff A B C D
 
             tempTrials = tempTrials(~hasArtifact);
             if isempty(tempTrials)
