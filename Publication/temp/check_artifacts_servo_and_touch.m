@@ -564,7 +564,7 @@ else
     spikesRaw = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
 end
 for iUnit = 1:length(selUnits)
-    try
+    % try
         cla(layout.ax.waveform)
         cla(layout.ax.etaLick)
         cla(layout.ax.etaCircLick)
@@ -795,8 +795,13 @@ for iUnit = 1:length(selUnits)
         xlabel(layout.ax.binnedWaveforms, 'Time (ms)')
         legend(layout.ax.binnedWaveforms, h, Orientation='horizontal', Location='northeast')
 
+        for i = 1:nBinsQQPeriLick
+            for j = 1:nBinsQQPeriLick
+                cla(layout.qq(1).ax(i, j))
+            end
+        end
+
         % QQ-plot matrix for waveform distRatio
-        cla(layout.qq(1).ax)
         for i = 1:nBinsQQPeriLick
             for j = 1:i
                 axQQ = layout.qq(1).ax(nBinsQQPeriLick+1-j, i);
@@ -929,7 +934,13 @@ for iUnit = 1:length(selUnits)
         legend(layout.ax.binnedWaveformsByPhase, h, Orientation='horizontal', Location='northeast')
 
         % QQ-plot matrix for waveform distRatio
-        cla(layout.qq(2).ax)
+
+        for i = 1:nBinsQQCircLick
+            for j = 1:nBinsQQCircLick
+                cla(layout.qq(2).ax(i, j))
+            end
+        end
+
         for i = 1:nBinsQQCircLick
             for j = 1:i
                 if isempty(binnedCircLickWaveformsByPhase(i).distRatio) || isempty(binnedCircLickWaveformsByPhase(j).distRatio)
@@ -998,10 +1009,10 @@ for iUnit = 1:length(selUnits)
         fprintf('\tSaving data...');
         save(sprintf("%s\\%s.mat", savePath, name), 'index', 'name', 'spikesFiltered', 'spikesRaw', 'oldSpikeTimes', 'spikeTemplate', 'noiseTemplate', 'binnedPeriLickWaveforms', 'binnedCircLickWaveformsByPhase', 'circLickArtifactRate', '-v7.3')
         fprintf('Done (%.2f s)\n', toc(tTic));
-    catch ME
-        warning('Error processing unit %i (%i)', iEu, iUnit);
-        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
-    end
+    % catch ME
+    %     warning('Error processing unit %i (%i)', iEu, iUnit);
+    %     warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+    % end
 end
 
 clear useRawCache iUnit iEu tTic raw filtered stAbs spikeTemplateRaw maxMicroVolts spikeTemplate tWaveform noiseTemplate distToSpikeTemplate distToNoiseTemplate residuals sigma pOutlier I iWave xRawAligned tAligned stRawAligned trials xFilteredAligned stFilteredAligned etaTemp
