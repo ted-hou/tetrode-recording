@@ -614,6 +614,7 @@ classdef EphysUnit < handle
                 'firstlick', 'circlick', 'circlick_naive', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
                 'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
+            p.addParameter('selUnits', [], @(x) isnumeric(x) || islogical(x))
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('findSingleTrialDuration', 'off', @(x) ismember(x, {'off', 'min', 'max'}))
@@ -639,6 +640,7 @@ classdef EphysUnit < handle
             data = lower(r.data);
             event = r.event;
             window = r.window;
+            selUnits = r.selUnits;
             minTrialDuration = r.minTrialDuration;
             maxTrialDuration = r.maxTrialDuration;
             findSingleTrialDuration = r.findSingleTrialDuration;
@@ -688,14 +690,20 @@ classdef EphysUnit < handle
             end
             t = (edges(1:end-1) + edges(2:end)) / 2;
             X = NaN(length(obj), length(t));
-            N = zeros(length(obj), 1);
-            D = zeros(length(obj), 1);
+            N = NaN(length(obj), 1);
+            D = NaN(length(obj), 1);
 
             tTic = tic();
             if length(obj) > 1
                 fprintf(1, 'Processing ETA for %i units...', length(obj))
             end
-            for i = 1:length(obj)
+            if isempty(selUnits)
+                selUnits = 1:length(obj);
+            elseif islogical(selUnits)
+                selUnits = find(selUnits);
+            end
+            selUnits = reshape(selUnits, 1, []);
+            for i = selUnits
                 if strcmpi(alignTo, 'default') 
                     if ismember(lower(event), {'stim', 'stimtrain', 'stimfirstpulse'})
                         alignTo = 'start';
