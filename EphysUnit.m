@@ -2791,7 +2791,7 @@ classdef EphysUnit < handle
                     n = round(2*pi/resolution); % We only return n-1 bins
                     tAligned = linspace(pi/n, (2-1/n)*pi, n); % tAligned: expressed in phase
                     tAlignedGlobal = zeros(length(trials), length(tAligned));
-                    isLickArtifact = false(length(trials), length(tAligned) - 1);
+                    isLickArtifact = false(length(trials), length(tAligned) - 1); % for bins 1->n-1, since the two half-bins on 0 and 2pi are ignored.
                     assert(strcmpi(lickArtifactLengthType, 'ms'), 'lickArtifactLengthType must be ''ms''')
                     assert(strcmpi(lickArtifactDirection, 'both'), 'lickArtifactDireciton must be ''both''')
 
@@ -2854,14 +2854,115 @@ classdef EphysUnit < handle
                     for iTrial = 1:length(trials)
                         tAlignedGlobal(iTrial, :) = linspace(trials(iTrial).Start, trials(iTrial).Stop, length(tAligned));
                     end
+                case 'lickbout_naive'
+                    % Similar binning strategy as 'circlick_naive':
+                    % For each interlick interval, we only have n-1
+                    % potentially non-artifact-ridden bins per interlick
+                    % interval, 1 bin is guaranteed to include lick
+                    % artifacts and is split into two and placed at [0,pi/n],
+                    % [2pi-pi/n], etc...
+                    % For each bout with boutLength+1 licks, we have
+                    % n*nCycles - 1 bins
+                    nBouts = size(trials, 1);
+                    nCycles = size(trials, 2);
+                    n = round(2*pi/resolution);
+                    tAligned = linspace(pi/n, 2*pi*nCycles - pi/n, n*nCycles); % tAligned: expressed in phase, returns n*nCycles - 1 total bins
+                    tAlignedGlobal = NaN(nBouts, length(tAligned)); % tAligned global: in seconds (ephys time)
+                    isLickArtifact = false(nBouts, length(tAligned)); % aligned to left edge, last value is meaningless?
+
+                    if lickArtifactLength > 0
+                        assert(strcmpi(lickArtifactLengthType, 'ms'), 'lickArtifactLengthType must be "ms"')
+                        assert(strcmpi(lickArtifactDirection, 'both'), 'lickArtifactDireciton must be "both"')
+                    end
+
+                    if lickOffArtifactLength > 0
+                        assert(strcmpi(lickOffArtifactLengthType, 'ms'), 'lickOffArtifactLengthType must be "ms"')
+                        assert(strcmpi(lickOffArtifactDirection, 'both'), 'lickOffArtifactDirection must be "both"')
+                        if isfield(obj.EventTimes, 'LickOff')
+                            lickOff = obj.EventTimes.LickOff;
+                        elseif isfield(obj.EventTimes, 'LICK_OFF')
+                            lickOff = obj.EventTimes.LICK_OFF;
+                        else
+                            error('Could not find lick off event under either obj.EventTimes.LICK_OFF or obj.EventTimes.LickOff');
+                        end
+                        [~, lickOff, lickOffI, lickOffJ] = trials.inTrial2(lickOff); % I: bout/row index, J: interlick-interval/col index
+                    end
+
+                    for iBout = 1:nBouts
+                        for iCycle = 1:nCycles
+                            if trials(iBout, iCycle).isEmpty
+                                break;
+                            end
+                            start = trials(iBout, iCycle).Start;
+                            stop = trials(iBout, iCycle).Stop;
+                            duration = stop - start;
+                            tAlignedLocal = linspace(0 + duration/(2*n), duration - duration/(2*n), n);
+                            tAlignedGlobal(iBout, 1+n*(iCycle-1) : n*iCycle) = start + tAlignedLocal;
+
+                            % Lick onset: Blank out artifact-ridden bins (can be more than one)
+                            if lickArtifactLength > 0
+                                [~, ~, bins] = histcounts([lickArtifactLength*1e-3, duration - lickArtifactLength*1e-3], tAlignedLocal);
+                                if bins(2) == 0
+                                    bins(2) = n; % We only have n-1 bins so n and 0 are considered out of bounds, can be used for artifact blanking below
+                                end
+                                isLickArtifact(iBout, n*(iCycle-1) + (1:bins(1))) = true;
+                                isLickArtifact(iBout, n*(iCycle-1) + (n-1:-1:bins(2))) = true;
+                                isLickArtifact(iBout, n*iCycle) = true; % The gap bins centered at 0, 2pi... is marked artifact. Last bin (nCycles*2*pi) in bout is also marked artifact but we don't use it it's fine.
+                            end
+
+                            % Lick offset: Blank out artifact-ridden bins
+                            % Find lick off events for each lick-on
+                            if lickOffArtifactLength > 0
+                                iLickOff = find(lickOffI == iBout && lickOffJ == iCycle);
+                                if ~isempty(iLickOff)
+                                    tLickOffAligned = lickOff(iLickOff) - trials(iBout, iCycle).Start;
+                                    [~, ~, bins] = histcounts([tLickOffAligned - lickArtifactLength*1e-3, tLickOffAligned + lickArtifactLength*1e-3], tAlignedLocal);
+                                    if bins(1) == 0 && bins(2) == 0
+                                        error("iBout=%i iCycle=%i: %i %i [%s] %g\n", iBout, iCycle, bins(1), bins(2), num2str(tLickOffAligned*1e3), duration)
+                                    end
+                                    if bins(1) == 0
+                                        bins(1) = 1;
+                                    end
+                                    if bins(2) == 0
+                                        bins(2) = n - 1;
+                                    end
+                                    isLickArtifact(iBout, n*(iCycle-1) + bins(1):bins(2)) = true;
+                                end
+                            end
+                        end
+                    end
                 case 'lickbout'
                     tAligned = 0:resolution:2*pi*size(trials, 2);
                     nBinsPerCycle = length(0:resolution:2*pi) - 1;
                     isLickArtifact = false(size(tAligned));
                     if lickArtifactLength > 0
-                        for iCycle = 1:size(trials, 2)
-                            isLickArtifact(nBinsPerCycle*(iCycle-1) + (1:lickArtifactLength)) = true;
+                        switch lower(lickOffArtifactLengthType)
+                            case 'bins'
+                                switch lower(lickOffArtifactDirection)
+                                    case 'right'
+                                        for iCycle = 1:size(trials, 2)
+                                            selBins = nBinsPerCycle*(iCycle-1) + (1:lickArtifactLength);
+                                            selBins = min(selBins, length(isLickArtifact));
+                                            isLickArtifact(selBins) = true;
+                                        end
+                                    case 'both'
+                                        for iCycle = 1:size(trials, 2)
+                                            selBins = nBinsPerCycle*(iCycle-1) + (-lickArtifactLength:lickArtifactLength);
+                                            selBins = max(selBins, 1);
+                                            selBins = min(selBins, length(isLickArtifact));
+                                            isLickArtifact(selBins) = true;
+                                        end
+                                    otherwise
+                                        error('Parameter "lickOffArtifactDirection" cannot be "%s", must be "right" or "both".', lickOffArtifactDirection)
+                                end
+                            case 'ms'
+                                error('Not implemented: Parameter "lickOffArtifactLengthType" is set to "%s", try "bins" instead, or maybe you meant to use "lickbout_naive"?', lickOffArtifactLengthType)
+                            otherwise
+                                error('Parameter "lickOffArtifactLengthType" cannot be "%s", must be "bins" or "ms".', lickOffArtifactLengthType)
                         end
+                    end
+                    if lickOffArtifactLength > 0
+                        error('Not implemented: "lickOffArtifact" for trial type "lickbout".')
                     end
                     tAlignedGlobal = NaN(size(trials, 1), length(tAligned));
                     for iTrial = 1:size(trials, 1)
@@ -3004,7 +3105,7 @@ classdef EphysUnit < handle
                         xAligned = NaN(length(trials), length(tAligned));
                         switch data
                             case 'rate'
-                                error('Not implemented: ''rate'' for ''circlick_naive''')
+                                error('Not implemented: ''rate'' for ''%s''', trialType)
                             case 'count'
                                 for iTrial = 1:length(trials)
                                     binWidth = diff(tAlignedGlobal(iTrial, :));
@@ -3013,6 +3114,23 @@ classdef EphysUnit < handle
                                     xx = xx./binWidth;
                                     xx(isLickArtifact(iTrial, :)) = NaN;
                                     xAligned(iTrial, 1:length(xx)) = xx;
+                                end
+                        end
+                    case 'lickbout_naive'
+                        tAligned = (tAligned(1:end-1) + tAligned(2:end)) / 2;
+                        xAligned = NaN(length(trials), length(tAligned));
+                        switch data
+                            case 'rate'
+                                error('Not implemented: ''rate'' for ''%s''', trialType)
+                            case 'count'
+                                for iBout = 1:size(trials, 1)
+                                    sel = ~isnan(tAlignedGlobal(iBout, :));
+                                    binWidth = diff(tAlignedGlobal(iBout, sel));
+                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iBout, sel));
+                                    xx = double(xx);
+                                    xx = xx./binWidth;
+                                    xx(isLickArtifact(iBout, 1:end-1)) = NaN;
+                                    xAligned(iBout, 1:length(xx)) = xx;
                                 end
                         end
                     case {'circlick', 'lickbout'}
