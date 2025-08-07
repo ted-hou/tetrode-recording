@@ -232,6 +232,38 @@ classdef Trial
 %             end
 
         end
+
+        function [B, t, I, J] = inTrial2(obj, t, varargin)
+            % Same as inTrial, except for a 2D trial array, returns I and J
+            p = inputParser();
+            p.addRequired('t', @isnumeric);
+            p.addOptional('window', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
+            p.addParameter('windowMode', 'extend', @(x) ismember(x, {'start', 'stop', 'extend'}))
+            p.parse(t, varargin{:})
+            t = p.Results.t;
+            t = t(:)';
+            window = p.Results.window;
+            windowMode = p.Results.windowMode;
+
+            B = false(size(t));
+            I = NaN(size(t));
+            J = NaN(size(t));
+
+            if strcmpi(windowMode, 'extend') && (window(1) < 0 || window(2) > 0)
+                warning('Overlapping bins may required duplication of timestamps to allow assignment to more than one bin, this has not been implemented, thus issues may arise if extendedWindow is non zero: [%g, %g]', window(1), window(2))
+            end
+
+            for i = 1:size(obj, 1)
+                [inRow, ~, thisJ] = obj(i, :).inTrial(t, varargin{:});
+                B = B | inRow;
+                I(inRow) = i;
+                J(inRow) = thisJ;
+            end
+
+            t = t(B);
+            I = I(B);
+            J = J(B);
+        end
     end
 
     % public static methods
