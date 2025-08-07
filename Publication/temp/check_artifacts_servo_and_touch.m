@@ -190,20 +190,20 @@ names.found = cellfun(@(name) strsplit(name, "_"), names.found, UniformOutput=fa
 names.found = cellfun(@(tokens) strjoin(tokens(2:end), "_"), names.found, UniformOutput=false);
 names.found = string(names.found(:));
 
-hasRaw = ismember(names.expected, names.found);
+cc.hasRaw = reshape(ismember(names.expected, names.found), 1, []);
 clear files
 
 % Find out which units use intan
-isIntan = false(length(eu), 1);
+cc.isIntan = false(1, length(eu));
 for iEu = 1:length(eu)
     animalName = eu(iEu).getAnimalName();
     expName = eu(iEu).ExpName;
     filesRoot = dir(sprintf("C:\\SERVER\\%s\\%s\\*.rhd", animalName, expName));
     files = dir(sprintf("C:\\SERVER\\%s\\%s\\*\\*.rhd", animalName, expName));
     if ~isempty(files) || ~isempty(filesRoot)
-        isIntan(iEu) = true;
+        cc.isIntan(iEu) = true;
     else
-        isIntan(iEu) = false;
+        cc.isIntan(iEu) = false;
     end
     % fprintf('%s %i\n', expName, length(files));
 end
@@ -307,8 +307,8 @@ clear iEu animalName expName files
 % for iAx = 1:15
 %     ax(iAx) = nexttile(tl);
 % end
-% % for iEu = find(hasRaw(:)' & isIntan(:)')
-% for iEu = find(hasRaw(:)')
+% % for iEu = find(cc.hasRaw(:)' & cc.isIntan(:)')
+% for iEu = find(cc.hasRaw(:)')
 %     try
 %         raw = load(sprintf("C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat", eu(iEu).getName()));
 %         % 1: Raster
@@ -478,7 +478,7 @@ if ~exist(savePath, 'dir')
 end
 save(sprintf("%s\\pTemplateMatching.mat", savePath), 'pTemplateMatching')
 
-selUnits = find(hasRaw & isIntan); useRawCache = false;
+selUnits = find(cc.hasRaw & cc.isIntan); useRawCache = false;
 % selUnits = find(ismember(eu.getName(), coolUnitNames)); useRawCache = true;
 unitNames = eu.getName();
 edgesPeriLick = 0:0.01:0.1; nBinsQQPeriLick = min(length(edgesPeriLick) - 1, 10);
@@ -1021,20 +1021,24 @@ clear index name tTic
 clear trials edgesPeriLick iBin window tempTrials inBin spikeTimesInBin waveforms tWave mu distToSpikeTemplate distToNoiseTemplate distRatio IBinned waveformBinSize iWaveform binnedPeriLickWaveforms nBinsQQPeriLick
 
 %% Load a unit
-savePath = "C:\SERVER\Figures\lick_artifact_removal\euclidean";
+savePath = "C:\SERVER\Figures\lick_artifact_removal\euclidean_run2";
 
-spikesFiltered(length(eu)) = struct(index=[], name=[], sampleIndex=[], timestamps=[], waveforms=[], waveformTimestamps=[], isUnit=[]);
-oldSpikeTimes = cell(length(eu), 1);
+load(sprintf("%s\\pTemplateMatching.mat", savePath))
+
+selUnits = find(cc.hasRaw & cc.isIntan); useRawCache = false;
+
+clear unit
+unit(length(eu)) = struct(index=[], name=[], spikesFiltered=[], oldSpikeTimes=[], spikeTemplate=[], noiseTemplate=[], binnedPeriLickWaveforms=[], binnedCircLickWaveformsByPhase=[], circLickArtifactRate=[]);
+
 lineLength = 0;
 tTicTotal = tic();
 for iUnit = 1:length(selUnits)
     try
         iEu = selUnits(iUnit);
         tTic = tic();
-        S = load(sprintf("%s\\%s.mat", savePath, eu(iEu).getName()), 'index', 'name', 'spikesFiltered', 'oldSpikeTimes');
+        S = load(sprintf("%s\\%s.mat", savePath, eu(iEu).getName()), 'index', 'name', 'spikesFiltered', 'oldSpikeTimes', 'spikeTemplate', 'noiseTemplate', 'binnedPeriLickWaveforms', 'binnedCircLickWaveformsByPhase', 'circLickArtifactRate');
         assert(S.index == iEu && strcmpi(S.name, eu(iEu).getName()))
-        spikesFiltered(iEu) = S.spikesFiltered;
-        oldSpikeTimes{iEu} = S.oldSpikeTimes;
+        unit(iEu) = S;        
         fprintf(repmat('\b', 1, lineLength))
         lineLength = fprintf("Loaded unit %i/%i, iEu=%i, name='%s' (%.2fs, %.2fs total)\n", iUnit, length(selUnits), iEu, eu(iEu).getName(), toc(tTic), toc(tTicTotal));
     catch ME
@@ -1045,17 +1049,97 @@ end
 
 clear iEu S lineLength tTic tTicTotal iUnit
 
-%% Reget templates
-for iEu = selUnits(:)'
-    tTic = tic();
-    fprintf('\tExtracing waveforms to use as templates from filtered data...');
-    [spikeTemplate, ~] = getWaveforms(filtered, [-0.5, 0.5], spikesRaw.sampleIndex(spikesRaw.isUnit), IndexType='SampleIndex');
-    [noiseTemplate, tWaveform] = getWaveforms(filtered, [-0.5, 0.5], spikesRaw.sampleIndex(~spikesRaw.isUnit), IndexType='SampleIndex');
-    fprintf('Done (%.2f s)\n', toc(tTic));
+%% Calculate ETA and bootstrap for cyclic firing
+cc.hasLickArtifact = arrayfun(@(unit) isempty(unit.circLickArtifactRate) || unit.circLickArtifactRate > 0, unit);
 
-    spikeTemplate = mean(spikeTemplate, 1, 'omitnan');
-    noiseTemplate = mean(noiseTemplate, 1, 'omitnan');
+for iEu = find(~cc.hasLickArtifact)
+    eu(iEu).SpikeTimes = unit(iEu).spikesFiltered.timestamps(unit(iEu).spikesFiltered.isUnit);
 end
+eta.circLickNaiveFiltered = eu.getETA('count', 'circlick_naive', selUnits=~cc.hasLickArtifact, window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
+    lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+eta.pressNormFiltered = eu.getETA('count', 'press', window=[-4, 2], normalize=[-4, -2], minTrialDuration=2);
+
+for iEu = find(~cc.hasLickArtifact)
+    eu(iEu).SpikeTimes = unit(iEu).oldSpikeTimes;
+end
+eta.circLickNaiveRaw = eu.getETA('count', 'circlick_naive', selUnits=~cc.hasLickArtifact, window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
+    lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+eta.pressNormRaw = eu.getETA('count', 'press', window=[-4, 2], normalize=[-4, -2], minTrialDuration=2);
+
+
+
+%% Bootstrap to find the significance of average Z vector magnitudes (shuffle bins, not trials)
+clear bootCLick
+[bootCLick.filtered.magH, bootCLick.filtered.magCI, bootCLick.filtered.Z] = bootCircLick(eta.circLickNaiveFiltered, selUnits=~cc.hasLickArtifact, alpha=0.01, nBoot=100000, replace=false, seed=42, interpFirstBin=false, replaceNansWithMean=true);
+[bootCLick.raw.magH, bootCLick.raw.magCI, bootCLick.raw.Z] = bootCircLick(eta.circLickNaiveRaw, selUnits=~cc.hasLickArtifact, alpha=0.01, nBoot=100000, replace=false, seed=42, interpFirstBin=false, replaceNansWithMean=true);
+
+cc.isLickFiltered = bootCLick.filtered.magH(:)';
+cc.isLickRaw = bootCLick.raw.magH(:)';
+
+fprintf('nCircLick units: raw: %i, filtered: %i, both: %i\n', nnz(cc.isLickRaw), nnz(cc.isLickFiltered), nnz(cc.isLickFiltered & cc.isLickRaw));
+
+%% Plot ETA Heatmap for oscilick units
+NAME = ["raw", "filtered"];
+SEL = {cc.isLickRaw, cc.isLickFiltered};
+ETA = {eta.circLickNaiveRaw, eta.circLickNaiveFiltered};
+ETAPRESS = {eta.pressNormFiltered, eta.pressNormRaw};
+
+fig = figure;
+tl = tiledlayout(fig, sum(SEL{1}) + sum(SEL{2}), 2, TileIndexing='columnmajor');
+ax = gobjects(2, 1);
+
+for iSrc = 1:2
+    sel = SEL{iSrc};
+    meanZ = bootCLick.(NAME(iSrc)).Z(sel);
+    phase = angle(meanZ);
+    amp = abs(meanZ);
+    phase(phase < 0) = phase(phase < 0) + 2*pi;
+    
+    phase = phase(:);
+    amp = amp(:);
+    
+    [sortedPhase, I] = sort(phase);
+    
+    etaTemp.circLickNaiveNorm.(NAME(iSrc)) = ETA{iSrc};
+    etaTemp.circLickNaiveNorm.(NAME(iSrc)).X = normalize(ETA{iSrc}.X, 2, 'zscore', 'robust');
+
+    ax = nexttile(tl, [sum(sel), 1]);
+    [~, ~] = EphysUnit.plotETA(ax, etaTemp.circLickNaiveNorm.(NAME(iSrc)), sel, order=I, ...
+        clim=[-5, 5], xlim=[0, 2*pi], hidecolorbar=false);
+    title(ax, sprintf("%s\n(normalized to inter-lick-interval)", NAME(iSrc)));
+    xlim(ax, [0, 2*pi])
+    xticks(ax, (0:1:2).*pi)
+    xticklabels(ax, ["0", "\pi", "2\pi"]);
+    xlabel('lick phase')
+    ylabel('unit')
+end
+
+for iSrc = 1:2
+    sel = SEL{iSrc};
+    meanZ = bootCLick.(NAME(iSrc)).Z(sel);
+    phase = angle(meanZ);
+    amp = abs(meanZ);
+    phase(phase < 0) = phase(phase < 0) + 2*pi;
+    
+    phase = phase(:);
+    amp = amp(:);
+    
+    [sortedPhase, I] = sort(phase);
+    
+    etaTemp.circLickNaiveNormToPressBaseline.(NAME(iSrc)) = ETA{iSrc};
+    etaTemp.circLickNaiveNormToPressBaseline.(NAME(iSrc)).X(sel, :) = (ETA{iSrc}.X(sel, :) - vertcat(ETAPRESS{iSrc}.stats(sel).mean)./0.1) ./ (vertcat(ETAPRESS{iSrc}.stats(sel).sd)./0.1);
+
+    ax = nexttile(tl, [sum(sel), 1]);
+    [~, ~] = EphysUnit.plotETA(ax, etaTemp.circLickNaiveNormToPressBaseline.(NAME(iSrc)), sel, order=I, ...
+        xlim=[0, 2*pi], clim=[-5, 5], hidecolorbar=false);
+    title(ax, sprintf("%s\n(normalized to [-4, -2] pre-reach)", NAME(iSrc)));
+    xlim(ax, [0, 2*pi])
+    xticks(ax, (0:1:2).*pi)
+    xticklabels(ax, ["0", "\pi", "2\pi"]);
+    xlabel('lick phase')
+    ylabel('unit')
+end
+
 %% Functions
 function [x, t, st, trials] = parseRaw(eu, raw, trials, varargin)
     p = inputParser();
@@ -1352,4 +1436,74 @@ function varargout = spikeDetect(raw, varargin)
     waveformTimestamps = t;
 
     varargout = {sampleIndex, timestamps, waveforms, waveformTimestamps, direction*threshold, direction*thresholdReturn, thresholdReject};
+end
+
+function [magH, magCI, Z] = bootCircLick(eta, varargin)
+    parser = inputParser();
+    parser.addRequired('eta', @isstruct);
+    parser.addParameter('selUnits', [], @(x) islogical(x) || isnumeric(x))
+    parser.addParameter('alpha', 0.01, @isnumeric);
+    parser.addParameter('nBoot', 10000, @isnumeric);
+    parser.addParameter('replace', true, @islogical) % true for bootstrap, false for wda
+    parser.addParameter('seed', 42, @isnumeric)
+    parser.addParameter('interpFirstBin', false, @islogical)
+    parser.addParameter('replaceNansWithMean', true, @islogical)
+    parser.parse(eta, varargin{:});
+    r = parser.Results;
+    X = r.eta.X;
+    t = r.eta.t;
+    selUnits = r.selUnits;
+    alpha = r.alpha;
+    nBoot = r.nBoot;
+    replace = r.replace;
+    seed = r.seed;
+    interpFirstBin = r.interpFirstBin;
+    replaceNansWithMean = r.replaceNansWithMean;
+    rng(seed);
+
+    magH = false(size(X, 1), 1);
+    magCI = zeros(size(X, 1), 2);
+    Z = NaN(size(X, 1), 1) + 1i*NaN(size(X, 1), 1);
+
+    nUnits = size(X, 1);
+    if isempty(selUnits)
+        selUnits = 1:nUnits;
+    elseif islogical(selUnits)
+        selUnits = reshape(find(selUnits), 1, []);
+    end
+    nBins = length(t);
+    tTic = tic();
+    fprintf('Bootstrapping %i units...', length(selUnits))
+    lineLength = 0;
+    for iUnit = selUnits
+        fprintf(repmat('\b', 1, lineLength));
+        lineLength = fprintf('%i/%i', iUnit, nUnits);
+        if replace
+            I = randi(nBins, [nBoot, nBins]);
+        else
+            I = zeros(nBoot, nBins);
+            for iBoot = 1:nBoot
+                I(iBoot, :) = randperm(nBins);
+            end
+        end
+        x = X(iUnit, :);
+        if interpFirstBin
+            x(1) = mean(x([2, end])); % First bin has lick artifact usually
+        end
+        if replaceNansWithMean
+            x(isnan(x)) = mean(x, 'omitnan');
+            zObs = mean(x.*exp(t*1i));
+            zRand = mean(x(I).*exp(t*1i), 2);
+        else
+            zObs = mean(x.*exp(t*1i));
+            zRand = mean(x(I).*exp(t*1i), 2);
+        end
+        
+        magObs = abs(zObs);
+        magRand = abs(zRand);
+        magCI(iUnit, :) = quantile(magRand, [0, 1 - alpha]);
+        magH(iUnit) = magObs > magCI(iUnit, 2);
+        Z(iUnit) = zObs;
+    end
+    fprintf('Done (%.2fs)\n', toc(tTic));
 end
