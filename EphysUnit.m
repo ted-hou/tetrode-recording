@@ -685,6 +685,9 @@ classdef EphysUnit < handle
                 case 'circlick_naive'
                     n = 2*pi/resolution;
                     edges = linspace(pi/n, 2*pi - pi/n, n);
+                case 'lickbout_naive'
+                    n = 2*pi/resolution;
+                    edges = linspace(pi/n, 2*pi*maxBoutCycles - pi/n, n*maxBoutCycles); % tAligned: expressed in phase, returns n*nCycles - 1 total bins
                 otherwise
                     edges = window(1):resolution:window(2);
             end
@@ -2913,7 +2916,7 @@ classdef EphysUnit < handle
                             % Lick offset: Blank out artifact-ridden bins
                             % Find lick off events for each lick-on
                             if lickOffArtifactLength > 0
-                                iLickOff = find(lickOffI == iBout && lickOffJ == iCycle);
+                                iLickOff = find(lickOffI == iBout & lickOffJ == iCycle);
                                 if ~isempty(iLickOff)
                                     tLickOffAligned = lickOff(iLickOff) - trials(iBout, iCycle).Start;
                                     [~, ~, bins] = histcounts([tLickOffAligned - lickArtifactLength*1e-3, tLickOffAligned + lickArtifactLength*1e-3], tAlignedLocal);

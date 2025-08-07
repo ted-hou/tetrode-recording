@@ -1058,6 +1058,11 @@ end
 eta.circLickNaiveFiltered = eu.getETA('count', 'circlick_naive', selUnits=~cc.hasLickArtifact, window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
     lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
 eta.pressNormFiltered = eu.getETA('count', 'press', window=[-4, 2], normalize=[-4, -2], minTrialDuration=2);
+eta.lickBoutNaiveFiltered = eu.getETA('count', 'lickbout_naive', selUnits=~cc.hasLickArtifact, window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
+    minBoutCycles=2, maxBoutCycles=4, ...
+    lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+
+
 
 for iEu = find(~cc.hasLickArtifact)
     eu(iEu).SpikeTimes = unit(iEu).oldSpikeTimes;
@@ -1065,6 +1070,10 @@ end
 eta.circLickNaiveRaw = eu.getETA('count', 'circlick_naive', selUnits=~cc.hasLickArtifact, window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
     lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
 eta.pressNormRaw = eu.getETA('count', 'press', window=[-4, 2], normalize=[-4, -2], minTrialDuration=2);
+eta.lickBoutNaiveRaw = eu.getETA('count', 'lickbout_naive', selUnits=~cc.hasLickArtifact, window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
+    minBoutCycles=2, maxBoutCycles=4, ...
+    lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+
 
 
 
@@ -1082,10 +1091,11 @@ fprintf('nCircLick units: raw: %i, filtered: %i, both: %i\n', nnz(cc.isLickRaw),
 NAME = ["raw", "filtered"];
 SEL = {cc.isLickRaw, cc.isLickFiltered};
 ETA = {eta.circLickNaiveRaw, eta.circLickNaiveFiltered};
+ETABOUT = {eta.lickBoutNaiveFiltered, eta.lickBoutNaiveRaw};
 ETAPRESS = {eta.pressNormFiltered, eta.pressNormRaw};
 
 fig = figure;
-tl = tiledlayout(fig, sum(SEL{1}) + sum(SEL{2}), 2, TileIndexing='columnmajor');
+tl = tiledlayout(fig, sum(SEL{1}) + sum(SEL{2}), 6, TileIndexing='columnmajor');
 ax = gobjects(2, 1);
 
 for iSrc = 1:2
@@ -1103,13 +1113,14 @@ for iSrc = 1:2
     etaTemp.circLickNaiveNorm.(NAME(iSrc)) = ETA{iSrc};
     etaTemp.circLickNaiveNorm.(NAME(iSrc)).X = normalize(ETA{iSrc}.X, 2, 'zscore', 'robust');
 
-    ax = nexttile(tl, [sum(sel), 1]);
+    ax = nexttile(tl, [sum(sel), 2]);
     [~, ~] = EphysUnit.plotETA(ax, etaTemp.circLickNaiveNorm.(NAME(iSrc)), sel, order=I, ...
-        clim=[-5, 5], xlim=[0, 2*pi], hidecolorbar=false);
+        clim=[-5, 5], xlim=[0, 2*pi], hidecolorbar=true);
     title(ax, sprintf("%s\n(normalized to inter-lick-interval)", NAME(iSrc)));
     xlim(ax, [0, 2*pi])
     xticks(ax, (0:1:2).*pi)
     xticklabels(ax, ["0", "\pi", "2\pi"]);
+    xline(ax, (0:1:2).*pi, 'k--')
     xlabel('lick phase')
     ylabel('unit')
 end
@@ -1126,19 +1137,72 @@ for iSrc = 1:2
     
     [sortedPhase, I] = sort(phase);
     
-    etaTemp.circLickNaiveNormToPressBaseline.(NAME(iSrc)) = ETA{iSrc};
-    etaTemp.circLickNaiveNormToPressBaseline.(NAME(iSrc)).X(sel, :) = (ETA{iSrc}.X(sel, :) - vertcat(ETAPRESS{iSrc}.stats(sel).mean)./0.1) ./ (vertcat(ETAPRESS{iSrc}.stats(sel).sd)./0.1);
+    etaTemp.lickBoutNaiveNorm.(NAME(iSrc)) = ETABOUT{iSrc};
+    etaTemp.lickBoutNaiveNorm.(NAME(iSrc)).X = normalize(ETABOUT{iSrc}.X, 2, 'zscore', 'robust');
 
-    ax = nexttile(tl, [sum(sel), 1]);
-    [~, ~] = EphysUnit.plotETA(ax, etaTemp.circLickNaiveNormToPressBaseline.(NAME(iSrc)), sel, order=I, ...
-        xlim=[0, 2*pi], clim=[-5, 5], hidecolorbar=false);
-    title(ax, sprintf("%s\n(normalized to [-4, -2] pre-reach)", NAME(iSrc)));
-    xlim(ax, [0, 2*pi])
-    xticks(ax, (0:1:2).*pi)
-    xticklabels(ax, ["0", "\pi", "2\pi"]);
+    ax = nexttile(tl, [sum(sel), 4]);
+    [~, ~] = EphysUnit.plotETA(ax, etaTemp.lickBoutNaiveNorm.(NAME(iSrc)), sel, order=I, ...
+        clim=[-5, 5], xlim=[0, 8*pi], hidecolorbar=false);
+    title(ax, sprintf("%s\n(normalized to inter-lick-interval)", NAME(iSrc)));
+    xlim(ax, [0, 8*pi])
+    xticks(ax, (0:2:8).*pi);
+    xticklabels(ax, ["0", arrayfun(@(x) sprintf("%i\\pi", x), 2:2:8)]);
+    xline(ax, (0:1:8).*pi, 'k--')
     xlabel('lick phase')
     ylabel('unit')
 end
+
+% for iSrc = 1:2
+%     sel = SEL{iSrc};
+%     meanZ = bootCLick.(NAME(iSrc)).Z(sel);
+%     phase = angle(meanZ);
+%     amp = abs(meanZ);
+%     phase(phase < 0) = phase(phase < 0) + 2*pi;
+% 
+%     phase = phase(:);
+%     amp = amp(:);
+% 
+%     [sortedPhase, I] = sort(phase);
+% 
+%     etaTemp.circLickNaiveNormToPressBaseline.(NAME(iSrc)) = ETA{iSrc};
+%     etaTemp.circLickNaiveNormToPressBaseline.(NAME(iSrc)).X(sel, :) = (ETA{iSrc}.X(sel, :) - vertcat(ETAPRESS{iSrc}.stats(sel).mean)./0.1) ./ (vertcat(ETAPRESS{iSrc}.stats(sel).sd)./0.1);
+% 
+%     ax = nexttile(tl, [sum(sel), 2]);
+%     [~, ~] = EphysUnit.plotETA(ax, etaTemp.circLickNaiveNormToPressBaseline.(NAME(iSrc)), sel, order=I, ...
+%         xlim=[0, 2*pi], clim=[-5, 5], hidecolorbar=true);
+%     title(ax, sprintf("%s\n(normalized to [-4, -2] pre-reach)", NAME(iSrc)));
+%     xlim(ax, [0, 2*pi])
+%     xticks(ax, (0:1:2).*pi)
+%     xticklabels(ax, ["0", "\pi", "2\pi"]);
+%     xlabel('lick phase')
+%     ylabel('unit')
+% end
+
+% for iSrc = 1:2
+%     sel = SEL{iSrc};
+%     meanZ = bootCLick.(NAME(iSrc)).Z(sel);
+%     phase = angle(meanZ);
+%     amp = abs(meanZ);
+%     phase(phase < 0) = phase(phase < 0) + 2*pi;
+% 
+%     phase = phase(:);
+%     amp = amp(:);
+% 
+%     [sortedPhase, I] = sort(phase);
+% 
+%     etaTemp.lickBoutNaiveNormToPressBaseline.(NAME(iSrc)) = ETABOUT{iSrc};
+%     etaTemp.lickBoutNaiveNormToPressBaseline.(NAME(iSrc)).X(sel, :) = (ETABOUT{iSrc}.X(sel, :) - vertcat(ETAPRESS{iSrc}.stats(sel).mean)./0.1) ./ (vertcat(ETAPRESS{iSrc}.stats(sel).sd)./0.1);
+% 
+%     ax = nexttile(tl, [sum(sel), 4]);
+%     [~, ~] = EphysUnit.plotETA(ax, etaTemp.lickBoutNaiveNormToPressBaseline.(NAME(iSrc)), sel, order=I, ...
+%         clim=[-5, 5], xlim=[0, 8*pi], hidecolorbar=false);
+%     title(ax, sprintf("%s\n(normalized to [-4, -2] pre-reach)", NAME(iSrc)));
+%     xlim(ax, [0, 8*pi])
+%     xticks(ax, (0:2:8).*pi);
+%     xticklabels(ax, ["0", arrayfun(@(x) sprintf("%i\\pi", x), 2:2:8)]);
+%     xlabel('lick phase')
+%     ylabel('unit')
+% end
 
 %% Functions
 function [x, t, st, trials] = parseRaw(eu, raw, trials, varargin)
