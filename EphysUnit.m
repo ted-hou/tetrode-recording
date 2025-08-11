@@ -1,8 +1,8 @@
 classdef EphysUnit < handle
     properties
         ExpName = ''
-        Channel = NaN
-        Electrode = NaN
+        Channel = NaN % In all cases use Channel, unless Electrode is not NaN, then use Electrode.
+        Electrode = NaN % Sometimes there's a mismatch between Channel and Electrode, (20250808: I think this is due to odler TetrodeRecording.Spikes not cacatenating over missing channels (because TetrodeRecording.Preview chose a subset of channels in TetrodeRecording.SelectedChannels). In these cases Electrode referes to actual channel number (1:32, even if it's on BlackRock rig 2, we would have mapped it onto 1:32 anyways), while Channel would refer to the the non-empty index of tr.Spikes.
         Unit = NaN
         SpikeTimes = []
         Waveforms = []
@@ -1516,7 +1516,14 @@ classdef EphysUnit < handle
             end
         end
 
-        function [data, t] = loadRaw(obj)
+        function [data, t] = loadRaw(obj, varargin)
+            p = inputParser();
+            p.addParameter('subtractMean', false, @islogical); % Useful for blackrock data (Intan saves CARed data)
+            p.addParameter('chunkDuration', NaN, @isnumeric); % For blackrock, since we're loading all channels, we split by duration to save RAM.
+            p.parse(varargin{:})
+            subtractMean = p.Results.subtractMean; % When true, all channels will be loaded to perform CAR, then we discard extra channels.
+            chunkDuration = p.Results.chunkDuration;
+
             animalName = obj.getAnimalName();
             expName = obj.ExpName;
             pathSpikeSort = sprintf("C:\\SERVER\\%s\\SpikeSort\\tr_sorted*%s*.mat", animalName, expName);
@@ -1530,7 +1537,9 @@ classdef EphysUnit < handle
             end
             files = arrayfun(@(f) fullfile(f.folder, f.name), files, UniformOutput=false);
             files = files{1};
+            tTic = tic(); fprintf('Reading TetrodeRecording file (%s)...', files)
             tr = load(files);
+            fprintf('Done (%.2fs).\n', toc(tTic));
             tr = tr.tr;
             tr.Spikes = [];
             tr.Path = strrep(tr.Path, '\\research.files.med.harvard.edu\neurobio\NEUROBIOLOGY SHARED\Assad Lab\Lingfeng\Data\', 'C:\SERVER\');
@@ -1539,23 +1548,83 @@ classdef EphysUnit < handle
 
             switch lower(tr.System)
                 case 'blackrock'
-                    tr.ReadBlackrock(Channels=[obj.Channel], DigitalChannels={});
+                    assert(isscalar(obj));
+                    assert(subtractMean)
+                    if ~isnan(obj.Electrode)
+                        channel = obj.Electrode;
+                    else
+                        channel = obj.Channel;
+                    end
+                    % tr.ReadBlackrock(Channels=[obj.Channel], DigitalChannels={});
+                    rig = TetrodeRecording.GetRig(obj.getAnimalName());
+                    % Duration: [left, right) reads up to (right - 1/fs)
+                    if isnan(chunkDuration)
+                        tr.ReadFiles(DetectSpikes=false, DetectEvents=false, Rig=rig);
+                        data = tr.Amplifier.Data(channel, :) - mean(tr.Amplifier.Data, 1, 'omitnan');
+                        t = tr.Amplifier.Timestamps;
+                        return
+                    else
+                        sampleRate = tr.FrequencyParameters.AmplifierSampleRate;
+                        tStart = 0;
+                        iChunk = 1;
+                        iSample = 0;
+                        eof = false;
+                        while true
+                            tEnd = tStart + chunkDuration;
+                            if isfield(tr.NEV, 'MetaTags') && tEnd >= tr.NEV.MetaTags.DataDurationSec
+                                tEnd = tr.NEV.MetaTags.DataDurationSec;
+                                eof = true;
+                            end
+                            tr.ReadFiles(DetectSpikes=false, DetectEvents=false, Rig=rig, Duration=[tStart, tEnd]);
+                            if iChunk == 1
+                                if isnan(tr.FrequencyParameters.SysInitDelay.NumSamples)
+                                    samplesSkippedInFirstChunk = 0;
+                                else
+                                    samplesSkippedInFirstChunk = tr.FrequencyParameters.SysInitDelay.NumSamples;
+                                    assert(rig == 1, "Only rig 1 can have samples skipped (IIRC), check your assumptions.")
+                                end
+                                % timeSkippedInFirstChunk = samplesSkippedInFirstChunk*sampleRate;
+                                nSamplesInFile = tr.NEV.MetaTags.DataDuration;
+                                data = NaN(1, nSamplesInFile);
+                            end
+                            % lastSampleInLastChunk = tr.NSx.MetaTags.Timestamp(end);
+                            % nSamplesInChunk = tr.NSx.MetaTags.DataPoints(end);
+                            nSamplesInChunk = size(tr.Amplifier.Data, 2);
+                            if iChunk > 1
+                                assert(~isnan(data(1, iSample)) && isnan(data(1, iSample + 1)))
+                            end
+                            data(1, iSample + (1:nSamplesInChunk)) = double(tr.Amplifier.Data(channel, :)) - mean(tr.Amplifier.Data, 1, 'omitnan');
+
+                            iChunk = iChunk + 1;
+                            tStart = tStart + chunkDuration;
+                            iSample = iSample + nSamplesInChunk;
+
+                            if eof
+                                break;
+                            end
+                        end
+                        t = (0 : nSamplesInFile-1) ./ sampleRate;
+                    end
                 case 'intan'
+                    if subtractMean
+                        warning('Not implemented: for Intan files, the parameter "subtractMean" is being ignored despite being set to true.');
+                    end
                     if size(tr.Files, 1) > 1 && size(tr.Files, 2) > 1
                         tr.Files = tr.Files(1, :);
                     end
                     channel = [obj.Channel];
+                    assert(isequal(channel, [obj.Electrode]))
                     if ismember(obj.getAnimalName(), {'daisy14', 'daisy15', 'daisy16', 'desmond23', 'desmond24', 'desmond25', 'desmond26', 'desmond27'}) && ~ismember(obj.ExpName, {'daisy14_20220506', 'daisy16_20220502'})
                         channel = channel + 1;
                         fprintf('Bad Session, channel count incremented, %s\n', obj.ExpName);
                     end
                     tr.ReadIntan(tr.Files, Channels=channel, ReadDigital=false, ReadAnalog=false, SubtractMedian=false, SubtractMean=false);
+                    data = tr.Amplifier.Data;
+                    t = tr.Amplifier.Timestamps;
                 otherwise
                     error()
             end
 
-            data = tr.Amplifier.Data;
-            t = tr.Amplifier.Timestamps;
 
         end
     end

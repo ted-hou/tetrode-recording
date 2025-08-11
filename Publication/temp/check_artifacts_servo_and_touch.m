@@ -176,6 +176,82 @@ clear e iEu lickIsReward minLickInterval maxLickInterval nLicks
 % end
 % clear data t B selT trial trials name
 
+%% Read raw data and resave (JUST FOR BLACKROCK DATA IT IS TRICKY)
+
+% Some sessions had 32 channels, we read all and do common mean ref
+
+% Some sessions had 64 channels (2rigs), we either read 1:32 or 33:64, read
+% all and do common mean ref
+
+% Since we're reading all channels anyway, we iterate through sessions
+% (rather than iterating through units) and save all requested units. 
+
+% unique(string(eu(~cc.isIntan).getAnimalName))
+animalNames.blackrock = ["daisy10", "daisy2", "daisy3", "daisy8", "daisy9", "desmond10", "desmond11", "desmond22"];
+
+animalNames.rig1 = ["desmond10", "desmond11", "desmond12", "daisy4", "desmond14", "desmond16", "desmond18", "daisy7", "desmond21", "desmond22", "daisy9", "daisy11", "daisy12", "daisy13"];
+animalNames.rig2 = ["desmond13", "daisy5", "desmond15", "desmond17", "desmond19", "desmond20", "daisy8", "daisy10"];
+
+if ~exist('C:\SERVER\Units\Lite_NonDuplicate_NonDrift\raw', 'dir')
+    mkdir('C:\SERVER\Units\Lite_NonDuplicate_NonDrift\raw')
+end
+selUnits = reshape(find(~cc.isIntan), 1, []);
+failedUnits = [];
+failedME = {};
+for iEu = selUnits
+    % if ismember(eu(iEu).getAnimalName(), {'daisy14', 'daisy15', 'daisy16', 'desmond23', 'desmond24', 'desmond25', 'desmond26', 'desmond27'}) && ~ismember(eu(iEu).ExpName, {'daisy14_20220506', 'daisy16_20220502'})
+    clear data t B selT
+    try
+        [data, t] = eu(iEu).loadRaw(chunkDuration=300, subtractMean=true);
+
+        tTic = tic();
+        fprintf('Doing trial cropping thing...')
+        selT = false(size(t));
+        for trial = ["LeverDeploy", "LeverRetract", "TubeDeploy", "TubeRetract"]
+            trials = eu(iEu).Trials.(trial);
+            if isempty(trials)
+                continue
+            end
+            B = trials.inTrial(t, window=[-1, 1], windowMode='extend');
+            selT = selT | B;
+        end
+
+        for trial = ["CircLick"]
+            trials = eu(iEu).Trials.(trial);
+            if isempty(trials)
+                continue
+            end
+            B = trials.inTrial(t);
+            selT = selT | B;
+        end
+
+        for trial = ["Press", "Lick"]
+            trials = eu(iEu).Trials.(trial);
+            if isempty(trials)
+                continue
+            end
+            B = trials.inTrial(t, window=[0, 2], windowMode='extend');
+            selT = selT | B;
+        end
+
+        data = data(:, selT);
+        t = t(:, selT);
+        fprintf('Done (%.2fs)\n', toc(tTic));
+
+        tTic = tic();
+        fprintf('Saving to file...')
+        trials = eu(iEu).Trials;
+        name = eu(iEu).getName();
+        save(sprintf('C:\\SERVER\\Units\\Lite_NonDuplicate_NonDrift\\raw\\raw_%s.mat', eu(iEu).getName()), 'data', 't', 'trials', 'name')
+        fprintf('Done (%.2fs)\n', toc(tTic));
+    catch ME
+        warning('Could not process unit %i, %s', iEu, eu(iEu).getName())
+        failedUnits = [failedUnits, iEu];
+        failedME = [failedME, {ME}];
+    end
+end
+clear data t B selT trial trials name
+
 %% Find out which units failed raw data extraction
 clear names
 
@@ -472,13 +548,13 @@ pTemplateMatching.method = 'euclidean';
 pTemplateMatching.maxLog = maxLog;
 pTemplateMatching.ksAlpha = ksAlpha;
 pTemplateMatching.ksHitRateThreshold = ksHitRateThreshold;
-savePath = "C:\SERVER\Figures\lick_artifact_removal\euclidean_run2_office";
+savePath = "C:\SERVER\Figures\lick_artifact_removal\euclidean_run3_just_blackrock";
 if ~exist(savePath, 'dir')
     mkdir(savePath);
 end
 save(sprintf("%s\\pTemplateMatching.mat", savePath), 'pTemplateMatching')
 
-selUnits = find(cc.hasRaw & cc.isIntan); useRawCache = false;
+selUnits = find(cc.hasRaw & ~cc.isIntan); useRawCache = false;
 % selUnits = find(ismember(eu.getName(), coolUnitNames)); useRawCache = true;
 unitNames = eu.getName();
 edgesPeriLick = 0:0.01:0.1; nBinsQQPeriLick = min(length(edgesPeriLick) - 1, 10);

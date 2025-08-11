@@ -272,6 +272,10 @@ classdef TetrodeRecording < handle
 							obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), 'NumSigmas', numSigmas, 'NumSigmasReturn', numSigmasReturn, 'NumSigmasReject', numSigmasReject, 'WaveformWindow', waveformWindow, 'Direction', direction, 'Append', false);
 						end
 					% Second read
+                    % (HLF 20250808: I think this is
+                    % because sometimes we read a few channels at a time so
+                    % we don't need to redo rig detection on subsequent
+                    % reads, this is being supplied by ProcessFolder(...)
 					else
 						channelsToRead = channelsOnRig(channels);
 						obj.ReadBlackrock('Channels', channelsToRead, 'DigitalChannels', digitalChannels, 'Duration', duration);
@@ -7064,6 +7068,7 @@ classdef TetrodeRecording < handle
 				rig = 2;
             else
                 rig = 1;
+                warning('animal name not found in list, assuming rig 1');
 % 				error('This version was designed for desmond12/13 daisy4/5 only');
 			end
 		end
