@@ -524,14 +524,23 @@ clear iEu animalName expName files
 %     "desmond26_20220531_Channel4_Unit1", ... % Huge unit but missing some spikes due to scaling/shrinkning waveforms
 % ];
 
+% coolUnitNames = [
+%     "daisy15_20220601_Channel114_Unit1", ... % Big unit, long artifact
+%     "daisy14_20220506_Channel38_Unit1", ... % Big unit, brief artifact
+%     "daisy15_20220511_Channel104_Unit1", ... % Big unit, long artifact
+%     "desmond27_20220526_Channel106_Unit1", ... % Randomly chosen medium-SNR unit
+%     "desmond25_20220430_Channel124_Unit1", ... % Two units one channel
+%     "desmond25_20220430_Channel124_Unit2", ... % Two units one channel 2, electric boogaloo
+%     "desmond26_20220531_Channel4_Unit1", ... % Huge unit but missing some spikes due to scaling/shrinkning waveforms
+% ];
+
+% Check blackrock data
 coolUnitNames = [
-    "daisy15_20220601_Channel114_Unit1", ... % Big unit, long artifact
-    "daisy14_20220506_Channel38_Unit1", ... % Big unit, brief artifact
-    "daisy15_20220511_Channel104_Unit1", ... % Big unit, long artifact
-    "desmond27_20220526_Channel106_Unit1", ... % Randomly chosen medium-SNR unit
-    "desmond25_20220430_Channel124_Unit1", ... % Two units one channel
-    "desmond25_20220430_Channel124_Unit2", ... % Two units one channel 2, electric boogaloo
-    "desmond26_20220531_Channel4_Unit1", ... % Huge unit but missing some spikes due to scaling/shrinkning waveforms
+    "desmond22_20210624_Channel1_Unit1", ... 
+    "daisy8_20210625_Channel5_Unit1", ...
+    "daisy9_20211014_Electrode10_Unit1", ...
+    "daisy10_20211020_Electrode1_Unit1", ...
+    "Daisy3_20180613_Channel13_Unit1", ...
 ];
 
 %% Filter raw and then redo spike detection
