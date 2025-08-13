@@ -3196,13 +3196,30 @@ classdef EphysUnit < handle
                                 error('Not implemented: ''rate'' for ''%s''', trialType)
                             case 'count'
                                 for iBout = 1:size(trials, 1)
+
                                     sel = ~isnan(tAlignedGlobal(iBout, :));
                                     binWidth = diff(tAlignedGlobal(iBout, sel));
                                     [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iBout, sel));
                                     xx = double(xx);
                                     xx = xx./binWidth;
                                     xx(isLickArtifact(iBout, 1:end-1)) = NaN;
-                                    xAligned(iBout, 1:length(xx)) = xx;
+                                    % Interpolate over the nans
+                                    assert(size(xx, 1) == 1)
+                                    xxxxxx = [xx, xx, xx];
+                                    iiiiii = 1:length(xxxxxx);
+                                    selnan = isnan(xxxxxx);
+                                    xxxxxx(selnan) = interp1(iiiiii(~selnan), xxxxxx(~selnan), iiiiii(selnan));
+                                    xxq = xxxxxx(length(xx)+1 : 2*length(xx));
+                                    xAligned(iBout, 1:length(xx)) = xxq;
+
+
+                                    % sel = ~isnan(tAlignedGlobal(iBout, :));
+                                    % binWidth = diff(tAlignedGlobal(iBout, sel));
+                                    % [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iBout, sel));
+                                    % xx = double(xx);
+                                    % xx = xx./binWidth;
+                                    % xx(isLickArtifact(iBout, 1:end-1)) = NaN;
+                                    % xAligned(iBout, 1:length(xx)) = xx;
                                 end
                         end
                     case {'circlick', 'lickbout'}
