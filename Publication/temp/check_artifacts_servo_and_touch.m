@@ -1184,38 +1184,17 @@ end
 
 
 %% Bootstrap to find the significance of average Z vector magnitudes (shuffle bins, not trials)
-clear bootCLick
-[bootCLick.raw.magH, bootCLick.raw.magCI, bootCLick.raw.Z] = bootCircLick(eta.circLickNaiveRaw, selUnits=SELGROUP{1}, alpha=0.01, nBoot=100000, replace=false, seed=42, interpFirstBin=false, replaceNansWithMean=true);
-[bootCLick.filtered.magH, bootCLick.filtered.magCI, bootCLick.filtered.Z] = bootCircLick(eta.circLickNaiveFiltered, selUnits=SELGROUP{2}, alpha=0.01, nBoot=100000, replace=false, seed=42, interpFirstBin=false, replaceNansWithMean=true);
-[bootCLick.filteredPlusBlackrock.magH, bootCLick.filteredPlusBlackrock.magCI, bootCLick.filteredPlusBlackrock.Z] = bootCircLick(eta.circLickNaiveFilteredPlusBlackrock, selUnits=SELGROUP{3}, alpha=0.01, nBoot=100000, replace=false, seed=42, interpFirstBin=false, replaceNansWithMean=true);
+clear bootCirclick
+[bootCirclick.raw.magH, bootCirclick.raw.magCI, bootCirclick.raw.Z] = bootCircLick(eta.circLickNaiveRaw, selUnits=SELGROUP{1}, alpha=0.01, nBoot=100000, replace=false, seed=42, interpFirstBin=false, replaceNansWithMean=true);
+[bootCirclick.filtered.magH, bootCirclick.filtered.magCI, bootCirclick.filtered.Z] = bootCircLick(eta.circLickNaiveFiltered, selUnits=SELGROUP{2}, alpha=0.01, nBoot=100000, replace=false, seed=42, interpFirstBin=false, replaceNansWithMean=true);
+[bootCirclick.filteredPlusBlackrock.magH, bootCirclick.filteredPlusBlackrock.magCI, bootCirclick.filteredPlusBlackrock.Z] = bootCircLick(eta.circLickNaiveFilteredPlusBlackrock, selUnits=SELGROUP{3}, alpha=0.01, nBoot=100000, replace=false, seed=42, interpFirstBin=false, replaceNansWithMean=true);
 
-cc.isLickRaw = bootCLick.raw.magH(:)';
-cc.isLickFiltered = bootCLick.filtered.magH(:)';
-cc.isLickFilteredPlusBlackrock = bootCLick.filteredPlusBlackrock.magH(:)';
+cc.isLickRaw = bootCirclick.raw.magH(:)';
+cc.isLickFiltered = bootCirclick.filtered.magH(:)';
+cc.isLickFilteredPlusBlackrock = bootCirclick.filteredPlusBlackrock.magH(:)';
 
 SEL = {cc.isLickRaw, cc.isLickFiltered, cc.isLickFilteredPlusBlackrock};
 fprintf('nCircLick units: raw=%i/%i, filtered=%i/%i, filteredPlusBlackrock=%i/%i\n', nnz(SEL{1}), nnz(SELGROUP{1}), nnz(SEL{2}), nnz(SELGROUP{2}), nnz(SEL{3}), nnz(SELGROUP{3}));
-
-%% Save metadata and newly discovered spiketimes
-
-clear newSpikeTimes
-newSpikeTimes(length(eu)) = struct(index=[], name=[], data=[]);
-
-cc.isGoodUnit = false(1, length(eu));
-for iEu = 1:length(eu)
-    st = [];
-    if cc.isIntan(iEu) && ~cc.hasLickArtifact(iEu) && cc.hasRaw(iEu)
-        st = unit(iEu).spikesFiltered.timestamps(unit(iEu).spikesFiltered.isUnit);
-        cc.isGoodUnit(iEu) = true;
-    elseif ~cc.isIntan(iEu) && cc.hasRaw(iEu)
-        st = eu(iEu).SpikeTimes;
-        cc.isGoodUnit(iEu) = true;
-    end
-    newSpikeTimes(iEu) = struct(index=iEu, name=eu(iEu).getName(), data=st);
-end
-clear iEu st
-
-save('C:\SERVER\Units\NonLite_PressVsLick_NonDuplicate_NonDrift_fixedLickArtifacts.mat', 'newSpikeTimes', 'cc', 'bootCLick', 'eta')
 
 %% Plot ETA Heatmap for oscilick units
 DISPNAME = ["Raw", "Filtered (Intan)", "Filtered (Intan) + Raw (Blackrock)"];
@@ -1228,7 +1207,7 @@ tl = tiledlayout(fig, sum(SEL{1}) + sum(SEL{2}) + sum(SEL{3}), 7, TileIndexing='
 
 for iSrc = 1:3
     sel = SEL{iSrc};
-    meanZ = bootCLick.(NAME(iSrc)).Z(sel);
+    meanZ = bootCirclick.(NAME(iSrc)).Z(sel);
     phase = angle(meanZ);
     amp = abs(meanZ);
     phase(phase < 0) = phase(phase < 0) + 2*pi;
@@ -1255,7 +1234,7 @@ end
 
 for iSrc = 1:3
     sel = SEL{iSrc};
-    meanZ = bootCLick.(NAME(iSrc)).Z(sel);
+    meanZ = bootCirclick.(NAME(iSrc)).Z(sel);
     phase = angle(meanZ);
     amp = abs(meanZ);
     phase(phase < 0) = phase(phase < 0) + 2*pi;
@@ -1282,6 +1261,115 @@ for iSrc = 1:3
 end
 
 ylabel(tl, 'Units')
+
+
+%% Save metadata and newly discovered spiketimes (only for good units)
+
+cc.isGoodUnit = false(1, length(eu));
+for iEu = 1:length(eu)
+    st = [];
+    % Intan, with lick artifact successfully removed, not daisy12 (servo
+    % noise)
+    if cc.isIntan(iEu) && ~cc.hasLickArtifact(iEu) && cc.hasRaw(iEu) && ~strcmpi(eu(iEu).getAnimalName, 'daisy12')
+        st = unit(iEu).spikesFiltered.timestamps(unit(iEu).spikesFiltered.isUnit);
+        cc.isGoodUnit(iEu) = true;
+    elseif ~cc.isIntan(iEu) && cc.hasRaw(iEu)
+        st = eu(iEu).SpikeTimes;
+        cc.isGoodUnit(iEu) = true;
+    end
+    eu(iEu).SpikeTimes = st;
+end
+
+
+%% Destructive! Cull Non good units (don't do again)
+eu = eu(cc.isGoodUnit);
+cc.isIntan = cc.isIntan(cc.isGoodUnit);
+cc.isBlackrock = ~cc.isIntan;
+
+cc = struct(isIntan=cc.isIntan, isBlackrock=cc.isBlackrock);
+oldSpikeTimes = spikeTimesCache(ismember({spikeTimesCache.name}, eu.getName()));
+
+
+%% Calculate ETA and bootstrap for cyclic firing
+clear eta;
+eta.circLickNaive = eu.getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
+    lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+eta.pressNorm = eu.getETA('count', 'press', window=[-4, 2], normalize=[-4, -2], minTrialDuration=2);
+eta.lickBoutNaive = eu.getETA('count', 'lickbout_naive', window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
+    minBoutCycles=2, maxBoutCycles=4, ...
+    lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+
+% Bootstrap to find the significance of average Z vector magnitudes (shuffle bins, not trials)
+clear bootCirclick
+[bootCirclick.magH, bootCirclick.magCI, bootCirclick.Z] = bootCircLick(eta.circLickNaive, alpha=0.01, nBoot=100000, replace=false, seed=42, interpFirstBin=false, replaceNansWithMean=true);
+
+cc.isLick = bootCirclick.magH(:)';
+
+fprintf('nCircLick units: %i/%i\n', nnz(cc.isLick), length(eu));
+
+%%
+meanZ = bootCirclick.Z;
+phase = angle(meanZ);
+amp = abs(meanZ);
+phase(phase < 0) = phase(phase < 0) + 2*pi;
+
+phase = phase(:);
+amp = amp(:);
+
+circlick = struct(Z=meanZ, phase=phase, amp=amp);
+clear meanZ phase amp
+
+
+%% Save results (just Blackrock + good Intan units without lick artifacts)
+eu.save('C:\SERVER\Units\PressVsLick_ArtifactsRemoved')
+save('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved.mat', 'oldSpikeTimes', 'cc', 'bootCLick', 'eta', 'circlick')
+
+
+%% Plot ETA Heatmap for oscilick units
+fig = figure;
+tl = tiledlayout(fig, 1, 7, TileIndexing='columnmajor');
+
+sel = cc.isLick;
+
+% circlick
+meanZ = circlick.Z(sel);
+phase = circlick.phase(sel);
+amp = circlick.amp(sel);
+
+phase = phase(:);
+amp = amp(:);
+
+[sortedPhase, I] = sort(phase);
+
+etaTemp = eta.circLickNaive;
+etaTemp.X = normalize(etaTemp.X, 2, 'zscore', 'robust');
+
+ax = nexttile(tl, [1, 2]);
+EphysUnit.plotETA(ax, etaTemp, sel, order=I, ...
+    clim=[-5, 5], xlim=[0, 2*pi], hidecolorbar=true);
+xlim(ax, [0, 2*pi])
+xticks(ax, (0:1:2).*pi)
+xticklabels(ax, ["0", "\pi", "2\pi"]);
+xline(ax, (0:1:2).*pi, 'k--')
+xlabel(ax, 'lick phase')
+title(ax, '')
+ylabel(ax, sprintf('%i/%i\nlick-entrained units', nnz(SEL{iSrc}), nnz(SELGROUP{iSrc})))
+
+% Lick bout
+etaTemp = eta.lickBoutNaive;
+etaTemp.X = normalize(etaTemp.X, 2, 'zscore', 'robust');
+
+ax = nexttile(tl, [1, 5]);
+EphysUnit.plotETA(ax, etaTemp, sel, order=I, ...
+    clim=[-5, 5], xlim=[0, 8*pi], hidecolorbar=false);
+xlim(ax, [0, 8*pi])
+xticks(ax, (0:2:8).*pi);
+xticklabels(ax, ["0", arrayfun(@(x) sprintf("%i\\pi", x), 2:2:8)]);
+xline(ax, (0:1:8).*pi, 'k--')
+xlabel(ax, 'lick phase')
+title(ax, '')
+ylabel(ax, '')
+
 
 
 %% Functions
