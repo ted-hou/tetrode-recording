@@ -1,7 +1,62 @@
 
+%% Convert to EphysUnits
+folders = { ...
+        % 'C:\SERVER\daisy28\daisy28_20250701', ... SNr, Accel
+        % 'C:\SERVER\daisy28\daisy28_20250702', ... SNr, Accel
+        % 'C:\SERVER\daisy28\daisy28_20250716', ... SNr, Accel
+        % 'C:\SERVER\daisy28\daisy28_20250718', ... SNr, Accel
+        % 'C:\SERVER\daisy28\daisy28_20250723', ... SNr, Accel
+        % 'C:\SERVER\daisy28\daisy28_20250725', ... SNr, Accel
+        % 'C:\SERVER\daisy28\daisy28_20250728', ... SNr, Accel (Camera bad for first 14 min)
+        % 'C:\SERVER\daisy28\daisy28_20250729', ... SNr, Accel
+        'C:\SERVER\daisy27\daisy27_20250626', ... SNr, Accel
+        'C:\SERVER\daisy27\daisy27_20250717', ... SNr, Accel
+        'C:\SERVER\daisy27\daisy27_20250721', ... SNr, Accel
+        'C:\SERVER\daisy27\daisy27_20250724', ... SNr, Accel
+    };
+        % 'C:\SERVER\daisy27\daisy27_20250624', ... SNr
+        % 'C:\SERVER\daisy28\daisy28_20250714', ... SC, Accel
+        % 'C:\SERVER\daisy27\daisy27_20250707', ... SC, Accel
+        % 'C:\SERVER\daisy27\daisy27_20250715', ... SC, Accel
+
+chunkSize = 32; % NumChannelsPerChunk
+for iSession = 1:length(folders)
+    try
+        clear tr
+        tr = TetrodeRecording();
+        tr.SelectFiles(NeuropixelPath=folders{iSession});
+        tr.LoadNeuropixelIO();
+        tr.ParseNeuropixelIO();
+        
+        % IterativeArtifactRemoval (OnionPeeling): Load spikes
+        for iChunk = 1:(384/chunkSize)
+            channels = (iChunk-1)*chunkSize + 1 : iChunk*chunkSize;
+            tr.LoadSpikes(channels, Path='Spikes_Sorted');
+
+            if isempty(tr.Spikes) || isempty([tr.Spikes.Channel])
+                tr.Spikes = [];
+                continue
+            end
+
+            channels = [tr.Spikes.Channel];
+
+            ar = AcuteRecording(tr, 'N/A');
+            ar.binMoveResponse(tr, 'none', Window=[-1, 0], Store=true);
+            eu = EphysUnit(ar, readWaveforms=false, cullITI=false, savepath='C:\SERVER\Units\TwoColor_SNr_SCRetro\ReverseInjection\AllSNr', tr=tr);
+
+            tr.Spikes = [];
+            clear eu
+        end
+    catch ME
+        warning('Could not process folder: %s', folders{iSession})
+        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+    end
+end
+
 
 %% Remove vad units (Slow)
-euAll = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection', waveforms=false, spikecounts=false, spikerates=false);
+clear, clc
+eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\AllSNr', waveforms=false, spikecounts=false, spikerates=false);
 
 %% Remove multiunits, fast (ISS test)
 eu = eu.removeMultiUnits(cullZeros=true);
@@ -42,20 +97,75 @@ eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units
 % clear, clc
 % eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
 
-% Make Raster
+%% Check behavior (trial durations (from timeout to lick/reach))
+minTrialDuration = 2;
+maxTrialDuration = 15;
+[~, ia, ~] = unique({eu.ExpName});
+tl = tiledlayout(figure(), length(ia), 2, TileSpacing='tight', Padding='tight', TileIndexing='rowmajor');
+for i = reshape(ia, 1, [])
+    ax = nexttile(tl);
+    histogram(ax, eu(i).Trials.Press.duration, [0:0.5:maxTrialDuration, Inf]);
+    title(ax, sprintf("%s (%i units)\nReach (%i trials)", eu(i).ExpName, nnz(strcmp({eu.ExpName}, eu(i).ExpName)), nnz(eu(i).Trials.Press.duration>minTrialDuration & eu(i).Trials.Press.duration<maxTrialDuration)), Interpreter="none")
+    ylim(ax, [0, 20])
+    ax = nexttile(tl);
+    histogram(ax, eu(i).Trials.Lick.duration, [0:0.5:maxTrialDuration, Inf]);
+    title(ax, sprintf("%s (%i units)\nLick (%i trials)", eu(i).ExpName, nnz(strcmp({eu.ExpName}, eu(i).ExpName)), nnz(eu(i).Trials.Lick.duration>minTrialDuration & eu(i).Trials.Lick.duration<maxTrialDuration)), Interpreter="none")
+    ylim(ax, [0, 20])
+end
+
+%% Make ETA
+normWindow=[-4, -2];
+xlDisp = [-3, 3];
+
+clear eta
+selUnits = ~ismember({eu.ExpName}, {'daisy27_20250626'});
+% eta.pressRaw = eu.getETA('count', 'press', [-4, 4], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none', minTrialDuration=minTrialDuration, maxTrialDuration=maxTrialDuration);
+% eta.lickRaw = eu.getETA('count', 'lick', [-4, 4], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none', minTrialDuration=minTrialDuration, maxTrialDuration=maxTrialDuration);
+% eta.pressRaw.X = eta.pressRaw.X ./ 0.1;
+% eta.lickRaw.X = eta.lickRaw.X ./ 0.1;
+eta.press = eu.getETA('count', 'press', [-3, 3], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=normWindow, minTrialDuration=minTrialDuration, maxTrialDuration=maxTrialDuration);
+% eta.lick = eu.getETA('count', 'lick', [-4, 4], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=normWindow, minTrialDuration=minTrialDuration, maxTrialDuration=maxTrialDuration);
+eta.lick = eu.getETA('count', 'lick', [-3, 3], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=eta.press.stats, minTrialDuration=minTrialDuration, maxTrialDuration=maxTrialDuration);
+
+close all
+% EphysUnit.plotDoubleETA(eta.lick, eta.press, selUnits, 'lick', 'reach', clim=[-1, 1], xlim=xlDisp, sortWindow=[-3, 1], sortThreshold=0.25)
+
+tl = tiledlayout(figure(Units='normalized', OuterPosition=[0.5, 0, 0.5, 1]), 1, 4);
+ax = nexttile(tl);
+[~, orderA] = EphysUnit.plotETA(ax, eta.lick, selUnits, event='lick', clim=[-1.5, 1.5], xlim=xlDisp, sortWindow=[-3, 1], signWindow=[-.1, 0], sortThreshold=0.25, hideColorbar=true);
+xline(ax, 0)
+title(ax, 'Lick (sort A)')
+
+ax = nexttile(tl);
+[~, ~] = EphysUnit.plotETA(ax, eta.press, selUnits, event='reach', order=orderA, clim=[-1.5, 1.5], xlim=xlDisp, sortWindow=[-3, 1], signWindow=[-.1, 0], sortThreshold=0.25, hideColorbar=true);
+xline(ax, 0)
+title(ax, 'Reach (sort A)')
+
+ax = nexttile(tl);
+[~, orderB] = EphysUnit.plotETA(ax, eta.press, selUnits, event='reach', clim=[-1.5, 1.5], xlim=xlDisp, sortWindow=[-3, 1], signWindow=[-0.5, 0], sortThreshold=0.25, hideColorbar=false);
+ax.Colorbar.Layout.Tile = 'east';
+xline(ax, 0)
+title(ax, 'Reach (sort B)')
+
+ax = nexttile(tl);
+[~, ~] = EphysUnit.plotETA(ax, eta.lick, selUnits, event='lick', order=orderB, clim=[-1.5, 1.5], xlim=xlDisp, sortWindow=[-3, 1], signWindow=[-.1, 0], sortThreshold=0.25, hideColorbar=true);
+xline(ax, 0)
+title(ax, 'Lick (sort B)')
+
+%% Make Raster
 clear rd
 rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shutterDelay=0, photoelectricBlankDuration=1.5e-3);
-rd.press = eu.getRasterData('press', window=[-4, 2], alignTo='stop', minTrialDuration=1);
-rd.lick = eu.getRasterData('lick', window=[-4, 2], alignTo='stop', minTrialDuration=1);
+rd.press = eu.getRasterData('press', window=[-4, 4], alignTo='stop', minTrialDuration=1);
+rd.lick = eu.getRasterData('lick', window=[-4, 4], alignTo='stop', minTrialDuration=1);
 
-% Make ETA
-clear eta
-eta.pressRaw = eu.getETA('count', 'press', [-4, 3], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none', minTrialDuration=1);
-eta.lickRaw = eu.getETA('count', 'lick', [-4, 3], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none', minTrialDuration=1);
-eta.press = eu.getETA('count', 'press', [-4, 3], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2], minTrialDuration=1);
-eta.lick = eu.getETA('count', 'lick', [-4, 3], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2], minTrialDuration=1);
-eta.pressRaw.X = eta.pressRaw.X ./ 0.1;
-eta.lickRaw.X = eta.lickRaw.X ./ 0.1;
+%%
+% selUnits = ~ismember({eu.ExpName}, {'daisy27_20250626'});
+% eta.pressRaw = eu(selUnits).getETA('count', 'press', [-4, 4], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none', minTrialDuration=1);
+% eta.lickRaw = eu(selUnits).getETA('count', 'lick', [-4, 4], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none', minTrialDuration=1);
+% eta.press = eu(selUnits).getETA('count', 'press', [-4, 4], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2], minTrialDuration=1);
+% eta.lick = eu(selUnits).getETA('count', 'lick', [-4, 4], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2], minTrialDuration=1);
+% eta.pressRaw.X = eta.pressRaw.X ./ 0.1;
+% eta.lickRaw.X = eta.lickRaw.X ./ 0.1;
 
 % ETA Stim
 p.isiBaselineWindow = [-0.2, 0];
