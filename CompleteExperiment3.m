@@ -230,7 +230,14 @@ classdef CompleteExperiment3 < CompleteExperiment
             animalName = strsplit(obj.name, '_');
             animalName = animalName{1};
             switch animalName
-                case {'daisy23', 'daisy24', 'daisy25', 'desmond38', 'desmond39', 'daisy26'}
+                case {'daisy2', 'daisy3', 'daisy8', 'daisy9'}
+                    switch lower(side)
+                        case {'r', 'right'}
+                            i = 0;
+                        otherwise
+                            error('Unrecognized side string: ''%s''', side)
+                    end
+                case {'daisy23', 'daisy24', 'daisy25', 'desmond38', 'desmond39', 'daisy26', 'daisy27', 'daisy28'}
                     switch lower(side)
                         case {'f', 'front'}
                             i = 2;
@@ -240,7 +247,7 @@ classdef CompleteExperiment3 < CompleteExperiment
                             i = 1;
                         otherwise
                             error('Unrecognized side string: ''%s''', side)
-                    end                    
+                    end
                 case {'desmond28', 'desmond29', 'desmond30'}
                     switch lower(side)
                         case {'f', 'front'}

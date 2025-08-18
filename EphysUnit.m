@@ -425,8 +425,9 @@ classdef EphysUnit < handle
         
         function trials = getTrials(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick_naive', 'circlick', 'lickbout_naive', 'lickbout', 'lickboutend', 'lick+lickbout', 'press+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
-                'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect', 'press_release'})));
+            p.addRequired('trialType');
+            % p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'light', 'anylick', 'firstlick', 'circlick_naive', 'circlick', 'lickbout_naive', 'lickbout', 'lickboutend', 'lick+lickbout', 'press+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
+            %     'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect', 'press_release'})));
             p.addOptional('sorted', true, @islogical);
             p.addParameter('minBoutCycles', 2)
             p.addParameter('maxBoutCycles', 4)
@@ -501,6 +502,8 @@ classdef EphysUnit < handle
                         case 'press_release'
                             thesetrials = [obj.Trials.PressReleaseCorrect, obj.Trials.PressReleaseIncorrect];
                             trials{itt} = thesetrials.sortby('start', 'ascend');
+                        otherwise
+                            trials{itt} = obj.Trials.(trialType{itt});
                     end
                 end
                 trials = cat(1, trials{:});
@@ -610,9 +613,10 @@ classdef EphysUnit < handle
             %  stats - Nx1 struct('mean', 'sd'), mean spike rate and sd for each neuron
             p = inputParser();
             p.addRequired('data', @(x) ischar(x) && ismember(lower(x), {'rate', 'count'}))
-            p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', ...
-                'firstlick', 'circlick', 'circlick_naive', 'lickbout', 'lickbout_naive', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
-                'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect'}))
+            p.addRequired('event', @ischar)
+            % p.addRequired('event', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', ...
+            %     'firstlick', 'circlick', 'circlick_naive', 'lickbout', 'lickbout_naive', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
+            %     'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect'}))
             p.addOptional('window', [-2, 0], @(x) isnumeric(x) && length(x)>=2 && x(2) > x(1))
             p.addParameter('selUnits', [], @(x) isnumeric(x) || islogical(x))
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -830,7 +834,7 @@ classdef EphysUnit < handle
             photoelectricNumSigmasThreshold = p.Results.photoelectricNumSigmasThreshold;
 
             if strcmp(alignTo, 'default')
-                switch trialType
+                switch lower(trialType)
                     case {'press', 'lick', 'press_spontaneous', 'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect'}
                         alignTo = 'stop';
                     case {'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor'}
@@ -1516,14 +1520,8 @@ classdef EphysUnit < handle
             end
         end
 
-        function [data, t] = loadRaw(obj, varargin)
-            p = inputParser();
-            p.addParameter('subtractMean', false, @islogical); % Useful for blackrock data (Intan saves CARed data)
-            p.addParameter('chunkDuration', NaN, @isnumeric); % For blackrock, since we're loading all channels, we split by duration to save RAM.
-            p.parse(varargin{:})
-            subtractMean = p.Results.subtractMean; % When true, all channels will be loaded to perform CAR, then we discard extra channels.
-            chunkDuration = p.Results.chunkDuration;
-
+        function tr = loadTetrodeRecording(obj)
+            % Loads the first corresponding tr_sorted_***.mat file it finds
             animalName = obj.getAnimalName();
             expName = obj.ExpName;
             pathSpikeSort = sprintf("C:\\SERVER\\%s\\SpikeSort\\tr_sorted*%s*.mat", animalName, expName);
@@ -1545,6 +1543,53 @@ classdef EphysUnit < handle
             tr.Path = strrep(tr.Path, '\\research.files.med.harvard.edu\neurobio\NEUROBIOLOGY SHARED\Assad Lab\Lingfeng\Data\', 'C:\SERVER\');
             tr.Path = strrep(tr.Path, 'daisy_2', 'daisy2');
             tr.Path = strrep(tr.Path, 'daisy_3', 'daisy3');
+        end
+
+        function loadDigitalEventsFromTetrodeRecording(obj, names, saveas)
+            if nargin < 3
+                saveas = names;
+            end
+
+            names = reshape(string(names), 1, []);
+            saveas = reshape(string(saveas), 1, []);
+
+            if length(obj) == 1
+                tr = obj.loadTetrodeRecording();
+                for i = 1:length(names)
+                    obj.EventTimes.(saveas(i)) = tr.DigitalEvents.(names(i));
+                end
+                clear tr
+                return
+            end
+
+            % Do some optimization: units from same session is only loaded
+            % once
+            expNames = string({obj.ExpName});
+            [uniqueExpNames, ia, ic] = unique(expNames);
+            assert(length(ia) == length(uniqueExpNames))
+            for iExp = 1:length(uniqueExpNames)
+                iObjFirst = ia(iExp);
+                iObjInExp = reshape(find(ic==iExp), 1, []);
+                tr = obj(iObjFirst).loadTetrodeRecording();
+
+                for iObj = iObjInExp
+                    for i = 1:length(names)
+                        obj(iObj).EventTimes.(saveas(i)) = tr.DigitalEvents.(names(i));
+                    end
+                end
+                clear tr
+            end
+        end
+
+        function [data, t] = loadRaw(obj, varargin)
+            p = inputParser();
+            p.addParameter('subtractMean', false, @islogical); % Useful for blackrock data (Intan saves CARed data)
+            p.addParameter('chunkDuration', NaN, @isnumeric); % For blackrock, since we're loading all channels, we split by duration to save RAM.
+            p.parse(varargin{:})
+            subtractMean = p.Results.subtractMean; % When true, all channels will be loaded to perform CAR, then we discard extra channels.
+            chunkDuration = p.Results.chunkDuration;
+
+            tr = obj.loadTetrodeRecording();
 
             switch lower(tr.System)
                 case 'blackrock'
@@ -2539,7 +2584,7 @@ classdef EphysUnit < handle
             trialType = lower(p.Results.trialType);
             extendedWindow = p.Results.extendedWindow;
             
-            switch trialType
+            switch lower(trialType)
                 case 'press'
                     inTrial = obj.getTrials('press').inTrial(t, extendedWindow);
                 case 'lick'
@@ -2696,8 +2741,9 @@ classdef EphysUnit < handle
                 useResampleMethod = false;
             end
             p.addOptional('window', [-4, 0], @(x) isnumeric(x) && length(x) >= 2)
-            p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', 'firstlick', 'circlick_naive', 'circlick', 'lickbout_naive', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
-                'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect'}))
+            p.addOptional('trialType', 'press', @ischar)
+            % p.addOptional('trialType', 'press', @(x) ischar(x) && ismember(lower(x), {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'anylick', 'firstlick', 'circlick_naive', 'circlick', 'lickbout_naive', 'lickbout', 'lickboutend', 'press+lickbout', 'lick+lickbout', 'press+lickbout_in_seconds', 'lick+lickbout_in_seconds', 'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
+                % 'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect'}))
             % 'circlick_naive' bins interlick intervals in a way that does
             % not require interpolating over the often artifact-ridden 
             % first bin (which assumes periodicity), additionally,
@@ -2735,7 +2781,7 @@ classdef EphysUnit < handle
                 data = lower(p.Results.data);
             end
             window = p.Results.window(1:2);
-            trialType = lower(p.Results.trialType);
+            trialType = p.Results.trialType;
             alignTo = lower(p.Results.alignTo);
             resolution = p.Results.resolution;
             allowedTrialDuration = p.Results.allowedTrialDuration(1:2);
@@ -2758,7 +2804,7 @@ classdef EphysUnit < handle
 
             % Filter out trials with incorrect lengths
             if isempty(p.Results.trials)
-                switch trialType
+                switch lower(trialType)
                     case {'press_spontaneous', 'press_spontaneous_correct', 'press_spontaneous_incorrect'}
                         trials = obj.getTrials(trialType, minSpontaneousTrialDuration=allowedTrialDuration(1));
                     case {'circlick', 'circlick_naive'}
