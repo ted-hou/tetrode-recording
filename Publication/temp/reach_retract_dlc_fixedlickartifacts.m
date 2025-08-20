@@ -149,12 +149,34 @@ end
 
 clear field
 
-eta.pressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, ...
-    normalize=[-4, -2], resolution=0.1, artifacts=artifactParams);
+eta.pressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=[-4, -2], resolution=0.1, artifacts=artifactParams);
+eta.lickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.correctReleaseNorm = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
 
-% Plot one unit
+eta.correctPressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.correctLickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.correctReleaseBeforeRetractNorm = eu.getETA('count', 'CueToLeverReleaseBeforeRetractCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.correctReleaseAfterRetractNorm = eu.getETA('count', 'RetractToLeverReleaseAfterRetractCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+
+eta.incorrectPressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.incorrectLickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+
+
+%% Plot all units, PETH as heatmap: lick, reach, release
+tl = tiledlayout(figure(Units='inches', Position=[1 1 10 5]), 1, 3);
+clear etaOrder ax
+
+% PETH, lick
+ax = nexttile(tl);
+[~, etaOrder.lick] = EphysUnit.plotETA(ax, eta.lickNorm);
+
+ax = nexttile(tl);
+[~, etaOrder.lick] = EphysUnit.plotETA(ax, eta.correctLick);
+
+
+%% Plot individial units, PETH as trace: lick, reach, release
 close all
-path = 'C:\SERVER\Figures\reach_retract_dlc\noArtifacts_pressAndLickBlancking_10ms\';
+path = 'E:\Figures\noArtifacts_pressAndLickBlancking_10ms\';
 if ~exist(path, 'dir')
     mkdir(path)
 end
