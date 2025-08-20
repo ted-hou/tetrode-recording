@@ -154,7 +154,7 @@ eta.pressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDur
 
 % Plot one unit
 close all
-path = 'C:\SERVER\Figures\reach_retract_dlc\noArtifacts_really_with_the_fancy_wierd_binning_thing\';
+path = 'C:\SERVER\Figures\reach_retract_dlc\noArtifacts_pressAndLickBlancking_10ms\';
 if ~exist(path, 'dir')
     mkdir(path)
 end
