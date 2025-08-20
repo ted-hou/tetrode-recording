@@ -633,12 +633,7 @@ classdef EphysUnit < handle
             p.addParameter('maxBoutCycles', 4)
             p.addParameter('minInterval', 0.05);
             p.addParameter('maxInterval', 0.25);
-            p.addParameter('lickArtifactLength', 0, @isnumeric)
-            p.addParameter('lickArtifactLengthType', 'ms', @(x) ismember(x, {'bins', 'ms'}))
-            p.addParameter('lickArtifactDirection', 'both', @(x) ismember(x, {'both', 'right'}))
-            p.addParameter('lickOffArtifactLength', 0, @isnumeric)
-            p.addParameter('lickOffArtifactLengthType', 'ms', @(x) ismember(x, {'bins', 'ms'}))
-            p.addParameter('lickOffArtifactDirection', 'both', @(x) ismember(x, {'both', 'right'}))
+            p.addParameter('artifacts', [], @(x) isempty(x) || isstruct(x) && all(isfield(x, {'event', 'length', 'lengthUnit', 'direction'})))
             p.parse(data, event, varargin{:})
             r = p.Results;
             data = lower(r.data);
@@ -659,12 +654,7 @@ classdef EphysUnit < handle
             maxBoutCycles = p.Results.maxBoutCycles;
             minInterval = p.Results.minInterval;
             maxInterval = p.Results.maxInterval;
-            lickArtifactLength = p.Results.lickArtifactLength;
-            lickArtifactLengthType = p.Results.lickArtifactLengthType;
-            lickArtifactDirection = p.Results.lickArtifactDirection;
-            lickOffArtifactLength = p.Results.lickOffArtifactLength;
-            lickOffArtifactLengthType = p.Results.lickOffArtifactLengthType;
-            lickOffArtifactDirection = p.Results.lickOffArtifactDirection;
+            artifacts = p.Results.artifacts;
             
             % Use default resolutions
             if isempty(resolution)
@@ -740,9 +730,7 @@ classdef EphysUnit < handle
                 % try
                     [x, ~, d] = obj(i).getTrialAlignedData(data, window, event, trials=theseTrials, alignTo=alignTo, allowedTrialDuration=[minTrialDuration, maxTrialDuration], ...
                         findSingleTrialDuration=findSingleTrialDuration, resolution=resolution, includeInvalid=includeInvalid, correction=correction, kernel=kernel, ...
-                        minBoutCycles=minBoutCycles, maxBoutCycles=maxBoutCycles, minInterval=minInterval, maxInterval=maxInterval, ...
-                        lickArtifactLength=lickArtifactLength, lickArtifactLengthType=lickArtifactLengthType, lickArtifactDirection=lickArtifactDirection, ...
-                        lickOffArtifactLength=lickOffArtifactLength, lickOffArtifactLengthType=lickOffArtifactLengthType, lickOffArtifactDirection=lickOffArtifactDirection);
+                        minBoutCycles=minBoutCycles, maxBoutCycles=maxBoutCycles, minInterval=minInterval, maxInterval=maxInterval, artifacts=artifacts);
                 % catch
                     % warning('getTrialAlignedData failed for obj index %i', i)
                 %     x = [];
@@ -2893,12 +2881,7 @@ classdef EphysUnit < handle
             p.addParameter('correction', [], @isnumeric)
             p.addParameter('correctionAdvancedValidation', true, @islogical)
             p.addParameter('trials', [], @(x) isempty(x) || isa(x, 'Trial'))
-            p.addParameter('lickArtifactLength', 0, @isnumeric)
-            p.addParameter('lickArtifactLengthType', 'ms', @(x) ismember(x, {'bins', 'ms'}))
-            p.addParameter('lickArtifactDirection', 'both', @(x) ismember(x, {'right', 'both'}))
-            p.addParameter('lickOffArtifactLength', 0, @isnumeric)
-            p.addParameter('lickOffArtifactLengthType', 'ms', @(x) ismember(x, {'bins', 'ms'}))
-            p.addParameter('lickOffArtifactDirection', 'both', @(x) ismember(x, {'right', 'both'}))
+            p.addParameter('artifacts', [], @(x) isempty(x) || isstruct(x) && all(isfield(x, {'event', 'length', 'lengthUnit', 'direction'})))
             p.addParameter('kernel', struct([]), @isstruct)
             p.addParameter('minBoutCycles', 2)
             p.addParameter('maxBoutCycles', 4)
@@ -2921,12 +2904,7 @@ classdef EphysUnit < handle
             err = p.Results.trialDurationError;
             correction = p.Results.correction;
             correctionAdvancedValidation = p.Results.correctionAdvancedValidation;
-            lickArtifactLength = p.Results.lickArtifactLength;
-            lickArtifactLengthType = p.Results.lickArtifactLengthType;
-            lickArtifactDirection = p.Results.lickArtifactDirection;
-            lickOffArtifactLength = p.Results.lickOffArtifactLength;
-            lickOffArtifactLengthType = p.Results.lickOffArtifactLengthType;
-            lickOffArtifactDirection = p.Results.lickOffArtifactDirection;
+            artifacts = p.Results.artifacts;
             kernel = p.Results.kernel;
             minBoutCycles = p.Results.minBoutCycles;
             maxBoutCycles = p.Results.maxBoutCycles;
