@@ -633,10 +633,10 @@ classdef EphysUnit < handle
             p.addParameter('maxBoutCycles', 4)
             p.addParameter('minInterval', 0.05);
             p.addParameter('maxInterval', 0.25);
-            p.addParameter('lickArtifactLength', 1, @isnumeric)
-            p.addParameter('lickArtifactLengthType', 'bins', @(x) ismember(x, {'bins', 'ms'}))
-            p.addParameter('lickArtifactDirection', 'right', @(x) ismember(x, {'both', 'right'}))
-            p.addParameter('lickOffArtifactLength', 10, @isnumeric)
+            p.addParameter('lickArtifactLength', 0, @isnumeric)
+            p.addParameter('lickArtifactLengthType', 'ms', @(x) ismember(x, {'bins', 'ms'}))
+            p.addParameter('lickArtifactDirection', 'both', @(x) ismember(x, {'both', 'right'}))
+            p.addParameter('lickOffArtifactLength', 0, @isnumeric)
             p.addParameter('lickOffArtifactLengthType', 'ms', @(x) ismember(x, {'bins', 'ms'}))
             p.addParameter('lickOffArtifactDirection', 'both', @(x) ismember(x, {'both', 'right'}))
             p.parse(data, event, varargin{:})
@@ -2623,14 +2623,16 @@ classdef EphysUnit < handle
             % GETSPIKECOUNTS Generates binned spike counts
             %   [sc, t] = GETSPIKECOUNTS(binWidth) uses binWidth to automatically construct bins
             %   [sc, t] = GETSPIKECOUNTS(edges) uses specific bin edges
-            assert(length(obj) == 1)
+            assert(isscalar(obj))
             p = inputParser();
-            if length(varargin{1}) == 1
+            if isscalar(varargin{1})
                 p.addRequired('binWidth', @(x) isnumeric(x) && x>0);
             else
                 p.addRequired('edges', @(x) isnumeric(x) && length(x)>=2 && nnz(diff(x)<=0)==0)
             end
+            p.addParameter('artifacts', [], @(x) isstruct(x) && all(isfield(x, {'t', 'length', 'direction'})))
             p.parse(varargin{:})
+            artifacts = p.Results.artifacts;
             if isfield(p.Results, 'binWidth')
                 binWidth = p.Results.binWidth;
                 edges = [];
@@ -2643,17 +2645,147 @@ classdef EphysUnit < handle
             if isempty(edges)
                 edges = spikes(1) - binWidth:binWidth:spikes(end) + binWidth;
             end
-            sc = histcounts(spikes, edges);
-            t = (edges(1:end-1) + edges(2:end)) / 2;
 
-            assert(sum(sc > 2^16 - 1) == 0, 'Spike counts per bin should not exceeded 2^16-1 (%i)', max(sc)) % There should not be more than 65k spikes in an 100ms bin
-            sc = uint16(sc);
-            t = single(t);
+            if isempty(artifacts)
+                sc = histcounts(spikes, edges);
+                t = (edges(1:end-1) + edges(2:end)) / 2;
+
+                assert(sum(sc > 2^16 - 1) == 0, 'Spike counts per bin should not exceeded 2^16-1 (%i)', max(sc)) % There should not be more than 65k spikes in an 100ms bin
+                sc = uint16(sc);
+                t = single(t);
+            else
+                % When artifacts are present (with a blankout duration
+                % surrounding them), we need to carve these blankout
+                % periods from 'edges', do spike counts, and then scale up
+                % spikecounts based on the duration that was carved out of 
+                % each bin.
+                t = (edges(1:end-1) + edges(2:end)) / 2;
+
+                % Combine artifacts
+                artifactIntervals = [];
+                for iArtifact = 1:length(artifacts)
+                    if artifacts(iArtifact).length > 0
+                        tArtifact = reshape(artifacts(iArtifact).t, 1, []);
+                        switch lower(artifacts(iArtifact).direction)
+                            case 'right'
+                                theseArtifactIntervals = tArtifact + [0; artifacts(iArtifact).length*1e-3];
+                            case 'both'
+                                theseArtifactIntervals = tArtifact + [-artifacts(iArtifact).length*1e-3; artifacts(iArtifact).length*1e-3];
+                        end
+                        artifactIntervals = intervalUnion(artifactIntervals, theseArtifactIntervals);
+                    end
+                end
+
+                if isempty(artifactIntervals)
+                    sc = histcounts(spikes, edges);
+                    assert(sum(sc > 2^16 - 1) == 0, 'Spike counts per bin should not exceeded 2^16-1 (%i)', max(sc)) % There should not be more than 65k spikes in an 100ms bin
+                    sc = uint16(sc);
+                    t = single(t);
+                    return;
+                end
+
+                % For each spike-counting bin (edges), find its intersect
+                % with any artifact-ridden intervals
+                % artifactIntervals is a 2xn arraym with n pairs of opening
+                % and closing timestamps for n disjoint artifact ridden
+                % intervals. The intervals are sorted so that
+                % artifactIntervals(:) should be in ascending order.
+                sc = NaN(size(t));
+                B = artifactIntervals;
+                for iBin = 1 : length(edges)-1
+                    a1 = edges(iBin);
+                    a2 = edges(iBin + 1);
+                    badIntervals = [];
+                    while true
+                        % Find the first b2 > a1
+                        iArtifact = find(B(2, :) > a1, 1, 'first');
+                        if isempty(iArtifact)
+                            break;
+                            % We've reached the last artifact
+                        end
+                        B = B(:, iArtifact:end); % Truncate all earlier artifact intervals, since they ended before a1 (and all subsequent a1's)
+                        b1 = B(1, 1);
+                        b2 = B(2, 1);
+                        % We know b2 > a1 already
+                        if b1 < a1 
+                        % if b1 < a1 < b2 < a2 % mark [a1, b2], go to next artifact
+                            if b2 < a2
+                                % [a1, b2];
+                                badIntervals = horzcat(badIntervals, [b2; a2]);
+                                B(:, 1) = [];
+                                continue
+                        % if b1 < a1 < a2 < b2 % mark [a1, a2], go to next bin 
+                            else
+                                % [a1, a2]; % Whole bin is bad
+                                badIntervals = [a1; a2];
+                                break;
+                            end
+                        % b1 > a1 from this point
+                        else
+                            % a1 < a2 < b1 < b2 % good bin, go to next bin
+                            if a2 < b1
+                                badIntervals = [];
+                                break;
+                            else
+                                % a1 < b1 < b2 < a2 % mark [b1, b2], go to next artifact
+                                if a2 > b2
+                                    badIntervals = horzcat(badIntervals, [b1; b2]);
+                                    B(:, 1) = [];
+                                    continue
+                                % a1 < b1 < a2 < b2 % mark [b1, a2], go to next bin
+                                else
+                                    badIntervals = horzcat(badIntervals, [b1; a2]);
+                                    break;
+                                end
+                            end
+                        end
+                    end
+
+                    badIntervals = intervalUnion(badIntervals);
+                    % Get the complement of badIntervals within the bin:
+                    % calculate spikecounts in here
+
+                    % Whole bin is good
+                    if isempty(badIntervals)
+                        sc(iBin) = histcounts(spikes, [a1, a2]);
+                        continue;
+                    end
+                    % Whole bin is bad
+                    if badIntervals(1) == a1 && badIntervals(end) == a2
+                        sc(iBin) = NaN;
+                        continue;
+                    end
+                    % There are one or more bad intervals to truncate
+                    truncatedDuration = sum(diff(badIntervals, 1, 1));
+                    scalingFactor = 1 - truncatedDuration/(a2-a1); % divide spike count by this factor
+                    subEdges = unique(sort([a1, a2, badIntervals(:)'], 'ascend'));
+                    scTemp = histcounts(spikes, subEdges);
+
+                    % Find out which bins have artifacts
+                    nBadIntervals = size(badIntervals, 2);
+                    nSubBins = length(subEdges) - 1;
+                    % a1 is bad, a2 is bad (bad, good, ..., bad) Odd bins are bad
+                    % a1 is bad, a2 is good (bad, good, ..., good) Odd bins are bad
+                    % a1 is good, a2 is bad (good, bad, ..., bad) Even bins are bad
+                    % a1 is good, a2 is good (good, bad, ..., bad, good) Even bins are bad
+                    if a1 == badIntervals(1)
+                        isBadSubBin = mod(1:nSubBins, 2) == 1;
+                    else
+                        isBadSubBin = mod(1:nSubBins, 2) == 0;
+                    end
+
+                    if all(isBadSubBin)
+                        sc(iBin) = NaN;
+                    else
+                        sc(iBin) = sum(scTemp(~isBadSubBin)) ./ scalingFactor;
+                    end
+                end
+            end
         end
         
         function [sr, t, kernel] = getSpikeRates(obj, varargin)
             % GETSPIKERATES Convolve discrete spikes with a Guassian (default) or Exponential kernel to get smooth spike rate estimate
-            assert(length(obj) == 1)
+            assert(isscalar(obj))
             p = inputParser();
             defaultKernelType = 'gaussian';
             defaultResolution = 1e-3;
@@ -2761,10 +2893,10 @@ classdef EphysUnit < handle
             p.addParameter('correction', [], @isnumeric)
             p.addParameter('correctionAdvancedValidation', true, @islogical)
             p.addParameter('trials', [], @(x) isempty(x) || isa(x, 'Trial'))
-            p.addParameter('lickArtifactLength', 1, @isnumeric)
-            p.addParameter('lickArtifactLengthType', 'bins', @(x) ismember(x, {'bins', 'ms'}))
-            p.addParameter('lickArtifactDirection', 'right', @(x) ismember(x, {'right', 'both'}))
-            p.addParameter('lickOffArtifactLength', 10, @isnumeric)
+            p.addParameter('lickArtifactLength', 0, @isnumeric)
+            p.addParameter('lickArtifactLengthType', 'ms', @(x) ismember(x, {'bins', 'ms'}))
+            p.addParameter('lickArtifactDirection', 'both', @(x) ismember(x, {'right', 'both'}))
+            p.addParameter('lickOffArtifactLength', 0, @isnumeric)
             p.addParameter('lickOffArtifactLengthType', 'ms', @(x) ismember(x, {'bins', 'ms'}))
             p.addParameter('lickOffArtifactDirection', 'both', @(x) ismember(x, {'right', 'both'}))
             p.addParameter('kernel', struct([]), @isstruct)
@@ -2916,14 +3048,7 @@ classdef EphysUnit < handle
                     if lickOffArtifactLength > 0
                         assert(strcmpi(lickOffArtifactLengthType, 'ms'), 'lickOffArtifactLengthType must be ''ms''')
                         assert(strcmpi(lickOffArtifactDirection, 'both'), 'lickOffArtifactDirection must be ''both''')
-                        if isfield(obj.EventTimes, 'LickOff')
-                            lickOff = obj.EventTimes.LickOff;
-                        elseif isfield(obj.EventTimes, 'LICK_OFF')
-                            lickOff = obj.EventTimes.LICK_OFF;
-                        else
-                            error('Could not find lick off event under either obj.EventTimes.LICK_OFF or obj.EventTimes.LickOff');
-                        end
-                        [~, lickOff, lickOffTrialIndices] = trials.inTrial(lickOff);
+                        [~, lickOff, lickOffTrialIndices] = trials.inTrial(obj.EventTimes.LickOff);
                     end
 
                     for iTrial = 1:length(trials)
@@ -2964,7 +3089,11 @@ classdef EphysUnit < handle
                 case 'circlick'
                     tAligned = 0:resolution:2*pi;
                     isLickArtifact = false(size(tAligned));
-                    assert(strcmpi(lickArtifactLengthType, 'bins'), 'lickArtifactLengthType must be ''bins''')
+                    if lickArtifactLength > 0
+                        assert(ismember(lickArtifactLengthType, {'bins'}), "Not implemented: lick on artifacts of type '%s' for trial type '%s'", lickArtifactLengthType, trialType)
+                        assert(ismember(lickArtifactDirection, {'right'}), "Not implemented: lickArtifactDirection='%s' for trial type '%s'", lickArtifactDirection, trialType)
+                    end
+                    assert(lickOffArtifactLength==0, "Not implemented: lick off artifacts for trial type '%s'", trialType)
                     if lickArtifactLength > 0
                         isLickArtifact(1:lickArtifactLength) = true;
                     end
@@ -2996,14 +3125,7 @@ classdef EphysUnit < handle
                     if lickOffArtifactLength > 0
                         assert(strcmpi(lickOffArtifactLengthType, 'ms'), 'lickOffArtifactLengthType must be "ms"')
                         assert(strcmpi(lickOffArtifactDirection, 'both'), 'lickOffArtifactDirection must be "both"')
-                        if isfield(obj.EventTimes, 'LickOff')
-                            lickOff = obj.EventTimes.LickOff;
-                        elseif isfield(obj.EventTimes, 'LICK_OFF')
-                            lickOff = obj.EventTimes.LICK_OFF;
-                        else
-                            error('Could not find lick off event under either obj.EventTimes.LICK_OFF or obj.EventTimes.LickOff');
-                        end
-                        [~, lickOff, lickOffI, lickOffJ] = trials.inTrial2(lickOff); % I: bout/row index, J: interlick-interval/col index
+                        [~, lickOff, lickOffI, lickOffJ] = trials.inTrial2(obj.EventTimes.LickOff); % I: bout/row index, J: interlick-interval/col index
                     end
 
                     for iBout = 1:nBouts
@@ -3093,6 +3215,11 @@ classdef EphysUnit < handle
                     end
                 case 'lickboutend'
                     assert(length(resolution) == 2, '"resolution" parameter should be two elements [circlick resolution, post-bout resolution]')
+                    if lickArtifactLength > 0
+                        assert(ismember(lickArtifactLengthType, {'bins'}), "Not implemented: lick on artifacts of type '%s' for trial type '%s'", lickArtifactLengthType, trialType)
+                        assert(ismember(lickArtifactDirection, {'right'}), "Not implemented: lickArtifactDirection='%s' for trial type '%s'", lickArtifactDirection, trialType)
+                    end
+                    assert(lickOffArtifactLength==0, "Not implemented: lick off artifacts for trial type '%s'", trialType)
                     nTrials = size(trials, 1);
                     nCycles = size(trials, 2) - 1;
                     tAlignedPre = -2*pi*size(trials, 2):resolution(1):0;
@@ -3118,6 +3245,11 @@ classdef EphysUnit < handle
                     end
                 case 'lick+lickbout'
                     assert(length(resolution) == 2, '"resolution" parameter should be two elements [pre-move resolution, circ lick resolution]')
+                    if lickArtifactLength > 0
+                        assert(ismember(lickArtifactLengthType, {'bins'}), "Not implemented: lick on artifacts of type '%s' for trial type '%s'", lickArtifactLengthType, trialType)
+                        assert(ismember(lickArtifactDirection, {'right'}), "Not implemented: lickArtifactDirection='%s' for trial type '%s'", lickArtifactDirection, trialType)
+                    end
+                    assert(lickOffArtifactLength==0, "Not implemented: lick off artifacts for trial type '%s'", trialType)
                     % Rows are self-timed trials
                     % For self-timed lick, columns are ([Cue, FirstLick], [FirstLick, SecondLick], [SecondLick, ThirdLick], ...)
                     % For self-timed press, columns are ([Cue, FirstPress], [FirstPress, FirstLick], [FirstLick, SecondLick], ...)
@@ -3147,6 +3279,11 @@ classdef EphysUnit < handle
                     end
                 case 'press+lickbout'
                     assert(length(resolution) == 3, '"resolution" parameter should be two elements [pre-reach resolution, post-reach-pre-lick resolution, circ lick resolution]')
+                    if lickArtifactLength > 0
+                        assert(ismember(lickArtifactLengthType, {'bins'}), "Not implemented: lick on artifacts of type '%s' for trial type '%s'", lickArtifactLengthType, trialType)
+                        assert(ismember(lickArtifactDirection, {'right'}), "Not implemented: lickArtifactDirection='%s' for trial type '%s'", lickArtifactDirection, trialType)
+                    end
+                    assert(lickOffArtifactLength==0, "Not implemented: lick off artifacts for trial type '%s'", trialType)
                     % Rows are self-timed trials
                     % For self-timed lick, columns are ([Cue, FirstLick], [FirstLick, SecondLick], [SecondLick, ThirdLick], ...)
                     % For self-timed press, columns are ([Cue, FirstPress], [FirstPress, FirstLick], [FirstLick, SecondLick], ...)
@@ -3351,6 +3488,15 @@ classdef EphysUnit < handle
                     otherwise
                         tAligned = (tAligned(1:end-1) + tAligned(2:end)) / 2;
                         xAligned = NaN(length(trials), length(tAligned));
+                        lickArtifacts = struct([]);
+                        if lickArtifactLength > 0
+                            assert(strcmpi(lickArtifactLengthType, 'ms'))
+                            lickArtifacts = [lickArtifacts, struct(t=obj.EventTimes.LickOn, length=lickArtifactLength, direction=lickArtifactDirection)];
+                        end
+                        if lickOffArtifactLength > 0
+                            assert(strcmpi(lickOffArtifactLengthType, 'ms'))
+                            lickArtifacts = [lickArtifacts, struct(t=obj.EventTimes.LickOff, length=lickOffArtifactLength, direction=lickOffArtifactDirection)];                           
+                        end
                         switch data
                             case 'rate'
                                 if isempty(kernel)
@@ -3376,7 +3522,7 @@ classdef EphysUnit < handle
                                 end
                             case 'count'
                                 for iTrial = 1:length(trials)
-                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :));
+                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :), artifacts=lickArtifacts);
                                     sel = select(tAligned, iTrial);
                                     xAligned(iTrial, sel) = xx(sel);
                                 end
