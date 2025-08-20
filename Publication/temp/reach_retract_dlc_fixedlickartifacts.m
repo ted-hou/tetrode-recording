@@ -150,8 +150,9 @@ end
 clear field
 
 eta.pressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=[-4, -2], resolution=0.1, artifacts=artifactParams);
-eta.lickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-eta.correctReleaseNorm = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.lickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=[-4, -2], resolution=0.1, artifacts=artifactParams);
+eta.correctReleaseNorm = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=[-2, 0], resolution=0.1, artifacts=artifactParams);
+eta.correctReleaseNormToPress = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
 
 eta.correctPressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
 eta.correctLickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
@@ -162,17 +163,62 @@ eta.incorrectPressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', mi
 eta.incorrectLickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
 
 
-%% Plot all units, PETH as heatmap: lick, reach, release
-tl = tiledlayout(figure(Units='inches', Position=[1 1 10 5]), 1, 3);
+%% Plot all units, PETH as heatmap: reach, release, lick
+close all
+tl = tiledlayout(figure(Units='inches', Position=[1 1 20 5]), 1, 7);
 clear etaOrder ax
+etaParams.xlim = [-2, 2];
+etaParams.clim = [-1.5, 1.5];
 
-% PETH, lick
-ax = nexttile(tl);
-[~, etaOrder.lick] = EphysUnit.plotETA(ax, eta.lickNorm);
+AX = gobjects(1, 7);
+iAx = 1;
 
-ax = nexttile(tl);
-[~, etaOrder.lick] = EphysUnit.plotETA(ax, eta.correctLick);
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+[~, etaOrder.press] = EphysUnit.plotETA(ax, eta.pressNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
+title(ax, 'Reach')
+xlabel(ax, 'time to bar contact (s)')
 
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+[~, ~] = EphysUnit.plotETA(ax, eta.correctReleaseNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    order=etaOrder.press, hideColorbar=true);
+title(ax, {'Release'})
+xlabel(ax, 'time to bar release (s)')
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+[~, ~] = EphysUnit.plotETA(ax, eta.lickNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    order=etaOrder.press, hideColorbar=true);
+title(ax, 'Lick')
+xlabel(ax, 'time to spout contact (s)')
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+[~, ~] = EphysUnit.plotETA(ax, eta.correctReleaseNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    order=etaOrder.press, hideColorbar=true);
+title(ax, {'Release','(self norm)'})
+xlabel(ax, 'time to bar release (s)')
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+[~, etaOrder.release] = EphysUnit.plotETA(ax, eta.correctReleaseNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    sortWindow=[0, 1], signWindow=[0, 0.5], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
+title(ax, {'Release','(self order)'})
+xlabel(ax, 'time to bar release (s)')
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+[~, etaOrder.release] = EphysUnit.plotETA(ax, eta.correctReleaseNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    sortWindow=[0, 1], signWindow=[0, 0.5], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
+title(ax, {'Release','(self norm, self order*)'})
+xlabel(ax, 'time to bar release (s)')
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+[~, etaOrder.lick] = EphysUnit.plotETA(ax, eta.lickNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=false);
+title(ax, {'Lick','(self order)'})
+xlabel(ax, 'time to spout contact (s)')
+ax.Colorbar.Layout.Tile='east';
+
+fontsize(AX, 9, 'points')
+ylabel(AX, '')
+ylabel(tl, 'unit', FontSize=9)
 
 %% Plot individial units, PETH as trace: lick, reach, release
 close all
