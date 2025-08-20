@@ -2630,7 +2630,7 @@ classdef EphysUnit < handle
             else
                 p.addRequired('edges', @(x) isnumeric(x) && length(x)>=2 && nnz(diff(x)<=0)==0)
             end
-            p.addParameter('artifacts', [], @(x) isstruct(x) && all(isfield(x, {'t', 'length', 'direction'})))
+            p.addParameter('artifacts', [], @(x) isempty(x) || (isstruct(x) && all(isfield(x, {'t', 'length', 'direction'}))))
             p.parse(varargin{:})
             artifacts = p.Results.artifacts;
             if isfield(p.Results, 'binWidth')
