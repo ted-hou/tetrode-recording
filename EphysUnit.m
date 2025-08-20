@@ -2912,6 +2912,63 @@ classdef EphysUnit < handle
             maxInterval = p.Results.maxInterval;
             startBlankWindow = p.Results.startBlankWindow;
 
+            % Parse artifacts
+            artifactIndex = struct(LickOn=[], LickOff=[], PressOn=[], PresOff=[]);
+            lickOnArtifactLength = 0;
+            lickOnArtifactLengthUnit = 'ms';
+            lickOnArtifactDirection = 'both';
+            lickOffArtifactLength = 0;
+            lickOffArtifactLengthUnit = 'ms';
+            lickOffArtifactDirection = 'both';
+            for i = 1:length(artifacts)
+                switch artifacts(i).event
+                    case {'LickOn', 'Lick', 'LICK_ON', 'LICK'}
+                        artifactIndex.LickOn = i;
+                        eventName = {'LickOn', 'Lick', 'LICK_ON', 'LICK'};
+                        eventName = eventName(isfield(obj.EventTimes, eventName));
+                        if isempty(eventName)
+                            error('Cannot find LickOn event under any of these fields in obj.EventTimes: {''LickOn'', ''Lick'', ''LICK_ON'', ''LICK''}');
+                        end
+                        eventName = eventName{1};
+                        artifacts(i).t = obj.EventTimes.(eventName);
+                        lickOnArtifactLength = artifacts(i).length;
+                        lickOnArtifactLengthUnit = artifacts(i).lengthUnit;
+                        lickOnArtifactDirection = artifacts(i).direction;
+                    case {'LickOff', 'LICK_OFF'}
+                        artifactIndex.LickOff = i;
+                        eventName = {'LickOff', 'LICK_OFF'};
+                        eventName = eventName(isfield(obj.EventTimes, eventName));
+                        if isempty(eventName)
+                            error('Cannot find LickOff event under any of these fields in obj.EventTimes: {''LickOff'', ''LICK_OFF''}');
+                        end
+                        eventName = eventName{1};
+                        artifacts(i).t = obj.EventTimes.(eventName);
+                        lickOffArtifactLength = artifacts(i).length;
+                        lickOffArtifactLengthUnit = artifacts(i).lengthUnit;
+                        lickOffArtifactDirection = artifacts(i).direction;
+                    case {'PressOn', 'Press', 'PRESS_ON'}
+                        artifactIndex.PressOn = i;
+                        eventName = {'PressOn', 'Press', 'PRESS_ON'};
+                        eventName = eventName(isfield(obj.EventTimes, eventName));
+                        if isempty(eventName)
+                            error('Cannot find PressOn event under any of these fields in obj.EventTimes: {''PressOn'', ''Press'', ''PRESS_ON''}');
+                        end
+                        eventName = eventName{1};
+                        artifacts(i).t = obj.EventTimes.(eventName);
+                    case {'PressOff', 'PRESS_OFF'}
+                        artifactIndex.PressOff = i;
+                    otherwise
+                        artifactIndex.(artifacts(i).event) = i;
+                        eventName = {'PressOff', 'PRESS_OFF'};
+                        eventName = eventName(isfield(obj.EventTimes, eventName));
+                        if isempty(eventName)
+                            error('Cannot find PressOff event under any of these fields in obj.EventTimes: {''PressOff'', ''PRESS_OFF''}');
+                        end
+                        eventName = eventName{1};
+                        artifacts(i).t = obj.EventTimes.(eventName);
+                end
+            end
+
             % Filter out trials with incorrect lengths
             if isempty(p.Results.trials)
                 switch lower(trialType)
@@ -3020,13 +3077,14 @@ classdef EphysUnit < handle
                     tAligned = linspace(pi/n, (2-1/n)*pi, n); % tAligned: expressed in phase
                     tAlignedGlobal = zeros(length(trials), length(tAligned));
                     isLickArtifact = false(length(trials), length(tAligned) - 1); % for bins 1->n-1, since the two half-bins on 0 and 2pi are ignored.
-                    assert(strcmpi(lickArtifactLengthType, 'ms'), 'lickArtifactLengthType must be ''ms''')
-                    assert(strcmpi(lickArtifactDirection, 'both'), 'lickArtifactDireciton must be ''both''')
+
+                    assert(strcmpi(lickOnArtifactLengthUnit, 'ms'), 'lickArtifactLengthType must be ''ms''')
+                    assert(strcmpi(lickOnArtifactDirection, 'both'), 'lickArtifactDireciton must be ''both''')
 
                     if lickOffArtifactLength > 0
-                        assert(strcmpi(lickOffArtifactLengthType, 'ms'), 'lickOffArtifactLengthType must be ''ms''')
+                        assert(strcmpi(lickOffArtifactLengthUnit, 'ms'), 'lickOffArtifactLengthType must be ''ms''')
                         assert(strcmpi(lickOffArtifactDirection, 'both'), 'lickOffArtifactDirection must be ''both''')
-                        [~, lickOff, lickOffTrialIndices] = trials.inTrial(obj.EventTimes.LickOff);
+                        [~, lickOff, lickOffTrialIndices] = trials.inTrial(artifacts(artifactIndex.LickOff).t);
                     end
 
                     for iTrial = 1:length(trials)
@@ -3037,7 +3095,7 @@ classdef EphysUnit < handle
                         tAlignedGlobal(iTrial, :) = start + tAlignedLocal;
 
                         % Lick onset: Blank out artifact-ridden bins (can be more than one)
-                        [~, ~, bins] = histcounts([lickArtifactLength*1e-3, duration - lickArtifactLength*1e-3], tAlignedLocal);
+                        [~, ~, bins] = histcounts([lickOnArtifactLength*1e-3, duration - lickOnArtifactLength*1e-3], tAlignedLocal);
                         if bins(2) == 0
                             bins(2) = n; % We only have n-1 bins so n and 0 are considered out of bounds, can be used for artifact blanking below
                         end
@@ -3050,7 +3108,7 @@ classdef EphysUnit < handle
                             iLickOff = find(lickOffTrialIndices == iTrial);
                             if ~isempty(iLickOff)
                                 tLickOffAligned = lickOff(iLickOff) - trials(iTrial).Start;
-                                [~, ~, bins] = histcounts([tLickOffAligned - lickArtifactLength*1e-3, tLickOffAligned + lickArtifactLength*1e-3], tAlignedLocal);
+                                [~, ~, bins] = histcounts([tLickOffAligned - lickOnArtifactLength*1e-3, tLickOffAligned + lickOnArtifactLength*1e-3], tAlignedLocal);
                                 if bins(1) == 0 && bins(2) == 0
                                     error("iTrial %i: %i %i %g %g\n", iTrial, bins(1), bins(2), tLickOffAligned*1e3, duration)
                                 end
@@ -3067,13 +3125,13 @@ classdef EphysUnit < handle
                 case 'circlick'
                     tAligned = 0:resolution:2*pi;
                     isLickArtifact = false(size(tAligned));
-                    if lickArtifactLength > 0
-                        assert(ismember(lickArtifactLengthType, {'bins'}), "Not implemented: lick on artifacts of type '%s' for trial type '%s'", lickArtifactLengthType, trialType)
-                        assert(ismember(lickArtifactDirection, {'right'}), "Not implemented: lickArtifactDirection='%s' for trial type '%s'", lickArtifactDirection, trialType)
+                    if lickOnArtifactLength > 0
+                        assert(ismember(lickOnArtifactLengthUnit, {'bins'}), "Not implemented: lick on artifacts of type '%s' for trial type '%s'", lickOnArtifactLengthUnit, trialType)
+                        assert(ismember(lickOnArtifactDirection, {'right'}), "Not implemented: lickArtifactDirection='%s' for trial type '%s'", lickOnArtifactDirection, trialType)
                     end
                     assert(lickOffArtifactLength==0, "Not implemented: lick off artifacts for trial type '%s'", trialType)
-                    if lickArtifactLength > 0
-                        isLickArtifact(1:lickArtifactLength) = true;
+                    if lickOnArtifactLength > 0
+                        isLickArtifact(1:lickOnArtifactLength) = true;
                     end
                     tAlignedGlobal = zeros(length(trials), length(tAligned));
                     for iTrial = 1:length(trials)
@@ -3095,15 +3153,15 @@ classdef EphysUnit < handle
                     tAlignedGlobal = NaN(nBouts, length(tAligned)); % tAligned global: in seconds (ephys time)
                     isLickArtifact = false(nBouts, length(tAligned)); % aligned to left edge, last value is meaningless?
 
-                    if lickArtifactLength > 0
-                        assert(strcmpi(lickArtifactLengthType, 'ms'), 'lickArtifactLengthType must be "ms"')
-                        assert(strcmpi(lickArtifactDirection, 'both'), 'lickArtifactDireciton must be "both"')
+                    if lickOnArtifactLength > 0
+                        assert(strcmpi(lickOnArtifactLengthUnit, 'ms'), 'lickArtifactLengthType must be "ms"')
+                        assert(strcmpi(lickOnArtifactDirection, 'both'), 'lickArtifactDireciton must be "both"')
                     end
 
                     if lickOffArtifactLength > 0
-                        assert(strcmpi(lickOffArtifactLengthType, 'ms'), 'lickOffArtifactLengthType must be "ms"')
+                        assert(strcmpi(lickOffArtifactLengthUnit, 'ms'), 'lickOffArtifactLengthType must be "ms"')
                         assert(strcmpi(lickOffArtifactDirection, 'both'), 'lickOffArtifactDirection must be "both"')
-                        [~, lickOff, lickOffI, lickOffJ] = trials.inTrial2(obj.EventTimes.LickOff); % I: bout/row index, J: interlick-interval/col index
+                        [~, lickOff, lickOffI, lickOffJ] = trials.inTrial2(artifacts(artifactIndex.LickOff).t); % I: bout/row index, J: interlick-interval/col index
                     end
 
                     for iBout = 1:nBouts
@@ -3118,8 +3176,8 @@ classdef EphysUnit < handle
                             tAlignedGlobal(iBout, 1+n*(iCycle-1) : n*iCycle) = start + tAlignedLocal;
 
                             % Lick onset: Blank out artifact-ridden bins (can be more than one)
-                            if lickArtifactLength > 0
-                                [~, ~, bins] = histcounts([lickArtifactLength*1e-3, duration - lickArtifactLength*1e-3], tAlignedLocal);
+                            if lickOnArtifactLength > 0
+                                [~, ~, bins] = histcounts([lickOnArtifactLength*1e-3, duration - lickOnArtifactLength*1e-3], tAlignedLocal);
                                 if bins(2) == 0
                                     bins(2) = n; % We only have n-1 bins so n and 0 are considered out of bounds, can be used for artifact blanking below
                                 end
@@ -3134,7 +3192,7 @@ classdef EphysUnit < handle
                                 iLickOff = find(lickOffI == iBout & lickOffJ == iCycle);
                                 if ~isempty(iLickOff)
                                     tLickOffAligned = lickOff(iLickOff) - trials(iBout, iCycle).Start;
-                                    [~, ~, bins] = histcounts([tLickOffAligned - lickArtifactLength*1e-3, tLickOffAligned + lickArtifactLength*1e-3], tAlignedLocal);
+                                    [~, ~, bins] = histcounts([tLickOffAligned - lickOnArtifactLength*1e-3, tLickOffAligned + lickOnArtifactLength*1e-3], tAlignedLocal);
                                     if bins(1) == 0 && bins(2) == 0
                                         error("iBout=%i iCycle=%i: %i %i [%s] %g\n", iBout, iCycle, bins(1), bins(2), num2str(tLickOffAligned*1e3), duration)
                                     end
@@ -3153,19 +3211,19 @@ classdef EphysUnit < handle
                     tAligned = 0:resolution:2*pi*size(trials, 2);
                     nBinsPerCycle = length(0:resolution:2*pi) - 1;
                     isLickArtifact = false(size(tAligned));
-                    if lickArtifactLength > 0
-                        switch lower(lickOffArtifactLengthType)
+                    if lickOnArtifactLength > 0
+                        switch lower(lickOffArtifactLengthUnit)
                             case 'bins'
                                 switch lower(lickOffArtifactDirection)
                                     case 'right'
                                         for iCycle = 1:size(trials, 2)
-                                            selBins = nBinsPerCycle*(iCycle-1) + (1:lickArtifactLength);
+                                            selBins = nBinsPerCycle*(iCycle-1) + (1:lickOnArtifactLength);
                                             selBins = min(selBins, length(isLickArtifact));
                                             isLickArtifact(selBins) = true;
                                         end
                                     case 'both'
                                         for iCycle = 1:size(trials, 2)
-                                            selBins = nBinsPerCycle*(iCycle-1) + (-lickArtifactLength:lickArtifactLength);
+                                            selBins = nBinsPerCycle*(iCycle-1) + (-lickOnArtifactLength:lickOnArtifactLength);
                                             selBins = max(selBins, 1);
                                             selBins = min(selBins, length(isLickArtifact));
                                             isLickArtifact(selBins) = true;
@@ -3174,9 +3232,9 @@ classdef EphysUnit < handle
                                         error('Parameter "lickOffArtifactDirection" cannot be "%s", must be "right" or "both".', lickOffArtifactDirection)
                                 end
                             case 'ms'
-                                error('Not implemented: Parameter "lickOffArtifactLengthType" is set to "%s", try "bins" instead, or maybe you meant to use "lickbout_naive"?', lickOffArtifactLengthType)
+                                error('Not implemented: Parameter "lickOffArtifactLengthType" is set to "%s", try "bins" instead, or maybe you meant to use "lickbout_naive"?', lickOffArtifactLengthUnit)
                             otherwise
-                                error('Parameter "lickOffArtifactLengthType" cannot be "%s", must be "bins" or "ms".', lickOffArtifactLengthType)
+                                error('Parameter "lickOffArtifactLengthType" cannot be "%s", must be "bins" or "ms".', lickOffArtifactLengthUnit)
                         end
                     end
                     if lickOffArtifactLength > 0
@@ -3193,9 +3251,9 @@ classdef EphysUnit < handle
                     end
                 case 'lickboutend'
                     assert(length(resolution) == 2, '"resolution" parameter should be two elements [circlick resolution, post-bout resolution]')
-                    if lickArtifactLength > 0
-                        assert(ismember(lickArtifactLengthType, {'bins'}), "Not implemented: lick on artifacts of type '%s' for trial type '%s'", lickArtifactLengthType, trialType)
-                        assert(ismember(lickArtifactDirection, {'right'}), "Not implemented: lickArtifactDirection='%s' for trial type '%s'", lickArtifactDirection, trialType)
+                    if lickOnArtifactLength > 0
+                        assert(ismember(lickOnArtifactLengthUnit, {'bins'}), "Not implemented: lick on artifacts of type '%s' for trial type '%s'", lickOnArtifactLengthUnit, trialType)
+                        assert(ismember(lickOnArtifactDirection, {'right'}), "Not implemented: lickArtifactDirection='%s' for trial type '%s'", lickOnArtifactDirection, trialType)
                     end
                     assert(lickOffArtifactLength==0, "Not implemented: lick off artifacts for trial type '%s'", trialType)
                     nTrials = size(trials, 1);
@@ -3206,9 +3264,9 @@ classdef EphysUnit < handle
                     assert(window(1) == 0)
                     nBinsPerCycle = length(0:resolution(1):2*pi) - 1;
                     isLickArtifact = false(size(tAligned));
-                    if lickArtifactLength > 0
+                    if lickOnArtifactLength > 0
                         for iCycle = 1:size(trials, 2) + 1
-                            isLickArtifact(nBinsPerCycle*(iCycle-1) + (1:lickArtifactLength)) = true;
+                            isLickArtifact(nBinsPerCycle*(iCycle-1) + (1:lickOnArtifactLength)) = true;
                         end
                     end
                     tAlignedGlobal = NaN(nTrials, length(tAligned));
@@ -3223,9 +3281,9 @@ classdef EphysUnit < handle
                     end
                 case 'lick+lickbout'
                     assert(length(resolution) == 2, '"resolution" parameter should be two elements [pre-move resolution, circ lick resolution]')
-                    if lickArtifactLength > 0
-                        assert(ismember(lickArtifactLengthType, {'bins'}), "Not implemented: lick on artifacts of type '%s' for trial type '%s'", lickArtifactLengthType, trialType)
-                        assert(ismember(lickArtifactDirection, {'right'}), "Not implemented: lickArtifactDirection='%s' for trial type '%s'", lickArtifactDirection, trialType)
+                    if lickOnArtifactLength > 0
+                        assert(ismember(lickOnArtifactLengthUnit, {'bins'}), "Not implemented: lick on artifacts of type '%s' for trial type '%s'", lickOnArtifactLengthUnit, trialType)
+                        assert(ismember(lickOnArtifactDirection, {'right'}), "Not implemented: lickArtifactDirection='%s' for trial type '%s'", lickOnArtifactDirection, trialType)
                     end
                     assert(lickOffArtifactLength==0, "Not implemented: lick off artifacts for trial type '%s'", trialType)
                     % Rows are self-timed trials
@@ -3240,9 +3298,9 @@ classdef EphysUnit < handle
                     nBinsPerCycle = length(0:resolution(2):2*pi) - 1;
                     nBinsPreMove = length(tAlignedPre);
                     isLickArtifact = false(size(tAligned));
-                    if lickArtifactLength > 0
+                    if lickOnArtifactLength > 0
                         for iCycle = 1:nCycles
-                            isLickArtifact(nBinsPreMove + nBinsPerCycle*(iCycle-1) + (1:lickArtifactLength)) = true;
+                            isLickArtifact(nBinsPreMove + nBinsPerCycle*(iCycle-1) + (1:lickOnArtifactLength)) = true;
                         end
                     end
                     tAlignedGlobal = NaN(nTrials, length(tAligned));
@@ -3257,9 +3315,9 @@ classdef EphysUnit < handle
                     end
                 case 'press+lickbout'
                     assert(length(resolution) == 3, '"resolution" parameter should be two elements [pre-reach resolution, post-reach-pre-lick resolution, circ lick resolution]')
-                    if lickArtifactLength > 0
-                        assert(ismember(lickArtifactLengthType, {'bins'}), "Not implemented: lick on artifacts of type '%s' for trial type '%s'", lickArtifactLengthType, trialType)
-                        assert(ismember(lickArtifactDirection, {'right'}), "Not implemented: lickArtifactDirection='%s' for trial type '%s'", lickArtifactDirection, trialType)
+                    if lickOnArtifactLength > 0
+                        assert(ismember(lickOnArtifactLengthUnit, {'bins'}), "Not implemented: lick on artifacts of type '%s' for trial type '%s'", lickOnArtifactLengthUnit, trialType)
+                        assert(ismember(lickOnArtifactDirection, {'right'}), "Not implemented: lickArtifactDirection='%s' for trial type '%s'", lickOnArtifactDirection, trialType)
                     end
                     assert(lickOffArtifactLength==0, "Not implemented: lick off artifacts for trial type '%s'", trialType)
                     % Rows are self-timed trials
@@ -3276,9 +3334,9 @@ classdef EphysUnit < handle
                     nBinsPrePress = length(tAlignedPre);
                     nBinsPreLick = length(tAlignedMid);
                     isLickArtifact = false(size(tAligned));
-                    if lickArtifactLength > 0
+                    if lickOnArtifactLength > 0
                         for iCycle = 1:nCycles
-                            isLickArtifact(nBinsPrePress + nBinsPreLick + nBinsPerCycle*(iCycle-1) + (1:lickArtifactLength)) = true;
+                            isLickArtifact(nBinsPrePress + nBinsPreLick + nBinsPerCycle*(iCycle-1) + (1:lickOnArtifactLength)) = true;
                         end
                     end
                     tAlignedGlobal = NaN(nTrials, length(tAligned));
@@ -3466,15 +3524,6 @@ classdef EphysUnit < handle
                     otherwise
                         tAligned = (tAligned(1:end-1) + tAligned(2:end)) / 2;
                         xAligned = NaN(length(trials), length(tAligned));
-                        lickArtifacts = struct([]);
-                        if lickArtifactLength > 0
-                            assert(strcmpi(lickArtifactLengthType, 'ms'))
-                            lickArtifacts = [lickArtifacts, struct(t=obj.EventTimes.LickOn, length=lickArtifactLength, direction=lickArtifactDirection)];
-                        end
-                        if lickOffArtifactLength > 0
-                            assert(strcmpi(lickOffArtifactLengthType, 'ms'))
-                            lickArtifacts = [lickArtifacts, struct(t=obj.EventTimes.LickOff, length=lickOffArtifactLength, direction=lickOffArtifactDirection)];                           
-                        end
                         switch data
                             case 'rate'
                                 if isempty(kernel)
@@ -3500,7 +3549,7 @@ classdef EphysUnit < handle
                                 end
                             case 'count'
                                 for iTrial = 1:length(trials)
-                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :), artifacts=lickArtifacts);
+                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :), artifacts=artifacts);
                                     sel = select(tAligned, iTrial);
                                     xAligned(iTrial, sel) = xx(sel);
                                 end

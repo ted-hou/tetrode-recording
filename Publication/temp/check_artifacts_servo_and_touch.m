@@ -550,6 +550,13 @@ maxLog = 4;
 ksAlpha = 0.01;
 ksHitRateThreshold = 0.5;
 
+clear artifactParams;
+artifactParams(1) = struct(event='LickOn', length=10, lengthUnit='ms', direction='both');
+artifactParams(2) = struct(event='LickOff', length=10, lengthUnit='ms', direction='both');
+artifactParams(3) = struct(event='PressOn', length=10, lengthUnit='ms', direction='both');
+artifactParams(4) = struct(event='PressOff', length=10, lengthUnit='ms', direction='both');
+
+
 pTemplateMatching.distanceFactor = 1;
 pTemplateMatching.nSigmas = 5;
 pTemplateMatching.rateExceed = 0.05;
@@ -790,14 +797,12 @@ for iUnit = 1:length(selUnits)
         % Get the original spike times
         eu(iEu).SpikeTimes = oldSpikeTimes;
         % Calculate ETA
-        etaTemp.circLickNaiveRaw = eu(iEu).getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-            lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+        etaTemp.circLickNaiveRaw = eu(iEu).getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, artifacts=artifactParams);
         etaTemp.lickRaw = eu(iEu).getETA('count', 'lick', window=[-4, 2], resolution=0.025, normalize='none');
     
         % Get the new filtered spike times
         eu(iEu).SpikeTimes = spikesFiltered.timestamps(spikesFiltered.isUnit);
-        etaTemp.circLickNaiveFiltered = eu(iEu).getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-            lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+        etaTemp.circLickNaiveFiltered = eu(iEu).getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, artifacts=artifactParams);
         etaTemp.lickFiltered = eu(iEu).getETA('count', 'lick', window=[-4, 2], resolution=0.025, normalize='none');
     
         h = gobjects(2, 1);
@@ -1336,14 +1341,12 @@ for iUnit = 1:length(selUnits)
         % Get the original spike times
         eu(iEu).SpikeTimes = oldSpikeTimes;
         % Calculate ETA
-        etaTemp.circLickNaiveRaw = eu(iEu).getETA('count', 'press', window=[-4, 2], resolution=0.1, normalize='none', ...
-            lickArtifactLengthType='ms', lickArtifactLength=0, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=0, lickOffArtifactDirection='both');
+        etaTemp.circLickNaiveRaw = eu(iEu).getETA('count', 'press', window=[-4, 2], resolution=0.1, normalize='none', artifacts=artifactParams);
         etaTemp.lickRaw = eu(iEu).getETA('count', 'press', window=[-4, 2], resolution=0.1, normalize='none');
     
         % Get the new filtered spike times
         eu(iEu).SpikeTimes = spikesFiltered.timestamps(spikesFiltered.isUnit);
-        etaTemp.circLickNaiveFiltered = eu(iEu).getETA('count', 'press', window=[-4, 2], resolution=0.1, normalize='none', ...
-            lickArtifactLengthType='ms', lickArtifactLength=0, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=0, lickOffArtifactDirection='both');
+        etaTemp.circLickNaiveFiltered = eu(iEu).getETA('count', 'press', window=[-4, 2], resolution=0.1, normalize='none', artifacts=artifactParams);
         etaTemp.lickFiltered = eu(iEu).getETA('count', 'press', window=[-4, 2], resolution=0.1, normalize='none');
     
         h = gobjects(2, 1);
@@ -1632,34 +1635,28 @@ SELGROUP = {1:length(eu), cc.isIntan & ~cc.hasLickArtifact, ~cc.isIntan | ~cc.ha
 for iEu = find(~cc.hasLickArtifact)
     eu(iEu).SpikeTimes = unit(iEu).oldSpikeTimes;
 end
-eta.circLickNaiveRaw = eu.getETA('count', 'circlick_naive', selUnits=SELGROUP{1}, window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-    lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+eta.circLickNaiveRaw = eu.getETA('count', 'circlick_naive', selUnits=SELGROUP{1}, window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, artifacts=artifactParams);
 eta.pressNormRaw = eu.getETA('count', 'press', window=[-4, 2], normalize=[-4, -2], minTrialDuration=2);
 eta.lickBoutNaiveRaw = eu.getETA('count', 'lickbout_naive', selUnits=SELGROUP{1}, window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-    minBoutCycles=2, maxBoutCycles=4, ...
-    lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+    minBoutCycles=2, maxBoutCycles=4, artifacts=artifactParams);
 
 % New, filtered, just intan
 for iEu = find(~cc.hasLickArtifact)
     eu(iEu).SpikeTimes = unit(iEu).spikesFiltered.timestamps(unit(iEu).spikesFiltered.isUnit);
 end
-eta.circLickNaiveFiltered = eu.getETA('count', 'circlick_naive', selUnits=SELGROUP{2}, window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-    lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+eta.circLickNaiveFiltered = eu.getETA('count', 'circlick_naive', selUnits=SELGROUP{2}, window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, artifacts=artifactParams);
 eta.pressNormFiltered = eu.getETA('count', 'press', window=[-4, 2], normalize=[-4, -2], minTrialDuration=2);
 eta.lickBoutNaiveFiltered = eu.getETA('count', 'lickbout_naive', selUnits=SELGROUP{2}, window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-    minBoutCycles=2, maxBoutCycles=4, ...
-    lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+    minBoutCycles=2, maxBoutCycles=4, artifacts=artifactParams);
 
 % New, filtered (intan) + raw (blackrock, artifacts? no, artifine. <10ms)
 for iEu = find(~cc.hasLickArtifact)
     eu(iEu).SpikeTimes = unit(iEu).spikesFiltered.timestamps(unit(iEu).spikesFiltered.isUnit);
 end
-eta.circLickNaiveFilteredPlusBlackrock = eu.getETA('count', 'circlick_naive', selUnits=SELGROUP{3}, window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-    lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+eta.circLickNaiveFilteredPlusBlackrock = eu.getETA('count', 'circlick_naive', selUnits=SELGROUP{3}, window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, artifacts=artifactParams);
 eta.pressNormFilteredPlusBlackrock = eu.getETA('count', 'press', window=[-4, 2], normalize=[-4, -2], minTrialDuration=2);
 eta.lickBoutNaiveFilteredPlusBlackrock = eu.getETA('count', 'lickbout_naive', selUnits=SELGROUP{3}, window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-    minBoutCycles=2, maxBoutCycles=4, ...
-    lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+    minBoutCycles=2, maxBoutCycles=4, artifacts=artifactParams);
 
 % Restore spike rates
 for iEu = find(~cc.hasLickArtifact)
@@ -1776,12 +1773,10 @@ oldSpikeTimes = spikeTimesCache(ismember({spikeTimesCache.name}, eu.getName()));
 
 %% Calculate ETA and bootstrap for cyclic firing
 clear eta;
-eta.circLickNaive = eu.getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-    lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+eta.circLickNaive = eu.getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, artifacts=artifactParams);
 eta.pressNorm = eu.getETA('count', 'press', window=[-4, 2], normalize=[-4, -2], minTrialDuration=2);
 eta.lickBoutNaive = eu.getETA('count', 'lickbout_naive', window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-    minBoutCycles=2, maxBoutCycles=4, ...
-    lickArtifactLengthType='ms', lickArtifactLength=10, lickArtifactDirection='both', lickOffArtifactLengthType='ms', lickOffArtifactLength=10, lickOffArtifactDirection='both');
+    minBoutCycles=2, maxBoutCycles=4, artifacts=artifactParams);
 
 % Bootstrap to find the significance of average Z vector magnitudes (shuffle bins, not trials)
 clear bootCirclick
