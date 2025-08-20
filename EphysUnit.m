@@ -2913,7 +2913,7 @@ classdef EphysUnit < handle
             startBlankWindow = p.Results.startBlankWindow;
 
             % Parse artifacts
-            artifactIndex = struct(LickOn=[], LickOff=[], PressOn=[], PresOff=[]);
+            artifactIndex = struct(LickOn=[], LickOff=[], PressOn=[], PressOff=[]);
             lickOnArtifactLength = 0;
             lickOnArtifactLengthUnit = 'ms';
             lickOnArtifactDirection = 'both';
@@ -2957,14 +2957,21 @@ classdef EphysUnit < handle
                         artifacts(i).t = obj.EventTimes.(eventName);
                     case {'PressOff', 'PRESS_OFF'}
                         artifactIndex.PressOff = i;
-                    otherwise
-                        artifactIndex.(artifacts(i).event) = i;
                         eventName = {'PressOff', 'PRESS_OFF'};
                         eventName = eventName(isfield(obj.EventTimes, eventName));
                         if isempty(eventName)
                             error('Cannot find PressOff event under any of these fields in obj.EventTimes: {''PressOff'', ''PRESS_OFF''}');
                         end
                         eventName = eventName{1};
+                        artifacts(i).t = obj.EventTimes.(eventName);
+                    otherwise
+                        assert(ischar(artifacts(i).event) || isstring(artifacts(i).event))
+                        artifactIndex.(artifacts(i).event) = i;
+                        eventName = artifacts(i).event;
+                        eventName = eventName(isfield(obj.EventTimes, eventName));
+                        if isempty(eventName)
+                            error('Cannot find event in obj.EventTimes.%s', artifacts(i).event);
+                        end
                         artifacts(i).t = obj.EventTimes.(eventName);
                 end
             end
