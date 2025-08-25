@@ -1778,6 +1778,8 @@ classdef EphysUnit < handle
                 sortVal = NaN(nTrials, 1);
                 if isempty(sortGroup)
                     sortGroup = zeros(size(sortVal));
+                else
+                    sortGroup = reshape(sortGroup, size(sortVal));
                 end
                 isAbove = (XSort >= sortThreshold.*etaSign & etaSign > 0) | (XSort <= negativeSortThreshold.*etaSign & etaSign < 0);
                 for iTrial = 1:nTrials

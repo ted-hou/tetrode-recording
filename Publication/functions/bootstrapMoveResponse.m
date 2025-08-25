@@ -5,58 +5,93 @@ function [h, muDiffCI, muDiffObs] = bootstrapMoveResponse(eu, trialType, varargi
     p.addParameter('nboot', 100000, @isnumeric)
     p.addParameter('baselineWindow', [-4, -2], @(x) isnumeric(x) && length(x) == 2)
     p.addParameter('responseWindow', [-0.5, -0.2], @(x) isnumeric(x) && length(x) == 2)
-    p.addParameter('alignTo', 'stop', @(x) ischar(x) && ismember(lower(x), {'start', 'stop'}))
-    p.addParameter('allowedTrialDuration', [2, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(2) >= x(1))
+    p.addParameter('alignTo', 'stop', @(x) isstruct(x) || ismember(lower(x), {'start', 'stop'}))
+    p.addParameter('allowedTrialDuration', [2, Inf], @(x) isstruct(x) || (isnumeric(x) && length(x) >= 2 && x(2) >= x(1)))
     p.addParameter('trialDurationError', 1e-3, @isnumeric) % Used for opto, error allowed when finding identical trial durations.
     p.addParameter('alpha', 0.01, @isnumeric)
     p.addParameter('withReplacement', false, @islogical)
     p.addParameter('oneSided', false, @islogical)
-    p.addParameter('correction', {}, @iscell) % correction for movement onset time
-    p.addParameter('trials', {}, @iscell) 
+    p.addParameter('correction', {}, @(x) iscell(x) || isstruct(x)) % correction for movement onset time
+    p.addParameter('trials', {}, @(x) iscell(x) || isstruct(x))
+    p.addParameter('artifacts', [], @(x) isempty(x) || all(isfield(x, {'event', 'length', 'lengthUnit', 'direction'})))
     p.parse(eu, trialType, varargin{:});
     r = p.Results;
     eu = r.eu;
-    if isempty(r.correction)
-        correction = cell(length(eu), 1);
+
+    % Optionally specify two different trial types, one for baseline, one
+    % for response
+    if isstruct(r.trialType)
+        assert(isstruct(r.trialType) && all(isfield(r.trialType, {'baseline', 'response'})), 'Different trial type are specified for baseline and response, please check the following parameters: "alignTo", "allowedTrialDuration", "correction", "trials"')
     else
-        correction = r.correction;
-        assert(length(correction) == length(eu));
+        r.trialType = struct(baseline=r.trialType, response=r.trialType);
     end
-    if isempty(r.trials) 
-        trials = cell(length(eu), 1);
+    if isstruct(r.alignTo)
+        assert(all(isfield(r.alignTo, {'baseline', 'response'})))
     else
-        trials = r.trials;
-        assert(length(trials) == length(eu))
+        r.alignTo = struct(baseline=r.alignTo, response=r.alignTo);
+    end
+    if isstruct(r.allowedTrialDuration)
+        assert(all(isfield(r.allowedTrialDuration, {'baseline', 'response'})))
+    else
+        r.allowedTrialDuration = struct(baseline=r.allowedTrialDuration, response=r.allowedTrialDuration);
+    end
+    if isstruct(r.correction)
+        assert(all(isfield(r.correction, {'baseline', 'response'})))
+    else
+        r.correction = struct(baseline=r.correction, response=r.correction);
+    end
+    if isstruct(r.trials)
+        assert(all(isfield(r.trials, {'baseline', 'response'})))
+    else
+        r.trials = struct(baseline=r.trials, response=r.trials);
+    end
+
+    for var = ["baseline", "response"]
+        if isempty(r.correction) || isempty(r.correction.(var))
+            correction.(var) = cell(length(eu), 1);
+        else
+            correction.(var) = r.correction.(var);
+            assert(length(correction.(var)) == length(eu));
+        end
+        if isempty(r.trials) || isempty(r.trials.(var)) 
+            trials.(var) = cell(length(eu), 1);
+        else
+            trials.(var) = r.trials.(var);
+            assert(length(trials.(var)) == length(eu))
+        end
     end
 
     rng(42);
 
-    dataWindow = [min(r.baselineWindow(1), r.responseWindow(1)), max(r.baselineWindow(2), r.responseWindow(2))];
-
     h = NaN(length(eu), 1);
-    p = h;
     muDiffCI = NaN(length(eu), 2);
     muDiffObs = NaN(length(eu), 1);
     lineLength = 0;
     tTicAll = tic();
     for iEu = 1:length(eu)
         tTic = tic();
-        [sr, t] = eu(iEu).getTrialAlignedData('count', dataWindow, r.trialType, alignTo=r.alignTo, ...
-            allowedTrialDuration=r.allowedTrialDuration, trialDurationError=r.trialDurationError, ...
-            includeInvalid=false, resolution=0.1, correction=correction{iEu}, trials=trials{iEu});
+        [sr, t] = eu(iEu).getTrialAlignedData('count', r.responseWindow, r.trialType.response, alignTo=r.alignTo.response, ...
+            allowedTrialDuration=r.allowedTrialDuration.response, trialDurationError=r.trialDurationError, ...
+            includeInvalid=false, resolution=0.1, correction=correction.response{iEu}, trials=trials.response{iEu}, ...
+            artifacts=r.artifacts);
 
-        if isempty(sr)
+        [srb, tb] = eu(iEu).getTrialAlignedData('count', r.baselineWindow, r.trialType.baseline, alignTo=r.alignTo.baseline, ...
+            allowedTrialDuration=r.allowedTrialDuration.baseline, trialDurationError=r.trialDurationError, ...
+            includeInvalid=false, resolution=0.1, correction=correction.baseline{iEu}, trials=trials.baseline{iEu}, ...
+            artifacts=r.artifacts);
+
+        if isempty(sr) || isempty(srb)
             warning('Spike rate for %d - %s is empty.', iEu, eu(iEu).getName('_'));
             continue
         end
     
         response = mean(sr(:, t >= r.responseWindow(1) & t <= r.responseWindow(2)), 2, 'omitnan');
         nBins = nnz(t >= r.responseWindow(1) & t <= r.responseWindow(2));
-        baselineSampleIndices = find(t >= r.baselineWindow(1) & t <= r.baselineWindow(2));
+        baselineSampleIndices = find(tb >= r.baselineWindow(1) & tb <= r.baselineWindow(2));
         baselineSampleIndices = baselineSampleIndices((1:nBins) + flip(length(baselineSampleIndices)-nBins:-nBins:0)');
-        baseline = NaN(size(sr, 1), size(baselineSampleIndices, 1));
+        baseline = NaN(size(srb, 1), size(baselineSampleIndices, 1));
         for i = 1:size(baselineSampleIndices, 1)
-            baseline(:, i) = mean(sr(:, baselineSampleIndices(i, :)), 2);
+            baseline(:, i) = mean(srb(:, baselineSampleIndices(i, :)), 2);
         end
         baseline = baseline(:);
         combined = [baseline; response];

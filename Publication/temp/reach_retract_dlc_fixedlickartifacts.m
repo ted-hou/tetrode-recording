@@ -109,12 +109,16 @@ load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved.mat');
 
 
 %% Calculate ETA for correct reach vs. incorrect reach; correct vs. incorrect retract; correct vs. incorrect release; correct vs. incorrect lick
+clear eta
 
 clear artifactParams;
 artifactParams(1) = struct(event='LickOn', length=10, lengthUnit='ms', direction='both');
 artifactParams(2) = struct(event='LickOff', length=10, lengthUnit='ms', direction='both');
 artifactParams(3) = struct(event='PressOn', length=10, lengthUnit='ms', direction='both');
 artifactParams(4) = struct(event='PressOff', length=10, lengthUnit='ms', direction='both');
+
+eta.artifactParams = artifactParams;
+eta.baselineWindow = struct(press=[-4, -2], lick=[-4, -2], release=[-2, 0]);
 
 
 eta.correctPress = eu.getETA('count', 'PressCorrect', [-4, 4], alignTo='stop', ...
@@ -149,76 +153,468 @@ end
 
 clear field
 
-eta.pressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=[-4, -2], resolution=0.1, artifacts=artifactParams);
-eta.lickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=[-4, -2], resolution=0.1, artifacts=artifactParams);
-eta.correctReleaseNorm = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=[-2, 0], resolution=0.1, artifacts=artifactParams);
+eta.pressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.baselineWindow.press, resolution=0.1, artifacts=artifactParams);
+eta.lickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.baselineWindow.lick, resolution=0.1, artifacts=artifactParams);
+eta.lickNormToPress = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.correctReleaseNorm = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.baselineWindow.release, resolution=0.1, artifacts=artifactParams);
 eta.correctReleaseNormToPress = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
 
 eta.correctPressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-eta.correctLickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-eta.correctReleaseBeforeRetractNorm = eu.getETA('count', 'CueToLeverReleaseBeforeRetractCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-eta.correctReleaseAfterRetractNorm = eu.getETA('count', 'RetractToLeverReleaseAfterRetractCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.correctLickNormToPress = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.correctReleaseBeforeRetractNormToPress = eu.getETA('count', 'CueToLeverReleaseBeforeRetractCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.correctReleaseAfterRetractNormToPress = eu.getETA('count', 'RetractToLeverReleaseAfterRetractCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
 
-eta.incorrectPressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-eta.incorrectLickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.incorrectPressNormToPress = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.incorrectLickNormToPress = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
 
+%% Calculate META
+clear meta
+meta.window.press = [-0.3, 0];
+meta.window.lick = [-0.3, 0];
+meta.window.correctRelease = [0, 0.3];
+
+meta.pressNorm = mean(eta.pressNorm.X(:, eta.pressNorm.t > meta.window.press(1) & eta.pressNorm.t < meta.window.press(2)), 2, 'omitnan');
+meta.lickNorm = mean(eta.lickNorm.X(:, eta.lickNorm.t > meta.window.lick(1) & eta.lickNorm.t < meta.window.lick(2)), 2, 'omitnan');
+meta.lickNormToPress = mean(eta.lickNormToPress.X(:, eta.lickNormToPress.t > meta.window.lick(1) & eta.lickNormToPress.t < meta.window.lick(2)), 2, 'omitnan');
+meta.correctReleaseNorm = mean(eta.correctReleaseNorm.X(:, eta.correctReleaseNorm.t > meta.window.correctRelease(1) & eta.correctReleaseNorm.t < meta.window.correctRelease(2)), 2, 'omitnan');
+meta.correctReleaseNormToPress = mean(eta.correctReleaseNormToPress.X(:, eta.correctReleaseNormToPress.t > meta.window.correctRelease(1) & eta.correctReleaseNormToPress.t < meta.window.correctRelease(2)), 2, 'omitnan');
+
+%% Bootstrap response directions
+clear boot
+boot.params = struct(...
+    alpha = 0.01, ...
+    nboot = 100000, ...
+    responseWindow = meta.window, ...
+    baselineWindow = struct(press=[-4, -2], lick='press', release='press'), ...
+    artifacts = artifactParams ...
+    );
+
+[boot.press.h, boot.press.ci, boot.press.obs] = bootstrapMoveResponse(eu, ...
+    'press', nboot=boot.params.nboot, ...
+    baselineWindow=boot.params.baselineWindow.press, ...
+    responseWindow=boot.params.responseWindow.press, ...
+    alignTo='stop', allowedTrialDuration=[2, Inf], alpha=boot.params.alpha, ...
+    artifacts=boot.params.artifacts);  
+
+[boot.lick.h, boot.lick.ci, boot.lick.obs] = bootstrapMoveResponse(eu, ...
+    struct(baseline='press', response='lick'), nboot=boot.params.nboot, ...
+    baselineWindow=boot.params.baselineWindow.press, ...
+    responseWindow=boot.params.responseWindow.lick, ...
+    alignTo=struct(baseline='stop', response='stop'), ...
+    allowedTrialDuration=struct(baseline=[2, Inf], response=[2, Inf]), ...
+    alpha=boot.params.alpha, artifacts=boot.params.artifacts);  
+
+[boot.correctRelease.h, boot.correctRelease.ci, boot.correctRelease.obs] = bootstrapMoveResponse(eu, ...
+    struct(baseline='press', response='CueToLeverReleaseCorrect'), nboot=boot.params.nboot, ...
+    baselineWindow=boot.params.baselineWindow.press, ...
+    responseWindow=boot.params.responseWindow.correctRelease, ...
+    alignTo=struct(baseline='stop', response='stop'), ...
+    allowedTrialDuration=struct(baseline=[2, Inf], response=[4, Inf]), ...
+    alpha=boot.params.alpha, artifacts=boot.params.artifacts);  
+
+%% Categorize based on bootstrap results
+cc.isPressUp = boot.press.h > 0 & ~isnan(boot.press.h);
+cc.isPressDown = boot.press.h < 0 & ~isnan(boot.press.h);
+cc.isLickUp = boot.lick.h > 0 & ~isnan(boot.lick.h);
+cc.isLickDown = boot.lick.h < 0 & ~isnan(boot.lick.h);
+cc.isCorrectReleaseUp = boot.correctRelease.h > 0 & ~isnan(boot.correctRelease.h);
+cc.isCorrectReleaseDown = boot.correctRelease.h < 0 & ~isnan(boot.correctRelease.h);
+
+cc.isPressResponsive = cc.isPressUp | cc.isPressDown;
+cc.isLickResponsive = cc.isLickUp | cc.isLickDown;
+cc.isCorrectReleaseResponsive = cc.isCorrectReleaseUp | cc.isCorrectReleaseDown;
+
+fprintf('\n%i total units, %i (%.0f%%) reach modulated, %i (%.0f%%) lick modulated, %i (%.0f%%) correct-release modulated:\n', ...
+    length(eu), ...
+    nnz(cc.isPressResponsive), nnz(cc.isPressResponsive)/length(eu)*100, ...
+    nnz(cc.isLickResponsive), nnz(cc.isLickResponsive)/length(eu)*100, ...
+    nnz(cc.isCorrectReleaseResponsive), nnz(cc.isCorrectReleaseResponsive)/length(eu)*100)
+fprintf('\t%i/%i units reach inc (%.0f%%);\n', nnz(cc.isPressUp), nnz(cc.isPressResponsive), nnz(cc.isPressUp)./nnz(cc.isPressResponsive)*100);
+fprintf('\t%i/%i units reach dec (%.0f%%);\n', nnz(cc.isPressDown), nnz(cc.isPressResponsive), nnz(cc.isPressDown)./nnz(cc.isPressResponsive)*100);
+fprintf('\t%i/%i units lick inc (%.0f%%);\n', nnz(cc.isLickUp), nnz(cc.isLickResponsive), nnz(cc.isLickUp)./nnz(cc.isLickResponsive)*100);
+fprintf('\t%i/%i units lick dec (%.0f%%);\n', nnz(cc.isLickDown), nnz(cc.isLickResponsive), nnz(cc.isLickDown)./nnz(cc.isLickResponsive)*100);
+fprintf('\t%i/%i units release inc (%.0f%%);\n', nnz(cc.isCorrectReleaseUp), nnz(cc.isCorrectReleaseResponsive), nnz(cc.isCorrectReleaseUp)./nnz(cc.isCorrectReleaseResponsive)*100);
+fprintf('\t%i/%i units release dec (%.0f%%).\n', nnz(cc.isCorrectReleaseDown), nnz(cc.isCorrectReleaseResponsive), nnz(cc.isCorrectReleaseDown)./nnz(cc.isCorrectReleaseResponsive)*100);
+
+sel = cc.isPressResponsive & cc.isLickResponsive & cc.isCorrectReleaseResponsive;
+fprintf('\n%i/%i (%.0f%%) units modulated for reach, lick, and correct-release, of which:\n', nnz(sel), length(eu), nnz(sel)/length(eu)*100)
+fprintf('\t%i/%i (%.0f%%) decrease for all three;\n', nnz(sel & cc.isPressDown & cc.isLickDown & cc.isCorrectReleaseDown), nnz(sel), nnz(sel & cc.isPressDown & cc.isLickDown & cc.isCorrectReleaseDown)./nnz(sel)*100)
+fprintf('\t%i/%i (%.0f%%) increase for all three;\n\n', nnz(sel & cc.isPressUp & cc.isLickUp & cc.isCorrectReleaseUp), nnz(sel), nnz(sel & cc.isPressUp & cc.isLickUp & cc.isCorrectReleaseUp)./nnz(sel)*100)
+fprintf('\t%i/%i (%.0f%%) decrease for lick and release;\n', nnz(sel & cc.isPressUp & cc.isLickDown & cc.isCorrectReleaseDown), nnz(sel), nnz(sel & cc.isPressUp & cc.isLickDown & cc.isCorrectReleaseDown)./nnz(sel)*100)
+fprintf('\t%i/%i (%.0f%%) decrease for reach and release;\n', nnz(sel & cc.isPressDown & cc.isLickUp & cc.isCorrectReleaseDown), nnz(sel), nnz(sel & cc.isPressDown & cc.isLickUp & cc.isCorrectReleaseDown)./nnz(sel)*100)
+fprintf('\t%i/%i (%.0f%%) decrease for reach and lick;\n\n', nnz(sel & cc.isPressDown & cc.isLickDown & cc.isCorrectReleaseUp), nnz(sel), nnz(sel & cc.isPressDown & cc.isLickDown & cc.isCorrectReleaseUp)./nnz(sel)*100)
+fprintf('\t%i/%i (%.0f%%) decrease for just reach;\n', nnz(sel & cc.isPressDown & cc.isLickUp & cc.isCorrectReleaseUp), nnz(sel), nnz(sel & cc.isPressDown & cc.isLickUp & cc.isCorrectReleaseUp)./nnz(sel)*100)
+fprintf('\t%i/%i (%.0f%%) decrease for just lick;\n', nnz(sel & cc.isPressUp & cc.isLickDown & cc.isCorrectReleaseUp), nnz(sel), nnz(sel & cc.isPressUp & cc.isLickDown & cc.isCorrectReleaseUp)./nnz(sel)*100)
+fprintf('\t%i/%i (%.0f%%) decrease for just release;\n', nnz(sel & cc.isPressUp & cc.isLickUp & cc.isCorrectReleaseDown), nnz(sel), nnz(sel & cc.isPressUp & cc.isLickUp & cc.isCorrectReleaseDown)./nnz(sel)*100)
+
+%% Save intermediate results because ETA with artifact blanking takes forever
+% eu.save('E:\Data\Units\LickVsReach_FixedArtifacts')
+save('E:\Data\Units\meta_LickVsReach_FixedArtifacts.mat', 'artifactParams', 'bootCLick', 'cc', 'circlick', 'eta', 'oldSpikeTimes', 'meta', 'boot')
+
+%% Local load
+eu = EphysUnit.load('E:\Data\Units\LickVsReach_FixedArtifacts');
+load('E:\Data\Units\meta_LickVsReach_FixedArtifacts.mat');
+
+%% Scatter META vs META
+% close all
+% metaNames = ["pressNorm", "lickNorm", "lickNormToPress", "correctReleaseNorm", "correctReleaseNormToPress"];
+% dispNames = {["press", "(norm to self)"], ["lick", "(norm to self)"], ["lick", "(norm to press)"], ["release", "(norm to self)"], ["release", "(norm to press)"]};
+metaNames = ["pressNorm", "lickNormToPress", "correctReleaseNormToPress"];
+bootResp = {cc.isPressResponsive, cc.isLickResponsive, cc.isCorrectReleaseResponsive};
+dispNames = { ...
+    ["Reach", sprintf("[%s]s", string(meta.window.press).join(', '))], ...
+    ["Lick", sprintf("[%s]s", string(meta.window.lick).join(', '))], ...
+    ["Release", sprintf("[%s]s", string(meta.window.correctRelease).join(', '))], ...
+    };
+n = length(metaNames);
+
+clear tl
+marginRatio = 2;
+tl.parent = tiledlayout(figure(Units='inches', InnerPosition=[1 1 6 6]), marginRatio*n + 1, marginRatio*n + 1, TileSpacing='tight', TileIndexing='columnmajor', Padding='compact');
+tl.yMargin = tiledlayout(tl.parent, n, 1, TileSpacing='none', Padding='none');
+tl.yMargin.Layout.Tile = 1;
+tl.yMargin.Layout.TileSpan = [marginRatio*n, 1];
+tl.xMargin = tiledlayout(tl.parent, 1, n, TileSpacing='none', Padding='none');
+tl.xMargin.Layout.Tile = 2*marginRatio*n + 2;
+tl.xMargin.Layout.TileSpan = [1, marginRatio*n];
+tl.center = tiledlayout(tl.parent, n, n, TileSpacing='none', Padding='none', TileIndexing='columnmajor');
+tl.center.Layout.Tile = marginRatio*n + 2;
+tl.center.Layout.TileSpan = [marginRatio*n, marginRatio*n];
+
+for i = 1:n
+    ii = n + 1 - i;
+    y = meta.(metaNames(i));
+    edges = -3:0.2:6;
+    pdf = histcounts(y, edges, Normalization='pdf');
+    centers = (edges(1:end-1) + edges(2:end)) / 2;
+    ax = nexttile(tl.xMargin, i);
+    bar(ax, centers, pdf, 1, EdgeColor='black', FaceColor='white');
+    % set(ax, YDir='reverse', XAxisLocation='top')
+    yticks(ax, [])
+    xlim(ax, [-3, 6])
+    
+    ax = nexttile(tl.yMargin, ii);
+    barh(ax, centers, pdf, 1, EdgeColor='black', FaceColor='white');
+    xticks(ax, [])
+    % set(ax, XDir='reverse', YAxisLocation='right')
+    ylim(ax, [-3, 6])
+    for j = 1:n
+        ax = nexttile(tl.center, (j-1)*n + ii);
+        hold(ax, 'on');
+        x = meta.(metaNames(j));
+        selSig = bootResp{i} & bootResp{j};
+        scatter(ax, x(selSig), y(selSig), 5, 'black', 'filled');
+        scatter(ax, x(~selSig), y(~selSig), 5, 'black');
+        plot(ax, [-3, 6], [-3, 6], 'k--')
+        xline(ax, 0, 'k--')
+        yline(ax, 0, 'k--')
+        % axis(ax, 'equal')
+        xlim(ax, [-3, 6])
+        ylim(ax, [-3, 6])
+        hold(ax, 'off')
+        xlabel(ax, dispNames{j}, Interpreter='tex');
+        ylabel(ax, dispNames{i}, Interpreter='tex');
+
+        if i > 1
+            xticks(ax, [])
+            xlabel(ax, '')
+        end
+        if j > 1
+            yticks(ax, [])
+            ylabel(ax, '')
+        end
+    end
+end
+fontsize(tl.parent, 9, 'points')
+title(tl.parent, 'normalized to peri-reach [-4, -2]s')
+
+clear metaNames i j ax n x y tl marginRatio selSig;
+
+% Scatter META vs META
+% close all
+metaNames = ["pressNorm", "lickNorm", "correctReleaseNorm"];
+dispNames = { ...
+    ["Reach", sprintf("[%s]s", string(meta.window.press).join(', '))], ...
+    ["Lick", sprintf("[%s]s", string(meta.window.lick).join(', '))], ...
+    ["Release", sprintf("[%s]s", string(meta.window.correctRelease).join(', '))], ...
+    };
+n = length(metaNames);
+
+clear tl
+marginRatio = 2;
+tl.parent = tiledlayout(figure(Units='inches', InnerPosition=[1 1 6 6]), marginRatio*n + 1, marginRatio*n + 1, TileSpacing='tight', TileIndexing='columnmajor', Padding='compact');
+tl.yMargin = tiledlayout(tl.parent, n, 1, TileSpacing='none', Padding='none');
+tl.yMargin.Layout.Tile = 1;
+tl.yMargin.Layout.TileSpan = [marginRatio*n, 1];
+tl.xMargin = tiledlayout(tl.parent, 1, n, TileSpacing='none', Padding='none');
+tl.xMargin.Layout.Tile = 2*marginRatio*n + 2;
+tl.xMargin.Layout.TileSpan = [1, marginRatio*n];
+tl.center = tiledlayout(tl.parent, n, n, TileSpacing='none', Padding='none', TileIndexing='columnmajor');
+tl.center.Layout.Tile = marginRatio*n + 2;
+tl.center.Layout.TileSpan = [marginRatio*n, marginRatio*n];
+
+for i = 1:n
+    ii = n + 1 - i;
+    y = meta.(metaNames(i));
+    edges = -3:0.2:6;
+    pdf = histcounts(y, edges, Normalization='pdf');
+    centers = (edges(1:end-1) + edges(2:end)) / 2;
+    ax = nexttile(tl.xMargin, i);
+    bar(ax, centers, pdf, 1, EdgeColor='black', FaceColor='white');
+    % set(ax, YDir='reverse', XAxisLocation='top')
+    yticks(ax, [])
+    xlim(ax, [-3, 6])
+    
+    ax = nexttile(tl.yMargin, ii);
+    barh(ax, centers, pdf, 1, EdgeColor='black', FaceColor='white');
+    xticks(ax, [])
+    % set(ax, XDir='reverse', YAxisLocation='right')
+    ylim(ax, [-3, 6])
+    for j = 1:n
+        ax = nexttile(tl.center, (j-1)*n + ii);
+        hold(ax, 'on');
+        x = meta.(metaNames(j));
+        scatter(ax, x, y, 5, 'black');
+        plot(ax, [-3, 6], [-3, 6], 'k--')
+        xline(ax, 0, 'k--')
+        yline(ax, 0, 'k--')
+        % axis(ax, 'equal')
+        xlim(ax, [-3, 6])
+        ylim(ax, [-3, 6])
+        hold(ax, 'off')
+        xlabel(ax, dispNames{j}, Interpreter='tex');
+        ylabel(ax, dispNames{i}, Interpreter='tex');
+
+        if i > 1
+            xticks(ax, [])
+            xlabel(ax, '')
+        end
+        if j > 1
+            yticks(ax, [])
+            ylabel(ax, '')
+        end
+    end
+end
+fontsize(tl.parent, 9, 'points')
+title(tl.parent, 'normalized independently')
+clear metaNames i j ax n x y tl marginRatio;
+
+%% Scatter3 animation
+close all
+fig = figure;
+ax = axes(fig);
+hold(ax, 'on')
+plot3(ax, [-3, 6], [-3, 6], [-3, 6], 'k')
+
+plot3(ax, [-3, 6], [0, 0], [0, 0], 'k--')
+plot3(ax, [0, 0], [-3, 6], [0, 0], 'k--')
+plot3(ax, [0, 0], [0, 0], [-3, 6], 'k--')
+
+patch(ax, [-3, 6, 6, -3], [-3, -3, 6, 6], [0, 0, 0, 0], 'green', EdgeAlpha=1, LineStyle='--', FaceAlpha=0.6)
+patch(ax, [-3, 6, 6, -3], [0, 0, 0, 0], [-3, -3, 6, 6], 'blue', EdgeAlpha=1, LineStyle='--', FaceAlpha=0.6)
+patch(ax, [0, 0, 0, 0], [-3, 6, 6, -3], [-3, -3, 6, 6], 'red', EdgeAlpha=1, LineStyle='--', FaceAlpha=0.6)
+
+selSig = cc.isPressResponsive & cc.isLickResponsive & cc.isCorrectReleaseResponsive;
+scatter3(ax, meta.pressNorm(selSig), meta.lickNormToPress(selSig), meta.correctReleaseNormToPress(selSig), 10, 'black', 'filled', MarkerFaceAlpha=0.5);
+scatter3(ax, meta.pressNorm(~selSig), meta.lickNormToPress(~selSig), meta.correctReleaseNormToPress(~selSig), 10, 'black', MarkerFaceAlpha=0.5);
+
+axis(ax, 'equal')
+xlabel(ax, 'Reach')
+ylabel(ax, 'Lick')
+zlabel(ax, 'Release')
+
+filename = "D:\Downloads\New folder\scatter3.gif"; % Specify the output file name
+if exist(filename, 'file')
+    delete(filename)
+end
+angles = 45:405;
+nImages = length(angles);
+for idx = 1:nImages
+    view(ax, [angles(idx), 30])
+    drawnow();
+    frame = getframe(fig);
+    im{idx} = frame2im(frame);
+end
+
+for idx = 1:nImages
+    [A, map] = rgb2ind(im{idx},256);
+    if idx == 1
+        imwrite(A, map, filename, "gif", "LoopCount", Inf, "DelayTime",1/30);
+    else
+        imwrite(A, map, filename, "gif", "WriteMode", "append", "DelayTime",1/30);
+    end
+end
+clear filename fig ax angles idx fram im A map
 
 %% Plot all units, PETH as heatmap: reach, release, lick
 close all
-tl = tiledlayout(figure(Units='inches', Position=[1 1 20 5]), 1, 7);
-clear etaOrder ax
+clear etaOrder etaParams
 etaParams.xlim = [-2, 2];
 etaParams.clim = [-1.5, 1.5];
 
-AX = gobjects(1, 7);
+% Sorted independently, normed independently
+tl = tiledlayout(figure(Units='inches', Position=[1 1 6 5]), 1, 3);
+AX = gobjects(1, 3);
 iAx = 1;
 
 ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-[~, etaOrder.press] = EphysUnit.plotETA(ax, eta.pressNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
+EphysUnit.plotETA(ax, eta.pressNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
     sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
+xline(ax, meta.window.press, 'k')
 title(ax, 'Reach')
 xlabel(ax, 'time to bar contact (s)')
 
 ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-[~, ~] = EphysUnit.plotETA(ax, eta.correctReleaseNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    order=etaOrder.press, hideColorbar=true);
-title(ax, {'Release'})
-xlabel(ax, 'time to bar release (s)')
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-[~, ~] = EphysUnit.plotETA(ax, eta.lickNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    order=etaOrder.press, hideColorbar=true);
+EphysUnit.plotETA(ax, eta.lickNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
+xline(ax, meta.window.lick, 'k')
 title(ax, 'Lick')
 xlabel(ax, 'time to spout contact (s)')
 
 ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-[~, ~] = EphysUnit.plotETA(ax, eta.correctReleaseNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    order=etaOrder.press, hideColorbar=true);
-title(ax, {'Release','(self norm)'})
+EphysUnit.plotETA(ax, eta.correctReleaseNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    sortWindow=[0, 1], signWindow=[0, 0.5], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=false);
+xline(ax, meta.window.correctRelease, 'k')
+title(ax, 'Release')
 xlabel(ax, 'time to bar release (s)')
 
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-[~, etaOrder.release] = EphysUnit.plotETA(ax, eta.correctReleaseNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    sortWindow=[0, 1], signWindow=[0, 0.5], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
-title(ax, {'Release','(self order)'})
-xlabel(ax, 'time to bar release (s)')
+for iAx = 1:3
+    applyCustomColormap(AX(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+end
 
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-[~, etaOrder.release] = EphysUnit.plotETA(ax, eta.correctReleaseNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    sortWindow=[0, 1], signWindow=[0, 0.5], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
-title(ax, {'Release','(self norm, self order*)'})
-xlabel(ax, 'time to bar release (s)')
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-[~, etaOrder.lick] = EphysUnit.plotETA(ax, eta.lickNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=false);
-title(ax, {'Lick','(self order)'})
-xlabel(ax, 'time to spout contact (s)')
 ax.Colorbar.Layout.Tile='east';
-
-fontsize(AX, 9, 'points')
 ylabel(AX, '')
-ylabel(tl, 'unit', FontSize=9)
+title(tl, 'Ordered and normalized independently', FontWeight='bold')
+fontsize(tl, 9, 'points')
+
+% Sorted independently, normed to reach
+tl = tiledlayout(figure(Units='inches', Position=[7 1 6 5]), 1, 3);
+AX = gobjects(1, 3);
+iAx = 1;
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+EphysUnit.plotETA(ax, eta.pressNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
+xline(ax, meta.window.press, 'k')
+title(ax, 'Reach')
+xlabel(ax, 'time to bar contact (s)')
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+EphysUnit.plotETA(ax, eta.lickNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
+xline(ax, meta.window.lick, 'k')
+title(ax, 'Lick')
+xlabel(ax, 'time to spout contact (s)')
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+EphysUnit.plotETA(ax, eta.correctReleaseNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    sortWindow=[0, 1], signWindow=[0, 0.5], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=false);
+xline(ax, meta.window.correctRelease, 'k')
+title(ax, 'Release')
+xlabel(ax, 'time to bar release (s)')
+
+for iAx = 1:3
+    applyCustomColormap(AX(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+end
+
+ax.Colorbar.Layout.Tile='east';
+ylabel(AX, '')
+title(tl, 'Ordered independently, normalized to peri-reach [-4, -2]s', FontWeight='bold')
+fontsize(tl, 9, 'points')
+
+
+% Sorted by reach, normed to reach
+groupVar = zeros(size(eu));
+groupVar(meta.pressNorm<0) = groupVar(meta.pressNorm<0) + 1;
+groupVar(meta.lickNormToPress<0) = groupVar(meta.lickNormToPress<0) + 1;
+groupVar(meta.correctReleaseNormToPress<0) = groupVar(meta.correctReleaseNormToPress<0) + 1;
+groupVar(groupVar==0) = 4;
+
+tl = tiledlayout(figure(Units='inches', Position=[1 7 6 5]), 1, 3);
+AX = gobjects(1, 3);
+iAx = 1;
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+[~, etaOrder.pressNormToPress] = EphysUnit.plotETA(ax, eta.pressNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    sortGroup=groupVar, sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
+xline(ax, meta.window.press, 'k')
+title(ax, 'Reach')
+xlabel(ax, 'time to bar contact (s)')
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+EphysUnit.plotETA(ax, eta.lickNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    order=etaOrder.pressNormToPress, hideColorbar=true);
+xline(ax, meta.window.lick, 'k')
+title(ax, 'Lick')
+xlabel(ax, 'time to spout contact (s)')
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+EphysUnit.plotETA(ax, eta.correctReleaseNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    order=etaOrder.pressNormToPress, hideColorbar=false);
+xline(ax, meta.window.correctRelease, 'k')
+title(ax, 'Release')
+xlabel(ax, 'time to bar release (s)')
+
+N = histcounts(groupVar, 0.5:1:4.5);
+for iAx = 1:3
+    applyCustomColormap(AX(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+    yline(AX(iAx), cumsum(N(1:end-1)) + 1, '--', LineWidth=2, Color='magenta');
+end
+
+ax.Colorbar.Layout.Tile='east';
+ylabel(AX, '')
+title(tl, 'Same order, normalized to peri-reach [-4, -2]s', FontWeight='bold')
+fontsize(tl, 9, 'points')
+
+disp(N)
+
+% Sorted by reach, normed independently
+groupVar = zeros(size(eu));
+groupVar(meta.pressNorm<0) = groupVar(meta.pressNorm<0) + 1;
+groupVar(meta.lickNorm<0) = groupVar(meta.lickNorm<0) + 1;
+groupVar(meta.correctReleaseNorm<0) = groupVar(meta.correctReleaseNorm<0) + 1;
+groupVar(groupVar==0) = 4;
+
+tl = tiledlayout(figure(Units='inches', Position=[7 7 6 5]), 1, 3);
+AX = gobjects(1, 3);
+iAx = 1;
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+[~, etaOrder.pressNormToSelf] = EphysUnit.plotETA(ax, eta.pressNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    sortGroup=groupVar, sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
+xline(ax, meta.window.press, 'k')
+title(ax, 'Reach')
+xlabel(ax, 'time to bar contact (s)')
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+EphysUnit.plotETA(ax, eta.lickNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    order=etaOrder.pressNormToSelf, hideColorbar=true);
+xline(ax, meta.window.lick       , 'k')
+title(ax, 'Lick')
+xlabel(ax, 'time to spout contact (s)')
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+EphysUnit.plotETA(ax, eta.correctReleaseNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    order=etaOrder.pressNormToSelf, hideColorbar=false);
+xline(ax, meta.window.correctRelease, 'k')
+title(ax, 'Release')
+xlabel(ax, 'time to bar release (s)')
+
+N = histcounts(groupVar, 0.5:1:4.5);
+for iAx = 1:3
+    applyCustomColormap(AX(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+    yline(AX(iAx), cumsum(N(1:end-1)) + 1, '--', LineWidth=2, Color='magenta');
+end
+
+ax.Colorbar.Layout.Tile='east';
+ylabel(AX, '')
+title(tl, 'Same order, normalized independently', FontWeight='bold')
+fontsize(tl, 9, 'points')
+
+
+disp(N)
+
+clear ax iAx AX tl N groupVar
 
 %% Plot individial units, PETH as trace: lick, reach, release
 close all
