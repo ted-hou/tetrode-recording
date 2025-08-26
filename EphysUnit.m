@@ -1729,6 +1729,7 @@ classdef EphysUnit < handle
             p.addParameter('sortThreshold', 1, @isnumeric)
             p.addParameter('negativeSortThreshold', [], @isnumeric)
             p.addParameter('sortGroup', [], @isnumeric)
+            p.addParameter('sortVal', [], @isnumeric)
             p.addParameter('onsetPattern', [0, 1, 1], @isnumeric)
             p.addParameter('onsetDirection', 'reverse', @(x) ismember(x, {'reverse', 'forward'}))
             p.addParameter('hidecolorbar', false, @islogical)
@@ -1836,7 +1837,7 @@ classdef EphysUnit < handle
                 latency = onset;
 %                 assert(all(~isnan(latency)))
 %                 latency = latency(order);
-                varargout = {ax, order(:), meta(:), latency(:)};
+                varargout = {ax, order(:), meta(:), latency(:), sortVal(:)};
             else
                 order = p.Results.order;
                 if nargout < 3

@@ -248,12 +248,18 @@ fprintf('\t%i/%i (%.0f%%) decrease for just lick;\n', nnz(sel & cc.isPressUp & c
 fprintf('\t%i/%i (%.0f%%) decrease for just release;\n', nnz(sel & cc.isPressUp & cc.isLickUp & cc.isCorrectReleaseDown), nnz(sel), nnz(sel & cc.isPressUp & cc.isLickUp & cc.isCorrectReleaseDown)./nnz(sel)*100)
 
 %% Save intermediate results because ETA with artifact blanking takes forever
-% eu.save('E:\Data\Units\LickVsReach_FixedArtifacts')
-save('E:\Data\Units\meta_LickVsReach_FixedArtifacts.mat', 'artifactParams', 'bootCLick', 'cc', 'circlick', 'eta', 'oldSpikeTimes', 'meta', 'boot')
+% eu.save('C:\SERVER\Units\LickVsReach_FixedArtifacts')
+save('C:\SERVER\Units\meta_LickVsReach_FixedArtifacts.mat', 'artifactParams', 'bootCLick', 'cc', 'circlick', 'eta', 'oldSpikeTimes', 'meta', 'boot')
 
-%% Local load
-eu = EphysUnit.load('E:\Data\Units\LickVsReach_FixedArtifacts');
-load('E:\Data\Units\meta_LickVsReach_FixedArtifacts.mat');
+%% Load units, metadata and bootstrapping results.
+% These units are good. They have lick vs reach trials, they have (Intan)
+% lick artifacts filtered out and spikes redetected, units with drifting
+% spike waveforms have been removed, Blackrock units were deemed good to
+% keep without re-spike-sorting. I've fixed the missing digital events.
+% I've blanked out [-10, 10]ms peri-lickOn/Off, peri-reachOn/Off for ETA
+% calculation. Get these units with their fancy schmancy metadata now!
+eu = EphysUnit.load('C:\SERVER\Units\LickVsReach_FixedArtifacts');
+load('C:\SERVER\Units\meta_LickVsReach_FixedArtifacts.mat');
 
 %% Scatter META vs META
 % close all
@@ -453,7 +459,7 @@ etaParams.xlim = [-2, 2];
 etaParams.clim = [-1.5, 1.5];
 
 % Sorted independently, normed independently
-tl = tiledlayout(figure(Units='inches', Position=[1 1 6 5]), 1, 3);
+tl = tiledlayout(figure(Units='inches', Position=[0 0 6 5]), 1, 3);
 AX = gobjects(1, 3);
 iAx = 1;
 
@@ -488,7 +494,7 @@ title(tl, 'Ordered and normalized independently', FontWeight='bold')
 fontsize(tl, 9, 'points')
 
 % Sorted independently, normed to reach
-tl = tiledlayout(figure(Units='inches', Position=[7 1 6 5]), 1, 3);
+tl = tiledlayout(figure(Units='inches', Position=[6 0 6 5]), 1, 3);
 AX = gobjects(1, 3);
 iAx = 1;
 
@@ -530,7 +536,18 @@ groupVar(meta.lickNormToPress<0) = groupVar(meta.lickNormToPress<0) + 1;
 groupVar(meta.correctReleaseNormToPress<0) = groupVar(meta.correctReleaseNormToPress<0) + 1;
 groupVar(groupVar==0) = 4;
 
-tl = tiledlayout(figure(Units='inches', Position=[1 7 6 5]), 1, 3);
+selJustOneDec = groupVar == 1;
+groupVar(selJustOneDec & reshape(meta.pressNorm<0, size(groupVar))) = 1.0;
+groupVar(selJustOneDec & reshape(meta.lickNormToPress<0, size(groupVar))) = 1.1;
+groupVar(selJustOneDec & reshape(meta.correctReleaseNormToPress<0, size(groupVar))) = 1.2;
+
+selJustTwoDec = groupVar == 2;
+groupVar(selJustTwoDec & reshape(meta.pressNorm>0, size(groupVar))) = 2.0;
+groupVar(selJustTwoDec & reshape(meta.lickNormToPress>0, size(groupVar))) = 2.1;
+groupVar(selJustTwoDec & reshape(meta.correctReleaseNormToPress>0, size(groupVar))) = 2.2;
+
+
+tl = tiledlayout(figure(Units='inches', Position=[0 6 6 5]), 1, 3);
 AX = gobjects(1, 3);
 iAx = 1;
 
@@ -555,10 +572,11 @@ xline(ax, meta.window.correctRelease, 'k')
 title(ax, 'Release')
 xlabel(ax, 'time to bar release (s)')
 
-N = histcounts(groupVar, 0.5:1:4.5);
+N = histcounts(groupVar, 1:5);
 for iAx = 1:3
     applyCustomColormap(AX(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
-    yline(AX(iAx), cumsum(N(1:end-1)) + 1, '--', LineWidth=2, Color='magenta');
+    yline(AX(iAx), cumsum(N(1:end-1)), '--', LineWidth=2, Color='magenta');
+    yticks(AX(iAx), cumsum(N));
 end
 
 ax.Colorbar.Layout.Tile='east';
@@ -566,16 +584,26 @@ ylabel(AX, '')
 title(tl, 'Same order, normalized to peri-reach [-4, -2]s', FontWeight='bold')
 fontsize(tl, 9, 'points')
 
-disp(N)
 
 % Sorted by reach, normed independently
+
 groupVar = zeros(size(eu));
 groupVar(meta.pressNorm<0) = groupVar(meta.pressNorm<0) + 1;
 groupVar(meta.lickNorm<0) = groupVar(meta.lickNorm<0) + 1;
 groupVar(meta.correctReleaseNorm<0) = groupVar(meta.correctReleaseNorm<0) + 1;
 groupVar(groupVar==0) = 4;
 
-tl = tiledlayout(figure(Units='inches', Position=[7 7 6 5]), 1, 3);
+selJustOneDec = groupVar == 1;
+groupVar(selJustOneDec & reshape(meta.pressNorm<0, size(groupVar))) = 1.0;
+groupVar(selJustOneDec & reshape(meta.lickNorm<0, size(groupVar))) = 1.1;
+groupVar(selJustOneDec & reshape(meta.correctReleaseNorm<0, size(groupVar))) = 1.2;
+
+selJustTwoDec = groupVar == 2;
+groupVar(selJustTwoDec & reshape(meta.pressNorm>0, size(groupVar))) = 2.0;
+groupVar(selJustTwoDec & reshape(meta.lickNorm>0, size(groupVar))) = 2.1;
+groupVar(selJustTwoDec & reshape(meta.correctReleaseNorm>0, size(groupVar))) = 2.2;
+
+tl = tiledlayout(figure(Units='inches', Position=[6 6 6 5]), 1, 3);
 AX = gobjects(1, 3);
 iAx = 1;
 
@@ -600,7 +628,7 @@ xline(ax, meta.window.correctRelease, 'k')
 title(ax, 'Release')
 xlabel(ax, 'time to bar release (s)')
 
-N = histcounts(groupVar, 0.5:1:4.5);
+N = histcounts(groupVar, 1:5);
 for iAx = 1:3
     applyCustomColormap(AX(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
     yline(AX(iAx), cumsum(N(1:end-1)) + 1, '--', LineWidth=2, Color='magenta');
@@ -612,9 +640,66 @@ title(tl, 'Same order, normalized independently', FontWeight='bold')
 fontsize(tl, 9, 'points')
 
 
-disp(N)
 
-clear ax iAx AX tl N groupVar
+clear ax iAx AX tl N groupVar selJustOneDec selJustTwoDec
+
+%% Heatmap with fancy sort
+
+% Sorted by reach, normed to reach
+groupVar = zeros(size(eu));
+groupVar(cc.isPressDown) = groupVar(cc.isPressDown) + 1;
+groupVar(cc.isLickDown) = groupVar(cc.isLickDown) + 1;
+groupVar(cc.isCorrectReleaseDown) = groupVar(cc.isCorrectReleaseDown) + 1;
+groupVar(groupVar==0) = 4;
+
+selJustOneDec = groupVar == 1;
+groupVar(selJustOneDec & reshape(cc.isPressDown, size(groupVar))) = 1.0;
+groupVar(selJustOneDec & reshape(cc.isLickDown, size(groupVar))) = 1.1;
+groupVar(selJustOneDec & reshape(cc.isCorrectReleaseDown, size(groupVar))) = 1.2;
+
+selJustTwoDec = groupVar == 2;
+groupVar(selJustTwoDec & reshape(~cc.isCorrectReleaseDown, size(groupVar))) = 2.0;
+groupVar(selJustTwoDec & reshape(~cc.isLickDown, size(groupVar))) = 2.1;
+groupVar(selJustTwoDec & reshape(~cc.isPressDown, size(groupVar))) = 2.2;
+
+tl = tiledlayout(figure(Units='inches', Position=[0 1 6 5]), 1, 3);
+AX = gobjects(1, 3);
+iAx = 1;
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+[~, etaOrder.pressNormToPress] = EphysUnit.plotETA(ax, eta.pressNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    sortGroup=groupVar, sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
+xline(ax, meta.window.press, 'k')
+title(ax, 'Reach')
+xlabel(ax, 'time to bar contact (s)')
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+EphysUnit.plotETA(ax, eta.lickNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    order=etaOrder.pressNormToPress, hideColorbar=true);
+xline(ax, meta.window.lick, 'k')
+title(ax, 'Lick')
+xlabel(ax, 'time to spout contact (s)')
+
+ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
+EphysUnit.plotETA(ax, eta.correctReleaseNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
+    order=etaOrder.pressNormToPress, hideColorbar=false);
+xline(ax, meta.window.correctRelease, 'k')
+title(ax, 'Release')
+xlabel(ax, 'time to bar release (s)')
+
+N = histcounts(groupVar, 1:5);
+for iAx = 1:3
+    applyCustomColormap(AX(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+    yline(AX(iAx), cumsum(N(1:end-1)), '--', LineWidth=2, Color='magenta');
+    yticks(AX(iAx), cumsum(N));
+end
+
+ax.Colorbar.Layout.Tile='east';
+ylabel(AX, '')
+title(tl, 'Same order, normalized to peri-reach [-4, -2]s', FontWeight='bold')
+fontsize(tl, 9, 'points')
+
+
 
 %% Plot individial units, PETH as trace: lick, reach, release
 close all
