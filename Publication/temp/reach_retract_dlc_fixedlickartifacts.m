@@ -166,6 +166,18 @@ eta.correctReleaseAfterRetractNormToPress = eu.getETA('count', 'RetractToLeverRe
 
 eta.incorrectPressNormToPress = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
 eta.incorrectLickNormToPress = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+%%
+etaWithArti.pressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.baselineWindow.press, resolution=0.1);
+etaWithArti.lickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.baselineWindow.lick, resolution=0.1);
+etaWithArti.lickNormToPress = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.pressNorm.stats, resolution=0.1);
+etaWithArti.correctReleaseNorm = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.baselineWindow.release, resolution=0.1);
+etaWithArti.correctReleaseNormToPress = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1);
+etaWithArti.correctPressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1);
+etaWithArti.correctLickNormToPress = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1);
+etaWithArti.correctReleaseBeforeRetractNormToPress = eu.getETA('count', 'CueToLeverReleaseBeforeRetractCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1);
+etaWithArti.correctReleaseAfterRetractNormToPress = eu.getETA('count', 'RetractToLeverReleaseAfterRetractCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1);
+etaWithArti.incorrectPressNormToPress = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1);
+etaWithArti.incorrectLickNormToPress = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1);
 
 %% Calculate META
 clear meta
@@ -249,17 +261,19 @@ fprintf('\t%i/%i (%.0f%%) decrease for just release;\n', nnz(sel & cc.isPressUp 
 
 %% Save intermediate results because ETA with artifact blanking takes forever
 % eu.save('C:\SERVER\Units\LickVsReach_FixedArtifacts')
-save('C:\SERVER\Units\meta_LickVsReach_FixedArtifacts.mat', 'artifactParams', 'bootCLick', 'cc', 'circlick', 'eta', 'oldSpikeTimes', 'meta', 'boot')
+save('C:\SERVER\Units\meta_LickVsReach_FixedArtifacts.mat', 'artifactParams', 'bootCLick', 'cc', 'circlick', 'eta', 'etaWithArti', 'oldSpikeTimes', 'meta', 'boot')
 
 %% Load units, metadata and bootstrapping results.
 % These units are good. They have lick vs reach trials, they have (Intan)
 % lick artifacts filtered out and spikes redetected, units with drifting
 % spike waveforms have been removed, Blackrock units were deemed good to
-% keep without re-spike-sorting. I've fixed the missing digital events.
+% keep without re-spike-sorting. I've fi    xed the missing digital events.
 % I've blanked out [-10, 10]ms peri-lickOn/Off, peri-reachOn/Off for ETA
 % calculation. Get these units with their fancy schmancy metadata now!
-eu = EphysUnit.load('C:\SERVER\Units\LickVsReach_FixedArtifacts');
-load('C:\SERVER\Units\meta_LickVsReach_FixedArtifacts.mat');
+% eu = EphysUnit.load('C:\SERVER\Units\LickVsReach_FixedArtifacts');
+% load('C:\SERVER\Units\meta_LickVsReach_FixedArtifacts.mat');
+eu = EphysUnit.load('E:\DATA\Units\LickVsReach_FixedArtifacts');
+load('E:\DATA\Units\meta_LickVsReach_FixedArtifacts.mat');
 
 %% Scatter META vs META
 % close all

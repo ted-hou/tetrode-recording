@@ -2622,8 +2622,10 @@ classdef EphysUnit < handle
                 p.addRequired('edges', @(x) isnumeric(x) && length(x)>=2 && nnz(diff(x)<=0)==0)
             end
             p.addParameter('artifacts', [], @(x) isempty(x) || (isstruct(x) && all(isfield(x, {'t', 'length', 'direction'}))))
+            p.addParameter('minArtifactBlankingProportion', 0.1, @isnumeric) % When artifact blanking leaves less than this proportion of bin, make spike rate for that bin NaN rather than counting and then dividing by remaining bin proportion.
             p.parse(varargin{:})
             artifacts = p.Results.artifacts;
+            minArtifactBlankingProportion = p.Results.minArtifactBlankingProportion;
             if isfield(p.Results, 'binWidth')
                 binWidth = p.Results.binWidth;
                 edges = [];
@@ -2645,6 +2647,7 @@ classdef EphysUnit < handle
                 sc = uint16(sc);
                 t = single(t);
             else
+                % DO_TESTS1 = false;
                 % When artifacts are present (with a blankout duration
                 % surrounding them), we need to carve these blankout
                 % periods from 'edges', do spike counts, and then scale up
@@ -2659,13 +2662,55 @@ classdef EphysUnit < handle
                         tArtifact = reshape(artifacts(iArtifact).t, 1, []);
                         switch lower(artifacts(iArtifact).direction)
                             case 'right'
+                                tArtifact = tArtifact(tArtifact + artifacts(iArtifact).length*1e-3 >= edges(1) & tArtifact <= edges(end));
                                 theseArtifactIntervals = tArtifact + [0; artifacts(iArtifact).length*1e-3];
                             case 'both'
+                                tArtifact = tArtifact(tArtifact + artifacts(iArtifact).length*1e-3 >= edges(1) & tArtifact - artifacts(iArtifact).length*1e-3 <= edges(end));
                                 theseArtifactIntervals = tArtifact + [-artifacts(iArtifact).length*1e-3; artifacts(iArtifact).length*1e-3];
                         end
                         artifactIntervals = intervalUnion(artifactIntervals, theseArtifactIntervals);
                     end
                 end
+                % if DO_TESTS1
+                %     artifactIntervalsAll = [];
+                %     for iArtifact = 1:length(artifacts)
+                %         if artifacts(iArtifact).length > 0
+                %             tArtifact = reshape(artifacts(iArtifact).t, 1, []);
+                %             switch lower(artifacts(iArtifact).direction)
+                %                 case 'right'
+                %                     theseArtifactIntervals = tArtifact + [0; artifacts(iArtifact).length*1e-3];
+                %                 case 'both'
+                %                     theseArtifactIntervals = tArtifact + [-artifacts(iArtifact).length*1e-3; artifacts(iArtifact).length*1e-3];
+                %             end
+                %             artifactIntervalsAll = intervalUnion(artifactIntervalsAll, theseArtifactIntervals);
+                %         end
+                %     end
+                %     selIntervals = artifactIntervalsAll(2, :) >= edges(1) & artifactIntervalsAll(1, :) <= edges(end);
+                %     try
+                %         assert(isequal(artifactIntervals, artifactIntervalsAll(:, selIntervals)));
+                %     catch
+                %         warning('Test failed');
+                %         fprintf('\nedges=[%g:%g]\n', edges(1), edges(end))
+                %         fprintf('artifactIntervals = \n')
+                %         fprintf('\t%g', artifactIntervals(1, :))
+                %         fprintf('\n')
+                %         fprintf('\t%g', artifactIntervals(2, :))
+                %         fprintf('\n')
+                %         fprintf('artifactIntervalsAll(:, selIntervals) = \n')
+                %         fprintf('\t%g', artifactIntervalsAll(1, selIntervals))
+                %         fprintf(2, '\t%g', artifactIntervalsAll(1, find(selIntervals, 1, 'last') + 1))
+                %         fprintf('\n')
+                %         fprintf('\t%g', artifactIntervalsAll(2, selIntervals))
+                %         fprintf(2, '\t%g', artifactIntervalsAll(2, find(selIntervals, 1, 'last') + 1))
+                %         fprintf('\n')
+                %         ax = axes(figure());
+                %         hold(ax, 'on')
+                %         plotIntervals(ax, [edges(1:end-1); edges(2:end)], 'black', [-0.5, 0.5])
+                %         plotIntervals(ax, artifactIntervals, 'red', [-1, 2])
+                %         plotIntervals(ax, artifactIntervalsAll(:, selIntervals), 'blue', [-2, 1])
+                %         hold(ax, 'off')
+                %     end
+                % end
 
                 if isempty(artifactIntervals)
                     sc = histcounts(spikes, edges);
@@ -2682,28 +2727,33 @@ classdef EphysUnit < handle
                 % intervals. The intervals are sorted so that
                 % artifactIntervals(:) should be in ascending order.
                 sc = NaN(size(t));
-                B = artifactIntervals;
+                isWholeBinGood = false(size(sc));
+                isWholeBinBad = false(size(sc));
+                spikes = spikes(spikes>=edges(1) & spikes<edges(end));
+                scVanilla = histcounts(spikes, edges);
+                iArtifact = 1;
                 for iBin = 1 : length(edges)-1
                     a1 = edges(iBin);
                     a2 = edges(iBin + 1);
+                    spikesInBin = spikes(spikes>=a1 & spikes<a2);
                     badIntervals = [];
                     while true
                         % Find the first b2 > a1
-                        iArtifact = find(B(2, :) > a1, 1, 'first');
+                        iArtifact = find(artifactIntervals(2, iArtifact:end) > a1, 1, 'first') + iArtifact - 1;
                         if isempty(iArtifact)
                             break;
                             % We've reached the last artifact
                         end
-                        B = B(:, iArtifact:end); % Truncate all earlier artifact intervals, since they ended before a1 (and all subsequent a1's)
-                        b1 = B(1, 1);
-                        b2 = B(2, 1);
+                        % B = B(:, iArtifact:end); % Truncate all earlier artifact intervals, since they ended before a1 (and all subsequent a1's)
+                        b1 = artifactIntervals(1, iArtifact);
+                        b2 = artifactIntervals(2, iArtifact);
                         % We know b2 > a1 already
                         if b1 < a1 
                         % if b1 < a1 < b2 < a2 % mark [a1, b2], go to next artifact
                             if b2 < a2
                                 % [a1, b2];
                                 badIntervals = horzcat(badIntervals, [b2; a2]);
-                                B(:, 1) = [];
+                                iArtifact = iArtifact + 1;
                                 continue
                         % if b1 < a1 < a2 < b2 % mark [a1, a2], go to next bin 
                             else
@@ -2721,7 +2771,7 @@ classdef EphysUnit < handle
                                 % a1 < b1 < b2 < a2 % mark [b1, b2], go to next artifact
                                 if a2 > b2
                                     badIntervals = horzcat(badIntervals, [b1; b2]);
-                                    B(:, 1) = [];
+                                    iArtifact = iArtifact + 1;
                                     continue
                                 % a1 < b1 < a2 < b2 % mark [b1, a2], go to next bin
                                 else
@@ -2738,22 +2788,27 @@ classdef EphysUnit < handle
 
                     % Whole bin is good
                     if isempty(badIntervals)
-                        sc(iBin) = histcounts(spikes, [a1, a2]);
+                        isWholeBinGood(iBin) = true;
                         continue;
                     end
                     % Whole bin is bad
                     if badIntervals(1) == a1 && badIntervals(end) == a2
-                        sc(iBin) = NaN;
+                        isWholeBinBad(iBin) = true;
                         continue;
                     end
                     % There are one or more bad intervals to truncate
                     truncatedDuration = sum(diff(badIntervals, 1, 1));
                     scalingFactor = 1 - truncatedDuration/(a2-a1); % divide spike count by this factor
+                    
+                    if scalingFactor < minArtifactBlankingProportion
+                        isWholeBinBad(iBin) = true;
+                        continue;
+                    end
+
                     subEdges = unique(sort([a1, a2, badIntervals(:)'], 'ascend'));
-                    scTemp = histcounts(spikes, subEdges);
+                    scTemp = histcounts(spikesInBin, subEdges);
 
                     % Find out which bins have artifacts
-                    nBadIntervals = size(badIntervals, 2);
                     nSubBins = length(subEdges) - 1;
                     % a1 is bad, a2 is bad (bad, good, ..., bad) Odd bins are bad
                     % a1 is bad, a2 is good (bad, good, ..., good) Odd bins are bad
@@ -2770,10 +2825,28 @@ classdef EphysUnit < handle
                     else
                         sc(iBin) = sum(scTemp(~isBadSubBin)) ./ scalingFactor;
                     end
+
+                    % DO_TESTS2 = false;
+                    % if DO_TESTS2 && ~isempty(badIntervals)
+                    %     ax = axes(figure);
+                    %     % plotIntervals(ax, 1e3*([edges(iBin); edges(iBin+1)] - edges(iBin)), 'black', [-0.5, 0.5])
+                    %     plotIntervals(ax, 1e3*(badIntervals - edges(iBin)), 'red', [2, 3]);
+                    %     subEdgesAsIntervals = [subEdges(1:end-1); subEdges(2:end)];
+                    %     plotIntervals(ax, 1e3*(subEdgesAsIntervals(:, isBadSubBin) - edges(iBin)), 'red', [0, 1])
+                    %     plotIntervals(ax, 1e3*(subEdgesAsIntervals(:, ~isBadSubBin) - edges(iBin)), 'black', [0, 1])
+                    %     hold(ax, 'on')
+                    %     scatter(ax, 1e3*(spikesInBin - edges(iBin)), 0, 25, 'k', 'filled', 'o')
+                    %     xlim(ax, 1e3*[0, 0.1])
+                    %     hold(ax, 'off')
+                    %     xlabel(ax, sprintf('%g / %g = %g', sum(scTemp(~isBadSubBin)), scalingFactor, sc(iBin)))
+                    %     close all
+                    % end
                 end
+                sc(isWholeBinGood) = scVanilla(isWholeBinGood);
+                sc(isWholeBinBad) = NaN;
             end
         end
-        
+
         function [sr, t, kernel] = getSpikeRates(obj, varargin)
             % GETSPIKERATES Convolve discrete spikes with a Guassian (default) or Exponential kernel to get smooth spike rate estimate
             assert(isscalar(obj))
