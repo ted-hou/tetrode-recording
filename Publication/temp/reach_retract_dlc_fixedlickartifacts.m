@@ -33,7 +33,7 @@
 % end
 % clear nLicks iEu
 % 
-% %%
+
 % for iEu = 1:length(eu)
 %     % try
 %         % Discard false-lever-releases (minDuration=0.1)
@@ -92,6 +92,50 @@
 %     %     warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
 %     % end
 % end
+
+%% Find (last lick after cue correct, tube retract correct, tube retract incorrect)
+for iEu = 1:length(eu)
+    eu(iEu).Trials.LickValid = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() >= 2);
+    eu(iEu).Trials.LickIncorrect = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() < 4 & eu(iEu).Trials.Lick.duration() >= 2);
+    eu(iEu).Trials.LickCorrect = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() >= 4);
+
+    % For each Lick, find the next cue (of any kind)
+    firstLickToCueValid = Trial([eu(iEu).Trials.LickValid.Stop, Inf], eu(iEu).EventTimes.Cue, 'first');
+    firstLickToCueIncorrect = Trial([eu(iEu).Trials.LickIncorrect.Stop, Inf], eu(iEu).EventTimes.Cue, 'first');
+    firstLickToCueCorrect = Trial([eu(iEu).Trials.LickCorrect.Stop, Inf], eu(iEu).EventTimes.Cue, 'first');
+    % Find the last lickOff between firstLick and nextCue
+    [~, lickOff, trialIndices] = firstLickToCueValid.inTrial(eu(iEu).EventTimes.LickOff);
+    [~, lastLickOff, ~] = unique(trialIndices, 'last');
+    lastLickOff = lickOff(lastLickOff);
+    eu(iEu).Trials.CueToLastLickOff = Trial([eu(iEu).Trials.LickValid.Start, Inf], lastLickOff(:)', 'last');
+
+    % LastLickIncorrect
+    [~, lickOff, trialIndices] = firstLickToCueIncorrect.inTrial(eu(iEu).EventTimes.LickOff);
+    [~, lastLickOff, ~] = unique(trialIndices, 'last');
+    lastLickOff = lickOff(lastLickOff);
+    eu(iEu).Trials.CueToLastLickOffIncorrect = Trial([eu(iEu).Trials.LickIncorrect.Start, Inf], lastLickOff(:)', 'last');
+
+    % LastLickCorrect
+    [~, lickOff, trialIndices] = firstLickToCueCorrect.inTrial(eu(iEu).EventTimes.LickOff);
+    [~, lastLickOff, ~] = unique(trialIndices, 'last');
+    lastLickOff = lickOff(lastLickOff);
+    eu(iEu).Trials.CueToLastLickOffCorrect = Trial([eu(iEu).Trials.LickCorrect.Start, Inf], lastLickOff(:)', 'last');
+
+    % LastLickIncorrect
+    [~, lickOff, trialIndices] = firstLickToCueIncorrect.inTrial(eu(iEu).EventTimes.LickOff);
+    [~, lastLickOff, ~] = unique(trialIndices, 'last');
+    lastLickOff = lickOff(lastLickOff);
+    eu(iEu).Trials.LickToLastLickOffIncorrect = Trial([eu(iEu).Trials.LickIncorrect.Stop, Inf], lastLickOff(:)', 'last');
+
+    % LastLickCorrect
+    [~, lickOff, trialIndices] = firstLickToCueCorrect.inTrial(eu(iEu).EventTimes.LickOff);
+    [~, lastLickOff, ~] = unique(trialIndices, 'last');
+    lastLickOff = lickOff(lastLickOff);
+    eu(iEu).Trials.LickToLastLickOffCorrect = Trial([eu(iEu).Trials.LickCorrect.Stop, Inf], lastLickOff(:)', 'last');
+end
+clear iEu firstLickToCueValid firstLickToCueIncorrect firstLickToCueCorrect lickOff trialIndices lastLickOff
+
+
 % 
 % nReleaseTrials = arrayfun(@(eu) struct(release=length(eu.Trials.CueToLeverRelease), releaseCorrect=length(eu.Trials.CueToLeverReleaseCorrect), ...
 %     releaseBefore=length(eu.Trials.CueToLeverReleaseBeforeRetractCorrect), releaseAfter=length(eu.Trials.RetractToLeverReleaseAfterRetractCorrect)), eu);
@@ -102,8 +146,8 @@
 % eu.save('C:\SERVER\Units\PressVsLick_ArtifactsRemoved\FixedEventsAndTrials');
 
 %% Load results
-eu = EphysUnit.load('C:\SERVER\Units\PressVsLick_ArtifactsRemoved\FixedEventsAndTrials');
-load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved.mat');
+eu = EphysUnit.load('C:\SERVER\Units\LickVsReach_FixedArtifacts');
+load('C:\SERVER\Units\meta_LickVsReach_FixedArtifacts.mat');
 
 %% TODO: Load deeplabcut (Derin did all the older sessions)
 
@@ -146,8 +190,14 @@ eta.correctLick = eu.getETA('count', 'lick', [-4, 4], minTrialDuration=4, ...
 eta.incorrectLick = eu.getETA('count', 'lick', [-4, 4], minTrialDuration=2, maxTrialDuration=4, ...
     normalize='none', resolution=0.1, artifacts=artifactParams);
 
+eta.correctLastLickOff = eu.getETA('count', 'CueToLastLickOffCorrect', [-4, 4], alignTo='stop', ...
+    normalize='none', resolution=0.1, artifacts=artifactParams);
+eta.incorrectLastLickOff = eu.getETA('count', 'CueToLastLickOffIncorrect', [-4, 4], alignTo='stop', ...
+    normalize='none', resolution=0.1, artifacts=artifactParams);
+
 % Convert to sp/s
-for field = ["correctPress", "incorrectPress", "correctLick", "incorrectLick", "correctRelease", "incorrectRelease", "correctReleaseBeforeRetract", "correctReleaseAfterRetract", "correctRetract", "incorrectRetract"]
+for field = ["correctPress", "incorrectPress", "correctLick", "incorrectLick", "correctRelease", "incorrectRelease", "correctReleaseBeforeRetract", "correctReleaseAfterRetract", "correctRetract", "incorrectRetract", ...
+        "correctLastLickOff", "incorrectLastLickOff"]
     eta.(field).X = eta.(field).X ./ 0.1;
 end
 
@@ -156,16 +206,31 @@ clear field
 eta.pressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.baselineWindow.press, resolution=0.1, artifacts=artifactParams);
 eta.lickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.baselineWindow.lick, resolution=0.1, artifacts=artifactParams);
 eta.lickNormToPress = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-eta.correctReleaseNorm = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.baselineWindow.release, resolution=0.1, artifacts=artifactParams);
-eta.correctReleaseNormToPress = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.correctReleaseNorm = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', normalize=eta.baselineWindow.release, resolution=0.1, artifacts=artifactParams);
+eta.correctReleaseNormToPress = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
 
 eta.correctPressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
 eta.correctLickNormToPress = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-eta.correctReleaseBeforeRetractNormToPress = eu.getETA('count', 'CueToLeverReleaseBeforeRetractCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-eta.correctReleaseAfterRetractNormToPress = eu.getETA('count', 'RetractToLeverReleaseAfterRetractCorrect', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.correctReleaseBeforeRetractNormToPress = eu.getETA('count', 'CueToLeverReleaseBeforeRetractCorrect', [-4, 4], alignTo='stop', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.correctReleaseAfterRetractNormToPress = eu.getETA('count', 'RetractToLeverReleaseAfterRetractCorrect', [-4, 4], alignTo='stop', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
 
 eta.incorrectPressNormToPress = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
 eta.incorrectLickNormToPress = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+
+% Lick trials, last lickOff before next cue
+eta.correctLastLickOffNormToPress = eu.getETA('count', 'CueToLastLickOffCorrect', [-4, 4], alignTo='stop', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.incorrectLastLickOffNormToPress = eu.getETA('count', 'CueToLastLickOffIncorrect', [-4, 4], alignTo='stop', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+% 
+% for iEu = 1:length(eu)
+%     newSpikeTimes{iEu} = eu(iEu).SpikeTimes;
+% end
+
+for iEu = 1:length(eu)
+    eu(iEu).SpikeTimes = oldSpikeTimes(iEu).data;
+end
+eta.correctLickToLastLickOffNormToPress = eu.getETA('count', 'LickToLastLickOffCorrect', [-4, 20], alignTo='start', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams, includeInvalid=false);
+eta.incorrectLickToLastLickOffNormToPress = eu.getETA('count', 'LickToLastLickOffIncorrect', [-4, 20], alignTo='start', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams, includeInvalid=false);
+
 %%
 etaWithArti.pressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.baselineWindow.press, resolution=0.1);
 etaWithArti.lickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.baselineWindow.lick, resolution=0.1);
@@ -183,13 +248,21 @@ etaWithArti.incorrectLickNormToPress = eu.getETA('count', 'lick', [-4, 4], align
 clear meta
 meta.window.press = [-0.3, 0];
 meta.window.lick = [-0.3, 0];
-meta.window.correctRelease = [0, 0.3];
+meta.window.release = [0, 0.3];
+meta.window.lastLickOff = [0, 0.3];
 
 meta.pressNorm = mean(eta.pressNorm.X(:, eta.pressNorm.t > meta.window.press(1) & eta.pressNorm.t < meta.window.press(2)), 2, 'omitnan');
 meta.lickNorm = mean(eta.lickNorm.X(:, eta.lickNorm.t > meta.window.lick(1) & eta.lickNorm.t < meta.window.lick(2)), 2, 'omitnan');
+meta.correctReleaseNorm = mean(eta.correctReleaseNorm.X(:, eta.correctReleaseNorm.t > meta.window.release(1) & eta.correctReleaseNorm.t < meta.window.release(2)), 2, 'omitnan');
+
 meta.lickNormToPress = mean(eta.lickNormToPress.X(:, eta.lickNormToPress.t > meta.window.lick(1) & eta.lickNormToPress.t < meta.window.lick(2)), 2, 'omitnan');
-meta.correctReleaseNorm = mean(eta.correctReleaseNorm.X(:, eta.correctReleaseNorm.t > meta.window.correctRelease(1) & eta.correctReleaseNorm.t < meta.window.correctRelease(2)), 2, 'omitnan');
-meta.correctReleaseNormToPress = mean(eta.correctReleaseNormToPress.X(:, eta.correctReleaseNormToPress.t > meta.window.correctRelease(1) & eta.correctReleaseNormToPress.t < meta.window.correctRelease(2)), 2, 'omitnan');
+meta.incorrectLickNormToPress = mean(eta.incorrectLickNormToPress.X(:, eta.incorrectLickNormToPress.t > meta.window.lick(1) & eta.incorrectLickNormToPress.t < meta.window.lick(2)), 2, 'omitnan');
+meta.correctLickNormToPress = mean(eta.correctLickNormToPress.X(:, eta.correctLickNormToPress.t > meta.window.lick(1) & eta.correctLickNormToPress.t < meta.window.lick(2)), 2, 'omitnan');
+meta.correctReleaseNormToPress = mean(eta.correctReleaseNormToPress.X(:, eta.correctReleaseNormToPress.t > meta.window.release(1) & eta.correctReleaseNormToPress.t < meta.window.release(2)), 2, 'omitnan');
+meta.incorrectLastLickOffNormToPress = mean(eta.incorrectLastLickOffNormToPress.X(:, eta.incorrectLastLickOffNormToPress.t > meta.window.lastLickOff(1) & eta.incorrectLastLickOffNormToPress.t < meta.window.lastLickOff(2)), 2, 'omitnan');
+meta.correctLastLickOffNormToPress = mean(eta.correctLastLickOffNormToPress.X(:, eta.correctLastLickOffNormToPress.t > meta.window.lastLickOff(1) & eta.correctLastLickOffNormToPress.t < meta.window.lastLickOff(2)), 2, 'omitnan');
+
+
 
 %% Bootstrap response directions
 clear boot
@@ -197,7 +270,7 @@ boot.params = struct(...
     alpha = 0.01, ...
     nboot = 100000, ...
     responseWindow = meta.window, ...
-    baselineWindow = struct(press=[-4, -2], lick='press', release='press'), ...
+    baselineWindow = struct(press=[-4, -2], lick='press', release='press', lastLickOff='press'), ...
     artifacts = artifactParams ...
     );
 
@@ -220,6 +293,14 @@ boot.params = struct(...
     struct(baseline='press', response='CueToLeverReleaseCorrect'), nboot=boot.params.nboot, ...
     baselineWindow=boot.params.baselineWindow.press, ...
     responseWindow=boot.params.responseWindow.correctRelease, ...
+    alignTo=struct(baseline='stop', response='stop'), ...
+    allowedTrialDuration=struct(baseline=[2, Inf], response=[4, Inf]), ...
+    alpha=boot.params.alpha, artifacts=boot.params.artifacts);  
+
+[boot.correctLastLickOff.h, boot.correctLastLickOff.ci, boot.correctLastLickOff.obs] = bootstrapMoveResponse(eu, ...
+    struct(baseline='press', response='CueToLastLickOffCorrect'), nboot=boot.params.nboot, ...
+    baselineWindow=boot.params.baselineWindow.press, ...
+    responseWindow=boot.params.responseWindow.lastLickOff, ...
     alignTo=struct(baseline='stop', response='stop'), ...
     allowedTrialDuration=struct(baseline=[2, Inf], response=[4, Inf]), ...
     alpha=boot.params.alpha, artifacts=boot.params.artifacts);  
@@ -284,7 +365,7 @@ bootResp = {cc.isPressResponsive, cc.isLickResponsive, cc.isCorrectReleaseRespon
 dispNames = { ...
     ["Reach", sprintf("[%s]s", string(meta.window.press).join(', '))], ...
     ["Lick", sprintf("[%s]s", string(meta.window.lick).join(', '))], ...
-    ["Release", sprintf("[%s]s", string(meta.window.correctRelease).join(', '))], ...
+    ["Release", sprintf("[%s]s", string(meta.window.release).join(', '))], ...
     };
 n = length(metaNames);
 
@@ -356,7 +437,7 @@ metaNames = ["pressNorm", "lickNorm", "correctReleaseNorm"];
 dispNames = { ...
     ["Reach", sprintf("[%s]s", string(meta.window.press).join(', '))], ...
     ["Lick", sprintf("[%s]s", string(meta.window.lick).join(', '))], ...
-    ["Release", sprintf("[%s]s", string(meta.window.correctRelease).join(', '))], ...
+    ["Release", sprintf("[%s]s", string(meta.window.release).join(', '))], ...
     };
 n = length(metaNames);
 
@@ -466,258 +547,129 @@ for idx = 1:nImages
 end
 clear filename fig ax angles idx fram im A map
 
-%% Plot all units, PETH as heatmap: reach, release, lick
-close all
-clear etaOrder etaParams
-etaParams.xlim = [-2, 2];
-etaParams.clim = [-1.5, 1.5];
+%% Expanded heatmap (correct/incorrect reach/lick/barrelease/tuberelease with fancy sort
+ETA = ["incorrectPressNormToPress", "correctPressNorm", "correctReleaseNormToPress", "incorrectLickNormToPress", "correctLickNormToPress", "correctLastLickOffNormToPress", "correctLickToLastLickOffNormToPress"];
+WINDOW = ["press", "press", "release", "lick", "lick", "lastLickOff", "lastLickOff"];
+TITLE = ["Reach (incorrect)", "Reach (correct)", "Release (correct)", "Lick (incorrect)", "Lick (correct)", "LastLickOff (correct)", "First to last lick (correct)"];
+EVENT = ["bar-contact", "bar-contact", "bar-release", "spout-contact", "spout-contact", "spout-disengage", "spout-contact"];
+XLIM = {[-2, 2], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [-2, 20]};
+nPlots = length(ETA);
 
-% Sorted independently, normed independently
-tl = tiledlayout(figure(Units='inches', Position=[0 0 6 5]), 1, 3);
-AX = gobjects(1, 3);
-iAx = 1;
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-EphysUnit.plotETA(ax, eta.pressNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
-xline(ax, meta.window.press, 'k')
-title(ax, 'Reach')
-xlabel(ax, 'time to bar contact (s)')
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-EphysUnit.plotETA(ax, eta.lickNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
-xline(ax, meta.window.lick, 'k')
-title(ax, 'Lick')
-xlabel(ax, 'time to spout contact (s)')
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-EphysUnit.plotETA(ax, eta.correctReleaseNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    sortWindow=[0, 1], signWindow=[0, 0.5], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=false);
-xline(ax, meta.window.correctRelease, 'k')
-title(ax, 'Release')
-xlabel(ax, 'time to bar release (s)')
-
-for iAx = 1:3
-    applyCustomColormap(AX(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
-end
-
-ax.Colorbar.Layout.Tile='east';
-ylabel(AX, '')
-title(tl, 'Ordered and normalized independently', FontWeight='bold')
-fontsize(tl, 9, 'points')
-
-% Sorted independently, normed to reach
-tl = tiledlayout(figure(Units='inches', Position=[6 0 6 5]), 1, 3);
-AX = gobjects(1, 3);
-iAx = 1;
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-EphysUnit.plotETA(ax, eta.pressNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
-xline(ax, meta.window.press, 'k')
-title(ax, 'Reach')
-xlabel(ax, 'time to bar contact (s)')
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-EphysUnit.plotETA(ax, eta.lickNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
-xline(ax, meta.window.lick, 'k')
-title(ax, 'Lick')
-xlabel(ax, 'time to spout contact (s)')
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-EphysUnit.plotETA(ax, eta.correctReleaseNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    sortWindow=[0, 1], signWindow=[0, 0.5], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=false);
-xline(ax, meta.window.correctRelease, 'k')
-title(ax, 'Release')
-xlabel(ax, 'time to bar release (s)')
-
-for iAx = 1:3
-    applyCustomColormap(AX(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
-end
-
-ax.Colorbar.Layout.Tile='east';
-ylabel(AX, '')
-title(tl, 'Ordered independently, normalized to peri-reach [-4, -2]s', FontWeight='bold')
-fontsize(tl, 9, 'points')
-
-
+% close all
 % Sorted by reach, normed to reach
 groupVar = zeros(size(eu));
 groupVar(meta.pressNorm<0) = groupVar(meta.pressNorm<0) + 1;
-groupVar(meta.lickNormToPress<0) = groupVar(meta.lickNormToPress<0) + 1;
 groupVar(meta.correctReleaseNormToPress<0) = groupVar(meta.correctReleaseNormToPress<0) + 1;
-groupVar(groupVar==0) = 4;
+groupVar(meta.lickNormToPress<0) = groupVar(meta.lickNormToPress<0) + 1;
+groupVar(meta.correctLastLickOffNormToPress<0) = groupVar(meta.correctLastLickOffNormToPress<0) + 1;
+groupVar(groupVar==0) = 5;
 
 selJustOneDec = groupVar == 1;
-groupVar(selJustOneDec & reshape(meta.pressNorm<0, size(groupVar))) = 1.0;
-groupVar(selJustOneDec & reshape(meta.lickNormToPress<0, size(groupVar))) = 1.1;
+groupVar(selJustOneDec & reshape(meta.pressNorm<0, size(groupVar))) = 1.1;
 groupVar(selJustOneDec & reshape(meta.correctReleaseNormToPress<0, size(groupVar))) = 1.2;
+groupVar(selJustOneDec & reshape(meta.lickNormToPress<0, size(groupVar))) = 1.3;
+groupVar(selJustOneDec & reshape(meta.correctLastLickOffNormToPress<0, size(groupVar))) = 1.4;
 
-selJustTwoDec = groupVar == 2;
-groupVar(selJustTwoDec & reshape(meta.pressNorm>0, size(groupVar))) = 2.0;
-groupVar(selJustTwoDec & reshape(meta.lickNormToPress>0, size(groupVar))) = 2.1;
-groupVar(selJustTwoDec & reshape(meta.correctReleaseNormToPress>0, size(groupVar))) = 2.2;
+N = histcounts(groupVar, 1:6);
 
 
-tl = tiledlayout(figure(Units='inches', Position=[0 6 6 5]), 1, 3);
-AX = gobjects(1, 3);
-iAx = 1;
+tl = tiledlayout(figure(Units='inches', Position=[0 1 12 5]), 1, sum(cellfun(@diff, XLIM)), TileSpacing='tight', Padding='tight');
+AX = gobjects(1, nPlots);
 
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-[~, etaOrder.pressNormToPress] = EphysUnit.plotETA(ax, eta.pressNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    sortGroup=groupVar, sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
-xline(ax, meta.window.press, 'k')
-title(ax, 'Reach')
-xlabel(ax, 'time to bar contact (s)')
+for iAx = 1:nPlots
+    w = cellfun(@diff, XLIM);
+    cw = cumsum([0, w]) + 1;
+    ax = nexttile(tl, cw(iAx), [1, w(iAx)]); AX(iAx) = ax;
+    etaTemp = eta.(ETA(iAx));
+    if iAx == 1
+        [~, tempOrder] = EphysUnit.plotETA(ax, etaTemp, xlim=XLIM{iAx}, clim=etaParams.clim, ...
+            sortGroup=groupVar, sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
+    elseif iAx < nPlots
+        EphysUnit.plotETA(ax, etaTemp, xlim=XLIM{iAx}, clim=etaParams.clim, order=tempOrder, hideColorbar=true);
+    else
+        EphysUnit.plotETA(ax, etaTemp, xlim=XLIM{iAx}, clim=etaParams.clim, order=tempOrder, hideColorbar=false);
+        ax.Colorbar.Layout.Tile = 'east';
+    end
+    xline(ax, meta.window.(WINDOW(iAx)), 'k')
+    yline(ax, cumsum(N(1:end-1)), '--', LineWidth=2, Color='magenta');
+    yticks(ax, cumsum(N));
+    applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
 
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-EphysUnit.plotETA(ax, eta.lickNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    order=etaOrder.pressNormToPress, hideColorbar=true);
-xline(ax, meta.window.lick, 'k')
-title(ax, 'Lick')
-xlabel(ax, 'time to spout contact (s)')
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-EphysUnit.plotETA(ax, eta.correctReleaseNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    order=etaOrder.pressNormToPress, hideColorbar=false);
-xline(ax, meta.window.correctRelease, 'k')
-title(ax, 'Release')
-xlabel(ax, 'time to bar release (s)')
-
-N = histcounts(groupVar, 1:5);
-for iAx = 1:3
-    applyCustomColormap(AX(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
-    yline(AX(iAx), cumsum(N(1:end-1)), '--', LineWidth=2, Color='magenta');
-    yticks(AX(iAx), cumsum(N));
+    title(ax, TITLE(iAx))
+    xlabel(ax, sprintf("time to %s (s)", EVENT(iAx)))
 end
 
-ax.Colorbar.Layout.Tile='east';
 ylabel(AX, '')
+yticks(AX(2:end), [])
 title(tl, 'Same order, normalized to peri-reach [-4, -2]s', FontWeight='bold')
 fontsize(tl, 9, 'points')
 
+% Mean PETH
+ETA = {["incorrectPress", "correctPress"], "correctRelease", ["incorrectLick", "correctLick"], "correctLastLickOff"};
+NAME = {["incorrect", "correct"], "correct", ["incorrect", "correct"], "correct"};
+TITLE = ["Reach", "Release", "Lick", "LastLickOff"];
+EVENT = ["bar-contact", "bar-release", "spout-contact", "spout-disengage"];
+nPlots = length(ETA);
 
-% Sorted by reach, normed independently
+uniqueGroupVars = unique(groupVar);
+nGroups = length(uniqueGroupVars);
 
-groupVar = zeros(size(eu));
-groupVar(meta.pressNorm<0) = groupVar(meta.pressNorm<0) + 1;
-groupVar(meta.lickNorm<0) = groupVar(meta.lickNorm<0) + 1;
-groupVar(meta.correctReleaseNorm<0) = groupVar(meta.correctReleaseNorm<0) + 1;
-groupVar(groupVar==0) = 4;
+tl = tiledlayout(figure(Units='inches', Position=[12 1 8 5]), nGroups, nPlots, TileSpacing='tight', Padding='tight');
+AX = gobjects(nGroups, 3);
 
-selJustOneDec = groupVar == 1;
-groupVar(selJustOneDec & reshape(meta.pressNorm<0, size(groupVar))) = 1.0;
-groupVar(selJustOneDec & reshape(meta.lickNorm<0, size(groupVar))) = 1.1;
-groupVar(selJustOneDec & reshape(meta.correctReleaseNorm<0, size(groupVar))) = 1.2;
-
-selJustTwoDec = groupVar == 2;
-groupVar(selJustTwoDec & reshape(meta.pressNorm>0, size(groupVar))) = 2.0;
-groupVar(selJustTwoDec & reshape(meta.lickNorm>0, size(groupVar))) = 2.1;
-groupVar(selJustTwoDec & reshape(meta.correctReleaseNorm>0, size(groupVar))) = 2.2;
-
-tl = tiledlayout(figure(Units='inches', Position=[6 6 6 5]), 1, 3);
-AX = gobjects(1, 3);
-iAx = 1;
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-[~, etaOrder.pressNormToSelf] = EphysUnit.plotETA(ax, eta.pressNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    sortGroup=groupVar, sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
-xline(ax, meta.window.press, 'k')
-title(ax, 'Reach')
-xlabel(ax, 'time to bar contact (s)')
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-EphysUnit.plotETA(ax, eta.lickNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    order=etaOrder.pressNormToSelf, hideColorbar=true);
-xline(ax, meta.window.lick       , 'k')
-title(ax, 'Lick')
-xlabel(ax, 'time to spout contact (s)')
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-EphysUnit.plotETA(ax, eta.correctReleaseNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    order=etaOrder.pressNormToSelf, hideColorbar=false);
-xline(ax, meta.window.correctRelease, 'k')
-title(ax, 'Release')
-xlabel(ax, 'time to bar release (s)')
-
-N = histcounts(groupVar, 1:5);
-for iAx = 1:3
-    applyCustomColormap(AX(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
-    yline(AX(iAx), cumsum(N(1:end-1)) + 1, '--', LineWidth=2, Color='magenta');
+h = gobjects(2, 1);
+for iGroup = 1:nGroups
+    sel = groupVar == uniqueGroupVars(iGroup);
+    for iAx = 1:length(ETA)
+        ax = nexttile(tl); AX(iGroup, iAx) = ax;
+        hold(ax, 'on')
+        for iLine = 1:length(ETA{iAx})
+            etaTemp = eta.(ETA{iAx}(iLine));
+            if isscalar(ETA{iAx})
+                colors = [0.2, 0.8, 0.2];
+            else
+                colors = [0.2, 0.2, 0.2; 0.2, 0.8, 0.2];
+            end
+            selT = etaTemp.t>-2 & etaTemp.t<2;
+            if iAx == 1 && iGroup == 1
+                h(iLine) = plot(ax, etaTemp.t(selT), mean(etaTemp.X(sel, selT), 1, 'omitnan'), Color=colors(iLine, :), LineWidth=1.5, DisplayName=NAME{iAx}(iLine));
+            else
+                plot(ax, etaTemp.t(selT), mean(etaTemp.X(sel, selT), 1, 'omitnan'), Color=colors(iLine, :), LineWidth=1.5, DisplayName=NAME{iAx}(iLine));
+            end
+        end
+        hold(ax, 'off')
+        if iAx == 1
+            ylabel(ax, sprintf("""%g""", uniqueGroupVars(iGroup)), Rotation=0)
+        end
+        xline(ax, 0, 'k:')
+        yline(ax, 0, 'k:')
+    end
+    xlim(AX(iGroup, :), [-2, 2])
+    drawnow();
+    yl = vertcat(AX(iGroup, :).YLim);
+    ylim(AX(iGroup, :), [min(yl(:)), max(yl(:))]);
 end
 
-ax.Colorbar.Layout.Tile='east';
-ylabel(AX, '')
-title(tl, 'Same order, normalized independently', FontWeight='bold')
-fontsize(tl, 9, 'points')
-
-
-
-clear ax iAx AX tl N groupVar selJustOneDec selJustTwoDec
-
-%% Heatmap with fancy sort
-
-% Sorted by reach, normed to reach
-groupVar = zeros(size(eu));
-groupVar(cc.isPressDown) = groupVar(cc.isPressDown) + 1;
-groupVar(cc.isLickDown) = groupVar(cc.isLickDown) + 1;
-groupVar(cc.isCorrectReleaseDown) = groupVar(cc.isCorrectReleaseDown) + 1;
-groupVar(groupVar==0) = 4;
-
-selJustOneDec = groupVar == 1;
-groupVar(selJustOneDec & reshape(cc.isPressDown, size(groupVar))) = 1.0;
-groupVar(selJustOneDec & reshape(cc.isLickDown, size(groupVar))) = 1.1;
-groupVar(selJustOneDec & reshape(cc.isCorrectReleaseDown, size(groupVar))) = 1.2;
-
-selJustTwoDec = groupVar == 2;
-groupVar(selJustTwoDec & reshape(~cc.isCorrectReleaseDown, size(groupVar))) = 2.0;
-groupVar(selJustTwoDec & reshape(~cc.isLickDown, size(groupVar))) = 2.1;
-groupVar(selJustTwoDec & reshape(~cc.isPressDown, size(groupVar))) = 2.2;
-
-tl = tiledlayout(figure(Units='inches', Position=[0 1 6 5]), 1, 3);
-AX = gobjects(1, 3);
-iAx = 1;
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-[~, etaOrder.pressNormToPress] = EphysUnit.plotETA(ax, eta.pressNorm, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    sortGroup=groupVar, sortWindow=[-2, 0], signWindow=[-0.5, 0], sortThreshold=0.5, negativeSortThreshold=0.25, hideColorbar=true);
-xline(ax, meta.window.press, 'k')
-title(ax, 'Reach')
-xlabel(ax, 'time to bar contact (s)')
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-EphysUnit.plotETA(ax, eta.lickNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    order=etaOrder.pressNormToPress, hideColorbar=true);
-xline(ax, meta.window.lick, 'k')
-title(ax, 'Lick')
-xlabel(ax, 'time to spout contact (s)')
-
-ax = nexttile(tl); AX(iAx) = ax; iAx = iAx + 1;
-EphysUnit.plotETA(ax, eta.correctReleaseNormToPress, xlim=etaParams.xlim, clim=etaParams.clim, ...
-    order=etaOrder.pressNormToPress, hideColorbar=false);
-xline(ax, meta.window.correctRelease, 'k')
-title(ax, 'Release')
-xlabel(ax, 'time to bar release (s)')
-
-N = histcounts(groupVar, 1:5);
-for iAx = 1:3
-    applyCustomColormap(AX(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
-    yline(AX(iAx), cumsum(N(1:end-1)), '--', LineWidth=2, Color='magenta');
-    yticks(AX(iAx), cumsum(N));
+for iAx = 1:nPlots
+    title(AX(1, iAx), TITLE(iAx))
+    xlabel(AX(end, iAx), sprintf('time to %s (s)', EVENT(iAx)))
 end
+lgd = legend(h, Orientation='horizontal');
+lgd.Layout.Tile = 'north';
+xticks(AX(1:end-1, :), [])
+yticks(AX(:, 2:end), [])
 
-ax.Colorbar.Layout.Tile='east';
-ylabel(AX, '')
-title(tl, 'Same order, normalized to peri-reach [-4, -2]s', FontWeight='bold')
-fontsize(tl, 9, 'points')
+fontsize(AX, 9, 'points')
 
+ylabel(tl, "Spike rate (sp/s)", FontSize=9);
+
+% clear tempOrder etaTemp iAx ax tl AX groupVar ETA WINDOW nPlots
+% clear iGroup uniqueGrroupVars groupVars selJustOneDec selJustTwoDec tl AX iAx ax N iAx
 
 
 %% Plot individial units, PETH as trace: lick, reach, release
 close all
-path = 'E:\Figures\noArtifacts_pressAndLickBlancking_10ms\';
+path = 'E:\Figures\reach_release_lick_lastLickOff\noArtifacts_pressAndLickBlancking_10ms\';
 if ~exist(path, 'dir')
     mkdir(path)
 end
@@ -728,13 +680,12 @@ end
 %     "incorrect", "incorrect", "before bar retract", "incorrect"];
 % XLIM = {[-2, 2], [-2, 2], [-1, 2], [-1, 2]};
 
-ETA = {eta.correctLick, eta.correctPress, eta.correctReleaseAfterRetract; 
-    eta.incorrectLick, eta.incorrectPress, eta.correctReleaseBeforeRetract};
-NAME = ["self-timed lick", "self-timed reach", "release (correct)"];
-OUTCOME = ["correct", "correct", "on retract"; ...
-    "incorrect", "incorrect", "early"];
-XLIM = {[-2, 2], [-2, 2], [-1, 2]};
-ZEROLABEL = ["lick", "touch", "release"];
+ETA = {eta.correctPress, eta.correctRelease, eta.correctLick, eta.correctLastLickOff; ...
+        eta.incorrectPress, eta.incorrectRelease, eta.incorrectLick, eta.incorrectLastLickOff};
+NAME = ["Reach", "Release", "Lick", "LastLickOff"];
+OUTCOME = ["correct"; "incorrect"];
+XLIM = {[-2, 2], [-1, 2], [-2, 2], [-1, 2]};
+ZEROLABEL = ["touch", "touch-off", "lick", "lick-off"];
 
 fig = figure(Units='inches', OuterPosition=[1, 1, 8, 3]);
 tl = tiledlayout(fig, 1, sum(cellfun(@diff, XLIM)), TileSpacing='compact', Padding='tight');
@@ -752,13 +703,13 @@ for iEu = 0:length(eu)
         sel = t > -2 & t < 1.9;
 
         if iEu == 0
-            h(1) = plot(ax(i), ETA{1, i}.t(sel), mean(ETA{1, i}.X(:, sel), 1, 'omitnan'), Color=[0.2 0.6 0.2], DisplayName=sprintf("%s", OUTCOME(1, i)), LineWidth=1.5);
-            h(2) = plot(ax(i), ETA{2, i}.t(sel), mean(ETA{2, i}.X(:, sel), 1, 'omitnan'), Color=[0.2 0.2 0.2], DisplayName=sprintf("%s", OUTCOME(2, i)), LineWidth=1.5);
+            h(1) = plot(ax(i), ETA{1, i}.t(sel), mean(ETA{1, i}.X(:, sel), 1, 'omitnan'), Color=[0.2 0.6 0.2], DisplayName=sprintf("%s", OUTCOME(1)), LineWidth=1.5);
+            h(2) = plot(ax(i), ETA{2, i}.t(sel), mean(ETA{2, i}.X(:, sel), 1, 'omitnan'), Color=[0.2 0.2 0.2], DisplayName=sprintf("%s", OUTCOME(2)), LineWidth=1.5);
             yl(1) = 20;
             yl(2) = 80;
         else
-            h(1) = plot(ax(i), ETA{1, i}.t(sel), ETA{1, i}.X(iEu, sel), Color=[0.2 0.6 0.2], DisplayName=sprintf("%s (%i trials)", OUTCOME(1, i), ETA{1, i}.N(iEu)), LineWidth=1.5);
-            h(2) = plot(ax(i), ETA{2, i}.t(sel), ETA{2, i}.X(iEu, sel), Color=[0.2 0.2 0.2], DisplayName=sprintf("%s (%i trials)", OUTCOME(2, i), ETA{2, i}.N(iEu)), LineWidth=1.5);
+            h(1) = plot(ax(i), ETA{1, i}.t(sel), ETA{1, i}.X(iEu, sel), Color=[0.2 0.6 0.2], DisplayName=sprintf("%s (%i trials)", OUTCOME(1), ETA{1, i}.N(iEu)), LineWidth=1.5);
+            h(2) = plot(ax(i), ETA{2, i}.t(sel), ETA{2, i}.X(iEu, sel), Color=[0.2 0.2 0.2], DisplayName=sprintf("%s (%i trials)", OUTCOME(2), ETA{2, i}.N(iEu)), LineWidth=1.5);
             yl(1) = min([yl(1), ETA{1, i}.X(iEu, sel), ETA{2, i}.X(iEu, sel)], [], 'omitnan');
             yl(2) = max([yl(2), ETA{1, i}.X(iEu, sel), ETA{2, i}.X(iEu, sel)], [], 'omitnan');
         end
