@@ -2622,7 +2622,7 @@ classdef EphysUnit < handle
                 p.addRequired('edges', @(x) isnumeric(x) && length(x)>=2 && nnz(diff(x)<=0)==0)
             end
             p.addParameter('artifacts', [], @(x) isempty(x) || (isstruct(x) && all(isfield(x, {'t', 'length', 'direction'}))))
-            p.addParameter('minArtifactBlankingProportion', 0.1, @isnumeric) % When artifact blanking leaves less than this proportion of bin, make spike rate for that bin NaN rather than counting and then dividing by remaining bin proportion.
+            p.addParameter('minArtifactBlankingProportion', 0.33, @isnumeric) % When artifact blanking leaves less than this proportion of bin, make spike rate for that bin NaN rather than counting and then dividing by remaining bin proportion.
             p.parse(varargin{:})
             artifacts = p.Results.artifacts;
             minArtifactBlankingProportion = p.Results.minArtifactBlankingProportion;
