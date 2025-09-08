@@ -503,7 +503,11 @@ classdef EphysUnit < handle
                             thesetrials = [obj.Trials.PressReleaseCorrect, obj.Trials.PressReleaseIncorrect];
                             trials{itt} = thesetrials.sortby('start', 'ascend');
                         otherwise
-                            trials{itt} = obj.Trials.(trialType{itt});
+                            if isfield(obj.Trials, trialType{itt})
+                                trials{itt} = obj.Trials.(trialType{itt});                                
+                            else
+                                trials{itt} = Trial.empty;
+                            end
                     end
                 end
                 trials = cat(1, trials{:});

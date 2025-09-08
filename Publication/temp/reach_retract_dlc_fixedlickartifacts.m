@@ -1,14 +1,12 @@
-% eu = EphysUnit.load('C:\SERVER\Units\PressVsLick_ArtifactsRemoved');
-% load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved.mat');
-% 
-% %% Read Arduino events (servo/pressOff)
+eu = EphysUnit.load('C:\SERVER\Units\PressVsLick_ArtifactsRemoved_Full');
+load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved_Full.mat');
+
+%% Read Arduino events (servo/pressOff)
 % clear ac
-% [ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames] = eu.loadArduinoConnection();
-% 
-% eu.alignTimestamps(["LEVER_RELEASED", "LEVER_PRESSED", "LEVER_RETRACT_START", "LEVER_RETRACTED", "LEVER_RETRACT_END", "TUBE_RETRACT_START", "TUBE_RETRACT_END"], ac={ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames});
-% 
+[ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames] = eu.loadArduinoConnection();
+eu.alignTimestamps(["LEVER_RELEASED", "LEVER_PRESSED", "LEVER_RETRACT_START", "LEVER_RETRACTED", "LEVER_RETRACT_END", "TUBE_RETRACT_START", "TUBE_RETRACT_END"], ac={ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames});
 % eu.loadDigitalEventsFromTetrodeRecording(["PressOn", "PressOff", "LickOn", "LickOff", "RewardOn", "RewardOff"]);
-% 
+
 % %% Find and correct bad lick labels
 % clear nLicks
 % nLicks.EUvReward = arrayfun(@(eu) [length(eu.EventTimes.LickOn), length(eu.EventTimes.RewardOn)], eu, UniformOutput=false);
@@ -16,6 +14,7 @@
 % 
 % 
 % lickIsReward = diff(nLicks.EUvReward, 1, 2) == 0; lickIsReward = lickIsReward(:)';
+% 
 % 
 % for iEu = 1:length(eu)
 %     eu(iEu).EventTimes.LICK = [];
@@ -32,148 +31,146 @@
 %     eu(iEu).Trials.Lick = Trial(eu(iEu).EventTimes.Cue, eu(iEu).EventTimes.LICK, 'first', eu(iEu).EventTimes.Press);
 % end
 % clear nLicks iEu
-% 
 
-% for iEu = 1:length(eu)
-%     % try
-%         % Discard false-lever-releases (minDuration=0.1)
-%         releaseToPress = Trial([eu(iEu).EventTimes.PressOff, Inf], eu(iEu).EventTimes.PressOn, 'first');
-%         releaseToPress = releaseToPress(releaseToPress.duration() > 5);
-%         leverReleaseTimes = [releaseToPress.Start];
-%         clear releaseToPress
-% 
-%         leverRetractTimes = eu(iEu).EventTimes.LEVER_RETRACT_START;
-%         if isempty(leverRetractTimes)
-%             leverRetractTimes = eu(iEu).EventTimes.LEVER_RETRACTED;
-%             assert(~isempty(leverRetractTimes))
-%         end
-%         % Press trials
-%         eu(iEu).Trials.Press = Trial(eu(iEu).EventTimes.Cue, eu(iEu).EventTimes.Press, 'first');
-%         eu(iEu).Trials.PressValid = eu(iEu).Trials.Press(eu(iEu).Trials.Press.duration() >= 2);
-%         eu(iEu).Trials.PressIncorrect = eu(iEu).Trials.Press(eu(iEu).Trials.Press.duration() < 4 & eu(iEu).Trials.Press.duration() >= 2);
-%         eu(iEu).Trials.PressCorrect = eu(iEu).Trials.Press(eu(iEu).Trials.Press.duration() >= 4);
-% 
-%         % cue -> retract
-%         eu(iEu).Trials.CueToLeverRetract = Trial([eu(iEu).Trials.PressValid.Start, Inf], leverRetractTimes, 'first');
-%         eu(iEu).Trials.CueToLeverRetractIncorrect = Trial([eu(iEu).Trials.PressIncorrect.Start, Inf], leverRetractTimes, 'first');
-%         eu(iEu).Trials.CueToLeverRetractCorrect = Trial([eu(iEu).Trials.PressCorrect.Start, Inf], leverRetractTimes, 'first');
-%         % These assertions failed for 2 sessions ["daisy8_20210625", "desmond23_20220504"] b/c there were fewer retractions than cue (difference was only 1 or 12). WHY? 
-%         % assert(length(eu(iEu).Trials.CueToLeverRetract) == length(eu(iEu).Trials.PressValid), "a: %i != %i", length(eu(iEu).Trials.CueToLeverRetract), length(eu(iEu).Trials.PressValid))
-%         % assert(length(eu(iEu).Trials.CueToLeverRetractIncorrect) == length(eu(iEu).Trials.PressIncorrect), "b: %i != %i", length(eu(iEu).Trials.CueToLeverRetractIncorrect), length(eu(iEu).Trials.PressIncorrect))
-%         % assert(length(eu(iEu).Trials.CueToLeverRetractCorrect) == length(eu(iEu).Trials.PressCorrect), "c: %i != %i", length(eu(iEu).Trials.CueToLeverRetractCorrect), length(eu(iEu).Trials.PressCorrect))
-% 
-%         % cue -> release
-%         eu(iEu).Trials.CueToLeverRelease = Trial([eu(iEu).Trials.PressValid.Start, Inf], leverReleaseTimes, 'first');
-%         eu(iEu).Trials.CueToLeverReleaseIncorrect = Trial([eu(iEu).Trials.PressIncorrect.Start, Inf], leverReleaseTimes, 'first'); % This should be almost identical to PressIncorrect/CueToLeverRetractIncorrect
-%         eu(iEu).Trials.CueToLeverReleaseCorrect = Trial([eu(iEu).Trials.PressCorrect.Start, Inf], leverReleaseTimes, 'first');
-% 
-%         % correct trials: release before retract vs. release after retract
-%         % cue = [eu(iEu).Trials.CueToLeverRetractCorrect.Start];
-%         % retract = [eu(iEu).Trials.CueToLeverRetractCorrect.Stop];
-%         % release = [eu(iEu).Trials.CueToLeverReleaseCorrect.Stop];
-%         [isReleaseBeforeRetract, releaseBeforeRetract] = eu(iEu).Trials.CueToLeverRetractCorrect.inTrial(leverReleaseTimes);
-%         releaseAfterRetract = leverReleaseTimes(~isReleaseBeforeRetract);
-% 
-%         eu(iEu).Trials.CueToLeverReleaseBeforeRetractCorrect = Trial([eu(iEu).Trials.CueToLeverRetractCorrect.Start, Inf], releaseBeforeRetract, 'first');
-%         eu(iEu).Trials.RetractToLeverReleaseAfterRetractCorrect = Trial([eu(iEu).Trials.CueToLeverRetractCorrect.Stop, Inf], releaseAfterRetract, 'first', eu(iEu).EventTimes.PressOn);
-%         clear isReleaseBeforeRetract releaseBeforeRetract releaseAfterRetract
-% 
-%         % [~, leverRetractTimesIncorrect] = eu(iEu).Trials.PressIncorrect.inTrial(leverRetractTimes, [0, 2], windowMode='stop');
-%         % assert(nnz(leverRetractTimesIncorrect) > 0)
-%         % [~, leverRetractTimesCorrect] = eu(iEu).Trials.PressCorrect.inTrial(leverRetractTimes, [-0.1, 8], windowMode='stop');
-%         % eu(iEu).Trials.RetractReleaseIncorrect = Trial([leverRetractTimesIncorrect, Inf], leverReleaseTimes, 'first');
-%         % eu(iEu).Trials.RetractReleaseCorrect = Trial([leverRetractTimesCorrect, Inf], leverReleaseTimes, 'first');
-%         % eu(iEu).Trials.PressReleaseIncorrect = Trial([eu(iEu).Trials.PressIncorrect.Start, Inf], [eu(iEu).Trials.RetractReleaseIncorrect.Stop], 'first');
-%         % eu(iEu).Trials.PressReleaseCorrect = Trial([eu(iEu).Trials.PressCorrect.Stop, Inf], [eu(iEu).Trials.RetractReleaseCorrect.Stop], 'first');
-%         % eu(iEu).Trials.PressRetractIncorrect = Trial([eu(iEu).Trials.PressIncorrect.Stop], leverRetractTimesIncorrect, 'first');
-%         % eu(iEu).Trials.PressRetractCorrect = Trial([eu(iEu).Trials.PressCorrect.Stop], leverRetractTimesCorrect, 'first');
-%     % catch ME
-%     %     warning('Counld not process iEu = %i, "%s"', iEu, eu(iEu).getName())
-%     %     warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
-%     % end
-% end
-
-%% Find (last lick after cue correct, tube retract correct, tube retract incorrect)
+%% Remake press trials
 for iEu = 1:length(eu)
-    eu(iEu).Trials.LickValid = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() >= 2);
-    eu(iEu).Trials.LickIncorrect = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() < 4 & eu(iEu).Trials.Lick.duration() >= 2);
-    eu(iEu).Trials.LickCorrect = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() >= 4);
+    try
+        % Discard false-lever-releases (minDuration=0.1)
+        releaseToPress = Trial([eu(iEu).EventTimes.PressOff, Inf], eu(iEu).EventTimes.PressOn, 'first');
+        releaseToPress = releaseToPress(releaseToPress.duration() > 5);
+        leverReleaseTimes = [releaseToPress.Start];
+        clear releaseToPress
 
-    % For each self-timed Lick, find the next cue (of any kind)
-    firstLickToCueValid = Trial([eu(iEu).Trials.LickValid.Stop, Inf], eu(iEu).EventTimes.Cue, 'first');
-    firstLickToCueIncorrect = Trial([eu(iEu).Trials.LickIncorrect.Stop, Inf], eu(iEu).EventTimes.Cue, 'first');
-    firstLickToCueCorrect = Trial([eu(iEu).Trials.LickCorrect.Stop, Inf], eu(iEu).EventTimes.Cue, 'first');
-    % Find the last lickOff between firstLick and nextCue
-    [~, lickOff, trialIndices] = firstLickToCueValid.inTrial(eu(iEu).EventTimes.LickOff);
-    [~, lastLickOff, ~] = unique(trialIndices, 'last');
-    lastLickOff = lickOff(lastLickOff);
-    eu(iEu).Trials.CueToLastLickOff = Trial([eu(iEu).Trials.LickValid.Start, Inf], lastLickOff(:)', 'last');
+        % Press trials
+        eu(iEu).Trials.Press = Trial(eu(iEu).EventTimes.Cue, eu(iEu).EventTimes.Press, 'first');
+        eu(iEu).Trials.PressValid = eu(iEu).Trials.Press(eu(iEu).Trials.Press.duration() >= 2);
+        eu(iEu).Trials.PressIncorrect = eu(iEu).Trials.Press(eu(iEu).Trials.Press.duration() < 4 & eu(iEu).Trials.Press.duration() >= 2);
+        eu(iEu).Trials.PressCorrect = eu(iEu).Trials.Press(eu(iEu).Trials.Press.duration() >= 4);
 
-    % CueToLastLickOffIncorrect
-    [~, lickOff, trialIndices] = firstLickToCueIncorrect.inTrial(eu(iEu).EventTimes.LickOff);
-    [~, lastLickOff, ~] = unique(trialIndices, 'last');
-    lastLickOff = lickOff(lastLickOff);
-    eu(iEu).Trials.CueToLastLickOffIncorrect = Trial([eu(iEu).Trials.LickIncorrect.Start, Inf], lastLickOff(:)', 'last');
+        % cue -> release
+        eu(iEu).Trials.CueToLeverRelease = Trial([eu(iEu).Trials.PressValid.Start, Inf], leverReleaseTimes, 'first');
+        eu(iEu).Trials.CueToLeverReleaseIncorrect = Trial([eu(iEu).Trials.PressIncorrect.Start, Inf], leverReleaseTimes, 'first'); % This should be almost identical to PressIncorrect/CueToLeverRetractIncorrect
+        eu(iEu).Trials.CueToLeverReleaseCorrect = Trial([eu(iEu).Trials.PressCorrect.Start, Inf], leverReleaseTimes, 'first');
 
-    % CueToLastLickOffCorrect
-    [~, lickOff, trialIndices] = firstLickToCueCorrect.inTrial(eu(iEu).EventTimes.LickOff);
-    [~, lastLickOff, ~] = unique(trialIndices, 'last');
-    lastLickOff = lickOff(lastLickOff);
-    eu(iEu).Trials.CueToLastLickOffCorrect = Trial([eu(iEu).Trials.LickCorrect.Start, Inf], lastLickOff(:)', 'last');
+        leverRetractTimes = eu(iEu).EventTimes.LEVER_RETRACT_START;
+        if isempty(leverRetractTimes)
+            leverRetractTimes = eu(iEu).EventTimes.LEVER_RETRACTED;
+            assert(~isempty(leverRetractTimes))
+        end
 
-    % LickToLastLickOffIncorrect
-    [~, lickOff, trialIndices] = firstLickToCueIncorrect.inTrial(eu(iEu).EventTimes.LickOff);
-    [~, lastLickOff, ~] = unique(trialIndices, 'last');
-    lastLickOff = lickOff(lastLickOff);
-    eu(iEu).Trials.LickToLastLickOffIncorrect = Trial([eu(iEu).Trials.LickIncorrect.Stop, Inf], lastLickOff(:)', 'last');
+        % cue -> retract
+        eu(iEu).Trials.CueToLeverRetract = Trial([eu(iEu).Trials.PressValid.Start, Inf], leverRetractTimes, 'first');
+        eu(iEu).Trials.CueToLeverRetractIncorrect = Trial([eu(iEu).Trials.PressIncorrect.Start, Inf], leverRetractTimes, 'first');
+        eu(iEu).Trials.CueToLeverRetractCorrect = Trial([eu(iEu).Trials.PressCorrect.Start, Inf], leverRetractTimes, 'first');
+        % These assertions failed for 2 sessions ["daisy8_20210625", "desmond23_20220504"] b/c there were fewer retractions than cue (difference was only 1 or 12). WHY? 
+        % assert(length(eu(iEu).Trials.CueToLeverRetract) == length(eu(iEu).Trials.PressValid), "a: %i != %i", length(eu(iEu).Trials.CueToLeverRetract), length(eu(iEu).Trials.PressValid))
+        % assert(length(eu(iEu).Trials.CueToLeverRetractIncorrect) == length(eu(iEu).Trials.PressIncorrect), "b: %i != %i", length(eu(iEu).Trials.CueToLeverRetractIncorrect), length(eu(iEu).Trials.PressIncorrect))
+        % assert(length(eu(iEu).Trials.CueToLeverRetractCorrect) == length(eu(iEu).Trials.PressCorrect), "c: %i != %i", length(eu(iEu).Trials.CueToLeverRetractCorrect), length(eu(iEu).Trials.PressCorrect))
 
-    % LickToLastLickOffCorrect
-    [~, lickOff, trialIndices] = firstLickToCueCorrect.inTrial(eu(iEu).EventTimes.LickOff);
-    [~, lastLickOff, ~] = unique(trialIndices, 'last');
-    lastLickOff = lickOff(lastLickOff);
-    eu(iEu).Trials.LickToLastLickOffCorrect = Trial([eu(iEu).Trials.LickCorrect.Stop, Inf], lastLickOff(:)', 'last');
+        % correct trials: release before retract vs. release after retract
+        % cue = [eu(iEu).Trials.CueToLeverRetractCorrect.Start];
+        % retract = [eu(iEu).Trials.CueToLeverRetractCorrect.Stop];
+        % release = [eu(iEu).Trials.CueToLeverReleaseCorrect.Stop];
+        [isReleaseBeforeRetract, releaseBeforeRetract] = eu(iEu).Trials.CueToLeverRetractCorrect.inTrial(leverReleaseTimes);
+        releaseAfterRetract = leverReleaseTimes(~isReleaseBeforeRetract);
 
+        eu(iEu).Trials.CueToLeverReleaseBeforeRetractCorrect = Trial([eu(iEu).Trials.CueToLeverRetractCorrect.Start, Inf], releaseBeforeRetract, 'first');
+        eu(iEu).Trials.RetractToLeverReleaseAfterRetractCorrect = Trial([eu(iEu).Trials.CueToLeverRetractCorrect.Stop, Inf], releaseAfterRetract, 'first', eu(iEu).EventTimes.PressOn);
+        clear isReleaseBeforeRetract releaseBeforeRetract releaseAfterRetract
+    catch ME
+        warning('Counld not process iEu = %i, "%s"', iEu, eu(iEu).getName())
+        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+    end
+end
 
-    % CorrectPressToFirstRewardLick
-    % First lick after rewarded self-timed reach, exclude trials with cues in between (i.e. rewarded press, but did not lick before next cue)
-    eu(iEu).Trials.CorrectPressToFirstRewardLick = Trial([eu(iEu).Trials.PressCorrect.Stop, Inf], eu(iEu).EventTimes.LickOn, 'first', eu(iEu).EventTimes.Cue);
+% Remake lick trials, Find (last lick after cue correct, tube retract correct, tube retract incorrect)
+for iEu = 1:length(eu)
+    try
+        eu(iEu).Trials.LickValid = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() >= 2);
+        eu(iEu).Trials.LickIncorrect = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() < 4 & eu(iEu).Trials.Lick.duration() >= 2);
+        eu(iEu).Trials.LickCorrect = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() >= 4);
+    
+        % For each self-timed Lick, find the next cue (of any kind)
+        firstLickToCueValid = Trial([eu(iEu).Trials.LickValid.Stop, Inf], eu(iEu).EventTimes.Cue, 'first');
+        firstLickToCueIncorrect = Trial([eu(iEu).Trials.LickIncorrect.Stop, Inf], eu(iEu).EventTimes.Cue, 'first');
+        firstLickToCueCorrect = Trial([eu(iEu).Trials.LickCorrect.Stop, Inf], eu(iEu).EventTimes.Cue, 'first');
+        % Find the last lickOff between firstLick and nextCue
+        [~, lickOff, trialIndices] = firstLickToCueValid.inTrial(eu(iEu).EventTimes.LickOff);
+        [~, lastLickOff, ~] = unique(trialIndices, 'last');
+        lastLickOff = lickOff(lastLickOff);
+        eu(iEu).Trials.CueToLastLickOff = Trial([eu(iEu).Trials.LickValid.Start, Inf], lastLickOff(:)', 'last');
+    
+        % CueToLastLickOffIncorrect
+        [~, lickOff, trialIndices] = firstLickToCueIncorrect.inTrial(eu(iEu).EventTimes.LickOff);
+        [~, lastLickOff, ~] = unique(trialIndices, 'last');
+        lastLickOff = lickOff(lastLickOff);
+        eu(iEu).Trials.CueToLastLickOffIncorrect = Trial([eu(iEu).Trials.LickIncorrect.Start, Inf], lastLickOff(:)', 'last');
+    
+        % CueToLastLickOffCorrect
+        [~, lickOff, trialIndices] = firstLickToCueCorrect.inTrial(eu(iEu).EventTimes.LickOff);
+        [~, lastLickOff, ~] = unique(trialIndices, 'last');
+        lastLickOff = lickOff(lastLickOff);
+        eu(iEu).Trials.CueToLastLickOffCorrect = Trial([eu(iEu).Trials.LickCorrect.Start, Inf], lastLickOff(:)', 'last');
+    
+        % LickToLastLickOffIncorrect
+        [~, lickOff, trialIndices] = firstLickToCueIncorrect.inTrial(eu(iEu).EventTimes.LickOff);
+        [~, lastLickOff, ~] = unique(trialIndices, 'last');
+        lastLickOff = lickOff(lastLickOff);
+        eu(iEu).Trials.LickToLastLickOffIncorrect = Trial([eu(iEu).Trials.LickIncorrect.Stop, Inf], lastLickOff(:)', 'last');
+    
+        % LickToLastLickOffCorrect
+        [~, lickOff, trialIndices] = firstLickToCueCorrect.inTrial(eu(iEu).EventTimes.LickOff);
+        [~, lastLickOff, ~] = unique(trialIndices, 'last');
+        lastLickOff = lickOff(lastLickOff);
+        eu(iEu).Trials.LickToLastLickOffCorrect = Trial([eu(iEu).Trials.LickCorrect.Stop, Inf], lastLickOff(:)', 'last');
+    
+        % CueToLastLickOffBeforeRetractCorrect
+        tubeRetractTimes = eu(iEu).EventTimes.TUBE_RETRACT_START;
+        if isempty(tubeRetractTimes)
+            tubeRetractTimes = eu(iEu).EventTimes.TUBE_RETRACTED;
+            assert(~isempty(tubeRetractTimes))
+        end
+        cueToTubeRetractCorrect = Trial([eu(iEu).Trials.LickCorrect.Start, Inf], tubeRetractTimes, 'first');
+    
+        [~, lickOff, trialIndices] = firstLickToCueCorrect.inTrial(eu(iEu).EventTimes.LickOff);
+        [~, lastLickOff, ~] = unique(trialIndices, 'last');
+        lastLickOff = lickOff(lastLickOff);
+    
+        [isLickOffBeforeRetract, lickOffBeforeRetract] = cueToTubeRetractCorrect.inTrial(lastLickOff);
+        lickOffAfterRetract = lastLickOff(~isLickOffBeforeRetract);
+    
+        eu(iEu).Trials.CueToLastLickOffBeforeRetractCorrect = Trial([cueToTubeRetractCorrect.Start, Inf], lickOffBeforeRetract, 'first');
+        eu(iEu).Trials.CueToLastLickOffAfterRetractCorrect = Trial([cueToTubeRetractCorrect.Start, Inf], lickOffAfterRetract, 'first', lickOffBeforeRetract);
+        clear lickOff trialIndices lastLickOff isLickOffBeforeRetract lickOffBeforeRetract lickOffAfterRetract
+     
+    
+        % CorrectPressToFirstRewardLick
+        % First lick after rewarded self-timed reach, exclude trials with cues in between (i.e. rewarded press, but did not lick before next cue)
+        eu(iEu).Trials.CorrectPressToFirstRewardLick = Trial([eu(iEu).Trials.PressCorrect.Stop, Inf], eu(iEu).EventTimes.LickOn, 'first', eu(iEu).EventTimes.Cue);
+    
+        % For each self-timed reach, find the next cue (of any kind)
+        correctPressToCue = Trial([eu(iEu).Trials.CorrectPressToFirstRewardLick.Start, Inf], eu(iEu).EventTimes.Cue, 'first');
+        % CorrectPressToLastLickOff
+        [~, lickOff, trialIndices] = correctPressToCue.inTrial(eu(iEu).EventTimes.LickOff);
+        [~, lastLickOff, ~] = unique(trialIndices, 'last');
+        lastLickOff = lickOff(lastLickOff);
+        eu(iEu).Trials.CorrectPressToLastLickOff = Trial([eu(iEu).Trials.CorrectPressToFirstRewardLick.Start, Inf], lastLickOff(:)', 'last');
 
-    % For each self-timed reach, find the next cue (of any kind)
-    correctPressToCue = Trial([eu(iEu).Trials.CorrectPressToFirstRewardLick.Start, Inf], eu(iEu).EventTimes.Cue, 'first');
-    % CorrectPressToLastLickOff
-    [~, lickOff, trialIndices] = correctPressToCue.inTrial(eu(iEu).EventTimes.LickOff);
-    [~, lastLickOff, ~] = unique(trialIndices, 'last');
-    lastLickOff = lickOff(lastLickOff);
-    eu(iEu).Trials.CorrectPressToLastLickOff = Trial([eu(iEu).Trials.CorrectPressToFirstRewardLick.Start, Inf], lastLickOff(:)', 'last');
-
+    catch ME
+        warning('Counld not process iEu = %i, "%s"', iEu, eu(iEu).getName())
+        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+    end
 end
 clear iEu firstLickToCueValid firstLickToCueIncorrect firstLickToCueCorrect lickOff trialIndices lastLickOff correctPressToCue
 
-% 
-% nReleaseTrials = arrayfun(@(eu) struct(release=length(eu.Trials.CueToLeverRelease), releaseCorrect=length(eu.Trials.CueToLeverReleaseCorrect), ...
-%     releaseBefore=length(eu.Trials.CueToLeverReleaseBeforeRetractCorrect), releaseAfter=length(eu.Trials.RetractToLeverReleaseAfterRetractCorrect)), eu);
-% 
-% clear ac iEu leverReleaseTimes leverRetractTimes
-% 
-% %% Save results
-% eu.save('C:\SERVER\Units\PressVsLick_ArtifactsRemoved\FixedEventsAndTrials');
+%% Save results
+eu.save('C:\SERVER\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials');
 
 %% Load results
-eu = EphysUnit.load('C:\SERVER\Units\LickVsReach_FixedArtifacts');
-load('C:\SERVER\Units\meta_LickVsReach_FixedArtifacts.mat');
+eu = EphysUnit.load('C:\SERVER\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials');
+load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved_Full.mat');
 
 %% TODO: Load deeplabcut (Derin did all the older sessions)
-
-
-%% Source of spikes switcheroo
-% 
-% for iEu = 1:length(eu)
-%     newSpikeTimes{iEu} = eu(iEu).SpikeTimes;
-% end
-
-for iEu = 1:length(eu)
-    eu(iEu).SpikeTimes = oldSpikeTimes(iEu).data;
-end
 
 %% Calculate ETA for correct reach vs. incorrect reach; correct vs. incorrect retract; correct vs. incorrect release; correct vs. incorrect lick
 clear eta
@@ -186,136 +183,58 @@ artifactParams(4) = struct(event='PressOff', length=10, lengthUnit='ms', directi
 
 eta.artifactParams = artifactParams;
 eta.baselineWindow = struct(press=[-4, -2], lick=[-4, -2], release=[-2, 0]);
-
+eta.resolution = 0.025;
 
 eta.correctPress = eu.getETA('count', 'PressCorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=artifactParams);
+    normalize='none', resolution=eta.resolution, artifacts=artifactParams);
 eta.incorrectPress = eu.getETA('count', 'PressIncorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=artifactParams);
+    normalize='none', resolution=eta.resolution, artifacts=artifactParams);
 
-eta.correctRetract = eu.getETA('count', 'CueToLeverRetractCorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=artifactParams);
-eta.incorrectRetract = eu.getETA('count', 'CueToLeverRetractIncorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=artifactParams);
 
 eta.correctRelease = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=artifactParams);
-
-eta.correctReleaseBeforeRetract = eu.getETA('count', 'CueToLeverReleaseBeforeRetractCorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=artifactParams);
-eta.correctReleaseAfterRetract = eu.getETA('count', 'RetractToLeverReleaseAfterRetractCorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=artifactParams);
+    normalize='none', resolution=eta.resolution, artifacts=artifactParams);
 
 eta.correctLick = eu.getETA('count', 'lick', [-4, 4], minTrialDuration=4, ...
-    normalize='none', resolution=0.1, artifacts=artifactParams);
+    normalize='none', resolution=eta.resolution, artifacts=artifactParams);
 eta.incorrectLick = eu.getETA('count', 'lick', [-4, 4], minTrialDuration=2, maxTrialDuration=4, ...
-    normalize='none', resolution=0.1, artifacts=artifactParams);
+    normalize='none', resolution=eta.resolution, artifacts=artifactParams);
 
 eta.correctLickLastLickOff = eu.getETA('count', 'CueToLastLickOffCorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=artifactParams);
+    normalize='none', resolution=eta.resolution, artifacts=artifactParams);
 
-eta.correctPressFirstLick = eu.getETA('count', 'CorrectPressToFirstRewardLick', [-4, 4], alignTo='stop', normalize='none', resolution=0.1, artifacts=artifactParams);
-eta.correctPressLastLickOff = eu.getETA('count', 'CorrectPressToLastLickOff', [-4, 4], alignTo='stop', normalize='none', resolution=0.1, artifacts=artifactParams);
+eta.correctPressFirstLick = eu.getETA('count', 'CorrectPressToFirstRewardLick', [-4, 4], alignTo='stop', normalize='none', resolution=eta.resolution, artifacts=artifactParams);
+eta.correctPressLastLickOff = eu.getETA('count', 'CorrectPressToLastLickOff', [-4, 4], alignTo='stop', normalize='none', resolution=eta.resolution, artifacts=artifactParams);
 
 % Convert to sp/s
-for field = ["correctPress", "incorrectPress", "correctLick", "incorrectLick", "correctRelease", "correctReleaseBeforeRetract", "correctReleaseAfterRetract", "correctRetract", "incorrectRetract", ...
+for field = ["correctPress", "incorrectPress", "correctLick", "incorrectLick", "correctRelease", ...
         "correctLickLastLickOff", "correctPressFirstLick", "correctPressLastLickOff"]
     eta.(field).X = eta.(field).X ./ 0.1;
 end
 
 clear field
 
-eta.pressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.baselineWindow.press, resolution=0.1, artifacts=artifactParams);
-eta.lickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-eta.correctReleaseNorm = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.pressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.baselineWindow.press, resolution=eta.resolution, artifacts=artifactParams);
+eta.lickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.pressNorm.stats, resolution=eta.resolution, artifacts=artifactParams);
+eta.correctReleaseNorm = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', normalize=eta.pressNorm.stats, resolution=eta.resolution, artifacts=artifactParams);
+eta.correctReleaseBeforeRetractNorm = eu.getETA('count', 'CueToLeverReleaseBeforeRetractCorrect', [-4, 4], alignTo='stop', normalize=eta.pressNorm.stats, resolution=eta.resolution, artifacts=artifactParams);
 
-eta.lickNormToSelf = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.baselineWindow.lick, resolution=0.1, artifacts=artifactParams);
-eta.correctReleaseNormToSelf = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', normalize=eta.baselineWindow.release, resolution=0.1, artifacts=artifactParams);
+eta.lickNormToSelf = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=eta.baselineWindow.lick, resolution=eta.resolution, artifacts=artifactParams);
+eta.correctReleaseNormToSelf = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', normalize=eta.baselineWindow.release, resolution=eta.resolution, artifacts=artifactParams);
 
-eta.correctPressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-eta.correctLickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-eta.correctReleaseBeforeRetractNorm = eu.getETA('count', 'CueToLeverReleaseBeforeRetractCorrect', [-4, 4], alignTo='stop', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-eta.correctReleaseAfterRetractNorm = eu.getETA('count', 'RetractToLeverReleaseAfterRetractCorrect', [-4, 4], alignTo='stop', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
+eta.correctPressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=eta.resolution, artifacts=artifactParams);
+eta.correctLickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=eta.pressNorm.stats, resolution=eta.resolution, artifacts=artifactParams);
 
-eta.incorrectPressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-eta.incorrectLickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-
-% Lick trials, last lickOff before next cue
-eta.correctLickLastLickOffNorm = eu.getETA('count', 'CueToLastLickOffCorrect', [-4, 4], alignTo='stop', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-% etaArtiFree.correctLickToLastLickOffNorm = eu.getETA('count', 'LickToLastLickOffCorrect', [-4, 20], alignTo='start', normalize=etaArtiFree.pressNorm.stats, resolution=0.1, artifacts=artifactParams, includeInvalid=false);
-eta.incorrectLickToLastLickOffNorm = eu.getETA('count', 'LickToLastLickOffIncorrect', [-4, 20], alignTo='start', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams, includeInvalid=false);
-
-% Reach trials, correct, reward licking
-eta.correctPressFirstLickNorm = eu.getETA('count', 'CorrectPressToFirstRewardLick', [-4, 4], alignTo='stop', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-eta.correctPressLastLickOffNorm = eu.getETA('count', 'CorrectPressToLastLickOff', [-4, 4], alignTo='stop', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=artifactParams);
-
-%%
-clear etaWithArti
-etaWithArti.artifactParams = [];
-etaWithArti.baselineWindow = struct(press=[-4, -2], lick=[-4, -2], release=[-2, 0]);
-
-
-etaWithArti.correctPress = eu.getETA('count', 'PressCorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=[]);
-etaWithArti.incorrectPress = eu.getETA('count', 'PressIncorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=[]);
-
-etaWithArti.correctRetract = eu.getETA('count', 'CueToLeverRetractCorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=[]);
-etaWithArti.incorrectRetract = eu.getETA('count', 'CueToLeverRetractIncorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=[]);
-
-etaWithArti.correctRelease = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=[]);
-
-etaWithArti.correctReleaseBeforeRetract = eu.getETA('count', 'CueToLeverReleaseBeforeRetractCorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=[]);
-etaWithArti.correctReleaseAfterRetract = eu.getETA('count', 'RetractToLeverReleaseAfterRetractCorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=[]);
-
-etaWithArti.correctLick = eu.getETA('count', 'lick', [-4, 4], minTrialDuration=4, ...
-    normalize='none', resolution=0.1, artifacts=[]);
-etaWithArti.incorrectLick = eu.getETA('count', 'lick', [-4, 4], minTrialDuration=2, maxTrialDuration=4, ...
-    normalize='none', resolution=0.1, artifacts=[]);
-
-etaWithArti.correctLickLastLickOff = eu.getETA('count', 'CueToLastLickOffCorrect', [-4, 4], alignTo='stop', ...
-    normalize='none', resolution=0.1, artifacts=[]);
-
-etaWithArti.correctPressFirstLick = eu.getETA('count', 'CorrectPressToFirstRewardLick', [-4, 4], alignTo='stop', normalize='none', resolution=0.1, artifacts=[]);
-etaWithArti.correctPressLastLickOff = eu.getETA('count', 'CorrectPressToLastLickOff', [-4, 4], alignTo='stop', normalize='none', resolution=0.1, artifacts=[]);
-
-% Convert to sp/s
-for field = ["correctPress", "incorrectPress", "correctLick", "incorrectLick", "correctRelease", "correctReleaseBeforeRetract", "correctReleaseAfterRetract", "correctRetract", "incorrectRetract", ...
-        "correctLickLastLickOff", "correctPressFirstLick", "correctPressLastLickOff"]
-    etaWithArti.(field).X = etaWithArti.(field).X ./ 0.1;
-end
-
-clear field
-
-etaWithArti.pressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=etaWithArti.baselineWindow.press, resolution=0.1, artifacts=[]);
-etaWithArti.lickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=etaWithArti.pressNorm.stats, resolution=0.1, artifacts=[]);
-etaWithArti.correctReleaseNorm = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', normalize=etaWithArti.pressNorm.stats, resolution=0.1, artifacts=[]);
-
-etaWithArti.lickNormToSelf = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=etaWithArti.baselineWindow.lick, resolution=0.1, artifacts=[]);
-etaWithArti.correctReleaseNormToSelf = eu.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', normalize=etaWithArti.baselineWindow.release, resolution=0.1, artifacts=[]);
-
-etaWithArti.correctPressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=etaWithArti.pressNorm.stats, resolution=0.1, artifacts=[]);
-etaWithArti.correctLickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=etaWithArti.pressNorm.stats, resolution=0.1, artifacts=[]);
-etaWithArti.correctReleaseBeforeRetractNorm = eu.getETA('count', 'CueToLeverReleaseBeforeRetractCorrect', [-4, 4], alignTo='stop', normalize=etaWithArti.pressNorm.stats, resolution=0.1, artifacts=[]);
-etaWithArti.correctReleaseAfterRetractNorm = eu.getETA('count', 'RetractToLeverReleaseAfterRetractCorrect', [-4, 4], alignTo='stop', normalize=etaWithArti.pressNorm.stats, resolution=0.1, artifacts=[]);
-
-etaWithArti.incorrectPressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=etaWithArti.pressNorm.stats, resolution=0.1, artifacts=[]);
-etaWithArti.incorrectLickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=etaWithArti.pressNorm.stats, resolution=0.1, artifacts=[]);
+eta.incorrectPressNorm = eu.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=eta.resolution, artifacts=artifactParams);
+eta.incorrectLickNorm = eu.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=eta.pressNorm.stats, resolution=eta.resolution, artifacts=artifactParams);
 
 % Lick trials, last lickOff before next cue
-etaWithArti.correctLickLastLickOffNorm = eu.getETA('count', 'CueToLastLickOffCorrect', [-4, 4], alignTo='stop', normalize=etaWithArti.pressNorm.stats, resolution=0.1, artifacts=[]);
-% eta.correctLickToLastLickOffNorm = eu.getETA('count', 'LickToLastLickOffCorrect', [-4, 20], alignTo='start', normalize=eta.pressNorm.stats, resolution=0.1, artifacts=[], includeInvalid=false);
-etaWithArti.incorrectLickToLastLickOffNorm = eu.getETA('count', 'LickToLastLickOffIncorrect', [-4, 20], alignTo='start', normalize=etaWithArti.pressNorm.stats, resolution=0.1, artifacts=[], includeInvalid=false);
 
-% Reach trials, correct, reward licking
-etaWithArti.correctPressFirstLickNorm = eu.getETA('count', 'CorrectPressToFirstRewardLick', [-4, 4], alignTo='stop', normalize=etaWithArti.pressNorm.stats, resolution=0.1, artifacts=[]);
-etaWithArti.correctPressLastLickOffNorm = eu.getETA('count', 'CorrectPressToLastLickOff', [-4, 4], alignTo='stop', normalize=etaWithArti.pressNorm.stats, resolution=0.1, artifacts=[]);
 
+% Lick bouts (norm to pre-press [-4, -2])
+eta.lickBoutNaive = eu.getETA('count', 'lickbout_naive', window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
+    minBoutCycles=2, maxBoutCycles=4, artifacts=artifactParams);
+eta.lickBoutNaiveNorm = eta.lickBoutNaive;
+eta.lickBoutNaiveNorm.X = (eta.lickBoutNaiveNorm.X - vertcat(eta.pressNorm.stats.mean)/0.1) ./ (vertcat(eta.pressNorm.stats.sd)/0.1);
 
 %% Calculate META
 clear meta
@@ -357,7 +276,7 @@ boot.params = struct(...
     alpha = 0.01, ...
     nboot = 100000, ...
     responseWindow = meta.window, ...
-    baselineWindow = struct(press=[-4, -2], lick='press', release='press', lastLickOff='press'), ...
+    baselineWindow = struct(press=[-4, -2], lick='press', release='press', lastLickOff='press', correctPressFirstLick='press'), ...
     artifacts = artifactParams ...
     );
 
@@ -392,6 +311,14 @@ boot.params = struct(...
     allowedTrialDuration=struct(baseline=[2, Inf], response=[4, Inf]), ...
     alpha=boot.params.alpha, artifacts=boot.params.artifacts);  
 
+[boot.correctPressFirstLick.h, boot.correctPressFirstLick.ci, boot.correctPressFirstLick.obs] = bootstrapMoveResponse(eu, ...
+    struct(baseline='press', response='CorrectPressToFirstRewardLick'), nboot=boot.params.nboot, ...
+    baselineWindow=boot.params.baselineWindow.press, ...
+    responseWindow=boot.params.responseWindow.correctPressFirstLick, ...
+    alignTo=struct(baseline='stop', response='stop'), ...
+    allowedTrialDuration=struct(baseline=[2, Inf], response=[0, Inf]), ...
+    alpha=boot.params.alpha, artifacts=boot.params.artifacts);  
+
 %% Categorize based on bootstrap results
 cc.isPressUp = boot.press.h > 0 & ~isnan(boot.press.h);
 cc.isPressDown = boot.press.h < 0 & ~isnan(boot.press.h);
@@ -401,18 +328,22 @@ cc.isCorrectReleaseUp = boot.correctRelease.h > 0 & ~isnan(boot.correctRelease.h
 cc.isCorrectReleaseDown = boot.correctRelease.h < 0 & ~isnan(boot.correctRelease.h);
 cc.isCorrectLastLickOffUp = boot.correctLickLastLickOff.h > 0 & ~isnan(boot.correctLickLastLickOff.h);
 cc.isCorrectLastLickOffDown = boot.correctLickLastLickOff.h < 0 & ~isnan(boot.correctLickLastLickOff.h);
+cc.isCorrectPressFirstLickUp = boot.correctPressFirstLick.h > 0 & ~isnan(boot.correctPressFirstLick.h);
+cc.isCorrectPressFirstLickDown = boot.correctPressFirstLick.h < 0 & ~isnan(boot.correctPressFirstLick.h);
 
 cc.isPressResponsive = cc.isPressUp | cc.isPressDown;
 cc.isLickResponsive = cc.isLickUp | cc.isLickDown;
 cc.isCorrectReleaseResponsive = cc.isCorrectReleaseUp | cc.isCorrectReleaseDown;
 cc.isCorrectLastLickOffResponsive = cc.isCorrectLastLickOffUp | cc.isCorrectLastLickOffDown;
+cc.isCorrectPressFirstLickResponsive = cc.isCorrectPressFirstLickUp | cc.isCorrectPressFirstLickDown;
 
-fprintf('\n%i total units, %i (%.0f%%) reach modulated, %i (%.0f%%) lick modulated, %i (%.0f%%) correct-release modulated, %i (%.0f%%) correct-lastLickOff modulated:\n', ...
+fprintf('\n%i total units, %i (%.0f%%) reach modulated, %i (%.0f%%) lick modulated, %i (%.0f%%) correct-release modulated, %i (%.0f%%) correct-lastLickOff modulated, %i (%.0f%%) correct-press-firstLick modulated:\n', ...
     length(eu), ...
     nnz(cc.isPressResponsive), nnz(cc.isPressResponsive)/length(eu)*100, ...
     nnz(cc.isLickResponsive), nnz(cc.isLickResponsive)/length(eu)*100, ...
     nnz(cc.isCorrectReleaseResponsive), nnz(cc.isCorrectReleaseResponsive)/length(eu)*100, ...
-    nnz(cc.isCorrectLastLickOffResponsive), nnz(cc.isCorrectLastLickOffResponsive)/length(eu)*100)
+    nnz(cc.isCorrectLastLickOffResponsive), nnz(cc.isCorrectLastLickOffResponsive)/length(eu)*100, ...
+    nnz(cc.isCorrectPressFirstLickResponsive), nnz(cc.isCorrectPressFirstLickResponsive)/length(eu)*100)
 fprintf('\t%i/%i units reach inc (%.0f%%);\n', nnz(cc.isPressUp), nnz(cc.isPressResponsive), nnz(cc.isPressUp)./nnz(cc.isPressResponsive)*100);
 fprintf('\t%i/%i units reach dec (%.0f%%);\n', nnz(cc.isPressDown), nnz(cc.isPressResponsive), nnz(cc.isPressDown)./nnz(cc.isPressResponsive)*100);
 fprintf('\t%i/%i units lick inc (%.0f%%);\n', nnz(cc.isLickUp), nnz(cc.isLickResponsive), nnz(cc.isLickUp)./nnz(cc.isLickResponsive)*100);
@@ -421,6 +352,8 @@ fprintf('\t%i/%i units release inc (%.0f%%);\n', nnz(cc.isCorrectReleaseUp), nnz
 fprintf('\t%i/%i units release dec (%.0f%%).\n', nnz(cc.isCorrectReleaseDown), nnz(cc.isCorrectReleaseResponsive), nnz(cc.isCorrectReleaseDown)./nnz(cc.isCorrectReleaseResponsive)*100);
 fprintf('\t%i/%i units lastLickOff inc (%.0f%%);\n', nnz(cc.isCorrectLastLickOffUp), nnz(cc.isCorrectLastLickOffResponsive), nnz(cc.isCorrectLastLickOffUp)./nnz(cc.isCorrectLastLickOffResponsive)*100);
 fprintf('\t%i/%i units lastLickOff dec (%.0f%%).\n', nnz(cc.isCorrectLastLickOffDown), nnz(cc.isCorrectLastLickOffResponsive), nnz(cc.isCorrectLastLickOffDown)./nnz(cc.isCorrectLastLickOffResponsive)*100);
+fprintf('\t%i/%i units correctPressFirstLick inc (%.0f%%);\n', nnz(cc.isCorrectPressFirstLickUp), nnz(cc.isCorrectPressFirstLickResponsive), nnz(cc.isCorrectPressFirstLickDown)./nnz(cc.isCorrectPressFirstLickResponsive)*100);
+fprintf('\t%i/%i units correctPressFirstLick dec (%.0f%%).\n', nnz(cc.isCorrectPressFirstLickDown), nnz(cc.isCorrectPressFirstLickResponsive), nnz(cc.isCorrectPressFirstLickDown)./nnz(cc.isCorrectPressFirstLickResponsive)*100);
 
 sel = cc.isPressResponsive & cc.isLickResponsive & cc.isCorrectReleaseResponsive & cc.isCorrectLastLickOffResponsive;
 fprintf('\n%i/%i (%.0f%%) units modulated for reach, lick, and correct-release, of which:\n', nnz(sel), length(eu), nnz(sel)/length(eu)*100)
@@ -432,8 +365,7 @@ fprintf('\t%i/%i (%.0f%%) decrease for just release;\n', nnz(sel & cc.isPressUp 
 fprintf('\t%i/%i (%.0f%%) decrease for just lastLickOff;\n', nnz(sel & cc.isPressUp & cc.isLickUp & cc.isCorrectReleaseUp & cc.isCorrectLastLickOffDown), nnz(sel), nnz(sel & cc.isPressUp & cc.isLickUp & cc.isCorrectReleaseUp & cc.isCorrectLastLickOffDown)./nnz(sel)*100)
 
 %% Save intermediate results because ETA with artifact blanking takes forever
-% eu.save('C:\SERVER\Units\LickVsReach_FixedArtifacts')
-save('C:\SERVER\Units\meta_LickVsReach_FixedArtifacts.mat', 'artifactParams', 'bootCLick', 'cc', 'circlick', 'eta', 'etaWithArti', 'oldSpikeTimes', 'newSpikeTimes', 'meta', 'boot')
+save('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved_Full.mat', 'artifactParams', 'bootCirclick', 'cc', 'circlick', 'eta', 'oldSpikeTimes', 'meta', 'boot')
 
 %% Load units, metadata and bootstrapping results.
 % These units are good. They have lick vs reach trials, they have (Intan)
@@ -444,129 +376,354 @@ save('C:\SERVER\Units\meta_LickVsReach_FixedArtifacts.mat', 'artifactParams', 'b
 % calculation. Get these units with their fancy schmancy metadata now!
 % eu = EphysUnit.load('C:\SERVER\Units\LickVsReach_FixedArtifacts');
 % load('C:\SERVER\Units\meta_LickVsReach_FixedArtifacts.mat');
-eu = EphysUnit.load('E:\DATA\Units\LickVsReach_FixedArtifacts');
-load('E:\DATA\Units\meta_LickVsReach_FixedArtifacts.mat');
+eu = EphysUnit.load('C:\SERVER\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials');
+load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved_Full.mat');
 
 %% Spike-sorting approach to categorize PETH shapes
+close all
+
+path = 'E:\Figures\reach_lick_concatClustering';
+if exist(path, 'dir')
+    rmdir(path, 's')
+end
+mkdir(path)
+
 ETANAME = ["correctPressNorm", "incorrectPressNorm", "correctLickNorm", "incorrectLickNorm", "correctPressFirstLickNorm", "correctLickLastLickOffNorm", "correctPressLastLickOffNorm" ,"correctReleaseNorm"];
 ETA = {eta.correctPressNorm, eta.incorrectPressNorm, eta.correctLickNorm, eta.incorrectLickNorm, eta.correctPressFirstLickNorm, eta.correctLickLastLickOffNorm, eta.correctPressLastLickOffNorm, eta.correctReleaseNorm};
 NAME = ["Reach(correct)", "Reach(incorect)", "Lick(correct)", "Lick(incorect)", "FirstLick(Reach)", "LastLick(Lick)", "LastLick(Reach)", "Release(Reach)"];
-ZEROLABEL = ["touch", "touch", "lick", "lick", "lick", "lick-off", "lick-off", "release"];
-WINDOW = {[-0.4, 0.4], [-0.4, 0.4], [-0.4, 0.4], [-0.4, 0.4], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3]};
+ZEROLABEL = ["cor touch", "inc touch", "cor lick", "inc lick", "first lick", "lick-off", "lick-off", "release"];
+% WINDOW = {[-0.4, 0.4], [-0.4, 0.4], [-0.4, 0.4], [-0.4, 0.4], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3]};
+WINDOW = {[-1, 1], [-1, 1], [-1, 1], [-1, 1], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3]};
 XLIM = {[-2, 2], [-2, 2], [-2, 2], [-2, 2], [-1, 1], [-1, 1], [-1, 1], [-1, 1]};
-USEFORGROUPVAR = [false, true, false, true, false, false, false, true];
-% plotMode = 'mean+sd'; % mean, raw
+USEFORGROUPVAR = [true, true, true, true, true, true, false, true];
 plotMode = 'mean+raw'; % mean, raw
-nDims = 5;
-K = [6, 6, 6, 6, 6, 6, 6, 6];
+nDims = 10;
+k = 30;
 
-close all
-clear cluster clusterOrder
-for iFig = 1:length(ETA)
-    k = K(iFig);
-    etaTemp = ETA{iFig};
-    X = etaTemp.X(:, isin(etaTemp.t, WINDOW{iFig}));
-    t = etaTemp.t(isin(etaTemp.t, WINDOW{iFig}));
+% Concatenate all etas used for groupvar
+clear etaCat
+etaCat(length(ETA)) = struct(X=[], t=[], name=[], zerolabel=[]);
+for iETA = 1:length(ETA)
+    if ~USEFORGROUPVAR(iETA)
+        continue
+    end
+    etaTemp = ETA{iETA};
+    X = etaTemp.X(:, isin(etaTemp.t, WINDOW{iETA}));
+    t = etaTemp.t(isin(etaTemp.t, WINDOW{iETA}));
     % interp over nans
     for i = 1:size(X, 1)
         selnan = isnan(X(i, :));
         X(i, selnan) = interp1(t(~selnan), X(i, ~selnan), t(selnan), 'linear', 'extrap');
         assert(all(~isnan(X(i, :))))
     end
-    [coeff, score, ~, ~, explained] = pca(X);
-    [clusterTemp, C] = kmeans(score(:, 1:nDims), k);
-    % [cluster, C] = kmeans(X, k);
-    % Sort clusters by size
-    clusterSize = zeros(1, k);
-    for iCluster = 1:k
-        clusterSize(iCluster) = nnz(clusterTemp==iCluster);
+    etaCat(iETA).X = X;
+    etaCat(iETA).t = t;
+    etaCat(iETA).name = repmat(ETANAME(iETA), [1, length(t)]);
+    etaCat(iETA).zerolabel = ZEROLABEL(iETA);
+end
+etaCat = struct(X=horzcat(etaCat.X), t=horzcat(etaCat.t), name=horzcat(etaCat.name), zerolabel=horzcat(etaCat.zerolabel));
+
+% Run PCA/kmeans on concatenated ETA
+[coeff, score, ~, ~, explained] = pca(etaCat.X);
+rng(42);
+[cluster, ~] = kmeans(score(:, 1:nDims), k);
+clusterSize = arrayfun(@(i) nnz(cluster==i), 1:k);
+[~, clusterOrder] = sort(clusterSize, 'descend');
+cluster = changem(cluster, 1:k, clusterOrder);
+assert(issorted(arrayfun(@(i) nnz(cluster==i), 1:k), 'descend'))
+clusterSize = clusterSize(clusterOrder);
+
+clear iETA etaTemp X t i selnan
+
+% Plot clustering results
+w = [5, 3, 5];
+cw = cumsum([1, w]);
+fig = figure(Units='inches', Position=[1, 1, 16, 5]);
+tl = tiledlayout(fig, 1, sum(w));
+ax = gobjects(1, 2);
+ax(1) = nexttile(tl, cw(1), [1, w(1)]);
+ax(2) = nexttile(tl, cw(2), [1, w(2)]);
+ax(3) = nexttile(tl, cw(3), [1, w(3)]);
+hold(ax, 'on')
+
+t = 1:length(etaCat.t);
+
+h1 = gobjects(1, nDims);
+for iDim = 1:nDims
+    h1(iDim) = plot(ax(1), t, coeff(:, iDim), LineWidth=1.5, Color=[getColor(iDim, nDims, 0.7), 0.7], DisplayName=sprintf("pc%i (%i%%)", iDim, round(explained(iDim))));
+end
+xline(ax(1), 0, 'k--')
+yline(ax(1), 0, 'k--')
+
+h3 = gobjects(k, 1);
+for iCluster = 1:k
+    color = getColor(iCluster, k, 0.7);
+    selCluster = cluster==iCluster;
+    scatter3(ax(2), score(selCluster, 1), score(selCluster, 2), score(selCluster, 3), 15, color, 'filled');
+
+    x = etaCat.X(selCluster, :);
+    switch plotMode
+        case 'mean'
+            mu = mean(x, 1, 'omitnan');
+            h3(iCluster) = plot(ax(3), t, mu, LineWidth=1.5, Color=color, DisplayName=sprintf('cluster%i (%i%%, n=%i)', iCluster, round(100*nnz(selCluster)/length(eu)), nnz(selCluster)));
+        case 'mean+sd'
+            mu = mean(x, 1, 'omitnan');
+            sd = std(x, 1, 'omitnan');
+            h3(iCluster) = plot(ax(3), t, mu, LineWidth=1.5, Color=color, DisplayName=sprintf('cluster%i (%i%%, n=%i)', iCluster, round(100*nnz(selCluster)/length(eu)), nnz(selCluster)));
+            patch(ax(3), [t, flip(t)], [mu+sd, flip(mu-sd)], color, FaceAlpha=0.1, EdgeColor='none')
+        case 'mean+qt'
+            mu = mean(x, 1, 'omitnan');
+            qt = quantile(x, [0.05, 0.95], 1);
+            h3(iCluster) = plot(ax(3), t, mu, LineWidth=1.5, Color=color, DisplayName=sprintf('cluster%i (%i%%, n=%i)', iCluster, round(100*nnz(selCluster)/length(eu)), nnz(selCluster)));
+            patch(ax(3), [t, flip(t)], [mu+qt(1, :), flip(mu-qt(2, :))], color, FaceAlpha=0.1, EdgeColor='none')
+        case 'raw'
+            hh = plot(ax(3), t, x, LineWidth=0.5, Color=[color, 0.1], DisplayName=sprintf('cluster%i (%i%%, n=%i)', iCluster, round(100*nnz(selCluster)/length(eu)), nnz(selCluster)));
+            h3(iCluster) = hh(1);
+        case 'mean+raw'
+            mu = mean(x, 1, 'omitnan');
+            h3(iCluster) = plot(ax(3), t, mu, LineWidth=1.5, Color=color, DisplayName=sprintf('cluster%i (%i%%, n=%i)', iCluster, round(100*nnz(selCluster)/length(eu)), nnz(selCluster)));
+            plot(ax(3), t, x, LineWidth=0.5, Color=[color, 0.1], DisplayName=sprintf('cluster%i (%i%%, n=%i)', iCluster, round(100*nnz(selCluster)/length(eu)), nnz(selCluster)));
     end
-    [~, clusterOrderTemp] = sort(clusterSize, 'descend');
-    cluster.(ETANAME(iFig)) = clusterTemp;
-    clusterOrder.(ETANAME(iFig)) = clusterOrderTemp;
-    
-    
-    
-    w = [2, 3, 5];
-    cw = cumsum([1, w]);
-    fig = figure(Units='inches', Position=[1, 1, 15, 5]);
-    tl = tiledlayout(fig, 1, sum(w));
-    ax = gobjects(1, 2);
-    ax(1) = nexttile(tl, cw(1), [1, w(1)]);
-    ax(2) = nexttile(tl, cw(2), [1, w(2)]);
-    ax(3) = nexttile(tl, cw(3), [1, w(3)]);
-    hold(ax, 'on')
-    
-    h = gobjects(1, nDims);
-    for iDim = 1:nDims
-        h(iDim) = plot(ax(1), t, coeff(:, iDim), LineWidth=1.5, Color=[getColor(iDim, nDims, 0.7), 0.7], DisplayName=sprintf("pc%i (%i%%)", iDim, round(explained(iDim))));
+    xline(ax(3), 0, 'k--')
+    yline(ax(3), 0, 'k--')
+end
+
+[~, edges, ~] = unique(etaCat.name);
+edges = sort([edges(:)', length(etaCat.t)], 'ascend');
+
+for iAx = [1, 3]
+    xline(ax(iAx), edges, 'k')
+    xline(ax(iAx), 0.5*(edges(1:end-1) + edges(2:end)), 'k--')
+    xticks(ax(iAx), 0.5*(edges(1:end-1) + edges(2:end)))
+    xticklabels(ax(iAx), etaCat.zerolabel)
+end
+
+hold(ax, 'off')
+axis(ax(2), 'equal')
+xlabel(ax(2), 'pc1')
+ylabel(ax(2), 'pc2')
+zlabel(ax(2), 'pc3')
+xlabel(ax(3), 'time (s)')
+ylabel(ax(3), 'normalized spike rate (a.u.)')
+ax(2).XAxis.Color = getColor(1, nDims, 0.7);
+ax(2).YAxis.Color = getColor(2, nDims, 0.7);
+ax(2).ZAxis.Color = getColor(3, nDims, 0.7);
+legend(ax(1), h1, Location='westoutside')
+legend(ax(3), h3, Location='eastoutside')
+print(fig, sprintf('%s\\pca kmeans (%i clusters).png', path, k), '-dpng', '-r0')
+clear ETANAME ETA NAME ZEROLABEL WINDOW XLIM USEFORGROUPVAR plotMode nDims k etaCat iETA etaTemp X t i selnan clusterOrder w cw fig tl ax t h1 iDim h3 iCluster color selCluster x mu sd qt hh edges iAx
+
+% Plot one figure with all ETAs for each cluster
+% close all
+
+ETA = {eta.correctPressNorm, eta.correctLickNorm, eta.correctPressFirstLickNorm, eta.lickBoutNaiveNorm, eta.correctPressLastLickOffNorm, eta.correctReleaseNorm; ...
+        eta.incorrectPressNorm, eta.incorrectLickNorm, [], [], eta.correctLickLastLickOffNorm, []};
+NAME = ["Reach", "Lick", "FirstLick(Reach)", "LickBout", "LastLick", "Release(Reach)"];
+ZEROLABEL = ["touch", "lick", "lick", "lick-off", "lick-off", "release"];
+% META = ["pressNorm", "lickNorm", "", "correctLickLastLickOffNorm", "", "correctReleaseNorm"];
+% WINDOW = ["press", "lick", "", "lastLickOff", "", "release"];
+OUTCOME = [ ...
+    "cor", "cor", "cor", "all", "reach", "cor"; ...
+    "inc", "inc", "", "", "lick", ""];
+XLIM = {[-2, 2], [-2, 2], [-1, 1], [0, 8*pi], [-1, 1], [-1, 1]};
+XLIMDISP = {[-2, 2], [-2, 2], [-1, 1], [-1, 1], [-1, 1], [-1, 1]};
+
+for iCluster = length(unique(cluster)):-1:1
+    selUnit = cluster==iCluster;
+
+    fig = figure(Units='inches', OuterPosition=[1, 1, 10, 2.75], MenuBar='none', ToolBar='none');
+    tl = tiledlayout(fig, 1, sum(cellfun(@diff, XLIMDISP)), TileSpacing='compact', Padding='tight');
+    ax = gobjects(1, length(XLIM));
+    for iCol = 1:length(XLIM)
+        ax(iCol) = nexttile(tl, [1, diff(XLIMDISP{iCol})]);
     end
-    xline(ax(1), 0, 'k--')
-    yline(ax(1), 0, 'k--')
-    legend(ax(1), h, Location='northoutside')
-    
-    h = gobjects(k, 1);
-    for iCluster = 1:k
-        color = getColor(iCluster, k, 0.7);
-        selCluster = clusterTemp==clusterOrderTemp(iCluster);
-        scatter3(ax(2), score(selCluster, 1), score(selCluster, 2), score(selCluster, 3), 15, color, 'filled');
-    
-        x = etaTemp.X(selCluster, :);
-        tt = etaTemp.t;
-        switch plotMode
-            case 'mean'
-                mu = mean(x, 1, 'omitnan');
-                h(iCluster) = plot(ax(3), tt, mu, LineWidth=1.5, Color=color, DisplayName=sprintf('cluster%i (%i%%, n=%i)', iCluster, round(100*nnz(selCluster)/length(eu)), nnz(selCluster)));
-            case 'mean+sd'
-                mu = mean(x, 1, 'omitnan');
-                sd = std(x, 1, 'omitnan');
-                h(iCluster) = plot(ax(3), tt, mu, LineWidth=1.5, Color=color, DisplayName=sprintf('cluster%i (%i%%, n=%i)', iCluster, round(100*nnz(selCluster)/length(eu)), nnz(selCluster)));
-                patch(ax(3), [tt, flip(tt)], [mu+sd, flip(mu-sd)], color, FaceAlpha=0.1, EdgeColor='none')
-            case 'mean+qt'
-                mu = mean(x, 1, 'omitnan');
-                qt = quantile(x, [0.05, 0.95], 1);
-                h(iCluster) = plot(ax(3), tt, mu, LineWidth=1.5, Color=color, DisplayName=sprintf('cluster%i (%i%%, n=%i)', iCluster, round(100*nnz(selCluster)/length(eu)), nnz(selCluster)));
-                patch(ax(3), [tt, flip(tt)], [mu+qt(1, :), flip(mu-qt(2, :))], color, FaceAlpha=0.1, EdgeColor='none')
-            case 'raw'
-                hh = plot(ax(3), tt, x, LineWidth=0.5, Color=[color, 0.1], DisplayName=sprintf('cluster%i (%i%%, n=%i)', iCluster, round(100*nnz(selCluster)/length(eu)), nnz(selCluster)));
-                h(iCluster) = hh(1);
-            case 'mean+raw'
-                mu = mean(x, 1, 'omitnan');
-                h(iCluster) = plot(ax(3), tt, mu, LineWidth=1.5, Color=color, DisplayName=sprintf('cluster%i (%i%%, n=%i)', iCluster, round(100*nnz(selCluster)/length(eu)), nnz(selCluster)));
-                plot(ax(3), tt, x, LineWidth=0.5, Color=[color, 0.1], DisplayName=sprintf('cluster%i (%i%%, n=%i)', iCluster, round(100*nnz(selCluster)/length(eu)), nnz(selCluster)));
+
+    yl = [Inf, -Inf];
+    for iCol = 1:length(XLIM)
+        cla(ax(iCol));
+        hold(ax(iCol), 'on')
+        t = ETA{1, iCol}.t;
+        selT = isin(t, XLIM{iCol}, false);
+
+        h = gobjects(2, 1);
+
+        if NAME(iCol) == "LastLick"
+            colors = [0.6, 0.2, 0.2; 0.2, 0.2, 0.6];
+        else
+            colors = [0.2, 0.6, 0.2; 0.2, 0.2, 0.2];
         end
-        xline(ax(3), 0, 'k--')
-        yline(ax(3), 0, 'k--')
+
+        t1 = ETA{1, iCol}.t(selT);
+        mu1 = mean(ETA{1, iCol}.X(selUnit, selT), 1, 'omitnan');
+        err1 = std(ETA{1, iCol}.X(selUnit, selT), 0, 1, 'omitnan');
+        h(1) = plot(ax(iCol), t1, mu1, Color=colors(1, :), DisplayName=sprintf("%s", OUTCOME(1, iCol)), LineWidth=1.5);
+        patch(ax(iCol), [t1, flip(t1)], [mu1-err1, flip(mu1+err1)], colors(1, :), EdgeColor='none', FaceAlpha=0.2);
+        if ~isempty(ETA{2, iCol})
+            t2 = ETA{2, iCol}.t(selT);
+            mu2 = mean(ETA{2, iCol}.X(selUnit, selT), 1, 'omitnan');
+            err2 = std(ETA{1, iCol}.X(selUnit, selT), 0, 1, 'omitnan');
+            h(2) = plot(ax(iCol), t2, mu2, Color=colors(2, :), DisplayName=sprintf("%s", OUTCOME(2, iCol)), LineWidth=1.5);
+            patch(ax(iCol), [t2, flip(t2)], [mu2-err2, flip(mu2+err2)], colors(2, :), EdgeColor='none', FaceAlpha=0.2);
+            yl(1) = min([yl(1), min(mu1), min(mu2)], [], 'omitnan');
+            yl(2) = max([yl(2), max(mu1), max(mu2)], [], 'omitnan');
+        else
+            h = h(1);
+            yl(1) = min([yl(1), min(mu1)], [], 'omitnan');
+            yl(2) = max([yl(2), max(mu1)], [], 'omitnan');
+        end
+
+        hold(ax(iCol), 'off')
+        lgd = legend(ax(iCol), h, AutoUpdate=false, Location='northoutside');
+        title(lgd, NAME(iCol))
+        xlim(ax(iCol), XLIM{iCol})
+        % yline(ax(iCol), mean([eta.pressNorm.stats(selUnit).mean]./0.1), 'k:')
+        yline(ax(iCol), 0, 'k:')
+        if NAME(iCol) == "LickBout"
+            xline(ax(iCol), (0:2:8)*pi, '-')
+            xticks(ax(iCol), [0, 8*pi])
+            xticklabels(ax(iCol), ["1st", "5th"])
+            xtickangle(ax(iCol), 0)
+        else
+            xline(ax(iCol), 0, '-')
+            xticks(ax(iCol), -4:4)
+            xticklabels(ax(iCol), [string(-4:-1), ZEROLABEL(iCol), string(1:4)])
+            xtickangle(ax(iCol), 0)
+        end
     end
-    hold(ax, 'off')
-    axis(ax(2), 'equal')
-    xlabel(ax(2), 'pc1')
-    ylabel(ax(2), 'pc2')
-    zlabel(ax(2), 'pc3')
-    xlabel(ax(3), 'time (s)')
-    ylabel(ax(3), 'normalized spike rate (a.u.)')
-    xlim(ax(3), XLIM{iFig})
-    xticks(ax(3), -1:1)
-    xticklabels(ax(3), ["-1", ZEROLABEL(iFig), "1"])
-    ylim(ax(3), [-3, 6])
-    ax(2).XAxis.Color = getColor(1, nDims, 0.7);
-    ax(2).YAxis.Color = getColor(2, nDims, 0.7);
-    ax(2).ZAxis.Color = getColor(3, nDims, 0.7);
-    legend(ax(3), h, Location='eastoutside')
-    title(tl, NAME(iFig), FontSize=9, FontWeight='bold')
+
+    % ylim(ax, yl + 0.05*diff(yl)*[-1, 1]);
+    yl = yl + 0.05*diff(yl)*[-1, 1];
+    yl(1) = min(yl(1), -1.5);
+    yl(2) = max(yl(2), 4);
+    ylim(ax, yl);
+    yticks(ax(2:end), [])
+
+    % xlabel(tl, 'Time to event (s)')
+    ylabel(tl, 'a.u.')
+
+    fontsize(tl, 9, 'points')
+
+
+    title(tl, sprintf("cluster %i (n=%i)", iCluster, nnz(selUnit)), Interpreter='none', FontWeight='bold')
+    print(fig, sprintf('%s\\cluster %i (%i units).png', path, iCluster, nnz(selUnit)), '-dpng', '-r0')
+end
+clear path ETA NAME ZEROLABEL META WINDOW OUTCOME XLIM iCluster selUnit fig tl ax iCol yl t selT h t1 mu1 err1 t2 mu2 err2 lgd
+
+%% Find units with requested trial types
+requiredTrialTypes = ["Press", "PressCorrect", "PressIncorrect", "Lick", "LickCorrect", "LickIncorrect", ...
+    "CorrectPressToFirstRewardLick", "CueToLeverReleaseBeforeRetractCorrect", "CueToLastLickOffBeforeRetractCorrect"];
+nTrials = arrayfun(@(eu) countTrials(eu, requiredTrialTypes), eu, UniformOutput=false);
+nTrials = cat(1, nTrials{:});
+
+cc.hasRequiredTrials = all(nTrials>=5, 2);
+
+function n = countTrials(eu, types)
+    n = zeros(size(types));
+    sel = isfield(eu.Trials, types);
+    n(sel) = arrayfun(@(type) length(eu.Trials.(type)), types(sel));
 end
 
-% Convert to groupvar
-ii = 0;
-base = 10;
-assert(all(K<base));
-groupVar = zeros(length(eu), 1);
+%% Now that we've seen the kinds of responses from the clustering, try to make a heatmap
+% close all
 
-for i = find(USEFORGROUPVAR)
-    groupVar = groupVar + 10^ii*(cluster.(ETANAME(i)) - 1);
-    ii = ii + 1;
+requireCleanTrials = false;
+
+if requireCleanTrials
+    selUnits = cc.hasRequiredTrials;
+    ETASORT = {eta.pressNorm, eta.lickNorm, eta.correctPressFirstLickNorm, eta.correctLickLastLickOffBeforeRetractNorm, eta.correctReleaseBeforeRetractNorm};
+    ETA = {eta.incorrectPressNorm, eta.correctPressNorm, eta.incorrectLickNorm, eta.correctLickNorm, eta.correctPressFirstLickNorm, eta.correctLickLastLickOffBeforeRetractNorm, eta.correctReleaseBeforeRetractNorm};
+else
+    selUnits = 1:length(eu);
+    ETASORT = {eta.pressNorm, eta.lickNorm, eta.correctPressFirstLickNorm, eta.correctLickLastLickOffNorm, eta.correctReleaseNorm};
+    ETA = {eta.incorrectPressNorm, eta.correctPressNorm, eta.incorrectLickNorm, eta.correctLickNorm, eta.correctPressFirstLickNorm, eta.correctLickLastLickOffNorm, eta.correctReleaseNorm};
+end
+SORTWINDOW = {[-0.3, 0.3], [-0.3, 0.3], [-0.1, 0.3], [-0.1, 0.3], [-0.1, 0.3]};
+NAME = ["Reach\n(incorrect)", "Reach\n(correct)", "Lick\n(incorrect)", "Lick\n(correct)", "FirstLick\n(correct-reach)", "LastLick\n(correct-lick)", "BarRelease\n(correct-reach)"];%, "FirstLick(ReachCorrect)", "LastLick(LickCorrect)", "BarRelease(ReachCorrect)"];
+ZEROLABEL = ["touch", "touch", "lick", "lick", "lick", "lick-off", "release"];%, "first-lick", "lick-off", "release"];
+% XLIM = {[-2, 2], [-2, 2], [-2, 2], [-2, 2], [-1, 1], [-1, 1], [-1, 1]};
+XLIM = {[-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3]};
+
+% Combine ETA, PCA, and sort along 1st dimension
+etaCombined = struct(X=[], t=[]);
+etaCombined.X = cellfun(@(eta) eta.X, ETASORT, UniformOutput=false);
+etaCombined.X = cat(2, etaCombined.X{:});
+etaCombined.t = cellfun(@(eta) eta.t, ETASORT, UniformOutput=false);
+etaCombined.t = cat(2, etaCombined.t{:});
+etaCombined.epoch = arrayfun(@(i) i*ones(1, length(ETASORT{i}.t)), 1:length(ETASORT), UniformOutput=false);
+etaCombined.epoch = cat(2, etaCombined.epoch{:});
+etaCombined.X(etaCombined.X>1.5) = 1.5;
+etaCombined.X(etaCombined.X<-1.5) = -1.5;
+
+etaCombined.X = etaCombined.X(selUnits, :);
+
+% Make templates to project onto
+clear template
+template(length(ETASORT)) = struct(t=[], x=[]);
+for iETA = 1:length(ETASORT)
+    template(iETA).t = etaCombined.t;
+    template(iETA).x = zeros(1, length(etaCombined.t));
+    template(iETA).x(1, isin(etaCombined.t, SORTWINDOW{iETA}) & etaCombined.epoch==iETA) = 1;
 end
 
+score = zeros(size(etaCombined.X, 1), length(ETASORT));
+etaCombined.X(isnan(etaCombined.X)) = 0;
+for iETA = 1:length(ETASORT)
+    score(:, iETA) = etaCombined.X * template(iETA).x';
+end
+groupVar = arrayfun(@(i) bitshift(int16(score(:, i)>0), length(ETASORT)-i), 1:size(score, 2), UniformOutput=false);
+groupVar = sum(horzcat(groupVar{:}), 2);
+
+% First, sort by number of negative modulations
+numNeg = sum(score<0, 2);
+[uniqueGroupVars, ia] = unique(groupVar);
+[~, I] = sort(numNeg(ia), 'ascend');
+groupVar = changem(groupVar, 0:length(uniqueGroupVars)-1, uniqueGroupVars(I));
+
+% Then, put all small groups (excluding single neg ones) at the bottom
+[uniqueGroupVars, ia] = unique(groupVar);
+assert(length(uniqueGroupVars) == max(groupVar)+1);
+groupSize = histcounts(groupVar, 0:length(uniqueGroupVars));
+
+numUnitsInSameGroup = arrayfun(@(gv) nnz(groupVar==gv), groupVar);
+isRare = numUnitsInSameGroup < 3;
+isSingleNeg = numNeg==1;
+groupVar(isRare & ~isSingleNeg) = max(groupVar)+1;
+% Tighten up the groupvars
+uniqueGroupVars = unique(groupVar);
+groupVar = changem(groupVar, 0:length(uniqueGroupVars)-1, uniqueGroupVars);
+groupSize = histcounts(groupVar, 0:length(uniqueGroupVars));
+groupSizeCum = cumsum(groupSize);
+[~, sortOrder] = sort(double(groupVar)*10 + score(:, 1)./max(abs(score(:, 1))), 'ascend');
+
+
+fig = figure(Units='inches', Position=[1, 1, 8, 5]);
+tl = tiledlayout(fig, 1, length(ETA), TileSpacing='compact', Padding='compact');
+ax = gobjects(1, length(ETA));
+for iAx = 1:length(ETA)
+    hidecb = iAx < length(ETA);
+    ax(iAx) = nexttile(tl);
+    EphysUnit.plotETA(ax(iAx), ETA{iAx}, selUnits, xlim=XLIM{iAx}, clim=[-1.5, 1.5], order=sortOrder, hidecolorbar=hidecb);
+    % applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+    applyCustomColormap(ax(iAx), [-1.5, 3], hlim=[0.375, 0, 0, -0.375], llim=[0.25, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+    if ~hidecb
+        ax(iAx).Colorbar.Layout.Tile = 'east';
+    end
+    if iAx > 1
+        yticks(ax(iAx), [])
+    end
+    title(ax(iAx), strsplit(NAME(iAx), "\\n"))
+    xlabel(ax(iAx), "")
+    ylabel(ax(iAx), "")
+    xticks(ax(iAx), -2:2)
+    xticklabels(ax(iAx), ["-2", "-1", ZEROLABEL(iAx), "1", "2"])
+    xtickangle(ax(iAx), 0)
+    xline(ax(iAx), 0, 'k-')
+    yline(ax(iAx), groupSizeCum(1:end-1)+0.5, 'k:', LineWidth=1.5)
+end
+xlabel(tl, "Time (s)")
+ylabel(tl, "Unit")
+fontsize(fig, 9, 'points')
+% clear etaCombined nDims coeff score explained sortOrder fig tl ax iAx ETASORT NAME ZEROLABEL XLIM hidecp
 
 %% Scatter META vs META
 % close all
@@ -690,7 +847,7 @@ clear filename fig ax angles idx fram im A map
 
 %% Expanded heatmap (correct/incorrect reach/lick/barrelease/tuberelease with fancy sort
 
-path = 'E:\Figures\reach_lick_firstLickReach_lastLickLick_lastLickReach_release_fancygrouping';
+path = 'E:\Figures\reach_lick_concatClustering';
 useLocalNorm = false;
 if useLocalNorm
     path = sprintf("%s\\useLocalNorm", path);
