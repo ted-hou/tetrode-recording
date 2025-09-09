@@ -1,101 +1,101 @@
-
-%% Convert to EphysUnits
-folders = { ...
-        % 'C:\SERVER\daisy28\daisy28_20250701', ... SNr, Accel
-        % 'C:\SERVER\daisy28\daisy28_20250702', ... SNr, Accel
-        % 'C:\SERVER\daisy28\daisy28_20250716', ... SNr, Accel
-        % 'C:\SERVER\daisy28\daisy28_20250718', ... SNr, Accel
-        % 'C:\SERVER\daisy28\daisy28_20250723', ... SNr, Accel
-        % 'C:\SERVER\daisy28\daisy28_20250725', ... SNr, Accel
-        % 'C:\SERVER\daisy28\daisy28_20250728', ... SNr, Accel (Camera bad for first 14 min)
-        % 'C:\SERVER\daisy28\daisy28_20250729', ... SNr, Accel
-        'C:\SERVER\daisy27\daisy27_20250626', ... SNr, Accel
-        'C:\SERVER\daisy27\daisy27_20250717', ... SNr, Accel
-        'C:\SERVER\daisy27\daisy27_20250721', ... SNr, Accel
-        'C:\SERVER\daisy27\daisy27_20250724', ... SNr, Accel
-    };
-        % 'C:\SERVER\daisy27\daisy27_20250624', ... SNr
-        % 'C:\SERVER\daisy28\daisy28_20250714', ... SC, Accel
-        % 'C:\SERVER\daisy27\daisy27_20250707', ... SC, Accel
-        % 'C:\SERVER\daisy27\daisy27_20250715', ... SC, Accel
-
-chunkSize = 32; % NumChannelsPerChunk
-for iSession = 1:length(folders)
-    try
-        clear tr
-        tr = TetrodeRecording();
-        tr.SelectFiles(NeuropixelPath=folders{iSession});
-        tr.LoadNeuropixelIO();
-        tr.ParseNeuropixelIO();
-        
-        % IterativeArtifactRemoval (OnionPeeling): Load spikes
-        for iChunk = 1:(384/chunkSize)
-            channels = (iChunk-1)*chunkSize + 1 : iChunk*chunkSize;
-            tr.LoadSpikes(channels, Path='Spikes_Sorted');
-
-            if isempty(tr.Spikes) || isempty([tr.Spikes.Channel])
-                tr.Spikes = [];
-                continue
-            end
-
-            channels = [tr.Spikes.Channel];
-
-            ar = AcuteRecording(tr, 'N/A');
-            ar.binMoveResponse(tr, 'none', Window=[-1, 0], Store=true);
-            eu = EphysUnit(ar, readWaveforms=false, cullITI=false, savepath='C:\SERVER\Units\TwoColor_SNr_SCRetro\ReverseInjection\AllSNr', tr=tr);
-
-            tr.Spikes = [];
-            clear eu
-        end
-    catch ME
-        warning('Could not process folder: %s', folders{iSession})
-        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
-    end
-end
-
-
-%% Remove vad units (Slow)
-clear, clc
-eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\AllSNr', waveforms=false, spikecounts=false, spikerates=false);
-
-%% Remove multiunits, fast (ISS test)
-eu = eu.removeMultiUnits(cullZeros=true);
-
-% Remove drift, low spike rate units, fast
-clear c
-% Remove drift
-c.isDrifting = detectDriftingUnits(eu, smoothWindow=300, tolerance=0.05, spikeRateThreshold=15, includeITI=true);
-
-% Filter by spike rate
-msr = arrayfun(@(eu) eu.SpikeRateStats.median, eu);
-p.minSpikeRate = 15;
-c.isSNr = msr >= p.minSpikeRate;
-
-eu = eu(c.isSNr & ~c.isDrifting);
-
-% Remove duplicates (slow, pairwise comparisons)
-[eu, isDuplicate] = eu.removeDuplicates(0.7);
-
-
-
-%% Make press and lick trials
-tEu = eu.alignTimestamps(["TIMEOUT_START", "WAITFORTOUCH", "LEVER_PRESSED", "LEVER_RELEASED", "LEVER_HELD", "LICK", "LICK_OFF", "REWARD_ON", "REWARD_OFF"], acRefEventName="REWARD_ON", euRefEventName="RewardOn");
-% Make trials
-for iSession = 1:length(tEu)
-    iEu = tEu(iSession).euIndices(1);
-    pressTrials = Trial(eu(iEu).EventTimes.TIMEOUT_START, eu(iEu).EventTimes.Press, stopMode='first', exclude=eu(iEu).EventTimes.Lick);
-    lickTrials = Trial(eu(iEu).EventTimes.TIMEOUT_START, eu(iEu).EventTimes.Lick, stopMode='first', exclude=eu(iEu).EventTimes.Press);
-    for iEu = tEu(iSession).euIndices(:)'
-        eu(iEu).Trials.Press = pressTrials;
-        eu(iEu).Trials.Lick = lickTrials;
-    end
-end
-
-eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr')
+% 
+% %% Convert to EphysUnits
+% folders = { ...
+%         % 'C:\SERVER\daisy27\daisy27_20250624', ... SNr
+%         'C:\SERVER\daisy27\daisy27_20250626', ... SNr, Accel
+%         % 'C:\SERVER\daisy27\daisy27_20250707', ... SC, Accel
+%         % 'C:\SERVER\daisy27\daisy27_20250715', ... SC, Accel
+%         'C:\SERVER\daisy27\daisy27_20250717', ... SNr, Accel
+%         'C:\SERVER\daisy27\daisy27_20250721', ... SNr, Accel
+%         'C:\SERVER\daisy27\daisy27_20250724', ... SNr, Accel
+%         % 'C:\SERVER\daisy28\daisy28_20250701', ... SNr, Accel
+%         % 'C:\SERVER\daisy28\daisy28_20250702', ... SNr, Accel
+%         % 'C:\SERVER\daisy28\daisy28_20250716', ... SNr, Accel
+%         % 'C:\SERVER\daisy28\daisy28_20250718', ... SNr, Accel
+%         % 'C:\SERVER\daisy28\daisy28_20250723', ... SNr, Accel
+%         % 'C:\SERVER\daisy28\daisy28_20250725', ... SNr, Accel
+%         % 'C:\SERVER\daisy28\daisy28_20250728', ... SNr, Accel (Camera bad for first 14 min)
+%         % 'C:\SERVER\daisy28\daisy28_20250729', ... SNr, Accel
+%     };
+%         % 'C:\SERVER\daisy28\daisy28_20250714', ... SC, Accel
+% 
+% chunkSize = 32; % NumChannelsPerChunk
+% for iSession = 1:length(folders)
+%     try
+%         clear tr
+%         tr = TetrodeRecording();
+%         tr.SelectFiles(NeuropixelPath=folders{iSession});
+%         tr.LoadNeuropixelIO();
+%         tr.ParseNeuropixelIO();
+% 
+%         % IterativeArtifactRemoval (OnionPeeling): Load spikes
+%         for iChunk = 1:(384/chunkSize)
+%             channels = (iChunk-1)*chunkSize + 1 : iChunk*chunkSize;
+%             tr.LoadSpikes(channels, Path='Spikes_Sorted');
+% 
+%             if isempty(tr.Spikes) || isempty([tr.Spikes.Channel])
+%                 tr.Spikes = [];
+%                 continue
+%             end
+% 
+%             channels = [tr.Spikes.Channel];
+% 
+%             ar = AcuteRecording(tr, 'N/A');
+%             ar.binMoveResponse(tr, 'none', Window=[-1, 0], Store=true);
+%             eu = EphysUnit(ar, readWaveforms=false, cullITI=false, savepath='C:\SERVER\Units\TwoColor_SNr_SCRetro\ReverseInjection\AllSNr', tr=tr);
+% 
+%             tr.Spikes = [];
+%             clear eu
+%         end
+%     catch ME
+%         warning('Could not process folder: %s', folders{iSession})
+%         warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+%     end
+% end
+% 
+% 
+% %% Remove vad units (Slow)
+% clear, clc
+% eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\AllSNr', waveforms=false, spikecounts=false, spikerates=false);
+% 
+% %% Remove multiunits, fast (ISS test)
+% eu = eu.removeMultiUnits(cullZeros=true);
+% 
+% % Remove drift, low spike rate units, fast
+% clear c
+% % Remove drift
+% c.isDrifting = detectDriftingUnits(eu, smoothWindow=300, tolerance=0.05, spikeRateThreshold=15, includeITI=true);
+% 
+% % Filter by spike rate
+% msr = arrayfun(@(eu) eu.SpikeRateStats.median, eu);
+% p.minSpikeRate = 15;
+% c.isSNr = msr >= p.minSpikeRate;
+% 
+% eu = eu(c.isSNr & ~c.isDrifting);
+% 
+% % Remove duplicates (slow, pairwise comparisons)
+% [eu, isDuplicate] = eu.removeDuplicates(0.7);
+% 
+% 
+% 
+% %% Make press and lick trials
+% tEu = eu.alignTimestamps(["TIMEOUT_START", "WAITFORTOUCH", "LEVER_PRESSED", "LEVER_RELEASED", "LEVER_HELD", "LICK", "LICK_OFF", "REWARD_ON", "REWARD_OFF"], acRefEventName="REWARD_ON", euRefEventName="RewardOn");
+% % Make trials
+% for iSession = 1:length(tEu)
+%     iEu = tEu(iSession).euIndices(1);
+%     pressTrials = Trial(eu(iEu).EventTimes.TIMEOUT_START, eu(iEu).EventTimes.Press, stopMode='first', exclude=eu(iEu).EventTimes.Lick);
+%     lickTrials = Trial(eu(iEu).EventTimes.TIMEOUT_START, eu(iEu).EventTimes.Lick, stopMode='first', exclude=eu(iEu).EventTimes.Press);
+%     for iEu = tEu(iSession).euIndices(:)'
+%         eu(iEu).Trials.Press = pressTrials;
+%         eu(iEu).Trials.Lick = lickTrials;
+%     end
+% end
+% 
+% eu.save('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr')
 
 %%
 % clear, clc
-% eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
+eu = EphysUnit.load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
 
 %% Check behavior (trial durations (from timeout to lick/reach))
 minTrialDuration = 2;

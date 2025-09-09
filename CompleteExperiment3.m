@@ -12,9 +12,11 @@ classdef CompleteExperiment3 < CompleteExperiment
             p = inputParser();
             p.addRequired('eu', @(x) isa(x, 'EphysUnit'))
             p.addParameter('cameras', 'flr', @(x) all(ismember(x, 'flr')))
+            p.addParameter('deeplabcutPath', '', @(x) ischar(x) || isstring(x))
             p.parse(varargin{:});
             eu = p.Results.eu;
             cameras = p.Results.cameras;
+            deeplabcutPath = p.Results.deeplabcutPath;
 
             [uniqueExpNames, ~, expIndices] = unique({eu.ExpName});
             nExp = length(uniqueExpNames);
@@ -28,35 +30,43 @@ classdef CompleteExperiment3 < CompleteExperiment
                     obj(i).tce = [];
                 end
                 if ismember('f', cameras)
-                    obj(i).vtdF = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'f');
+                    obj(i).vtdF = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'f', deeplabcutPath);
                 end
                 if ismember('l', cameras)
-                    obj(i).vtdL = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'l');
+                    obj(i).vtdL = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'l', deeplabcutPath);
                 end
                 if ismember('r', cameras)
-                    obj(i).vtdR = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'r');
+                    obj(i).vtdR = obj(i).readOrCreateVideoTrackingData(obj(i).name, 'r', deeplabcutPath);
                 end
                 obj(i).ac = CompleteExperiment.readArduino(obj(i).name);
             end
         end
 
-        function vtd = readOrCreateVideoTrackingData(obj, expName, side)
+        function vtd = readOrCreateVideoTrackingData(obj, expName, side, path)
             sidenum = obj.getCameraIndex(side);
             animalName = strsplit(expName, '_');
             animalName = animalName{1};
 
 
-            if isempty(obj.tce)
-                deepLabCutFiles = dir(sprintf('C:\\SERVER\\%s\\%s\\%s_%g*.csv', animalName, expName, expName, sidenum));
+            if isempty(path)
+                if isempty(obj.tce)
+                    deepLabCutFiles = dir(sprintf('C:\\SERVER\\%s\\%s\\%s_%g*.csv', animalName, expName, expName, sidenum));
+                else
+                    deepLabCutFiles = dir(sprintf('C:\\SERVER\\%s\\%s\\%s_laser_%g*.csv', animalName, expName, expName, sidenum));
+                end
             else
-                deepLabCutFiles = dir(sprintf('C:\\SERVER\\%s\\%s\\%s_laser_%g*.csv', animalName, expName, expName, sidenum));
+                if isempty(obj.tce)
+                    deepLabCutFiles = dir(sprintf('%s\\%s_%g*.csv', path, expName, sidenum));
+                else
+                    deepLabCutFiles = dir(sprintf('%s\\%s_laser_%g*.csv', path, expName, sidenum));
+                end
             end
             % Deep lab cut
             if ~isempty(deepLabCutFiles)
                 if isempty(obj.tce)
-                    vtd = obj.readVideoTrackingData(expName, side, sprintf('%s', expName));
+                    vtd = obj.readVideoTrackingData(expName, side, sprintf('%s', expName), deeplabcutPath=path);
                 else
-                    vtd = obj.readVideoTrackingData(expName, side, sprintf('%s_laser', expName));
+                    vtd = obj.readVideoTrackingData(expName, side, sprintf('%s_laser', expName), deeplabcutPath=path);
                 end
             % Pawnalyzer2 manually labeled
             else
