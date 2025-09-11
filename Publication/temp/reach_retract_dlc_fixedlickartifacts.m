@@ -617,11 +617,6 @@ nTrials = cat(1, nTrials{:});
 
 cc.hasRequiredTrials = all(nTrials>=5, 2);
 
-function n = countTrials(eu, types)
-    n = zeros(size(types));
-    sel = isfield(eu.Trials, types);
-    n(sel) = arrayfun(@(type) length(eu.Trials.(type)), types(sel));
-end
 
 %% Now that we've seen the kinds of responses from the clustering, try to make a heatmap
 % close all
@@ -1158,3 +1153,10 @@ for iEu = 0:length(eu)
 end
 
 clear fig tl ax ETA NAME OUTCOME iEu i lgd yl path h grpName
+
+
+function n = countTrials(eu, types)
+    n = zeros(size(types));
+    sel = isfield(eu.Trials, types);
+    n(sel) = arrayfun(@(type) length(eu.Trials.(type)), types(sel));
+end
