@@ -97,11 +97,11 @@ classdef CompleteExperiment3 < CompleteExperiment
                 % eventDateNum = obj.ac.EventMarkersUntrimmed(obj.ac.EventMarkersUntrimmed(:, 1) == eventId, 3)';
                 % eventDateTime = datetime(eventDateNum, ConvertFrom='datenum', TimeZone='America/New_York');
                 if ischar(refEventNameArduino)
-                    eventDateTime = obj.ac.GetEventMarker(refEventNameArduino, 'datetime');
+                    eventDateTime = obj.ac.GetEventMarker(refEventNameArduino, 'datetime', Untrimmed=true);
                 else
                     eventDateTime = [];
                     for iEvent = 1:length(refEventNameArduino)
-                        eventDateTime = vertcat(eventDateTime, obj.ac.GetEventMarker(refEventNameArduino{iEvent}, 'datetime'));
+                        eventDateTime = vertcat(eventDateTime, obj.ac.GetEventMarker(refEventNameArduino{iEvent}, 'datetime', Untrimmed=true));
                     end
                     eventDateTime = sort(eventDateTime, 'ascend');
                 end
@@ -132,6 +132,8 @@ classdef CompleteExperiment3 < CompleteExperiment
                 
                 eventDateTime = eventDateTime(:);
                 eventEphysTime = eventEphysTime(:);
+                % eventDateTime = unique(eventDateTime(:));
+                % eventEphysTime = unique(eventEphysTime(:));
 
                 % Some assertions: 
                 try
@@ -148,7 +150,21 @@ classdef CompleteExperiment3 < CompleteExperiment
                         elseif all(abs(itiArduino(1:end-n) - itiEphys) < shiftDurationTolerance)
                             eventDateTime = eventDateTime(1:end-n);
                         else
-                            error('Arduino has %g ref events, but ephys has %g ref events.', length(eventDateTime), length(eventEphysTime));
+                            shifts = 0:n;
+                            df = zeros(size(shifts));
+                            for iShift = 1:length(shifts)
+                                shift = shifts(iShift);
+                                df(iShift) = mean(abs(itiArduino(1+shift:end-n+shift) - itiEphys));
+                            end
+                            [~, iShift] = min(df);
+                            shift = shifts(iShift);
+                            eventDateTime = eventDateTime(1+shift:end-n+shift);
+                            if all(abs(itiArduino(1+shift:end-n+shift) - itiEphys) < shiftDurationTolerance)
+                                fprintf(1, '\tShifting data by %i samples achieved a max distance of %g, which is below the min tolerance of %g.\n', shift, max(abs(itiArduino(1+shift:end-n+shift) - itiEphys)), shiftDurationTolerance)
+                            else
+                                warning('Shifting data by %i (n=%i) samples achieved a max distance of %g, which exceeded the min tolerance of %g.', shift, n, max(abs(itiArduino(1+shift:end-n+shift) - itiEphys)), shiftDurationTolerance)
+                            end
+                            % error('Arduino has %g ref events, but ephys has %g ref events.', length(eventDateTime), length(eventEphysTime));
                         end
                     else
                         n = -n;
@@ -167,6 +183,13 @@ classdef CompleteExperiment3 < CompleteExperiment
                 end
                 assert(all(abs(diff(eventEphysTime(:)) - seconds(diff(eventDateTime(:)))) < trialDurationTolerance), 'Adruino trial lengths differe significantly from ephys, max different: %g.', max(abs(diff(eventEphysTime(:)) - seconds(diff(eventDateTime(:))))))
                 fprintf(1, '\tInter-ref-intervals match between ephys and arduino for %g trials with a tolerance of %gs.\n', length(eventEphysTime), trialDurationTolerance);
+
+                [uniqueEventDateTime, ia] = unique(eventDateTime);
+                if length(uniqueEventDateTime) < length(eventEphysTime)
+                    eventDateTime = uniqueEventDateTime;
+                    eventEphysTime = eventEphysTime(ia);
+                end
+                assert(length(unique(eventDateTime))==length(unique(eventEphysTime)))
 
                 % Clean up restarting framenums
                 if ~isempty(obj.vtdF)
@@ -226,7 +249,7 @@ classdef CompleteExperiment3 < CompleteExperiment
             else
                 for i = 1:length(obj)
                     try
-                        obj(i).alignTimestamps(refEventNameEphys=refEventNameEphys, refEventNameArduino=refEventNameArduino, trialDurationTolerance=trialDurationTolerance);
+                        obj(i).alignTimestamps(varargin{:});
                     catch ME
                         fprintf(1, '%g: %s has error. %g EphysUnits involved.\n', i, obj(i).name, length(obj(i).eu))
                         warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
