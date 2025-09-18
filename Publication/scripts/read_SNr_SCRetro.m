@@ -112,8 +112,8 @@ XRed = dictionary([string(redPowers*1e6), "8000+", "all"]', X);
 
 for iEu = 1:length(eu)
     fprintf('groupingStim, iEu=%i/%i\n', iEu, length(eu))
-    groupsBlue = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimBluePowers, duration=p.stimBlueDurations, location=[], wavelength=[470, 473]));
-    groupsRed = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimBluePowers, duration=p.stimRedDurations, location=[], wavelength=635));
+    groupsBlue = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=[100, 500, 2000]*1e-6, duration=p.stimBlueDurations, location=[], wavelength=[470, 473]));
+    groupsRed = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=[2000, 8000, 16000]*1e-6, duration=p.stimRedDurations, location=[], wavelength=635));
 
 
     for iGrp = 1:length(groupsBlue) + 1
