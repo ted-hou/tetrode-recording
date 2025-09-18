@@ -1,12 +1,12 @@
 %% 1.2Alt Or just load lite version, without non-SNr cells, without waveforms, spikecounts or spikerates.
-if exist('E:\Data', 'dir') 
+if exist('E:\Data\Units\SNr_nonDuplicate_nonDrift_withITI', 'dir') 
     eu = EphysUnit.load('E:\Data\Units\SNr_nonDuplicate_nonDrift_withITI', waveforms=false, spikecounts=false, spikerates=false);
 else
     eu = EphysUnit.load('C:\SERVER\Units\Lite_NonDuplicate_NonDrift', waveforms=false, spikecounts=false, spikerates=false);
 end
 
 %% Load euComplete (complete with ITI spikes)
-if ~exist('E:\Data', 'dir') 
+if ~exist('E:\Data\Units\NonLite_PressVsLick', 'dir') 
     euNames = lower(eu.getName());
     
     files = dir('C:\SERVER\Units\NonLite_PressVsLick\*.mat');
@@ -24,9 +24,14 @@ if ~exist('E:\Data', 'dir')
 end
 
 %% Load metadata
-if exist('E:\Data', 'dir')
+if exist('E:\Data\Units\meta_Lite_NonDuplicate_NonDrift.mat', 'file')
     load('E:\Data\Units\meta_Lite_NonDuplicate_NonDrift.mat')
 else
     load('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift_20250705.mat')
 end
 % save('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift.mat')
+
+%% Fix lick trials
+for iEu = 1:length(eu)
+    eu(iEu).Trials.Lick = Trial([eu(iEu).Trials.Lick.Start, Inf], [eu(iEu).Trials.Lick.Stop], 'first', exclude=eu(iEu).EventTimes.RewardTimes);
+end

@@ -124,6 +124,58 @@ classdef CompleteExperiment < handle
                 end
             end
         end
+        
+        function [frames, t] = getVideoFrames(obj, t, varargin)
+            p = inputParser();
+            p.addRequired('t', @isnumeric)
+            p.addOptional('side', 'l', @(x) ismember(x, {'l', 'r', 'f'}))
+            p.addParameter('vtd', [], @istable)
+            p.addParameter('file', [], @istable)
+            p.parse(t, varargin{:})
+            t = p.Results.t;
+            side = p.Results.side;
+            vtd = p.Results.vtd;
+            file = p.Results.file;
+            assert(isscalar(obj))
+
+            if isempty(p.Results.file)
+                file = sprintf('C:\\SERVER\\%s\\%s\\%s*_%i.mp4', obj.animalName, obj.name, obj.name, obj.getCameraIndex(side));
+                file = dir(file);
+                if isempty(file)
+                    error('Video file not found (%s)', sprintf('C:\\SERVER\\%s\\%s\\%s*_%i.mp4', obj.animalName, obj.name, obj.name, obj.getCameraIndex(side)));
+                else
+                    file = sprintf('%s\\%s', file.folder, file.name);
+                end
+            else
+                file = p.Results.file;
+            end
+            if isempty(vtd)
+                switch side
+                    case 'r'
+                        vtd = obj.vtdR;
+                    case 'l'
+                        vtd = obj.vtdL;
+                    case 'f'
+                        vtd = obj.vtdF;
+                end
+            end
+
+            v = VideoReader(file);
+
+            frames = zeros(v.Height, v.Width, 3, length(t), 'uint8');
+            frameIndex = zeros(size(t));
+            lineLength = 0;
+            tTic = tic();
+            for iFrame = 1:length(t)
+                fprintf(repmat('\b', 1, lineLength))
+                lineLength = fprintf('Reading frame %i of %i...', iFrame, length(t));
+                [~, frameIndex(iFrame)] = min(abs(vtd.Timestamp - t(iFrame)));
+                frames(:, :, :, iFrame) = v.read(frameIndex(iFrame), 'native');
+            end
+            fprintf(repmat('\b', 1, lineLength))
+            fprintf('Read %i frames in %g seconds.\n', length(t), toc(tTic))
+            t = vtd.Timestamp(frameIndex);
+        end
 
 		function [clip, t] = getVideoClip(obj, ephysTime, varargin)
 			p = inputParser;

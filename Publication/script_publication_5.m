@@ -213,7 +213,8 @@ ax(3) = nexttile(layout.middle.right.tl);
 ax(4) = nexttile(layout.middle.right.tl);
 
 
-sel = c.hasPress & c.hasLick;
+% sel = c.hasPress & c.hasLick;
+sel = 1:length(eu);
 
 c.isLickUnresponsiveButUp = ~c.isLickResponsive & meta.lick > 0;
 c.isLickUnresponsiveButDown = ~c.isLickResponsive & meta.lick < 0;

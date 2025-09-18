@@ -60,9 +60,9 @@ for iExp = 1:length(expAcute)
 %             theseNamesSmooth = fnamesSmoothR;
     end
 
-    fCorrect{iExp} = struct('press', [], 'lick', [], 'press_release', [], 'press_retract', []);
-    fIncorrect{iExp} = struct('press', [], 'lick', [], 'press_release', [], 'press_retract', []);
-    for trialType = {'press', 'lick', 'press_release', 'press_retract'}
+    fCorrect{iExp} = struct('press', [], 'lick', []);
+    fIncorrect{iExp} = struct('press', [], 'lick', []);
+    for trialType = {'press', 'lick'}
         trialType = trialType{1};
         switch trialType
             case {'press', 'lick'}

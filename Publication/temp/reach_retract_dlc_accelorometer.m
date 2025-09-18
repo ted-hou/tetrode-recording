@@ -65,9 +65,50 @@ for iExp = 1:length(exp)
         ]);
 end
 
+%% Do Lick detection by video
+% %% Make BennyHill-style videos of lick frames, grouped by tongue likelihoods
+% llhThresholds = 0.4:0.2:1;
+% iExp = 2;
+% 
+% side = 'l';
+% clear frames
+% frames(length(llhThresholds)-1) = struct(frames=[], t=[], llhWindow=[]);
+% for i = 1:length(llhThresholds)-1
+%     frames(i).llhWindow = llhThresholds(i:i+1);
+%     selFrames = isin(exp(iExp).vtdL.tongue_Likelihood, frames(i).llhWindow);
+%     switch side
+%         case 'l'
+%             [frames(i).frames, frames(i).t] = exp(iExp).getVideoFrames(exp(iExp).vtdL.Timestamp(selFrames), 'l');    
+%         case 'r'
+%             [frames(i).frames, frames(i).t] = exp(iExp).getVideoFrames(exp(iExp).vtdR.Timestamp(selFrames), 'r');
+%     end
+% end
+% 
+% clear llhThresholds iExp i selFrames
+
+% Let's choose a tongue llh>0.5 as lick
+tongueLikelihoodThreshold = 0.5;
+for iExp = 1:length(exp)
+    try
+        isTongueVisible = exp(iExp).vtdL.tongue_Likelihood' > tongueLikelihoodThreshold;
+        lickOn = exp(iExp).vtdL.Timestamp(strfind(isTongueVisible, [false, true]) + 1);
+        lickOff = exp(iExp).vtdL.Timestamp(strfind(isTongueVisible, [true, false]) + 1);
+    
+        for iEu = 1:length(exp(iExp).eu)
+            exp(iExp).eu(iEu).EventTimes.Lick = lickOn;
+            exp(iExp).eu(iEu).EventTimes.LickOn = lickOn;
+            exp(iExp).eu(iEu).EventTimes.LickOff = lickOff;
+        end
+    
+        fprintf('%i - %s, %i(%i) lickOn, %i(%i) lickOff by video(accelorometer).\n', iExp, exp(iExp).name, length(lickOn), length(exp(iExp).eu(iEu).EventTimes.LickOn), length(lickOff), length(exp(iExp).eu(iEu).EventTimes.LickOff));
+    catch
+        warning('exp %i failed', iExp)
+    end
+end
+
 %% Make lick and reach trials, but first cleanup the bad accel artifacts
 pulseWidthThreshold = struct(press = 1.5e-3, lick=0);
-minTrialLength = 2;
+minTrialLength = 1;
 
 fig = figure(Units='inches', Position=[1, 1, 7, 7]);
 tl = tiledlayout(fig, length(exp), 1, TileSpacing='tight', Padding='tight');
@@ -82,14 +123,21 @@ lgd.Layout.Tile = 'north';
 xlabel(tl, 'pulse width (ms)')
 ylabel(tl, 'prob')
 for iEu = 1:length(eu)
+    % if any(isfield(eu(iEu).EventTimes, {'ValidPress', 'ValidLick'}))
+    %     continue
+    % end
     selPress = eu(iEu).EventTimes.PressOff - eu(iEu).EventTimes.PressOn > pulseWidthThreshold.press;
-    selLick = eu(iEu).EventTimes.LickOff - eu(iEu).EventTimes.LickOn > pulseWidthThreshold.lick;
-    eu(iEu).Trials.Press = Trial(eu(iEu).EventTimes.TIMEOUT_START, eu(iEu).EventTimes.Press(selPress), stopMode='first', exclude=eu(iEu).EventTimes.Lick(selLick));
-    eu(iEu).Trials.Lick = Trial(eu(iEu).EventTimes.TIMEOUT_START, eu(iEu).EventTimes.Lick(selLick), stopMode='first', exclude=eu(iEu).EventTimes.Press(selPress));
+    eu(iEu).Trials.Press = Trial(eu(iEu).EventTimes.TIMEOUT_START, eu(iEu).EventTimes.Press(selPress), stopMode='first', exclude=eu(iEu).EventTimes.Lick);
     eu(iEu).Trials.Press = eu(iEu).Trials.Press(eu(iEu).Trials.Press.duration() >= minTrialLength);
-    eu(iEu).Trials.Lick = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() >= minTrialLength);
     eu(iEu).EventTimes.ValidPress = eu(iEu).EventTimes.Press(selPress);
-    eu(iEu).EventTimes.ValidLick = eu(iEu).EventTimes.Lick(selLick);
+    
+    eu(iEu).EventTimes.PressOn = eu(iEu).EventTimes.PressOn(selPress);
+    eu(iEu).EventTimes.PressOff = eu(iEu).EventTimes.PressOff(selPress);
+
+    % selLick = eu(iEu).EventTimes.LickOff - eu(iEu).EventTimes.LickOn > pulseWidthThreshold.lick;
+    eu(iEu).Trials.Lick = Trial(eu(iEu).EventTimes.TIMEOUT_START, eu(iEu).EventTimes.Lick, stopMode='first', exclude=eu(iEu).EventTimes.ValidPress);
+    eu(iEu).Trials.Lick = eu(iEu).Trials.Lick(eu(iEu).Trials.Lick.duration() >= minTrialLength);
+    eu(iEu).EventTimes.ValidLick = eu(iEu).EventTimes.Lick;    
 end
 clear fig tl iExp lgd iEu ax selLick selPress
 
@@ -204,7 +252,7 @@ for iEu = 1:length(eu)
 
     clear selTrials
     selTrials.press = isin(traj(iExp).press.handContra.traversal, quantile(traj(iExp).press.handContra.traversal, [0.5, 1]), true) | isin(traj(iExp).press.handIpsi.traversal, quantile(traj(iExp).press.handIpsi.traversal, [0.5, 1]), true);
-    selTrials.lick = isin(traj(iExp).lick.handContra.traversal, quantile(traj(iExp).press.handContra.traversal, [0, 0.3]), true) & isin(traj(iExp).lick.handIpsi.traversal, quantile(traj(iExp).press.handIpsi.traversal, [0, 0.3]), true);
+    selTrials.lick = isin(traj(iExp).lick.handContra.traversal, quantile(traj(iExp).press.handContra.traversal, [0, 0.8]), true) & isin(traj(iExp).lick.handIpsi.traversal, quantile(traj(iExp).press.handIpsi.traversal, [0, 0.8]), true);
     
     if eu(iEu) == exp(iExp).eu(1)
         fprintf('Exp%i %s: kept %i/%i reach trials, kept %i/%i lick trials.\n', iExp, exp(iExp).name, nnz(selTrials.press), length(selTrials.press), nnz(selTrials.lick), length(selTrials.lick))
@@ -338,11 +386,90 @@ eta.correctLickToLastLickNorm = eu.getETA('count', 'CorrectLickToLastLick', [-4,
 % eta.correctPressToLastLickNorm = eu.getETA('count', 'CorrectPressToLastLick', [-4, 4], selUnits=selUnits, resolution=eta.resolution, alignTo='stop', includeInvalid=false, normalize=[-1, -0.3], minTrialDuration=0, maxTrialDuration=Inf);
 % eta.correctLickToLastLickNorm = eu.getETA('count', 'CorrectLickToLastLick', [-4, 4], selUnits=selUnits, resolution=eta.resolution, alignTo='stop', includeInvalid=false, normalize=[-1, -0.3], minTrialDuration=0, maxTrialDuration=Inf);
 
-% Lick bouts (norm to pre-press [-4, -2])
-eta.lickBoutNaive = eu.getETA('count', 'lickbout_naive', window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-    minBoutCycles=2, maxBoutCycles=4, artifacts=artifactParams);
-eta.lickBoutNaiveNorm = eta.lickBoutNaive;
-eta.lickBoutNaiveNorm.X = (eta.lickBoutNaiveNorm.X - vertcat(eta.pressNorm.stats.mean)/0.1) ./ (vertcat(eta.pressNorm.stats.sd)/0.1);
+%% Circlick and Lickbout
+eta.circlick = eu.getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, artifacts=[]);
+eta.lickbout = eu.getETA('count', 'lickbout_naive', window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, minBoutCycles=2, maxBoutCycles=4, artifacts=[]);
+
+% eta.circlickNorm = eta.circlick;
+% eta.circlickNorm.X(selUnits, :) = (eta.circlickNorm.X(selUnits, :) - vertcat(eta.pressNorm.stats.mean)/0.1) ./ (vertcat(eta.pressNorm.stats.sd)/0.1);
+% eta.circlickNorm.X(~selUnits, :) = NaN;
+% 
+% eta.lickboutNorm = eta.lickBout;
+% eta.lickboutNorm.X(selUnits, :) = (eta.lickboutNorm.X(selUnits, :) - vertcat(eta.pressNorm.stats.mean)/0.1) ./ (vertcat(eta.pressNorm.stats.sd)/0.1);
+% eta.lickboutNorm.X(~selUnits, :) = NaN;
+
+eta.circlickNormToSelf = eta.circlick;
+eta.circlickNormToSelf.X = (eta.circlickNormToSelf.X - mean(eta.circlickNormToSelf.X, 2, 'omitnan')) ./ std(eta.circlickNormToSelf.X, 0, 2, 'omitnan');
+
+eta.lickboutNormToSelf = eta.lickbout;
+eta.lickboutNormToSelf.X = (eta.lickboutNormToSelf.X - mean(eta.lickboutNormToSelf.X, 2, 'omitnan')) ./ std(eta.lickboutNormToSelf.X, 0, 2, 'omitnan');
+
+%% Boot circlick
+clear bootCirclick
+[bootCirclick.magH, bootCirclick.magCI, bootCirclick.Z] = bootCircLick(eta.circlick, alpha=0.01, nBoot=100000, replace=false, seed=42, interpFirstBin=false, replaceNansWithMean=true);
+
+c.isLick = bootCirclick.magH(:)';
+
+
+%% Plot circlick
+fig = figure(Units='inches', Position=[1, 0, 10, 6]);
+tlp = tiledlayout(fig, 2, 1, TileSpacing='compact', Padding='compact');
+tl(1) = tiledlayout(tlp, 1, 4, TileSpacing='compact', Padding='compact');
+tl(2) = tiledlayout(tlp, 1, 4, TileSpacing='compact', Padding='compact');
+tl(2).Layout.Tile = 2;
+
+sel = c.isLick;
+meanZ = bootCirclick.Z(sel);
+phase = angle(meanZ);
+phase(phase < 0) = phase(phase < 0) + 2*pi;
+[~, I] = sort(phase);
+
+ax = nexttile(tl(1), 1, [1, 1]);
+EphysUnit.plotETA(ax, eta.circlickNormToSelf, sel, order=I, clim=[-5, 5], xlim=[0, 2*pi], hidecolorbar=true);
+xlim(ax, [0, 2*pi])
+xticks(ax, (0:1:2).*pi)
+xticklabels(ax, ["0", "\pi", "2\pi"]);
+xline(ax, (0:1:2).*pi, 'k--')
+xlabel(ax, 'lick phase')
+title(ax, '')
+applyCustomColormap(ax, [-5, 5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+
+
+ax = nexttile(tl(1), 2, [1, 3]);
+EphysUnit.plotETA(ax, eta.lickboutNormToSelf, sel, order=I, clim=[-5, 5], xlim=[0, 2*pi], hidecolorbar=false);
+xlim(ax, [0, 8*pi])
+xticks(ax, (0:2:8).*pi)
+xticklabels(ax, ["0", arrayfun(@(x) sprintf("%i\\pi", x), 2:2:8)]);
+xline(ax, (0:2:8).*pi, 'k--')
+xlabel(ax, 'lick phase')
+title(ax, '')
+applyCustomColormap(ax, [-3, 3], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+ax.Colorbar.Layout.Tile = 'east';
+
+
+% sel = c.isLick & isGoodUnit;
+% meanZ = bootCirclick.Z(sel);
+% phase = angle(meanZ);
+% [~, I] = sort(phase);
+% 
+% ax = nexttile(tl(2), 1, [1, 1]);
+% EphysUnit.plotETA(ax, eta.circlickNorm, sel, order=I, clim=[-5, 5], xlim=[0, 2*pi], hidecolorbar=true);
+% xlim(ax, [0, 2*pi])
+% xticks(ax, (0:1:2).*pi)
+% xticklabels(ax, ["0", "\pi", "2\pi"]);
+% xline(ax, (0:1:2).*pi, 'k--')
+% xlabel(ax, 'lick phase')
+% title(ax, '')
+% 
+% ax = nexttile(tl(2), 2, [1, 3]);
+% EphysUnit.plotETA(ax, eta.lickboutNorm, sel, order=I, clim=[-5, 5], xlim=[0, 2*pi], hidecolorbar=true);
+% xlim(ax, [0, 8*pi])
+% xticks(ax, (0:2:8).*pi)
+% xticklabels(ax, ["0", arrayfun(@(x) sprintf("%i\\pi", x), 2:2:8)]);
+% xline(ax, (0:2:8).*pi, 'k--')
+% xlabel(ax, 'lick phase')
+% title(ax, '')
+
 
 %% Plottings
 % close all
