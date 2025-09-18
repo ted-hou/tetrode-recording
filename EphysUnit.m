@@ -789,7 +789,11 @@ classdef EphysUnit < handle
             end
     
             if isnumeric(normalize)
-                eta = struct('X', X, 't', t, 'N', N, 'D', D, 'stats', stats);
+                if exist('stats', 'var')
+                    eta = struct('X', X, 't', t, 'N', N, 'D', D, 'stats', stats);
+                else
+                    eta = struct('X', X, 't', t, 'N', N, 'D', D);
+                end
             else
                 eta = struct('X', X, 't', t, 'N', N, 'D', D);
             end
@@ -2497,7 +2501,7 @@ classdef EphysUnit < handle
                         % Column of operant trials
                         operantTrialType = strsplit(trialType, '+');
                         operantTrialType = operantTrialType{1};
-                        trials = obj.makeTrials(operantTrialType);
+                        trials = obj.getTrials(operantTrialType);
                         trials = trials(:);
                         if isempty(trials)
                             return

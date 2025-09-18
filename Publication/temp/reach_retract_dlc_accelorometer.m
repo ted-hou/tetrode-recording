@@ -93,13 +93,13 @@ for iExp = 1:length(exp)
         isTongueVisible = exp(iExp).vtdL.tongue_Likelihood' > tongueLikelihoodThreshold;
         lickOn = exp(iExp).vtdL.Timestamp(strfind(isTongueVisible, [false, true]) + 1);
         lickOff = exp(iExp).vtdL.Timestamp(strfind(isTongueVisible, [true, false]) + 1);
-    
+
         for iEu = 1:length(exp(iExp).eu)
             exp(iExp).eu(iEu).EventTimes.Lick = lickOn;
             exp(iExp).eu(iEu).EventTimes.LickOn = lickOn;
             exp(iExp).eu(iEu).EventTimes.LickOff = lickOff;
         end
-    
+
         fprintf('%i - %s, %i(%i) lickOn, %i(%i) lickOff by video(accelorometer).\n', iExp, exp(iExp).name, length(lickOn), length(exp(iExp).eu(iEu).EventTimes.LickOn), length(lickOff), length(exp(iExp).eu(iEu).EventTimes.LickOff));
     catch
         warning('exp %i failed', iExp)
@@ -130,7 +130,7 @@ for iEu = 1:length(eu)
     eu(iEu).Trials.Press = Trial(eu(iEu).EventTimes.TIMEOUT_START, eu(iEu).EventTimes.Press(selPress), stopMode='first', exclude=eu(iEu).EventTimes.Lick);
     eu(iEu).Trials.Press = eu(iEu).Trials.Press(eu(iEu).Trials.Press.duration() >= minTrialLength);
     eu(iEu).EventTimes.ValidPress = eu(iEu).EventTimes.Press(selPress);
-    
+
     eu(iEu).EventTimes.PressOn = eu(iEu).EventTimes.PressOn(selPress);
     eu(iEu).EventTimes.PressOff = eu(iEu).EventTimes.PressOff(selPress);
 
@@ -176,7 +176,7 @@ for iExp = 1:length(exp)
         [traj(iExp).lick.handIpsi.X, traj(iExp).lick.handIpsi.Y, traj(iExp).lick.handIpsi.L, traj(iExp).lick.handIpsi.t] = exp(iExp).getTrajectoryByTrial('l', 'handIpsi', trialType='lick', window=traj(iExp).window, likelihoodThreshold=traj(iExp).minLikelihood);
         [traj(iExp).press.tongue.X, traj(iExp).press.tongue.Y, traj(iExp).press.tongue.L, traj(iExp).press.tongue.t] = exp(iExp).getTrajectoryByTrial('r', 'tongue', trialType='press', window=traj(iExp).window, likelihoodThreshold=traj(iExp).minLikelihood);
         [traj(iExp).lick.tongue.X, traj(iExp).lick.tongue.Y, traj(iExp).lick.tongue.L, traj(iExp).lick.tongue.t] = exp(iExp).getTrajectoryByTrial('r', 'tongue', trialType='lick', window=traj(iExp).window, likelihoodThreshold=traj(iExp).minLikelihood);
-    
+
         % sum the traversal distance 
         for trialType = ["press", "lick"]
             traj(iExp).(trialType).handContra.traversal = sum(sqrt(diff(traj(iExp).(trialType).handContra.X, 1, 2).^2 + diff(traj(iExp).(trialType).handContra.Y, 1, 2).^2), 2, 'omitnan');
@@ -189,12 +189,12 @@ for iExp = 1:length(exp)
 end
 badExpIndices = unique(badExpIndices);
 
-isGoodUnit = true(size(eu));
+c.isGoodUnit = true(size(eu));
 for iExp = badExpIndices
-    isGoodUnit(ismember(eu, exp(iExp).eu)) = false;
+    c.isGoodUnit(ismember(eu, exp(iExp).eu)) = false;
 end
 
-fprintf('%i/%i sessions (%i/%i units) failed to generate trajectories and will not be included.\n', length(badExpIndices), length(exp), nnz(~isGoodUnit), length(eu));
+fprintf('%i/%i sessions (%i/%i units) failed to generate trajectories and will not be included.\n', length(badExpIndices), length(exp), nnz(~c.isGoodUnit), length(eu));
 clear iExp trialType
 
 % %% Plot them trajectories
@@ -253,13 +253,13 @@ for iEu = 1:length(eu)
     clear selTrials
     selTrials.press = isin(traj(iExp).press.handContra.traversal, quantile(traj(iExp).press.handContra.traversal, [0.5, 1]), true) | isin(traj(iExp).press.handIpsi.traversal, quantile(traj(iExp).press.handIpsi.traversal, [0.5, 1]), true);
     selTrials.lick = isin(traj(iExp).lick.handContra.traversal, quantile(traj(iExp).press.handContra.traversal, [0, 0.8]), true) & isin(traj(iExp).lick.handIpsi.traversal, quantile(traj(iExp).press.handIpsi.traversal, [0, 0.8]), true);
-    
+
     if eu(iEu) == exp(iExp).eu(1)
         fprintf('Exp%i %s: kept %i/%i reach trials, kept %i/%i lick trials.\n', iExp, exp(iExp).name, nnz(selTrials.press), length(selTrials.press), nnz(selTrials.lick), length(selTrials.lick))
     end
 
     if nnz(selTrials.press) < minNumTrials || nnz(selTrials.lick) < minNumTrials
-        isGoodUnit(iEu) = false;
+        c.isGoodUnit(iEu) = false;
         badExpIndices = [badExpIndices, iExp];
     end
 
@@ -363,7 +363,7 @@ clear iExp timeoutToPress timeoutToLick selCorrectPress selCorrectLick isCorrect
 clear eta
 eta.normWindow = [-3, -1.5];
 eta.resolution = 0.05;
-selUnits = isGoodUnit;
+selUnits = c.isGoodUnit;
 eta.pressNorm = eu.getETA('count', 'press', [-4, 4], selUnits=selUnits, resolution=eta.resolution, alignTo='stop', includeInvalid=false, normalize=eta.normWindow, minTrialDuration=0, maxTrialDuration=Inf);
 eta.lickNorm = eu.getETA('count', 'lick', [-4, 4], selUnits=selUnits, resolution=eta.resolution, alignTo='stop', includeInvalid=false, normalize=eta.normWindow, minTrialDuration=0, maxTrialDuration=Inf);
 eta.correctPressNorm = eu.getETA('count', 'CorrectPress', [-4, 4], selUnits=selUnits, resolution=eta.resolution, alignTo='stop', includeInvalid=false, normalize=eta.pressNorm.stats, minTrialDuration=0, maxTrialDuration=Inf);
@@ -388,7 +388,7 @@ eta.correctLickToLastLickNorm = eu.getETA('count', 'CorrectLickToLastLick', [-4,
 
 %% Circlick and Lickbout
 eta.circlick = eu.getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, artifacts=[]);
-eta.lickbout = eu.getETA('count', 'lickbout_naive', window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, minBoutCycles=2, maxBoutCycles=4, artifacts=[]);
+eta.lickbout = eu.getETA('count', 'lickbout_naive', window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, minBoutCycles=4, maxBoutCycles=4, artifacts=[]);
 
 % eta.circlickNorm = eta.circlick;
 % eta.circlickNorm.X(selUnits, :) = (eta.circlickNorm.X(selUnits, :) - vertcat(eta.pressNorm.stats.mean)/0.1) ./ (vertcat(eta.pressNorm.stats.sd)/0.1);
@@ -409,7 +409,89 @@ clear bootCirclick
 [bootCirclick.magH, bootCirclick.magCI, bootCirclick.Z] = bootCircLick(eta.circlick, alpha=0.01, nBoot=100000, replace=false, seed=42, interpFirstBin=false, replaceNansWithMean=true);
 
 c.isLick = bootCirclick.magH(:)';
+nnz(c.isLick), nnz(c.isGoodUnit)
+%% Boot movement responses
 
+
+
+p.bootAlpha = 0.01;
+p.nboot = 100000;
+p.responseWindowPress = [-0.3, 0];
+p.responseWindowLick = [-0.3, 0];
+assert(isequal(p.responseWindowPress, [-0.3, 0]))
+assert(isequal(p.responseWindowLick, [-0.3, 0]))
+boot.press = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muDiffObs', NaN(length(eu), 1));
+boot.lick = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muDiffObs', NaN(length(eu), 1));
+[boot.press.h(c.isGoodUnit), boot.press.muDiffCI(c.isGoodUnit, :), boot.press.muDiffObs(c.isGoodUnit)] = bootstrapMoveResponse( ...
+    eu(c.isGoodUnit), 'press', nboot=p.nboot, alpha=p.bootAlpha, withReplacement=false, oneSided=false, ...
+    responseWindow=p.responseWindowPress);
+[boot.lick.h(c.isGoodUnit), boot.lick.muDiffCI(c.isGoodUnit, :), boot.lick.muDiffObs(c.isGoodUnit)] = bootstrapMoveResponse( ...
+    eu(c.isGoodUnit), 'lick', nboot=p.nboot, alpha=p.bootAlpha, withReplacement=false, oneSided=false, ...
+    responseWindow=p.responseWindowLick);
+fprintf(1, '\nAll done\n')
+
+%% Report bootstraped movement response direction
+assert(nnz(isnan(boot.lick.h(c.isGoodUnit))) == 0)
+assert(nnz(isnan(boot.press.h(c.isGoodUnit))) == 0)
+
+figure, histogram(boot.press.h)
+c.isPressUp = boot.press.h' == 1 & c.isGoodUnit;
+c.isPressDown = boot.press.h' == -1 & c.isGoodUnit;
+c.isPressResponsive = c.isPressUp | c.isPressDown;
+
+figure, histogram(boot.lick.h)
+c.isLickUp = boot.lick.h' == 1 & c.isGoodUnit;
+c.isLickDown = boot.lick.h' == -1 & c.isGoodUnit;
+c.isLickResponsive = c.isLickUp | c.isLickDown;
+
+
+fprintf(1, ['%g good units, %g modulated for reach:\n' ...
+    '\t%g (%.0f%%) are excited (p<%g);\n' ...
+    '\t%g (%.0f%%) are inhibited (p<%g).\n'], ...
+    nnz(c.isGoodUnit), nnz(c.isPressResponsive), ...
+    nnz(c.isPressUp), 100*nnz(c.isPressUp)/nnz(c.isPressResponsive), p.bootAlpha, ...
+    nnz(c.isPressDown), 100*nnz(c.isPressDown)/nnz(c.isPressResponsive), p.bootAlpha);
+
+fprintf(1, ['%g good units, %g modulated for lick:\n' ...
+    '\t%g (%.0f%%) are excited (p<%g);\n' ...
+    '\t%g (%.0f%%) are inhibited (p<%g).\n'], ...
+    nnz(c.isGoodUnit), nnz(c.isLickResponsive), ...
+    nnz(c.isLickUp), 100*nnz(c.isLickUp)/nnz(c.isLickResponsive), p.bootAlpha, ...
+    nnz(c.isLickDown), 100*nnz(c.isLickDown)/nnz(c.isLickResponsive), p.bootAlpha);
+
+nTotal = nnz(c.isPressResponsive & c.isLickResponsive);
+fprintf(1, ['%g good units, %g modulated for reach AND lick:\n' ...
+    '\t%g (%.0f%%) are press-excited AND lick-excited;\n' ...
+    '\t%g (%.0f%%) are press-inhibited AND lick-inhibited;\n' ...
+    '\t%g (%.0f%%) are press-excited AND lick-inhibited;\n' ...
+    '\t%g (%.0f%%) are press-inhibited AND lick-excited;\n'], ...
+    nnz(c.isGoodUnit), nTotal, ...
+    nnz(c.isPressUp & c.isLickUp), 100*nnz(c.isPressUp & c.isLickUp)/nTotal, ...
+    nnz(c.isPressDown & c.isLickDown), 100*nnz(c.isPressDown & c.isLickDown)/nTotal, ...
+    nnz(c.isPressUp & c.isLickDown), 100*nnz(c.isPressUp & c.isLickDown)/nTotal, ...
+    nnz(c.isPressDown & c.isLickUp), 100*nnz(c.isPressDown & c.isLickUp)/nTotal)   
+
+sel = c.isGoodUnit;
+fprintf('05 Calculate: Of %i: %i (%i%%) showed modulation for BOTH, %i (%i%%) showed modulation for lick only, %i (%i%%) showed modulation for reach only, %i (%i%%) for neither.', ...
+    nnz(sel), ...
+    nnz(sel & c.isPressResponsive & c.isLickResponsive), round(nnz(sel & c.isPressResponsive & c.isLickResponsive)/nnz(sel)*100), ...
+    nnz(sel & c.isLickResponsive & ~c.isPressResponsive), round(nnz(sel & c.isLickResponsive & ~c.isPressResponsive)/nnz(sel)*100), ...
+    nnz(sel & c.isPressResponsive & ~c.isLickResponsive), round(nnz(sel & c.isPressResponsive & ~c.isLickResponsive)/nnz(sel)*100), ...
+    nnz(sel & ~c.isPressResponsive & ~c.isLickResponsive), round(nnz(sel & ~c.isPressResponsive & ~c.isLickResponsive)/nnz(sel)*100) ...
+    )
+
+clear nTotal sel
+
+%% Save data
+eu.save('E:\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr_withTrials');
+save('E:\Data\Units\meta_TwoColor_SNr_SCRetro_ReverseInjection.mat', 'badExpIndices', 'bootCirclick', 'boot', 'p', 'c', 'dlcPath', 'eta', 'nTrials', 'minTrialLength', 'pulseWidthThreshold', 'sessions', 'tongueLikelihoodThreshold', 'traj')
+
+eu.save('C:\SERVER\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr_withTrials');
+save('C:\SERVER\Units\meta_TwoColor_SNr_SCRetro_ReverseInjection.mat', 'badExpIndices', 'bootCirclick', 'boot', 'p', 'c', 'dlcPath', 'eta', 'nTrials', 'minTrialLength', 'pulseWidthThreshold', 'sessions', 'tongueLikelihoodThreshold', 'traj')
+
+%% Load data, can skip all previous blocks!
+eu = EphysUnit.load('C:\SERVER\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr_withTrials');
+load('C:\SERVER\Units\meta_TwoColor_SNr_SCRetro_ReverseInjection.mat');
 
 %% Plot circlick
 fig = figure(Units='inches', Position=[1, 0, 10, 6]);
@@ -447,7 +529,7 @@ applyCustomColormap(ax, [-3, 3], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.
 ax.Colorbar.Layout.Tile = 'east';
 
 
-% sel = c.isLick & isGoodUnit;
+% sel = c.isLick & c.isGoodUnit;
 % meanZ = bootCirclick.Z(sel);
 % phase = angle(meanZ);
 % [~, I] = sort(phase);
@@ -577,23 +659,23 @@ fontsize(fig, 9, 'points')
 % 
 % tl = tiledlayout(figure(Units='normalized', OuterPosition=[0.5, 0, 0.5, 1]), 1, 4);
 % ax = nexttile(tl);
-% [~, orderA] = EphysUnit.plotETA(ax, eta.lickNorm, isGoodUnit, event='lick', clim=[-1.5, 1.5], xlim=[-2, 2], sortWindow=[-3, 1], signWindow=[-.1, 0], sortThreshold=0.25, hideColorbar=true);
+% [~, orderA] = EphysUnit.plotETA(ax, eta.lickNorm, c.isGoodUnit, event='lick', clim=[-1.5, 1.5], xlim=[-2, 2], sortWindow=[-3, 1], signWindow=[-.1, 0], sortThreshold=0.25, hideColorbar=true);
 % xline(ax, 0)
 % title(ax, 'Lick (sort A)')
 % 
 % ax = nexttile(tl);
-% [~, ~] = EphysUnit.plotETA(ax, eta.pressNorm, isGoodUnit, event='reach', order=orderA, clim=[-1.5, 1.5], xlim=[-2, 2], sortWindow=[-3, 1], signWindow=[-.1, 0], sortThreshold=0.25, hideColorbar=true);
+% [~, ~] = EphysUnit.plotETA(ax, eta.pressNorm, c.isGoodUnit, event='reach', order=orderA, clim=[-1.5, 1.5], xlim=[-2, 2], sortWindow=[-3, 1], signWindow=[-.1, 0], sortThreshold=0.25, hideColorbar=true);
 % xline(ax, 0)
 % title(ax, 'Reach (sort A)')
 % 
 % ax = nexttile(tl);
-% [~, orderB] = EphysUnit.plotETA(ax, eta.pressNorm, isGoodUnit, event='reach', clim=[-1.5, 1.5], xlim=[-2, 2], sortWindow=[-3, 1], signWindow=[-0.5, 0], sortThreshold=0.25, hideColorbar=false);
+% [~, orderB] = EphysUnit.plotETA(ax, eta.pressNorm, c.isGoodUnit, event='reach', clim=[-1.5, 1.5], xlim=[-2, 2], sortWindow=[-3, 1], signWindow=[-0.5, 0], sortThreshold=0.25, hideColorbar=false);
 % ax.Colorbar.Layout.Tile = 'east';
 % xline(ax, 0)
 % title(ax, 'Reach (sort B)')
 % 
 % ax = nexttile(tl);
-% [~, ~] = EphysUnit.plotETA(ax, eta.lickNorm, isGoodUnit, event='lick', order=orderB, clim=[-1.5, 1.5], xlim=[-2, 2], sortWindow=[-3, 1], signWindow=[-.1, 0], sortThreshold=0.25, hideColorbar=true);
+% [~, ~] = EphysUnit.plotETA(ax, eta.lickNorm, c.isGoodUnit, event='lick', order=orderB, clim=[-1.5, 1.5], xlim=[-2, 2], sortWindow=[-3, 1], signWindow=[-.1, 0], sortThreshold=0.25, hideColorbar=true);
 % xline(ax, 0)
 % title(ax, 'Lick (sort B)')
 % 
@@ -622,7 +704,7 @@ for iEu = 1:length(eu)
     groupsBlue = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimBluePowers, duration=p.stimBlueDurations, location=[], wavelength=[470, 473]));
     groupsRed = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimRedPowers, duration=p.stimRedDurations, location=[], wavelength=635));
 
-    % rd = eu(iEu).getRasterData('stimtwocolor', p.isiWindow, trials=[groupsRed.trials], alignTo='start', shutterDelay=0, sort=false, photoelectricBlankDuration=0.5e-3);
+    % rd = euAccel(iEu).getRasterData('stimtwocolor', p.isiWindow, trials=[groupsRed.trials], alignTo='start', shutterDelay=0, sort=false, photoelectricBlankDuration=0.5e-3);
     % EphysUnit.plotRaster(rd)
 
     if ~isempty(groupsBlue)
@@ -679,10 +761,10 @@ fprintf('Red %i, Blue %i\n', nnz(c.isStimRedUp), nnz(c.isStimBlueUp))
 
 
 %% Plot stim heatmap
-selUnitsStim = (c.isStimBlueUp | c.isStimRedUp) & isGoodUnit(:);
+selUnitsStim = (c.isStimBlueUp | c.isStimRedUp) & c.isGoodUnit(:);
 close all
-ETASORT = {eta.stimRed, eta.stimBlue};
-SORTWINDOW = {[5, 50]*1e-3, [5, 50]*1e-3};
+ETASORT = {eta.stimRed, eta.stimBlue, eta.pressNorm, eta.lickNorm};
+SORTWINDOW = {[5, 50]*1e-3, [5, 50]*1e-3, [-1, 0], [-1, 0]};
 ETA = {eta.stimRed, eta.stimBlue, eta.pressNorm, eta.lickNorm};
 NAME = ["Red", "Blue", "Reach", "Lick"];
 ZEROLABEL = ["stim", "stim", "touch", "lick"];
@@ -744,7 +826,7 @@ uniqueGroupVars = unique(groupVar);
 groupVar = changem(groupVar, 0:length(uniqueGroupVars)-1, uniqueGroupVars);
 groupSize = histcounts(groupVar, 0:length(uniqueGroupVars));
 groupSizeCum = cumsum(groupSize);
-[~, sortOrder] = sort(double(groupVar)*10 + score(:, 1)./max(abs(score(:, 1))), 'ascend');
+[~, sortOrder] = sort(double(groupVar)*10 + score(:, 3)./max(abs(score(:, 3))), 'ascend');
 
 
 fig = figure(Units='inches', Position=[1, 1, 8, 5]);

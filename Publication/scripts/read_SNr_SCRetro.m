@@ -58,6 +58,7 @@ if ~isempty(stimBluePowersMustContain)
         thisEu = eu(expToEuIndex(iExp));
         groups = thisEu.groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimBluePowers, duration=p.stimBlueDurations, location=[], wavelength=[470, 473]));
         powers = [groups.power];
+        powers = round(powers.*1e5)./1e5;
         for iCond = 1:length(stimBluePowersMustContain)
             found = any(eval(sprintf('powers%s', stimBluePowersMustContain(iCond))));
             if ~found
