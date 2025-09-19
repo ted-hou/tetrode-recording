@@ -1045,6 +1045,7 @@ print(tl.Parent, sprintf('%s\\per_group_average.png', path), '-dpng', '-r0')
 
 %% Plot individial units, PETH as trace: lick, reach, release
 
+path = 'E:\Figures\reach_lick_concatClustering';
 grpNames = groupNames.values;
 grpNames = grpNames(:)';
 for grpName = grpNames
