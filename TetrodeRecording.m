@@ -3055,7 +3055,8 @@ classdef TetrodeRecording < handle
                                 color = [0.2, 0.2, 0.2];
                                 warning('Cannot assign color to unknown wavelength %g, using gray instead', tce.Log(iTrain).wavelength)
                         end
-                        alpha = 0.2 + 0.6*((tce.Log(iTrain).params.iPower - 1)./(length(tce.Params.targetPowers) - 1));
+                        alpha = 0.05 + 0.25*((tce.Log(iTrain).params.iPower - 1)./(length(tce.Params.targetPowers) - 1));
+                        % alpha = 0.2 + 0.6*((tce.Log(iTrain).params.iPower - 1)./(length(tce.Params.targetPowers) - 1));
                         patch(hAxes, 1e3*[0, pulseWidth, pulseWidth, 0], [iPulseStart, iPulseStart, iPulseEnd, iPulseEnd], color, ...
                             FaceAlpha=alpha, EdgeColor='none')                        
                     end
@@ -3674,7 +3675,7 @@ classdef TetrodeRecording < handle
                 case 'Stim1/Stim2'
                     obj.PlotChannel(channel, PlotStimBlue=true, PlotStimOrange=true, ExtendedWindow=[-0.25, 0.5]) % Legacy, only used for Sep2023 experiments
                 case 'StimTwoColor'
-                    obj.PlotChannel(channel, TwoColorExperiment=true, ExtendedWindow=[-0.1, 0.3])
+                    obj.PlotChannel(channel, TwoColorExperiment=true, ExtendedWindow=[-0.1, 0.5])
             end
         end
         
