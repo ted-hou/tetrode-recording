@@ -1,8 +1,8 @@
 %% Spike detection
 clear, clc
 folders = { ...
-    'C:\SERVER\daisy29\daisy29_20251023' ...
-    'C:\SERVER\daisy29\daisy29_20251024' ...
+    'C:\SERVER\daisy29\daisy29_20251023', ...
+    'C:\SERVER\daisy29\daisy29_20251024', ...
     };
 
 for iSession = 1:length(folders)
@@ -28,10 +28,11 @@ for iSession = 1:length(folders)
     end
 end
 
-%% IterativeArtifactRemoval (OnionPeeling)
+%% Remove spikes after train 80 (i.e. only keep 10ms pulses) and redo spike sorting, this helps remove drift
 folders = { ...
-   % 'C:\SERVER\daisy28\daisy28_20250716', ...
-    %'C:\SERVER\daisy28\daisy28_20250718', ...
+    'C:\SERVER\daisy29\daisy29_20251023', ...
+    'C:\SERVER\daisy29\daisy29_20251024', ...
+    'C:\SERVER\daisy29\daisy29_20251025', ...
     };
 
 chunkSize = 32; % NumChannelsPerChunk
@@ -41,7 +42,7 @@ for iSession = 1:length(folders)
         tr.SelectFiles(NeuropixelPath=folders{iSession});
         tr.LoadNeuropixelIO();
         tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
-        
+
         % IterativeArtifactRemoval (OnionPeeling): Load spikes
         for iChunk = 1:(384/chunkSize)
             channels = (iChunk-1)*chunkSize + 1 : iChunk*chunkSize;
@@ -52,7 +53,18 @@ for iSession = 1:length(folders)
                 tr.Spikes = [];
                 continue
             end
-            % tr.PlotAllChannels(Channels=channels, plotMethod='mean')
+
+            % Remove spikes after train 80, i.e. only keep 10ms pulses
+            [tce, stimOn, stimOff, ~] = tr.LoadTwoColorExperiment();
+            selPulses = abs((stimOff - stimOn) - 0.010) < 0.001;
+            iLastPulse = find(selPulses, 1, 'last');
+            for iChn = channels(:)'
+                toDiscard = tr.Spikes(iChn).Timestamps > stimOff(iLastPulse) + 10;
+                tr.Spikes(iChn).SampleIndex(toDiscard) = [];
+                tr.Spikes(iChn).Timestamps(toDiscard) = [];
+                tr.Spikes(iChn).Waveforms(toDiscard, :) = [];
+            end
+            clear tce stimOn stimOff selPulses iLastPulse iChn toDiscard
 
             % IterativeArtifactRemoval (OnionPeeling): kmeans, pca
             tr.IterativeArtifactRemoval(channels, MinSpikeRate=0.5, KIterative=4, KFinal=2, MaxIters=5, ...
@@ -68,22 +80,19 @@ for iSession = 1:length(folders)
     end
 end
 
-%% Load sorted data on a different PC
-    % 'C:\SERVER\daisy27\daisy27_20250717', ...
-    % 'C:\SERVER\daisy27\daisy27_20250721', ...
 
-    %daisy28_20250728  18 16
-    % 02
+%% Load sorted data on a different PC
 
 clear, clc
 tr = TetrodeRecording();
-tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy28\daisy28_20250702')
+tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy29\daisy29_20251023')
 tr.LoadNeuropixelIO();
 tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
 
 channels = 1:128;
 tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
 tr.PlotAllChannels(Channels=channels, plotMethod='mean')
+
 %%
 tr.SaveSpikes(Channels=channels, Path='Spikes_Sorted')
 channels = 129:256;
