@@ -3517,10 +3517,11 @@ classdef TetrodeRecording < handle
 
 			expName = obj.GetExpName();
 
-			hFigure	= figure('Units', 'Normalized', 'OuterPosition', [0, 0, 1, 1], 'Name', expName, 'DefaultAxesFontSize', fontSize,...
-				'GraphicsSmoothing', 'off');
+			hFigure	= figure('Units', 'Normalized', 'OuterPosition', [0, 0, 1, 1], 'Name', expName, 'DefaultAxesFontSize', fontSize);
+			% hFigure	= uifigure(Units='pixels', Position=[0 50 1920 1080-100], Name=expName, DefaultAxesFontSize=fontSize);
 			hFigure.UserData.SelectedChannels = false(nChannels, 1);
 			hAxes = gobjects(1, nChannels);
+            hLayout = tiledlayout(hFigure, 8, 16);
 
             % Create context menu (common to all channels, mark for delete, reorder, merge)
             cm = uicontextmenu(hFigure);
@@ -3546,13 +3547,19 @@ classdef TetrodeRecording < handle
 					continue
 				end
 
-
-				hAxes(iChannel)	= subplot(8, 16, iChannel - channels(1) + 1);
+				% hAxes(iChannel)	= subplot(8, 16, iChannel - channels(1) + 1);
+                hAxes(iChannel) = axes(hLayout);
+                hAxes(iChannel).Layout.Tile = iChannel - channels(1) + 1;
                 hAxes(iChannel).ContextMenu = cm;
                 obj.PlotAllChannels_PlotSingle(hAxes(iChannel), iChannel, p)
-			end
-
-			suptitle(expName);
+                % hAxes(iChannel).InteractionOptions.PanSupported = false;
+                % hAxes(iChannel).InteractionOptions.ZoomSupported = false;
+                % hAxes(iChannel).InteractionOptions.RotateSupported = false;
+                % hAxes(iChannel).InteractionOptions.DatatipsSupported = false;
+                % hAxes(iChannel).InteractionOptions.BrushSupported = false;
+                hAxes(iChannel).Toolbar.Visible = false;
+            end
+            title(hLayout, expName, Interpreter='none')
         end
     end
     
@@ -3582,9 +3589,9 @@ classdef TetrodeRecording < handle
             ax.UserData.ToMerge = [];
             ax.UserData.ToReorder = [];
             ax.ButtonDownFcn = @obj.PlotAllChannels_OnAxesClicked;            
-            xlabel(ax, 'Time (ms)');
-            ylabel(ax, 'Voltage (\muV)');
-            title(ax, ['Channel ', num2str(channel)]);
+            % xlabel(ax, 'Time (ms)');
+            % ylabel(ax, 'Voltage (\muV)');
+            title(ax, sprintf('%i', channel));
             clusterID = obj.Spikes(channel).Cluster.Classes;
             for iCluster = unique(nonzeros(clusterID))'
                 [thisColor, thisStyle] = TetrodeRecording.GetColorAndStyle(iCluster);
@@ -3610,8 +3617,8 @@ classdef TetrodeRecording < handle
         end
         
         function PlotAllChannels_OnContextMenuOpened(obj, src, event, m1, m2, m3, m4)
-            ax = gca();
-            channel = ax.UserData.Channel;
+            ax = src.Parent.CurrentAxes;
+            % channel = ax.UserData.Channel;
             
             m1.Checked = ax.UserData.ToDelete;
             
@@ -3638,12 +3645,11 @@ classdef TetrodeRecording < handle
             
         end
         
-        function axes = PlotAllChannels_GetAxes(obj, channels)
-            if nargin < 2
+        function axes = PlotAllChannels_GetAxes(obj, fig, channels)
+            if nargin < 3
                 channels = [];
             end
             
-            fig = gcf;
             axes = findobj(fig.Children, '-depth', 1, 'type', 'axes', 'Tag', 'Channel');
             
             if ~isempty(channels)
@@ -3658,7 +3664,7 @@ classdef TetrodeRecording < handle
                 mode = 'Press/Stim';
             end
             
-            ax = gca();
+            ax = src.Parent.Parent.Parent.CurrentAxes;
             channel = ax.UserData.Channel;
             
             switch mode
@@ -3680,8 +3686,9 @@ classdef TetrodeRecording < handle
         end
         
         function PlotAllChannels_OnDeleteChn(obj, src, event, ax)
-            if ~isempty(obj.SelectedChannels)
-                axes = obj.PlotAllChannels_GetAxes(obj.SelectedChannels);
+            if ~isempty(obj.SelectedChannels) && ~isempty(src)
+                fig = src.Parent.Parent;
+                axes = obj.PlotAllChannels_GetAxes(fig, obj.SelectedChannels);
                 for i = 1:length(axes)
                     obj.PlotAllChannels_OnDeleteChn([], [], axes(i));
                 end
@@ -3689,7 +3696,7 @@ classdef TetrodeRecording < handle
             end
             
             if nargin < 4
-                ax = gca();
+                ax = src.Parent.Parent.CurrentAxes;
             end
             
             if ~ax.UserData.ToDelete
@@ -3702,7 +3709,7 @@ classdef TetrodeRecording < handle
         end
         
         function PlotAllChannels_OnDeleteClusters(obj, src, event)
-            ax = gca();
+            ax = src.Parent.Parent.CurrentAxes;
             channel = ax.UserData.Channel;
             
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(channel).Cluster.Classes)), 'UniformOutput', false);
@@ -3725,7 +3732,7 @@ classdef TetrodeRecording < handle
         end
         
         function PlotAllChannels_OnMergeClusters(obj, src, event)
-            ax = gca();
+            ax = src.Parent.Parent.CurrentAxes;
             channel = ax.UserData.Channel;
             
 			liststr = cellfun(@num2str, num2cell(unique(obj.Spikes(channel).Cluster.Classes)), 'UniformOutput', false);
@@ -3747,7 +3754,7 @@ classdef TetrodeRecording < handle
         end
         
         function PlotAllChannels_OnReorderClusters(obj, src, event)
-            ax = gca();
+            ax = src.Parent.Parent.CurrentAxes;
             channel = ax.UserData.Channel;
             
             cluster = unique(obj.Spikes(channel).Cluster.Classes);
@@ -3782,6 +3789,7 @@ classdef TetrodeRecording < handle
                 ax.Title.Color 				= 'r';
                 ax.TitleFontSizeMultiplier 	= 1.6;
                 obj.SelectedChannels = transpose(find(fig.UserData.SelectedChannels));
+                ax.Selected = true;
             else
                 fig.UserData.SelectedChannels(channel) = false;
                 ax.Box 						= 'off';
@@ -3791,6 +3799,7 @@ classdef TetrodeRecording < handle
                 ax.Title.Color 				= 'k';
                 ax.TitleFontSizeMultiplier 	= 1.1;
                 obj.SelectedChannels = transpose(find(fig.UserData.SelectedChannels));
+                ax.Selected = false;
             end
         end
         
@@ -3839,13 +3848,13 @@ classdef TetrodeRecording < handle
         end
         
         function PlotAllChannels_OnExecute(obj, src, event)
-            ax = gca();
+            ax = src.Parent.Parent.CurrentAxes;
             obj.PlotAllChannels_Execute(ax)
         end
         
         function PlotAllChannels_OnExecuteAll(obj, src, event)
-            fig = gcf;
-            axes = obj.PlotAllChannels_GetAxes();
+            fig = src.Parent.Parent;
+            axes = obj.PlotAllChannels_GetAxes(fig);
             
             for i = 1:length(axes)
                 obj.PlotAllChannels_Execute(axes(i))

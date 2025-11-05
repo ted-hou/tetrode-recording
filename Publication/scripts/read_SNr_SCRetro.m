@@ -140,10 +140,10 @@ for iEu = 1:length(eu)
     for iGrp = 1:length(groupsRed) + 1
         if iGrp <= length(groupsRed)
             trials = groupsRed(iGrp).trials;
-            if groupsRed(iGrp).power*1e6 < 8000
+            if groupsRed(iGrp).power*1e6 < 2000
                 key = string(groupsRed(iGrp).power*1e6);
             else
-                key = "8000+";
+                key = "2000+";
             end
         else
             trials = [groupsRed.trials];
