@@ -182,37 +182,206 @@ for iSession = 1:length(folders)
     end
 end
 
-%% Batch do stuff to SelectedChannels
-tr.SelectedChannels = [8:11, 13, 15:35, 37, 39:128];
-
-% for iChannel = tr.SelectedChannels
-%     tr.ClusterRemove(iChannel, 1);
-% end
-
-tr.FeatureExtract(tr.SelectedChannels, 'Method', 'PCA', 'Dimension', 10, 'WaveformWindow', [-0.5, 0.5]);
-tr.Cluster(tr.SelectedChannels, 'Clusters', [], 'Method', 'kmeans', 'NumClusters', 2);
-tr.SpikeClusterAutoReorder(tr.SelectedChannels, verbose=false)
-
-tr.SelectedChannels = [];
-tr.PlotAllChannels(Channels=channels, plotMethod='mean')
-
-
-%% Batch do stuff to SelectedChannels
-tr.SelectedChannels = [257:384];
-
-for iChannel = tr.SelectedChannels
-    tr.ClusterRemove(iChannel, 1);
-end
-
-tr.FeatureExtract(tr.SelectedChannels, 'Method', 'PCA', 'Dimension', 10, 'WaveformWindow', [-0.5, 0.5]);
-tr.Cluster(tr.SelectedChannels, 'Clusters', [], 'Method', 'kmeans', 'NumClusters', 2);
-tr.SpikeClusterAutoReorder(tr.SelectedChannels, verbose=false)
-
-tr.SelectedChannels = [];
-tr.PlotAllChannels(Channels=channels, plotMethod='mean')
 %%
-for iChannel = tr.SelectedChannels
-	for field = fieldnames(tr.Spikes)'
-		tr.Spikes(iChannel).(field{1}) = [];
-	end				
+eu = EphysUnit.load('C:\SERVER\Units\TwoColor_Striatonigral', waveforms=false, spikecounts=false, spikerates=false);
+
+%% ETA Stim
+p.isiBaselineWindow = [-0.2, 0];
+p.stimBluePowers = [500]*1e-6; 
+p.stimRedPowers = [500]*1e-6;
+p.stimBlueDurations = [10]*1e-3;
+p.stimRedDurations = [10]*1e-3;
+
+p.isiWindow = [-0.4, 0.4];
+p.isiRes = 1e-3;
+p.xlim.stim = [-0.1, 0.3];
+p.xlim.move = [-4, 2];
+p.path = 'C:\SERVER\Figures\TwoColor_Striatonigral\TestBatch';
+p.rasterSzStim = 1;
+p.rasterSzMove = 1;
+
+close all
+XBlue = cell(length(eu), 1);
+XRed = cell(length(eu), 1);
+for iEu = 1:length(eu)
+    groupsBlue = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimBluePowers, duration=p.stimBlueDurations, location=[], wavelength=[470, 473]));
+    groupsRed = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimRedPowers, duration=p.stimRedDurations, location=[], wavelength=[593, 635]));
+
+    % rd = eu(iEu).getRasterData('stimtwocolor', p.isiWindow, trials=[groupsRed.trials], alignTo='start', shutterDelay=0, sort=false, photoelectricBlankDuration=0.5e-3);
+    % EphysUnit.plotRaster(rd)
+
+    [isi, t] = eu(iEu).getMeanPEISI('stimtwocolor', [groupsBlue.trials], window=p.isiWindow, resolution=p.isiRes, photoelectricBlankDuration=1.5e-3);
+    selBaseline = t>p.isiBaselineWindow(1) & t<p.isiBaselineWindow(2);
+    normSR = (1./isi - mean(1./isi(:, selBaseline), 'omitnan')) ./ std(1./isi(:, selBaseline), 0, 2, 'omitnan');
+    XBlue{iEu} = normSR;
+
+    [isi, t] = eu(iEu).getMeanPEISI('stimtwocolor', [groupsRed.trials], window=p.isiWindow, resolution=p.isiRes, ...
+        photoelectricBlankDuration=1.5e-3);
+    selBaseline = t>p.isiBaselineWindow(1) & t<p.isiBaselineWindow(2);
+    normSR = (1./isi - mean(1./isi(:, selBaseline), 'omitnan')) ./ std(1./isi(:, selBaseline), 0, 2, 'omitnan');
+    XRed{iEu} = normSR;
+
+    % fprintf('nan=%i, nan=%i\n', nnz(isnan(XBlue{iEu})), nnz(isnan(XRed{iEu})))
 end
+
+eta.stimBlue = struct(X=cat(1, XBlue{:}), t=t, N=[], D=[], stats=[]);
+eta.stimRed = struct(X=cat(1, XRed{:}), t=t, N=[], D=[], stats=[]);
+
+clear XBlue XRed iEu groupsBlue groupsRed isi t selBaseline normSR
+
+%% Calculate META
+p.metaWindowStim = [0.005, 0.019];
+p.posRespThresholdStim = 3;
+p.negRespThresholdStim = -2;
+
+t = eta.stimBlue.t;
+meta.stimBlue = mean(eta.stimBlue.X(:, t>=p.metaWindowStim(1) & t<=p.metaWindowStim(2)), 2, 'omitnan');
+t = eta.stimRed.t;
+meta.stimRed = mean(eta.stimRed.X(:, t>=p.metaWindowStim(1) & t<=p.metaWindowStim(2)), 2, 'omitnan');
+clear t
+% 
+% c.isPressUp =         meta.press >= p.posRespThreshold;
+% c.isPressDown =       meta.press <= p.negRespThreshold;
+% c.isPressResponsive = c.isPressUp | c.isPressDown;
+% c.isLickUp =          meta.lick >= p.posRespThreshold;
+% c.isLickDown =        meta.lick <= p.negRespThreshold;
+% c.isLickResponsive =  c.isLickUp | c.isLickDown;
+% c.isLickUnresponsiveButUp = ~c.isLickResponsive & meta.lick > 0;
+% c.isLickUnresponsiveButDown = ~c.isLickResponsive & meta.lick < 0;
+% c.isPressUnresponsiveButUp = ~c.isPressResponsive & meta.press > 0;
+% c.isPressUnresponsiveButDown = ~c.isPressResponsive & meta.press < 0;
+
+c.isStimBlueUp = meta.stimBlue >= p.posRespThresholdStim;
+c.isStimBlueDown = meta.stimBlue <= p.negRespThresholdStim;
+c.isStimRedUp = meta.stimRed >= p.posRespThresholdStim;
+c.isStimRedDown = meta.stimRed <= p.negRespThresholdStim;
+
+c.isStimBlueUpRedUpThereforeChrimsonMaybe = c.isStimBlueUp & c.isStimRedUp;
+c.isStimBlueUpRedNotUpThereforeCoChrMaybe = c.isStimBlueUp & ~c.isStimRedUp;
+c.isStimBlueNotUpRedUpThereforeChrimsonMaybe = ~c.isStimBlueUp & c.isStimRedUp;
+c.isStimBlueNotUpRedNotUp = ~c.isStimBlueUp & ~c.isStimRedUp;
+
+fprintf('ChrimsonR %i, CoChR %i\n', nnz(c.isStimRedUp), nnz(c.isStimBlueUpRedNotUpThereforeCoChrMaybe))
+
+%% Plot opto heatmap
+theta = 0;
+
+selUnitsStim = c.isStimBlueUp | c.isStimRedUp | c.isStimBlueDown | c.isStimRedDown;
+close all
+fig = figure(Units='inches', Position=[1, 1, 4.5, 5]);
+ETASORT = {eta.stimBlue, eta.stimRed};
+SORTWINDOW = {[0, 50]*1e-3, [0, 50]*1e-3};
+ETA = {eta.stimBlue, eta.stimRed};
+NAME = [sprintf("470nm\n%suW, %sms", string(p.stimBluePowers*1e6).join(', '), string(p.stimBlueDurations*1e3).join(', ')), ...
+    sprintf("593nm\n%suW, %sms", string(p.stimRedPowers*1e6).join(', '), string(p.stimRedDurations*1e3).join(', '))];
+NAMECOLOR = ["blue", "red"];
+ZEROLABEL = ["stim", "stim"];
+XLIM = {[-25, 50]*1e-3, [-25, 50]*1e-3};
+XTICKS = {[0, 20, 50]*1e-3, [0, 20, 50]*1e-3};
+CLIM = {[-10, 10], [-10, 10]};
+CBTILE = {'', 'east'};
+w = cellfun(@(xl) round(10*diff(xl)), XLIM);
+cw = [0, cumsum(w)];
+
+
+% Combine ETA, PCA, and sort along 1st dimension
+etaCombined = struct(X=[], t=[]);
+etaCombined.X = cellfun(@(eta) eta.X, ETASORT, UniformOutput=false);
+etaCombined.X = cat(2, etaCombined.X{:});
+etaCombined.t = cellfun(@(eta) eta.t, ETASORT, UniformOutput=false);
+etaCombined.t = cat(2, etaCombined.t{:});
+etaCombined.epoch = arrayfun(@(i) i*ones(1, length(ETASORT{i}.t)), 1:length(ETASORT), UniformOutput=false);
+etaCombined.epoch = cat(2, etaCombined.epoch{:});
+etaCombined.X(etaCombined.X>3) = 3;
+etaCombined.X(etaCombined.X<-1.5) = -1.5;
+etaCombined.X = etaCombined.X(selUnitsStim, :);
+
+% For sorting, make templates to dot-product with
+clear template
+template(length(ETASORT)) = struct(t=[], x=[]);
+for iETA = 1:length(ETASORT)
+    template(iETA).t = etaCombined.t;
+    template(iETA).x = zeros(1, length(etaCombined.t));
+    template(iETA).x(1, isin(etaCombined.t, SORTWINDOW{iETA}) & etaCombined.epoch==iETA) = 1;
+end
+
+score = zeros(size(etaCombined.X, 1), length(ETASORT));
+etaCombined.X(isnan(etaCombined.X)) = 0;
+for iETA = 1:length(ETASORT)
+    score(:, iETA) = etaCombined.X * template(iETA).x';
+end
+groupVar = arrayfun(@(i) bitshift(int16(score(:, i)>theta), length(ETASORT)-i), 1:size(score, 2), UniformOutput=false);
+groupVar = sum(horzcat(groupVar{:}), 2);
+
+% First, sort by number of negative modulations
+numNeg = sum(score>theta, 2);
+[uniqueGroupVars, ia] = unique(groupVar);
+[~, I] = sort(numNeg(ia), 'ascend');
+groupVar = changem(groupVar, 0:length(uniqueGroupVars)-1, uniqueGroupVars(I));
+
+% Then, put all small groups (excluding single neg ones) at the bottom
+[uniqueGroupVars, ia] = unique(groupVar);
+assert(length(uniqueGroupVars) == max(groupVar)+1);
+groupSize = histcounts(groupVar, 0:length(uniqueGroupVars));
+
+numUnitsInSameGroup = arrayfun(@(gv) nnz(groupVar==gv), groupVar);
+isRare = numUnitsInSameGroup < 3;
+isSingleNeg = numNeg==1;
+groupVar(isRare & ~isSingleNeg) = max(groupVar)+1;
+% Tighten up the groupvars
+uniqueGroupVars = unique(groupVar);
+groupVar = changem(groupVar, 0:length(uniqueGroupVars)-1, uniqueGroupVars);
+groupSize = histcounts(groupVar, 0:length(uniqueGroupVars));
+groupSizeCum = cumsum(groupSize);
+
+
+% groupVar = zeros(length(eu), 1);
+% groupVar(c.isStimRedUp) = groupVar(c.isStimRedUp) + 1;
+% groupVar(c.isStimBlueUp) = groupVar(c.isStimBlueUp) + 2;
+% groupVar = groupVar(selUnitsStim);
+% uniqueGroupVars = unique(groupVar);
+% groupVar = changem(groupVar, 0:length(uniqueGroupVars)-1, uniqueGroupVars);
+% groupSize = histcounts(groupVar, 0:length(uniqueGroupVars));
+% groupSizeCum = cumsum(groupSize);
+[~, sortOrder] = sort(double(groupVar)*10 + score(:, 1)./max(abs(score(:, 1))), 'ascend');
+
+
+tl = tiledlayout(fig, 1, sum(w), TileSpacing='tight', Padding='tight');
+ax = gobjects(1, length(ETA));
+for iAx = 1:length(ETA)
+    hidecb = isempty(CBTILE{iAx});
+    ax(iAx) = nexttile(tl, 1 + cw(iAx), [1, w(iAx)]);
+    EphysUnit.plotETA(ax(iAx), ETA{iAx}, selUnitsStim, xlim=XLIM{iAx}, clim=[-1.5, 1.5], order=sortOrder, hidecolorbar=hidecb);
+    % applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+    applyCustomColormap(ax(iAx), CLIM{iAx}, hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+    if ~hidecb
+        ax(iAx).Colorbar.Layout.Tile = CBTILE{iAx};
+    end
+    if iAx > 1
+        yticks(ax(iAx), [])
+    else
+        yticks(ax(iAx), groupSizeCum(1:end)+0.5)
+        yticklabels(ax(iAx), string(groupSizeCum(1:end)))
+    end
+    title(ax(iAx), strsplit(NAME(iAx), "\\n"), Color=NAMECOLOR(iAx))
+    xlabel(ax(iAx), "")
+    ylabel(ax(iAx), "")
+    xticks(ax(iAx), XTICKS{iAx})
+    xticklabels(ax(iAx), string(1e3*XTICKS{iAx}))
+    % xticks(ax(iAx), [0, 0.1])
+    % xticklabels(ax(iAx), [string(XLIM{iAx}(1)), ZEROLABEL(iAx), string(XLIM{iAx}(2))])
+    xtickangle(ax(iAx), 0)
+    xline(ax(iAx), 0, 'k-')
+    if iAx <= 2
+        xline(ax(iAx), 0.02, 'k-')
+    end
+    yline(ax(iAx), groupSizeCum(1:end-1)+0.5, 'k:', LineWidth=1.5)
+    ax(iAx).YAxis.TickLength = [0, 0];
+end
+ax(2).Colorbar.Label.String = 'opto response (a.u.)';
+
+xlabel(tl, "time (ms)")
+ylabel(ax(1), "unit")
+fontsize(fig, 14, 'points')
+
+copygraphics(fig, ContentType='vector', BackgroundColor='none')
