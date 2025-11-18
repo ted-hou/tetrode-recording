@@ -531,6 +531,14 @@ classdef TetrodeRecording < handle
                 imecSync = sort([imecSyncOn(:)', imecSyncOff(:)'], 'ascend');
                 imecSync = [0, imecSync(:)'];
 
+                if length(nidqSync) ~= length(imecSync)
+                    shortestLength = min(length(nidqSync), length(imecSync));
+                    warning('imecSync has %i on/off events while nidqSync has %i. The first %i are assumed common and the tail has been trimmed.', length(nidqSync), length(imecSync), shortestLength);
+                    nidqSync = nidqSync(1:shortestLength);
+                    imecSync = imecSync(1:shortestLength);
+                end
+                assert(length(imecSync)==length(nidqSync))
+
                 % Correct NI(DigitalEvents) timestamps to IMEC(spike) timestamps
                 if ~isfield(obj.DigitalEvents, 'NIDQRaw')
                     obj.DigitalEvents.NIDQRaw = obj.DigitalEvents;
