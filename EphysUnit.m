@@ -1116,6 +1116,7 @@ classdef EphysUnit < handle
             end
 
             if length(obj) <= 1
+                isDuplicate = false;
                 return
             end
 
