@@ -366,9 +366,11 @@ classdef TetrodeRecording < handle
             p = inputParser();
             p.addRequired('Channels', @isnumeric);
             p.addParameter('Path', 'Spikes', @ischar)
+            p.addParameter('ExpName', '', @ischar)
             p.parse(channels, varargin{:});
             channels = p.Results.Channels;
             path = p.Results.Path;
+            expName = p.Results.ExpName;
 
             if ~exist(path, 'dir')
                 path = fullfile(obj.Path.nidq, path);
@@ -377,11 +379,13 @@ classdef TetrodeRecording < handle
                 end
             end
 
-            expName = obj.GetExpName(includeSuffix=false);
+            if isempty(expName)
+                expName = obj.GetExpName(includeSuffix=false);
+            end
             for iChannel = channels(:)'
                 files = dir(fullfile(path, sprintf('%s_Chn%03i*.mat', expName, iChannel)));
                 if isempty(files)
-                    warning('No spike files found for channels %i', iChannel);
+                    warning('No spike files found for channels %i (%s)', iChannel, fullfile(path, sprintf('%s_Chn%03i*.mat', expName, iChannel)));
                     continue
                 end
 

@@ -119,12 +119,13 @@ end
 
 clear, clc
 tr = TetrodeRecording();
-tr.SelectFiles(NeuropixelPath='C:\SERVER\desmond42\desmond42_20251121')
+tr.SelectFiles(NeuropixelPath='C:\SERVER\desmond41\desmond41_20251124')
 tr.LoadNeuropixelIO();
 tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
 
 channels = 1:128;
 tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
+% tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative', ExpName='daisy29_20251120');
 tr.PlotAllChannels(Channels=channels, plotMethod='mean')
 
 %%
@@ -152,19 +153,19 @@ folders = { ...
     ... 'C:\SERVER\desmond41\desmond41_20251117', ... SORTED, EU
     ... 'C:\SERVER\daisy29\daisy29_20251118', ... SORTED, EU
     ... 'C:\SERVER\daisy30\daisy30_20251119', ... SORTED, EU
-    ... 'C:\SERVER\daisy29\daisy29_20251024', ...
-    ... 'C:\SERVER\daisy29\daisy29_20251025', ...
-    ... 'C:\SERVER\daisy29\daisy29_20251027', ...
-    ... 'C:\SERVER\daisy29\daisy29_20251028', ...
-    ... 'C:\SERVER\desmond41\desmond41_20251029', ...
-    ... 'C:\SERVER\daisy30\daisy30_20251029', ...
-    ... 'C:\SERVER\daisy30\daisy30_20251030', ...
-    ... 'C:\SERVER\desmond42\desmond42_20251031', ...
-    ... 'C:\SERVER\daisy29\daisy29_20251103', ...
-    ... 'C:\SERVER\daisy29\daisy29_20251120', ...
-    ... 'C:\SERVER\daisy30\daisy30_20251121', ...
-    ... 'C:\SERVER\desmond42\desmond42_20251121', ...
-    ... 'C:\SERVER\desmond41\desmond41_20251124', ...
+    ... 'C:\SERVER\daisy29\daisy29_20251024', ... SORTED, EU
+    ... 'C:\SERVER\daisy29\daisy29_20251025', ... SORTED, EU
+    ... 'C:\SERVER\daisy29\daisy29_20251027', ... TCE ERROR (952 pulses?)
+    ... 'C:\SERVER\daisy29\daisy29_20251028', ... SORTED, EU
+    ... 'C:\SERVER\desmond41\desmond41_20251029', ... SORTED, EU
+    ... 'C:\SERVER\daisy30\daisy30_20251029', ... SORTED, EU
+    ... 'C:\SERVER\daisy30\daisy30_20251030', ... SORTED, EU
+    ... 'C:\SERVER\desmond42\desmond42_20251031', ... SORTED, EU
+    ... 'C:\SERVER\daisy29\daisy29_20251103', ... SORTED, EU
+    ... 'C:\SERVER\daisy29\daisy29_20251120', ... SORTED, EU
+    ... 'C:\SERVER\daisy30\daisy30_20251121', ... SORTED, EU
+    'C:\SERVER\desmond42\desmond42_20251121', ... SORTED
+    'C:\SERVER\desmond41\desmond41_20251124', ... SORTED
     };
 
 chunkSize = 32; % NumChannelsPerChunk
@@ -201,9 +202,9 @@ for iSession = 1:length(folders)
 end
 
 %%
+clear
 eu = EphysUnit.load('C:\SERVER\Units\TwoColor_Striatonigral', waveforms=false, spikecounts=false, spikerates=false);
-
-%% Remove multiunits, fast (ISS test)
+% Remove multiunits, fast (ISS test)
 eu = eu.removeMultiUnits(cullZeros=true);
 
 % Remove drift, low spike rate units, fast
@@ -222,6 +223,9 @@ eu = eu(c.isSNr & ~c.isDrifting);
 [eu, isDuplicate] = eu.removeDuplicates(0.7);
 
 eu.save('C:\SERVER\Units\TwoColor_Striatonigral\SingleUnit_NonDuplicate_NonDrift_SNr')
+
+%%
+eu = EphysUnit.load('C:\SERVER\Units\TwoColor_Striatonigral\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
 
 %% ETA Stim (by ISI)
 p.isiBaselineWindow = [-0.2, 0];
@@ -426,7 +430,8 @@ copygraphics(fig, ContentType='vector', BackgroundColor='none')
     
 %% ETA Stim (binned spike counts)
 clear sortOrder groupSizeCum
-for power = [2000, 500, 100, 50, 25]    
+% for power = [2000, 500, 100, 50, 25]    
+for power = [2000]    
     p.etaBaselineWindow = [-0.5, -0.1];
     p.stimBluePowers = [power]*1e-6; 
     p.stimRedPowers = [power]*1e-6;
@@ -591,63 +596,4 @@ for power = [2000, 500, 100, 50, 25]
     fontsize(fig, 14, 'points')
     
     % copygraphics(fig, ContentType='vector', BackgroundColor='none')
-end
-
-
-%% ETA Stim (binned spike counts)
-clear sortOrder groupSizeCum
-powers = [2000, 500, 100, 50, 25]*1e-6;
-locations = [-2400, -2600, -2800, -3000, -600, -400, -200, 0];
-durations = [10]*1e-3;
-
-expNames = string({eu.ExpName});
-[uniqueExpNames, ia, ic] = unique(expNames);
-
-
-
-for iPower = 1:length(POWERS)
-    power = POWERS(iPower);
-    for iLocation = 1:length(LOCATIONS)
-        location = LOCATIONS(iLocation);
-        p.etaBaselineWindow = [-0.5, -0.1];
-        p.stimBluePowers = [power]*1e-6; 
-        p.stimRedPowers = [power]*1e-6;
-        p.stimBlueDurations = [10]*1e-3;
-        p.stimRedDurations = [10]*1e-3;
-        
-        p.isiWindow = [-0.5, 0.5];
-        p.etaRes = 0.025;
-        p.xlim.stim = [-0.1, 0.3];
-        p.xlim.move = [-4, 2];
-        p.path = 'C:\SERVER\Figures\TwoColor_Striatonigral\TestBatch2';
-        p.rasterSzStim = 1;
-        p.rasterSzMove = 1;
-        
-        XBlue = cell(length(eu), 1);
-        XRed = cell(length(eu), 1);
-        linelength = 0;
-        for iEu = 1:length(eu)
-            groupsBlue = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimBluePowers, duration=p.stimBlueDurations, location=location, wavelength=[470, 473]));
-            groupsRed = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimRedPowers, duration=p.stimRedDurations, location=location, wavelength=[593, 635]));
-        
-            % rd = eu(iEu).getRasterData('stimtwocolor', p.isiWindow, trials=[groupsRed.trials], alignTo='start', shutterDelay=0, sort=false, photoelectricBlankDuration=0.5e-3);
-            % EphysUnit.plotRaster(rd)
-        
-            % etaTemp = eu(iEu).getETA('count', 'stim', window=p.isiWindow, resolution=p.etaRes, trials=[groupsBlue.trials], alignTo='start', normalize=p.etaBaselineWindow);
-            etaTemp = eu(iEu).getETA('count', 'stim', window=p.isiWindow, resolution=p.etaRes, trials=[groupsBlue.trials], alignTo='start', normalize='none');...p.etaBaselineWindow);
-            XBlue{iEu} = (etaTemp.X - mean(etaTemp.X(isin(etaTemp.t, p.etaBaselineWindow))))./p.etaRes;
-        
-            % etaTemp = eu(iEu).getETA('count', 'stim', window=p.isiWindow, resolution=p.etaRes, trials=[groupsRed.trials], alignTo='start', normalize=p.etaBaselineWindow);
-            etaTemp = eu(iEu).getETA('count', 'stim', window=p.isiWindow, resolution=p.etaRes, trials=[groupsRed.trials], alignTo='start', normalize='none');...p.etaBaselineWindow);
-            XRed{iEu} = (etaTemp.X - mean(etaTemp.X(isin(etaTemp.t, p.etaBaselineWindow))))./p.etaRes;
-            fprintf(repmat('\b', 1, linelength))
-            linelength = fprintf('%i of %i...\n', iEu, length(eu));
-            % plot(ax, etaTemp.t, [XRed{iEu}', XBlue{iEu}']./p.etaRes)
-            % ylim(ax, [-20, 20])
-            % cla(ax)
-        end
-        
-        eta.stimBlue = struct(X=cat(1, XBlue{:}), t=etaTemp.t, N=[], D=[], stats=[]);
-        eta.stimRed = struct(X=cat(1, XRed{:}), t=etaTemp.t, N=[], D=[], stats=[]);
-    end
 end
