@@ -805,8 +805,9 @@ classdef EphysUnit < handle
 
         function rd = getRasterData(obj, trialType, varargin)
             p = inputParser();
-            p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
-                'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect', 'press_release'})))
+            p.addRequired('trialType', @ischar)
+            % p.addRequired('trialType', @(x) all(ismember(x, {'press', 'lick', 'stim', 'stimtrain', 'stimfirstpulse', 'stimtwocolor', 'press_spontaneous', 'press_spontaneous_medial', 'press_spontaneous_lateral', ...
+            %     'press_release_correct', 'press_release_incorrect', 'press_retract_correct', 'press_retract_incorrect', 'press_release'})))
             p.addOptional('window', [0, 0], @(x) isnumeric(x) && length(x) >= 2 && x(1) <= 0 && x(2) >= 0)
             p.addParameter('minTrialDuration', 0, @(x) isnumeric(x) && length(x)==1 && x>=0)
             p.addParameter('maxTrialDuration', Inf, @(x) isnumeric(x) && length(x)==1 && x>=0)
@@ -2031,6 +2032,7 @@ classdef EphysUnit < handle
             p.addParameter('everyNth', 1, @isnumeric)
             p.addParameter('timingCriterion', NaN, @isnumeric) % 4s for self timed movements, will plot horizontal line dividing trials into correct/incorrect
             p.addParameter('twoColorGroups', struct([]), @(x) isstruct(x) && all(isfield(x, {'trials', 'pulseIndices', 'label', 'wavelength', 'power'})))
+            p.addParameter('onlyPlotSpikes', false, @islogical)
             p.parse(varargin{:})
             rd = p.Results.rd;
             isSimpleStim = ismember(lower(rd.trialType), {'stim', 'stimtrain', 'stimfirstpulse'});
@@ -2040,7 +2042,8 @@ classdef EphysUnit < handle
             everyNth = p.Results.everyNth;
             timingCriterion = p.Results.timingCriterion;
             twoColorGroups = p.Results.twoColorGroups;
-
+            onlyPlotSpikes = p.Results.onlyPlotSpikes;
+            
             assert(length(rd) == 1);
 
             if isfield(p.Results, 'ax')
@@ -2116,7 +2119,11 @@ classdef EphysUnit < handle
 %                 ax.Parent.Position(4) = ax.Parent.Position(4)*nTrials/300;
                 h = gobjects(2, 1);
                 h(1) = scatter(ax, rd.t(1:everyNth:end) .* timescale, rd.I(1:everyNth:end), sz, 'k', 'filled', DisplayName='spikes');
-                h(2) = scatter(ax, tEvent .* timescale, 1:length(tEvent), sz*2, 'r', 'filled', DisplayName=eventName);
+                if onlyPlotSpikes
+                    h = h(1);
+                else
+                    h(2) = scatter(ax, tEvent .* timescale, 1:length(tEvent), sz*2, 'r', 'filled', DisplayName=eventName);
+                end
                 if ~isnan(timingCriterion)
                     longestIncorrectTrial = find(rd.duration < timingCriterion, 1, 'last') + 0.5;
                     yline(ax, longestIncorrectTrial, Color=[0.2, 0.6, 0.2], LineStyle='-', LineWidth=1.5)
@@ -2176,7 +2183,7 @@ classdef EphysUnit < handle
                     end
                 else
                     for iGroup = 1:length(twoColorGroups)
-                        
+                        error('Not implemented')
                     end
                 end
                 [~, I] = sort(stimBoxDict.keys);

@@ -66,87 +66,6 @@ end
 % save('C:\SERVER\Units\meta_Lite_NonDuplicate_NonDrift.mat', 'ai', 'boot', 'c', 'eta', 'etaFine', 'etaSmooth', 'euPos', 'meta', 'msr', 'onset', 'p', 'bouts', 'trialsCircLick', 'trialsCircLickBaseline', 'bootCLick', 'lickHist', 'durations')
 % save('E:\Data\Units\meta_Lite_NonDuplicate_NonDrift.mat', 'ai', 'boot', 'c', 'eta', 'etaFine', 'etaSmooth', 'euPos', 'meta', 'msr', 'onset', 'p', 'bouts', 'trialsCircLick', 'trialsCircLickBaseline', 'bootCLick', 'lickHist', 'durations')
 
-%%
-if exist('E:\Data\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials', 'dir')
-    euArtiFree = EphysUnit.load('E:\Data\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials');
-    load('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat');
-else
-    euArtiFree = EphysUnit.load('C:\SERVER\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials');
-    metaArtiFree = load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved_Full.mat');
-end
-
-% %% Calculate ETA for correct reach vs. incorrect reach; correct vs. incorrect retract; correct vs. incorrect release; correct vs. incorrect lick
-% % clear eta
-% 
-% clear artifactParams;
-% artifactParams(1) = struct(event='LickOn', length=10, lengthUnit='ms', direction='both');
-% artifactParams(2) = struct(event='LickOff', length=10, lengthUnit='ms', direction='both');
-% artifactParams(3) = struct(event='PressOn', length=10, lengthUnit='ms', direction='both');
-% artifactParams(4) = struct(event='PressOff', length=10, lengthUnit='ms', direction='both');
-% 
-% etaArtiFree.artifactParams = artifactParams;
-% etaArtiFree.baselineWindow = struct(press=[-4, -2], lick=[-4, -2], release=[-2, 0]);
-% 
-% etaArtiFree.resolution = 0.025;
-% 
-% etaArtiFree.correctPress = euArtiFree.getETA('count', 'PressCorrect', [-4, 4], alignTo='stop', ...
-%     normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.incorrectPress = euArtiFree.getETA('count', 'PressIncorrect', [-4, 4], alignTo='stop', ...
-%     normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% 
-% etaArtiFree.correctRelease = euArtiFree.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', ...
-%     normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.correctLick = euArtiFree.getETA('count', 'lick', [-4, 4], minTrialDuration=4, ...
-%     normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.incorrectLick = euArtiFree.getETA('count', 'lick', [-4, 4], minTrialDuration=2, maxTrialDuration=4, ...
-%     normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.correctLickLastLickOff = euArtiFree.getETA('count', 'CueToLastLickOffCorrect', [-4, 4], alignTo='stop', ...
-%     normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.correctPressFirstLick = euArtiFree.getETA('count', 'CorrectPressToFirstRewardLick', [-4, 4], alignTo='stop', normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.correctPressLastLickOff = euArtiFree.getETA('count', 'CorrectPressToLastLickOff', [-4, 4], alignTo='stop', normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% % Convert to sp/s
-% for field = ["correctPress", "incorrectPress", "correctLick", "incorrectLick", "correctRelease", ...
-%         "correctLickLastLickOff", "correctPressFirstLick", "correctPressLastLickOff"]
-%     etaArtiFree.(field).X = etaArtiFree.(field).X ./ etaArtiFree.resolution;
-% end
-% 
-% clear field
-% etaArtiFree.pressNorm = euArtiFree.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=etaArtiFree.baselineWindow.press, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.lickNorm = euArtiFree.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.correctReleaseNorm = euArtiFree.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.correctReleaseBeforeRetractNorm = euArtiFree.getETA('count', 'CueToLeverReleaseBeforeRetractCorrect', [-4, 4], alignTo='stop', normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.lickNormToSelf = euArtiFree.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=etaArtiFree.baselineWindow.lick, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.correctReleaseNormToSelf = euArtiFree.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', normalize=etaArtiFree.baselineWindow.release, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.correctPressNorm = euArtiFree.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.correctLickNorm = euArtiFree.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.incorrectPressNorm = euArtiFree.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.incorrectLickNorm = euArtiFree.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.correctPressFirstLickNorm = euArtiFree.getETA('count', 'CorrectPressToFirstRewardLick', [-4, 4], alignTo='stop', normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.correctPressLastLickOffNorm = euArtiFree.getETA('count', 'CorrectPressToLastLickOff', [-4, 4], alignTo='stop', normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.correctLickLastLickOffNorm = euArtiFree.getETA('count', 'CueToLastLickOffCorrect', [-4, 4], alignTo='stop', ...
-%     normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% % Lick trials, last lickOff before next cue
-% 
-% 
-% % Lick bouts (norm to pre-press [-4, -2])
-% etaArtiFree.lickBoutNaive = euArtiFree.getETA('count', 'lickbout_naive', window=[0, 2*pi*4], resolution=2*pi/8, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-%     minBoutCycles=2, maxBoutCycles=4, artifacts=artifactParams);
-% etaArtiFree.lickBoutNaiveNorm = etaArtiFree.lickBoutNaive;
-% etaArtiFree.lickBoutNaiveNorm.X = (etaArtiFree.lickBoutNaiveNorm.X - vertcat(etaArtiFree.pressNorm.stats.mean)/etaArtiFree.resolution) ./ (vertcat(etaArtiFree.pressNorm.stats.sd)/etaArtiFree.resolution);
-% %%
-% metaArtiFree.eta = etaArtiFree;
-% save('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat', 'metaArtiFree')
 %% Fig 6
 close all
 
@@ -158,11 +77,10 @@ p.etaLatencyThresholdPos = 0.25;
 p.etaLatencyThresholdNeg = 0.25;
 
 layout.w = 7;
-layout.h = 7;
+layout.h = 5;
 
-layout.top.h = 9;
+layout.top.h = 7;
 layout.middle.h = 9;
-layout.bottom.h = 7;
 
 layout.middle.left.w = 28;
 layout.middle.middle.w = 1;
@@ -170,20 +88,15 @@ layout.middle.right.w = 35;
 
 layout.middle.right.left.w = 3;
 layout.middle.right.right.w = 2;
-layout.middle.right.right.center.h = 10;
-layout.middle.right.right.margin.h = 1;
-
-layout.bottom.left.w = 6;
-layout.bottom.middle.w = 8;
-layout.bottom.right.w = 6;
+layout.middle.right.right.center.h = 9;
+layout.middle.right.right.margin.h = 2;
 
 % close all
 fig = figure(Units='inches', Position=[0, 0, layout.w, layout.h]);
-layout.tl = tiledlayout(fig, layout.top.h + layout.middle.h + layout.bottom.h, 1, TileSpacing='loose');
+layout.tl = tiledlayout(fig, layout.top.h + layout.middle.h, 1, TileSpacing='loose');
 
 layout.top.tl = tiledlayout(layout.tl, 2, nEgUnits, TileSpacing='tight', Padding='tight');
 l = layout.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.top.h, 1];
-
 
 layout.middle.tl = tiledlayout(layout.tl, 1, layout.middle.left.w + layout.middle.right.w + layout.middle.middle.w, TileSpacing='tight', Padding='none');
 l = layout.middle.tl; l.Layout.Tile = 1 + layout.top.h; l.Layout.TileSpan = [layout.middle.h, 1];
@@ -197,19 +110,7 @@ l = layout.middle.right.tl; l.Layout.Tile = 1 + layout.middle.left.w + layout.mi
 layout.middle.right.right.tl = tiledlayout(layout.middle.right.tl, layout.middle.right.right.center.h + 2*layout.middle.right.right.margin.h, 1, TileSpacing='compact', Padding='compact');
 l = layout.middle.right.right.tl; l.Layout.Tile = 1 + layout.middle.right.left.w; l.Layout.TileSpan = [1, layout.middle.right.right.w];
 
-layout.bottom.tl = tiledlayout(layout.tl, 1, layout.bottom.left.w + layout.bottom.middle.w + layout.bottom.right.w, TileSpacing='tight', Padding='tight');
-l = layout.bottom.tl; l.Layout.Tile = 1 + layout.top.h + layout.middle.h; l.Layout.TileSpan = [layout.bottom.h, 1];
-
-layout.bottom.left.tl = tiledlayout(layout.bottom.tl, 1, 1, TileSpacing='tight', Padding='tight');
-l = layout.bottom.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.bottom.left.w];
-
-layout.bottom.middle.tl = tiledlayout(layout.bottom.tl, 1, 1, TileSpacing='tight', Padding='tight');
-l = layout.bottom.middle.tl; l.Layout.Tile = 1 + layout.bottom.left.w; l.Layout.TileSpan = [1, layout.bottom.middle.w];
-
-layout.bottom.right.tl = tiledlayout(layout.bottom.tl, 1, 1, TileSpacing='tight', Padding='tight');
-l = layout.bottom.right.tl; l.Layout.Tile = 1 + layout.bottom.left.w + layout.bottom.middle.w; l.Layout.TileSpan = [1, layout.bottom.right.w];
-
-% 6a. Double rasters (reach vs lick) 3 example units
+% 5a. Double rasters (reach vs lick) 3 example units
 
 % selI = find(c.hasPress & c.hasLick & c.isPressResponsive & c.isLickResponsive);
 % [~, downI] = sort(meta.press(selI) + meta.lick(selI), 'ascend');
@@ -258,8 +159,8 @@ for iEu = 1:nEgUnits
         thisETA = euEg(iEu).getETA('count', TRIALTYPE{i}, [-4, 2], normalize='none', trials=theseTrials, includeInvalid=false);
         yyaxis(ax, 'right')
         EphysUnit.plotRaster(ax, thisRD, xlim=[-4, 2], iti=false, sz=1, maxTrials=40, maxTrialsMethod='uniformsample', ...
-            everyNth=EVERYNTH(iEu), timingCriterion=4);
-        hRaster = ax.Children(3);
+            everyNth=EVERYNTH(iEu), timingCriterion=NaN);
+        hRaster = ax.Children(2);
         hRaster.MarkerFaceAlpha = 0.5;
         ylabel(ax, '')
         yticks(ax, [])
@@ -267,7 +168,10 @@ for iEu = 1:nEgUnits
         yyaxis(ax, 'left')
         plot(ax, thisETA.t, thisETA.X./0.1, LineWidth=1.5, Color=[0.2, 0.2, 0.8, 1.0])
         hold(ax, 'on')
-        set(ax.YAxis, FontSize=p.fontSize, Color=[0.15, 0.15, 0.15]);
+        % set(ax.YAxis, FontSize=p.fontSize, Color=[0.15, 0.15, 0.15]);
+        set(ax.YAxis(1), FontSize=p.fontSize, Color=[0.2, 0.2, 0.8]);%0.15, 0.15, 0.15]);
+        set(ax.YAxis(2), FontSize=p.fontSize, Color=[0.15, 0.15, 0.15]);%0.15, 0.15, 0.15]);
+        ax.YAxis(1).TickLength = [0.025, 0.1];
         ylabel(ax, 'Spike rate (sp/s)')
         delete(ax.Legend)
         title(ax, TITLE(i))
@@ -294,10 +198,10 @@ hLetter.Position = [-0.3, ax.Position(4) + 0.2, 0];
 % xlabel(AX, '')
 ylabel(AX, '')
 % xlabel(layout.top.tl, 'Time to bar/spout contact (s)', FontSize=p.fontSize)
-ylabel(layout.top.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
+ylabel(layout.top.tl, 'Spike rate (sp/s)', FontSize=p.fontSize, Color=[0.2, 0.2, 0.8, 1.0])
 clear thisRD ax iEu AX
 
-% 6b/c. PETH Reach vs. Lick vs. Osci Lick
+% 5b/c. PETH Reach vs. Lick vs. Osci Lick
 % Reach, Lick, Osci Lick, sorted amongst themselves
 % close all
 ax = gobjects(1, 2);
@@ -382,7 +286,7 @@ hLetter.Position = [-0.3, ax(1).Position(4) + 0.1, 0];
 
 clear yt
 
-% SEL for 6c
+% SEL for 5c
 lims = [-3, 5];
 selCommon = c.hasPress & c.hasLick;
 SEL = {selCommon & c.isPressDown & c.isLickUp, selCommon & c.isPressDown & c.isLickDown, selCommon & c.isPressUp & c.isLickUp, selCommon & c.isPressUp & c.isLickDown};
@@ -392,7 +296,7 @@ TEXTPOS = {lims([2, 1]) + [-0.1, 0.1], lims([1, 1]) + [0.1, 0.1], lims([2, 2]) +
 HORZALIGN = ["right", "left", "right", "left"];
 VERTALIGN = ["bottom", "bottom", "top", "top"];
 
-% 6c Scatter META for lick vs reach
+% 5c Scatter META for lick vs reach
 sz = 4;
 ax = nexttile(layout.middle.right.tl, 1, [1, layout.middle.right.left.w]);
 selCommon = c.hasPress & c.hasLick;
@@ -433,7 +337,7 @@ ax.Box = 'on';
 % lgd = legend(hLine, Orientation='horizontal');
 % lgd.Layout.Tile = 'north';
 
-% 6d Decoder LDA for lick vs reach
+% 5d Decoder LDA for lick vs reach
 t = likelihood(1).t;
 pressTrialPress = arrayfun(@(llh) llh.press(llh.trueLabel=="press", :), likelihood, UniformOutput=false); % Press likelihood for true-press trials
 pressTrialLick = arrayfun(@(llh) llh.lick(llh.trueLabel=="press", :), likelihood, UniformOutput=false); % Lick likelihood for true-press trials
@@ -491,7 +395,7 @@ hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
 hLetter.Position = [-0.25, ax.Position(4) + 0.25, 0];
 
-% Colorbar for 6b
+% Colorbar for 5b
 h = colorbar(axc); 
 h.Layout.Tile = 'east';
 h.Label.String = 'Normalized spike rate (a.u.)';
@@ -499,122 +403,3 @@ h.Label.String = 'Normalized spike rate (a.u.)';
 % lgd.Position = [lgd.Position(1), lgd.Position(2) + 0.05, lgd.Position(3:4)];
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
-
-
-%% Now that we've seen the kinds of responses from the clustering, try to make a heatmap
-
-close all
-% p.fontSize = 12;
-XLIM = {[-1, 0.3], [-1, 0.3], [-0.2, 0.3], [-0.2, 0.3], [-0.2, 0.3]};
-W = cellfun(@(xl) diff(xl*10), XLIM, UniformOutput=true);
-CW = cumsum([0, W]);
-
-fig = figure(Units='inches', Position=[1, 1, 6.5, 4]);
-tl = tiledlayout(fig, 1, sum(W), TileSpacing='compact', Padding='compact');
-selUnits = 1:length(euArtiFree);
-ETASORT = {etaArtiFree.pressNorm, etaArtiFree.lickNorm, etaArtiFree.correctPressFirstLickNorm, etaArtiFree.correctLickLastLickOffNorm, etaArtiFree.correctReleaseNorm};
-ETA = {etaArtiFree.pressNorm, etaArtiFree.lickNorm, etaArtiFree.correctPressFirstLickNorm, etaArtiFree.correctLickLastLickOffNorm, etaArtiFree.correctReleaseNorm};
-SORTWINDOW = {[-0.3, 0.3], [-0.3, 0.3], [-0.1, 0.3], [-0.1, 0.3], [-0.1, 0.3]};
-NAME = ["Reach", "Lick", "First lick", "Last lick", "Bar release"];
-ZEROLABEL = ["touch", "lick", "lick", "lick", "release"];
-% ZEROLABEL = ["0", "0", "0", "0", "0"];
-
-% Combine ETA, PCA, and sort along 1st dimension
-etaCombined = struct(X=[], t=[]);
-etaCombined.X = cellfun(@(eta) eta.X, ETASORT, UniformOutput=false);
-etaCombined.X = cat(2, etaCombined.X{:});
-etaCombined.t = cellfun(@(eta) eta.t, ETASORT, UniformOutput=false);
-etaCombined.t = cat(2, etaCombined.t{:});
-etaCombined.epoch = arrayfun(@(i) i*ones(1, length(ETASORT{i}.t)), 1:length(ETASORT), UniformOutput=false);
-etaCombined.epoch = cat(2, etaCombined.epoch{:});
-etaCombined.X(etaCombined.X>1.5) = 1.5;
-etaCombined.X(etaCombined.X<-1.5) = -1.5;
-
-etaCombined.X = etaCombined.X(selUnits, :);
-
-% Make templates to project onto
-clear template
-template(length(ETASORT)) = struct(t=[], x=[]);
-for iETA = 1:length(ETASORT)
-    template(iETA).t = etaCombined.t;
-    template(iETA).x = zeros(1, length(etaCombined.t));
-    template(iETA).x(1, isin(etaCombined.t, SORTWINDOW{iETA}) & etaCombined.epoch==iETA) = 1;
-end
-
-score = zeros(size(etaCombined.X, 1), length(ETASORT));
-etaCombined.X(isnan(etaCombined.X)) = 0;
-for iETA = 1:length(ETASORT)
-    score(:, iETA) = etaCombined.X * template(iETA).x';
-end
-groupVar = arrayfun(@(i) bitshift(int16(score(:, i)>0), length(ETASORT)-i), 1:size(score, 2), UniformOutput=false);
-groupVar = sum(horzcat(groupVar{:}), 2);
-
-% First, sort by number of negative modulations
-numNeg = sum(score<0, 2);
-numNeg(numNeg > 1) = 2;
-[uniqueGroupVars, ia] = unique(groupVar);
-[~, I] = sort(numNeg(ia), 'ascend');
-groupVar = changem(groupVar, 0:length(uniqueGroupVars)-1, uniqueGroupVars(I));
-
-% % Then, put all small groups (excluding single neg ones) at the bottom
-% [uniqueGroupVars, ia] = unique(groupVar);
-% assert(length(uniqueGroupVars) == max(groupVar)+1);
-% groupSize = histcounts(groupVar, 0:length(uniqueGroupVars));
-% 
-% numUnitsInSameGroup = arrayfun(@(gv) nnz(groupVar==gv), groupVar);
-% isRare = numUnitsInSameGroup < 3;
-% isSingleNeg = numNeg==1;
-% groupVar(isRare & ~isSingleNeg) = max(groupVar)+1;
-% Tighten up the groupvars
-uniqueGroupVars = unique(groupVar);
-groupVar = changem(groupVar, 0:length(uniqueGroupVars)-1, uniqueGroupVars);
-groupSize = histcounts(groupVar, 0:length(uniqueGroupVars));
-groupSizeCum = cumsum(groupSize);
-[~, sortOrder] = sort(double(groupVar)*10 + score(:, 1)./max(abs(score(:, 1))), 'ascend');
-
-ax = gobjects(1, length(XLIM));
-for i = 1:length(XLIM)
-    ax(i) = nexttile(tl, CW(i)+1, [1, W(i)]);
-end
-for iAx = 1:length(ETA)
-    hidecb = iAx < length(ETA);
-    EphysUnit.plotETA(ax(iAx), ETA{iAx}, selUnits, xlim=XLIM{iAx}, clim=[-1.5, 1.5], order=sortOrder, hidecolorbar=hidecb);
-    % applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
-    % applyCustomColormap(ax(iAx), [-1.5, 3], hlim=[0.375, 0, 0, -0.375], llim=[0.25, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
-    applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);    
-    if ~hidecb
-        ax(iAx).Colorbar.Layout.Tile = 'east';
-        ax(iAx).Colorbar.Label.String = 'Normalized spike rate (a.u.)';
-    end
-    if iAx > 1
-        yticks(ax(iAx), [])
-    else
-        yticks(ax(iAx), groupSizeCum([1, 6, end])+0.5)
-        yticklabels(ax(iAx), string(groupSizeCum([1, 6, end])))
-    end
-    title(ax(iAx), strsplit(NAME{iAx}, "\\n"))
-    xlabel(ax(iAx), "")
-    ylabel(ax(iAx), "")
-    xticks(ax(iAx), [-1, -0.3, 0, 0.3, 1])
-    xticklabels(ax(iAx), ["-1", "-0.3", ZEROLABEL(iAx), "0.3", "1"])
-    xtickangle(ax(iAx), 0)
-    xline(ax(iAx), 0, 'k-')
-    yline(ax(iAx), groupSizeCum([1, 6])+0.5, 'k--', LineWidth=2)
-    yline(ax(iAx), groupSizeCum(2:5)+0.5, 'k--', LineWidth=0.5)
-end
-xlabel(tl, "Time (s)")
-ylabel(tl, "Unit")
-fontsize(fig, p.fontSize, 'points')
-% clear etaCombined nDims coeff score explained sortOrder fig tl ax iAx ETASORT NAME ZEROLABEL XLIM hidecp
-
-ax = ax(1);
-hLetter = text(ax, 0, 0, 'e', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
-ax.Units = 'inches';
-hLetter.HorizontalAlignment = 'right';
-hLetter.VerticalAlignment = 'top';
-hLetter.Position = [-0.25, ax.Position(4) + 0.25, 0];
-
-copygraphics(fig, ContentType='vector', BackgroundColor='none')
-
-
-

@@ -1,89 +1,9 @@
-
-%%
-if exist('E:\Data\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials', 'dir')
-    euArtiFree = EphysUnit.load('E:\Data\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials');
-    load('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat');
-    etaArtiFree = metaArtiFree.eta;
-else
-    euArtiFree = EphysUnit.load('C:\SERVER\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials');
-    metaArtiFree = load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved_Full.mat');
-end
-
-% %% Calculate ETA for correct reach vs. incorrect reach; correct vs. incorrect retract; correct vs. incorrect release; correct vs. incorrect lick
-% % clear eta
-% 
-% clear artifactParams;
-% artifactParams(1) = struct(event='LickOn', length=10, lengthUnit='ms', direction='both');
-% artifactParams(2) = struct(event='LickOff', length=10, lengthUnit='ms', direction='both');
-% artifactParams(3) = struct(event='PressOn', length=10, lengthUnit='ms', direction='both');
-% artifactParams(4) = struct(event='PressOff', length=10, lengthUnit='ms', direction='both');
-% 
-% etaArtiFree.artifactParams = artifactParams;
-% etaArtiFree.baselineWindow = struct(press=[-4, -2], lick=[-4, -2], release=[-2, 0]);
-% 
-% etaArtiFree.resolution = 0.025;
-% 
-% etaArtiFree.correctPress = euArtiFree.getETA('count', 'PressCorrect', [-4, 4], alignTo='stop', ...
-%     normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.incorrectPress = euArtiFree.getETA('count', 'PressIncorrect', [-4, 4], alignTo='stop', ...
-%     normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% 
-% etaArtiFree.correctRelease = euArtiFree.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', ...
-%     normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.correctLick = euArtiFree.getETA('count', 'lick', [-4, 4], minTrialDuration=4, ...
-%     normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.incorrectLick = euArtiFree.getETA('count', 'lick', [-4, 4], minTrialDuration=2, maxTrialDuration=4, ...
-%     normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.correctLickLastLickOff = euArtiFree.getETA('count', 'CueToLastLickOffCorrect', [-4, 4], alignTo='stop', ...
-%     normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.correctPressFirstLick = euArtiFree.getETA('count', 'CorrectPressToFirstRewardLick', [-4, 4], alignTo='stop', normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.correctPressLastLickOff = euArtiFree.getETA('count', 'CorrectPressToLastLickOff', [-4, 4], alignTo='stop', normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% % Convert to sp/s
-% for field = ["correctPress", "incorrectPress", "correctLick", "incorrectLick", "correctRelease", ...
-%         "correctLickLastLickOff", "correctPressFirstLick", "correctPressLastLickOff"]
-%     etaArtiFree.(field).X = etaArtiFree.(field).X ./ etaArtiFree.resolution;
-% end
-% 
-% clear field
-% etaArtiFree.pressNorm = euArtiFree.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=etaArtiFree.baselineWindow.press, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.lickNorm = euArtiFree.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.correctReleaseNorm = euArtiFree.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.correctReleaseBeforeRetractNorm = euArtiFree.getETA('count', 'CueToLeverReleaseBeforeRetractCorrect', [-4, 4], alignTo='stop', normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.lickNormToSelf = euArtiFree.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, normalize=etaArtiFree.baselineWindow.lick, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.correctReleaseNormToSelf = euArtiFree.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', normalize=etaArtiFree.baselineWindow.release, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.correctPressNorm = euArtiFree.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.correctLickNorm = euArtiFree.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=4, normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.incorrectPressNorm = euArtiFree.getETA('count', 'press', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.incorrectLickNorm = euArtiFree.getETA('count', 'lick', [-4, 4], alignTo='stop', minTrialDuration=2, maxTrialDuration=4, normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.correctPressFirstLickNorm = euArtiFree.getETA('count', 'CorrectPressToFirstRewardLick', [-4, 4], alignTo='stop', normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% etaArtiFree.correctPressLastLickOffNorm = euArtiFree.getETA('count', 'CorrectPressToLastLickOff', [-4, 4], alignTo='stop', normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% etaArtiFree.correctLickLastLickOffNorm = euArtiFree.getETA('count', 'CueToLastLickOffCorrect', [-4, 4], alignTo='stop', ...
-%     normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
-% 
-% % Lick trials, last lickOff before next cue
-% 
-% 
-% % Lick bouts (norm to pre-press [-4, -2])
-% etaArtiFree.lickBoutNaive = euArtiFree.getETA('count', 'lickbout_naive', window=[0, 2*pi*4], resolution=2*pi/8, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-%     minBoutCycles=2, maxBoutCycles=4, artifacts=artifactParams);
-% etaArtiFree.lickBoutNaiveNorm = etaArtiFree.lickBoutNaive;
-% etaArtiFree.lickBoutNaiveNorm.X = (etaArtiFree.lickBoutNaiveNorm.X - vertcat(etaArtiFree.pressNorm.stats.mean)/etaArtiFree.resolution) ./ (vertcat(etaArtiFree.pressNorm.stats.sd)/etaArtiFree.resolution);
-% %%
-% metaArtiFree.eta = etaArtiFree;
-% save('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat', 'metaArtiFree')
+eu = EphysUnit.load('C:\SERVER\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials');
+load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved_Full.mat');
+c = cc;
 
 %% Calculate peri-lick lick frequency histograms for any first lick in trial
-[~, expEuIndices] = unique({euArtiFree.ExpName});
+[~, expEuIndices] = unique({eu.ExpName});
 FsLick = 500;
 lickHistEdges = 0.01:1/FsLick:2;
 lickHistCenters = 0.5*(lickHistEdges(2:end) + lickHistEdges(1:end-1));
@@ -92,8 +12,8 @@ lickHistCounts = zeros(size(lickHistCenters));
 lickHistNLicks = 0;
 for iExp = 1:length(expEuIndices)
     iEu = expEuIndices(iExp);
-    firstLickTimes = [euArtiFree(iEu).makeTrials('firstlick').Stop];
-    allLickTimes = euArtiFree(iEu).EventTimes.Lick;
+    firstLickTimes = [eu(iEu).makeTrials('firstlick').Stop];
+    allLickTimes = eu(iEu).EventTimes.Lick;
     for iLick = 1:length(firstLickTimes)
         edgesGlobal = firstLickTimes(iLick) + lickHistEdges;
         n = histcounts(allLickTimes, edgesGlobal);
@@ -109,8 +29,8 @@ lickHist.firstLick.edges = lickHistEdges;
 clear expEuIndices FsLick lickHistEdges lickHistCenters lickHistNLicks lickHistCounts iExp iEu firstLickTimes allLickTimes iLick edgesGlobal n
 
 % Calculate peri-correct-lick lick frequency histograms for osci cells
-sel = metaArtiFree.cc.isLick;
-[~, expEuIndices] = unique({euArtiFree(sel).ExpName});
+sel = c.isLick;
+[~, expEuIndices] = unique({eu(sel).ExpName});
 FsLick = 500;
 lickHistEdges = 0.01:1/FsLick:2;
 lickHistCenters = 0.5*(lickHistEdges(2:end) + lickHistEdges(1:end-1));
@@ -119,10 +39,10 @@ lickHistCounts = zeros(size(lickHistCenters));
 lickHistNLicks = 0;
 for iExp = 1:length(expEuIndices)
     iEu = expEuIndices(iExp);
-    trials = euArtiFree(iEu).getTrials('lick');
+    trials = eu(iEu).getTrials('lick');
     trials = trials(trials.duration() >= 4);
     firstLickTimes = [trials.Stop];
-    allLickTimes = euArtiFree(iEu).EventTimes.Lick;
+    allLickTimes = eu(iEu).EventTimes.Lick;
     for iLick = 1:length(firstLickTimes)
         edgesGlobal = firstLickTimes(iLick) + lickHistEdges;
         n = histcounts(allLickTimes, edgesGlobal);
@@ -138,23 +58,19 @@ lickHist.correctLickOsci.edges = lickHistEdges;
 
 clear sel trials expEuIndices FsLick lickHistEdges lickHistCenters lickHistNLicks lickHistCounts iExp iEu firstLickTimes allLickTimes iLick edgesGlobal n
 %%
-% etaArtiFree.circLickNaive = euArtiFree.getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, artifacts=metaArtiFree.artifactParams);
-% etaArtiFree.lickBoutNaive = euArtiFree.getETA('count', 'lickbout_naive', window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
-%     minBoutCycles=2, maxBoutCycles=4, artifacts=metaArtiFree.artifactParams);
-% 
-% etaArtiFree.correctLickBout = euArtiFree.getETA('count', 'lick+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/5], normalize='none', minTrialDuration=4, ...
-%     maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
-% etaArtiFree.correctLickBoutNorm = euArtiFree.getETA('count', 'lick+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/5], normalize=[-4, -2], minTrialDuration=4, ...
-%     maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
-% 
-% etaArtiFree.correctPressBout = euArtiFree.getETA('count', 'press+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/32, 2*pi/5], normalize='none', minTrialDuration=4, ...
-%     maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
-% etaArtiFree.correctPressBoutNorm = euArtiFree.getETA('count', 'press+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/32, 2*pi/5], normalize=[-4, -2], minTrialDuration=4, ...
-%     maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
-% 
-% 
-% metaArtiFree.eta = etaArtiFree;
-% save('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat', 'metaArtiFree')
+eta.circLickNaive = eu.getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, artifacts=artifactParams);
+eta.lickBoutNaive = eu.getETA('count', 'lickbout_naive', window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
+    minBoutCycles=2, maxBoutCycles=4, artifacts=artifactParams);
+
+eta.correctLickBout = eu.getETA('count', 'lick+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/5], normalize='none', minTrialDuration=4, ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
+eta.correctLickBoutNorm = eu.getETA('count', 'lick+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/5], normalize=[-4, -2], minTrialDuration=4, ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
+
+eta.correctPressBout = eu.getETA('count', 'press+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/32, 2*pi/5], normalize='none', minTrialDuration=4, ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
+eta.correctPressBoutNorm = eu.getETA('count', 'press+lickbout', window=[-4, 0], resolution=[0.025, 2*pi/32, 2*pi/5], normalize=[-4, -2], minTrialDuration=4, ...
+    maxInterval=0.2, minInterval=0.05, minBoutCycles=2, maxBoutCycles=6);
 
 %% Fig6
 
@@ -226,28 +142,28 @@ tl = tiledlayout(tlp, 1, 1);
 tl.Layout.Tile = 1; tl.Layout.TileSpan = [1, 6];
 ax = nexttile(tl);
 
-% etaArtiFree.circLickNaive.Z = etaArtiFree.circLickNaive.X.*exp(etaArtiFree.circLickNaive.t*1i);
-% etaArtiFree.circLickNaive.Z(:, 1) = mean(etaArtiFree.circLickNaive.X(:, [2, 30]), 2).*exp(etaArtiFree.circLickNaive.t(1)*1i);
-% meanZ = mean(etaArtiFree.circLickNaive.Z, 2);
+% eta.circLickNaive.Z = eta.circLickNaive.X.*exp(eta.circLickNaive.t*1i);
+% eta.circLickNaive.Z(:, 1) = mean(eta.circLickNaive.X(:, [2, 30]), 2).*exp(eta.circLickNaive.t(1)*1i);
+% meanZ = mean(eta.circLickNaive.Z, 2);
 
-etaArtiFree.lickBoutNaiveNorm = etaArtiFree.lickBoutNaive;
-etaArtiFree.lickBoutNaiveNorm.X = normalize(etaArtiFree.lickBoutNaive.X, 2, 'zscore', 'robust');
+eta.lickBoutNaiveNorm = eta.lickBoutNaive;
+eta.lickBoutNaiveNorm.X = normalize(eta.lickBoutNaive.X, 2, 'zscore', 'robust');
 
 % Special plot: let's use pre-reach baseline for z-scoring osci-lick spike
 % rates
-% etaArtiFree.lickBoutNaiveNorm.X(metaArtiFree.cc.hasPress, :) = (etaArtiFree.lickBoutNaive.X(metaArtiFree.cc.hasPress, :) - vertcat(etaArtiFree.press.stats(metaArtiFree.cc.hasPress).mean)./0.1) ./ (vertcat(etaArtiFree.press.stats(metaArtiFree.cc.hasPress).sd)./0.1);
-% etaArtiFree.lickBoutNaiveNorm.X(metaArtiFree.cc.hasPress, :) = (etaArtiFree.lickBoutNaive.X(metaArtiFree.cc.hasPress, :) - vertcat(etaArtiFree.press.stats(metaArtiFree.cc.hasPress).mean)./0.1) ./ (vertcat(etaArtiFree.press.stats(metaArtiFree.cc.hasPress).sd)./0.1);
+% eta.lickBoutNaiveNorm.X(c.hasPress, :) = (eta.lickBoutNaive.X(c.hasPress, :) - vertcat(eta.press.stats(c.hasPress).mean)./0.1) ./ (vertcat(eta.press.stats(c.hasPress).sd)./0.1);
+% eta.lickBoutNaiveNorm.X(c.hasPress, :) = (eta.lickBoutNaive.X(c.hasPress, :) - vertcat(eta.press.stats(c.hasPress).mean)./0.1) ./ (vertcat(eta.press.stats(c.hasPress).sd)./0.1);
 
 
 maxBoutCycles = 4;
-sel = metaArtiFree.cc.isLick;%metaArtiFree.cc.hasPress & metaArtiFree.cc.hasLick & metaArtiFree.cc.isLick;
-phase = angle(metaArtiFree.circlick.Z(sel));
-amp = abs(metaArtiFree.circlick.Z(sel));
+sel = c.isLick;%c.hasPress & c.hasLick & c.isLick;
+phase = angle(circlick.Z(sel));
+amp = abs(circlick.Z(sel));
 phase(phase < 0) = phase(phase < 0) + 2*pi;
 amp = amp(:);
 phase = phase(:);
 [sortedPhase, I] = sort(phase);
-[~, ~] = EphysUnit.plotETA(ax, etaArtiFree.lickBoutNaiveNorm, sel, order=I, ...
+[~, ~] = EphysUnit.plotETA(ax, eta.lickBoutNaiveNorm, sel, order=I, ...
     clim=[-5, 5], xlim=[0, 2*pi*maxBoutCycles], hidecolorbar=false);
 applyCustomColormap(ax, [-5, 5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
 xticks(ax, (0:2:8).*pi);
@@ -279,7 +195,8 @@ hLetter.Position = [-0.35, ax.Position(4) + 0.25, 0];
 
 % Phase calculations
 nBoutsDisp = 6;
-sel = find(metaArtiFree.cc.isLick);
+% sel = find(c.isLick & c.hasPress & c.hasLick);
+sel = find(c.isLick);
 rectifiedPhase = phase;
 rectifiedPhase(phase < 0) = rectifiedPhase(phase < 0) + 2*pi;
 ampThreshold = 0;
@@ -289,36 +206,36 @@ isFirstQuarterPhase = phase >= 0.25*pi & phase < 0.75*pi;
 isThirdQuarterPhase = phase >= 1.25*pi & phase < 1.75*pi;
 isHighAmp = amp >= quantile(amp, ampThreshold);
 idInPhase = sel(isInPhase & isHighAmp);
-idInPhaseLickUp = sel(isInPhase & isHighAmp & metaArtiFree.cc.isLickUp(sel));
-idInPhaseLickFlat = sel(isInPhase & isHighAmp & ~metaArtiFree.cc.isLickResponsive(sel));
-idInPhaseLickDown = sel(isInPhase & isHighAmp & metaArtiFree.cc.isLickDown(sel));
-idInPhasePressUp = sel(isInPhase & isHighAmp & metaArtiFree.cc.isPressUp(sel));
-idInPhasePressFlat = sel(isInPhase & isHighAmp & ~metaArtiFree.cc.isPressResponsive(sel));
-idInPhasePressDown = sel(isInPhase & isHighAmp & metaArtiFree.cc.isPressDown(sel));
+idInPhaseLickUp = sel(isInPhase & isHighAmp & c.isLickUp(sel));
+idInPhaseLickFlat = sel(isInPhase & isHighAmp & ~c.isLickResponsive(sel));
+idInPhaseLickDown = sel(isInPhase & isHighAmp & c.isLickDown(sel));
+idInPhasePressUp = sel(isInPhase & isHighAmp & c.isPressUp(sel));
+idInPhasePressFlat = sel(isInPhase & isHighAmp & ~c.isPressResponsive(sel));
+idInPhasePressDown = sel(isInPhase & isHighAmp & c.isPressDown(sel));
 idAntiPhase = sel(isAntiPhase & isHighAmp);
-idAntiPhaseLickUp = sel(isAntiPhase & isHighAmp & metaArtiFree.cc.isLickUp(sel));
-idAntiPhaseLickFlat = sel(isAntiPhase & isHighAmp & ~metaArtiFree.cc.isLickResponsive(sel));
-idAntiPhaseLickDown = sel(isAntiPhase & isHighAmp & metaArtiFree.cc.isLickDown(sel));
-idAntiPhasePressUp = sel(isAntiPhase & isHighAmp & metaArtiFree.cc.isPressUp(sel));
-idAntiPhasePressFlat = sel(isAntiPhase & isHighAmp & ~metaArtiFree.cc.isPressResponsive(sel));
-idAntiPhasePressDown = sel(isAntiPhase & isHighAmp & metaArtiFree.cc.isPressDown(sel));
+idAntiPhaseLickUp = sel(isAntiPhase & isHighAmp & c.isLickUp(sel));
+idAntiPhaseLickFlat = sel(isAntiPhase & isHighAmp & ~c.isLickResponsive(sel));
+idAntiPhaseLickDown = sel(isAntiPhase & isHighAmp & c.isLickDown(sel));
+idAntiPhasePressUp = sel(isAntiPhase & isHighAmp & c.isPressUp(sel));
+idAntiPhasePressFlat = sel(isAntiPhase & isHighAmp & ~c.isPressResponsive(sel));
+idAntiPhasePressDown = sel(isAntiPhase & isHighAmp & c.isPressDown(sel));
 idFirstQuarterPhase = sel(isFirstQuarterPhase & isHighAmp);
-idFirstQuarterPhaseLickUp = sel(isFirstQuarterPhase & isHighAmp & metaArtiFree.cc.isLickUp(sel));
-idFirstQuarterPhaseLickFlat = sel(isFirstQuarterPhase & isHighAmp & ~metaArtiFree.cc.isLickResponsive(sel));
-idFirstQuarterPhaseLickDown = sel(isFirstQuarterPhase & isHighAmp & metaArtiFree.cc.isLickDown(sel));
-idFirstQuarterPhasePressUp = sel(isFirstQuarterPhase & isHighAmp & metaArtiFree.cc.isPressUp(sel));
-idFirstQuarterPhasePressFlat = sel(isFirstQuarterPhase & isHighAmp & ~metaArtiFree.cc.isPressResponsive(sel));
-idFirstQuarterPhasePressDown = sel(isFirstQuarterPhase & isHighAmp & metaArtiFree.cc.isPressDown(sel));
+idFirstQuarterPhaseLickUp = sel(isFirstQuarterPhase & isHighAmp & c.isLickUp(sel));
+idFirstQuarterPhaseLickFlat = sel(isFirstQuarterPhase & isHighAmp & ~c.isLickResponsive(sel));
+idFirstQuarterPhaseLickDown = sel(isFirstQuarterPhase & isHighAmp & c.isLickDown(sel));
+idFirstQuarterPhasePressUp = sel(isFirstQuarterPhase & isHighAmp & c.isPressUp(sel));
+idFirstQuarterPhasePressFlat = sel(isFirstQuarterPhase & isHighAmp & ~c.isPressResponsive(sel));
+idFirstQuarterPhasePressDown = sel(isFirstQuarterPhase & isHighAmp & c.isPressDown(sel));
 idThirdQuarterPhase = sel(isThirdQuarterPhase & isHighAmp);
-idThirdQuarterPhaseLickUp = sel(isThirdQuarterPhase & isHighAmp & metaArtiFree.cc.isLickUp(sel));
-idThirdQuarterPhaseLickFlat = sel(isThirdQuarterPhase & isHighAmp & ~metaArtiFree.cc.isLickResponsive(sel));
-idThirdQuarterPhaseLickDown = sel(isThirdQuarterPhase & isHighAmp & metaArtiFree.cc.isLickDown(sel));
-idThirdQuarterPhasePressUp = sel(isThirdQuarterPhase & isHighAmp & metaArtiFree.cc.isPressUp(sel));
-idThirdQuarterPhasePressFlat = sel(isThirdQuarterPhase & isHighAmp & ~metaArtiFree.cc.isPressResponsive(sel));
-idThirdQuarterPhasePressDown = sel(isThirdQuarterPhase & isHighAmp & metaArtiFree.cc.isPressDown(sel));
+idThirdQuarterPhaseLickUp = sel(isThirdQuarterPhase & isHighAmp & c.isLickUp(sel));
+idThirdQuarterPhaseLickFlat = sel(isThirdQuarterPhase & isHighAmp & ~c.isLickResponsive(sel));
+idThirdQuarterPhaseLickDown = sel(isThirdQuarterPhase & isHighAmp & c.isLickDown(sel));
+idThirdQuarterPhasePressUp = sel(isThirdQuarterPhase & isHighAmp & c.isPressUp(sel));
+idThirdQuarterPhasePressFlat = sel(isThirdQuarterPhase & isHighAmp & ~c.isPressResponsive(sel));
+idThirdQuarterPhasePressDown = sel(isThirdQuarterPhase & isHighAmp & c.isPressDown(sel));
 colors = getColor(1:4, 4, 0.6);
 
-euSel = euArtiFree(sel);
+euSel = eu(sel);
 [~, expEuIndices] = unique({euSel.ExpName});
 FsLick = 500;
 lickHistEdges = 0.01:1/FsLick:2;
@@ -346,7 +263,7 @@ lickHist.correctLickOsci.t = lickHistCenters;
 lickHist.correctLickOsci.edges = lickHistEdges;
 
 
-% S5metaArtiFree.cc. Osci lick phase distribution histogram
+% S5c. Osci lick phase distribution histogram
 ax = nexttile(layout.left.top.tl, [layout.left.h(3), 1]);
 hold(ax, 'on')
 edges = -0:2*pi/32:2*pi;
@@ -375,7 +292,7 @@ IDSplit = { ...
     {idAntiPhaseLickUp, idAntiPhaseLickFlat, idAntiPhaseLickDown}, {idAntiPhasePressUp, idAntiPhasePressFlat, idAntiPhasePressDown}; ...
     {idThirdQuarterPhaseLickUp, idThirdQuarterPhaseLickFlat, idThirdQuarterPhaseLickDown}, {idThirdQuarterPhasePressUp, idThirdQuarterPhasePressFlat, idThirdQuarterPhasePressDown}; ...
     };
-ETAMOVEBOUT = {etaArtiFree.correctLickBoutNorm, etaArtiFree.correctPressBoutNorm};
+ETAMOVEBOUT = {eta.correctLickBoutNorm, eta.correctPressBoutNorm};
 TASKS = ["lick", "press"];
 TASKTITLE = ["Self-timed lick", "Self-timed reach"];
 PHASENAME = ["2\pi", "1/2\pi", "\pi", "3/2\pi"];
@@ -441,11 +358,11 @@ for iAx = 1:4
 
     % 6d. Any bout
     ax = nexttile(layout.left.bottom.tl); AX(iAx, 1) = ax;
-    X = etaArtiFree.lickBoutNaiveNorm.X(iEu, :);
+    X = eta.lickBoutNaiveNorm.X(iEu, :);
     X = smoothdata(X, 2, 'gaussian', 5);
-    plot(ax, etaArtiFree.lickBoutNaiveNorm.t, mean(X, 1, 'omitnan'), Color=colors(ICOLOR(iAx), :), LineWidth=1.5)
+    plot(ax, eta.lickBoutNaiveNorm.t, mean(X, 1, 'omitnan'), Color=colors(ICOLOR(iAx), :), LineWidth=1.5)
     hold(ax, 'on')
-    plot(ax, etaArtiFree.lickBoutNaiveNorm.t, X, Color=[0.15, 0.15, 0.15, 1./nnz(iEu)], LineWidth=0.5)
+    plot(ax, eta.lickBoutNaiveNorm.t, X, Color=[0.15, 0.15, 0.15, 1./nnz(iEu)], LineWidth=0.5)
     xticks(ax, 0:2*pi:8*pi)
     xticklabels(ax, [{'0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2:2:8, UniformOutput=false)]);
     xlim(ax, [0, 8*pi])
@@ -481,15 +398,15 @@ sz = 7;
 ax = nexttile(layout.right.top.tl); AX(1) = ax;
 hold(ax, 'on')
 % sel = true(size(eu));
-x = metaArtiFree.meta.lickNorm;
-y = metaArtiFree.meta.pressNorm;
-subselResp = metaArtiFree.cc.isLick;
-subselNone = ~metaArtiFree.cc.isLick;
+x = meta.lickNorm;
+y = meta.pressNorm;
+subselResp = c.isLick;
+subselNone = ~c.isLick;
 h = gobjects(2, 1);
 h(2) = scatter(ax, x(subselNone), y(subselNone), sz, 'black', 'filled', Marker='o', MarkerFaceAlpha=0.5, MarkerEdgeAlpha=0.5, DisplayName=sprintf('others (%i)', nnz(subselNone)));   
 h(1) = scatter(ax, x(subselResp), y(subselResp), sz, [0, 0.5, 0.5], 'filled', Marker='o', MarkerFaceAlpha=0.5, MarkerEdgeAlpha=0.5, DisplayName=sprintf('lick-entrained (%i)', nnz(subselResp)));
 
-mdl = fitlm(metaArtiFree.meta.lickNorm(subselResp), metaArtiFree.meta.pressNorm(subselResp));
+mdl = fitlm(meta.lickNorm(subselResp), meta.pressNorm(subselResp));
 fprintf('press vs. lick (osci): LM slope p<%g.\n', mdl.Coefficients.pValue(2))
 
 plot(ax, [-10, 10], [0, 0], 'k:');
@@ -501,8 +418,8 @@ plot(ax, [-10, 10], [-10, 10], 'k:')
 sz = 7;
 ax = nexttile(layout.right.top.tl); AX(2) = ax;
 hold(ax, 'on')
-x = metaArtiFree.meta.lickNorm;
-y = metaArtiFree.meta.pressNorm;
+x = meta.lickNorm;
+y = meta.pressNorm;
 h = gobjects(4, 1);
 for i = 1:4
     sel = ID{i};
