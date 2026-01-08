@@ -170,13 +170,13 @@ nEgUnits = 2;
 close all
 
 % Figure layout
-fig = figure(Units='inches', Position=[1, 1, 7, 7]);
+fig = figure(Units='inches', Position=[1, 1, 7, 8]);
 
 clear layout
 layout.w = 1;
-layout.h = [2, 4, 3];
+layout.h = [4, 8, 7];
 layout.ch = cumsum([0, layout.h]);
-layout.tl = tiledlayout(fig, sum(layout.h), sum(layout.w), TileSpacing='compact', Padding='loose');
+layout.tl = tiledlayout(fig, sum(layout.h), sum(layout.w), TileSpacing='tight', Padding='loose');
 
 % 1st row (examples)
 layout.child(1).h = nEgUnits;
@@ -362,6 +362,7 @@ for iAx = 1:length(ETA)
     xline(ax(iAx), 0, 'k-')
     yline(ax(iAx), groupSizeCum([2, 7])+0.5, 'k--', LineWidth=2) % Thick lines
     yline(ax(iAx), groupSizeCum([1, 3,4,5,6])+0.5, 'k--', LineWidth=0.5) % Small lines
+    fontsize(ax, p.fontSize, 'points')
 end
 xlabel(layout.child(2).tl, "Time (s)", FontSize=p.fontSize)
 ylabel(layout.child(2).tl, "Unit", FontSize=p.fontSize)
@@ -374,49 +375,41 @@ hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
 hLetter.Position = [-0.25, ax.Position(4) + 0.25, 0];
 
-copygraphics(fig, ContentType='vector', BackgroundColor='none')
+% 
+% clear layout l
+% layout.w = 7;
+% layout.h = 6.5;
+% layout.left.w = 3;
+% layout.right.w = 6;
+% layout.left.h = [4, 9, 4, 12];
+% layout.right.h = [3, 6];
+% 
+% fig = figure(Units='inches', Position=[1, 1, layout.w, layout.h], DefaultAxesFontSize=p.fontSize);
+% layout.tl = tiledlayout(fig, 1, layout.left.w + layout.right.w, TileSpacing='loose', Padding='loose');
+% 
+% layout.left.tl = tiledlayout(layout.tl, sum(layout.left.h), 1, TileSpacing='loose', Padding='loose');
+% l = layout.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.left.w];
+% 
+% layout.right.tl = tiledlayout(layout.tl, sum(layout.right.h), 1, TileSpacing='compact', Padding='loose');
+% l = layout.right.tl; l.Layout.Tile = 1 + layout.left.w; l.Layout.TileSpan = [1, layout.right.w];
+% 
+% layout.left.top.tl = tiledlayout(layout.left.tl, sum(layout.left.h(1:3)), 1, TileSpacing='compact', Padding='compact');
+% l = layout.left.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [sum(layout.left.h(1:3)), 1];
+% 
+% layout.left.bottom.tl = tiledlayout(layout.left.tl, 4, 1, TileSpacing='compact', Padding='compact');
+% l = layout.left.bottom.tl; l.Layout.Tile = 1 + sum(layout.left.h(1:3)); l.Layout.TileSpan = [sum(layout.left.h(4)), 1];
+% 
+% layout.right.top.tl = tiledlayout(layout.right.tl, 1, 2, TileSpacing='compact', Padding='compact');
+% l = layout.right.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.right.h(1), 1];
+% 
+% layout.right.bottom.tl = tiledlayout(layout.right.tl, 4, sum(W), TileSpacing='compact', Padding='compact');
+% l = layout.right.bottom.tl; l.Layout.Tile = 1 + sum(layout.right.h(1)); l.Layout.TileSpan = [layout.right.h(2), 1];
 
-%% Fig6
-
-close all
-p.fontSize = 9;
-p.lineWidth = 1.5;
-nBoutsDisp = 6;
 W = [0, 0.5 + nBoutsDisp/8, 0.5 + 0.8+(nBoutsDisp-1)/8]*40;
 
-clear layout l
-layout.w = 7;
-layout.h = 6.5;
-layout.left.w = 3;
-layout.right.w = 6;
-layout.left.h = [4, 9, 4, 12];
-layout.right.h = [3, 6];
-
-fig = figure(Units='inches', Position=[1, 1, layout.w, layout.h], DefaultAxesFontSize=p.fontSize);
-layout.tl = tiledlayout(fig, 1, layout.left.w + layout.right.w, TileSpacing='loose', Padding='loose');
-
-layout.left.tl = tiledlayout(layout.tl, sum(layout.left.h), 1, TileSpacing='loose', Padding='loose');
-l = layout.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.left.w];
-
-layout.right.tl = tiledlayout(layout.tl, sum(layout.right.h), 1, TileSpacing='compact', Padding='loose');
-l = layout.right.tl; l.Layout.Tile = 1 + layout.left.w; l.Layout.TileSpan = [1, layout.right.w];
-
-layout.left.top.tl = tiledlayout(layout.left.tl, sum(layout.left.h(1:3)), 1, TileSpacing='compact', Padding='compact');
-l = layout.left.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [sum(layout.left.h(1:3)), 1];
-
-layout.left.bottom.tl = tiledlayout(layout.left.tl, 4, 1, TileSpacing='compact', Padding='compact');
-l = layout.left.bottom.tl; l.Layout.Tile = 1 + sum(layout.left.h(1:3)); l.Layout.TileSpan = [sum(layout.left.h(4)), 1];
-
-layout.right.top.tl = tiledlayout(layout.right.tl, 1, 2, TileSpacing='compact', Padding='compact');
-l = layout.right.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.right.h(1), 1];
-
-layout.right.bottom.tl = tiledlayout(layout.right.tl, 4, sum(W), TileSpacing='compact', Padding='compact');
-l = layout.right.bottom.tl; l.Layout.Tile = 1 + sum(layout.right.h(1)); l.Layout.TileSpan = [layout.right.h(2), 1];
-
-
-% 7a. Peri-lick lick prob histogram
-% 7f. Correct lick bout lick histogram
-ax = nexttile(layout.left.top.tl, [layout.left.h(1), 1]);
+% 6c. Correct lick bout lick histogram
+nBoutsDisp = 6;
+ax = nexttile(layout.child(3).tl, [layout.child(3).h(1), layout.child(3).w(1)]);
 counts = lickHist.correctLickOsci.count;
 smoothedCounts = smoothdata(counts, 'gaussian', 25);
 [pks, locs] = findpeaks(smoothedCounts, lickHist.correctLickOsci.t, MinPeakProminence=0.5);
@@ -439,12 +432,10 @@ hLetter.Position = [-0.35, ax.Position(4) + 0.1, 0];
 
 
 % 7b ETA Heatmap osci lick
-tlp = tiledlayout(layout.left.top.tl, 1, 6+1, TileSpacing='tight');
-tlp.Layout.Tile = 1 + layout.left.h(1); tlp.Layout.TileSpan = [layout.left.h(2), 1];
+tlp = tiledlayout(layout.child(3).tl, 1, 6+1, TileSpacing='tight');
+tlp.Layout.Tile = 1 + layout.child(3).ch(2)*sum(layout.child(3).w); tlp.Layout.TileSpan = [layout.child(3).h(2), layout.child(3).w(1)];
 
-tl = tiledlayout(tlp, 1, 1);
-tl.Layout.Tile = 1; tl.Layout.TileSpan = [1, 6];
-ax = nexttile(tl);
+ax = nexttile(tlp, 1, [1, 6]);
 
 % etaArtiFree.circLickNaive.Z = etaArtiFree.circLickNaive.X.*exp(etaArtiFree.circLickNaive.t*1i);
 % etaArtiFree.circLickNaive.Z(:, 1) = mean(etaArtiFree.circLickNaive.X(:, [2, 30]), 2).*exp(etaArtiFree.circLickNaive.t(1)*1i);
@@ -470,6 +461,7 @@ phase = phase(:);
 [~, ~] = EphysUnit.plotETA(ax, etaArtiFree.lickBoutNaiveNorm, sel, order=I, ...
     clim=[-5, 5], xlim=[0, 2*pi*maxBoutCycles], hidecolorbar=false);
 applyCustomColormap(ax, [-5, 5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+xline(ax, (2:2:6)*pi, 'k--', LineWidth=1)
 xticks(ax, (0:2:8).*pi);
 xticklabels(ax, [{'0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2:2:8, UniformOutput=false)]);
 title(ax, 'Lick-entrained')
@@ -566,7 +558,7 @@ lickHist.correctLickOsci.t = lickHistCenters;
 lickHist.correctLickOsci.edges = lickHistEdges;
 
 
-% S5metaArtiFree.cc. Osci lick phase distribution histogram
+%% 5e. Osci lick phase distribution histogram
 ax = nexttile(layout.left.top.tl, [layout.left.h(3), 1]);
 hold(ax, 'on')
 edges = -0:2*pi/32:2*pi;
