@@ -6,7 +6,7 @@ else
 end
 
 %% Load euComplete (complete with ITI spikes)
-if ~exist('E:\Data\Units\NonLite_PressVsLick', 'dir') 
+if ~exist('E:\Data\Units\SNr_nonDuplicate_nonDrift_withITI', 'dir') 
     euNames = lower(eu.getName());
     
     files = dir('C:\SERVER\Units\NonLite_PressVsLick\*.mat');
