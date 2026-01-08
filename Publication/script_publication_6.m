@@ -156,25 +156,136 @@ clear sel trials expEuIndices FsLick lickHistEdges lickHistCenters lickHistNLick
 % metaArtiFree.eta = etaArtiFree;
 % save('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat', 'metaArtiFree')
 
-%%
-
-%% Now that we've seen the kinds of responses from the clustering, try to make a heatmap
-
-close all
-% p.fontSize = 12;
+%% Fig 6
 XLIM = {[-1, 0.3], [-1, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3]};
 W = cellfun(@(xl) diff(xl*10), XLIM, UniformOutput=true);
 CW = cumsum([0, W]);
+SORTWINDOW = {[-0.3, 0.3], [-0.3, 0.3], [-0.1, 0.3], [-0.1, 0.3], [-0.1, 0.3]};
+DATAWINDOW = {[-2, 0.5], [-2, 0.5], [-0.5, 0.5], [-0.5, 0.5], [-0.5, 0.5]};
+NAME = ["Reach", "Lick", "First lick", "Last lick", "Bar release"];
+TRIALTYPE = {'press', 'lick', 'CorrectPressToFirstRewardLick', 'CueToLastLickOffCorrect', 'CueToLeverReleaseCorrect'};
+XTICKS = {[-1, 0], [-1, 0], [0, 0.3], [0, 0.3], [0, 0.3]};
+XTICKLABELS = {["-1", "touch"], ["-1", "lick"], ["lick", "0.3"], ["lick", "0.3"], ["release    ", "0.3"]};
+nEgUnits = 2;
+close all
 
-fig = figure(Units='inches', Position=[1, 1, 6.5, 4]);
-tl = tiledlayout(fig, 1, sum(W), TileSpacing='compact', Padding='compact');
+% Figure layout
+fig = figure(Units='inches', Position=[1, 1, 7, 7]);
+
+clear layout
+layout.w = 1;
+layout.h = [2, 4, 3];
+layout.ch = cumsum([0, layout.h]);
+layout.tl = tiledlayout(fig, sum(layout.h), sum(layout.w), TileSpacing='compact', Padding='loose');
+
+% 1st row (examples)
+layout.child(1).h = nEgUnits;
+layout.child(1).w = W;
+layout.child(1).cw = cumsum([0, W]);
+layout.child(1).tl = tiledlayout(layout.tl, sum(layout.child(1).h), sum(layout.child(1).w), TileSpacing='compact', Padding='compact');
+l = layout.child(1).tl; l.Layout.Tile = 1 + layout.ch(1); l.Layout.TileSpan = [layout.h(1), layout.w];
+
+% 2nd row (heatmap)
+layout.child(2).h = 1;
+layout.child(2).w = W;
+layout.child(2).cw = cumsum([0, W]);
+layout.child(2).tl = tiledlayout(layout.tl, sum(layout.child(2).h), sum(layout.child(2).w), TileSpacing='compact', Padding='compact');
+l = layout.child(2).tl; l.Layout.Tile = 1 + layout.ch(2); l.Layout.TileSpan = [layout.h(2), layout.w];
+
+% 3rd row (osci)
+layout.child(3).h = [2, 5];
+layout.child(3).w = [2, 2, 3];
+layout.child(3).cw = cumsum([0, layout.child(3).w]);
+layout.child(3).ch = cumsum([0, layout.child(3).h]);
+layout.child(3).tl = tiledlayout(layout.tl, sum(layout.child(3).h), sum(layout.child(3).w), TileSpacing='compact', Padding='compact');
+l = layout.child(3).tl; l.Layout.Tile = 1 + layout.ch(3); l.Layout.TileSpan = [layout.h(3), layout.w];
+
+
+% 6a. Raster/PETH examples, 5 phases of movement
+unitNames = { ...
+    'Daisy3_20180611_Channel15_Unit1' % euArtiFree(28).getName(); ...
+    'desmond10_20180909_Channel10_Unit1' % euArtiFree(153).getName(); ...
+    };
+[~, locb] = ismember(unitNames, euArtiFree.getName());
+euEg = euArtiFree(locb);
+assert(nEgUnits == length(unitNames))
+
+MINTRIALDURATION = [...
+        2, 2, 0, 0, 0; ...
+        2, 2, 0, 0, 0; ...
+    ];
+MAXTRIALDURATION = [...
+        Inf, Inf, Inf, Inf, Inf; ...
+        Inf, Inf, Inf, Inf, Inf; ...
+    ];
+EVERYNTH = [5, 5, 5, 5, 5];
+% YLIM = {[20, 80], [20, 140], [20, 80]};
+% YTICKS = {20:30:80, 20:60:140, 20:30:80};
+
+AX = gobjects(nEgUnits, 5);
+for iEu = 1:nEgUnits
+    for iAx = 1:5
+        AX(iEu, iAx) = nexttile(layout.child(1).tl, 1 + CW(iAx) + (iEu-1)*sum(W), [1, W(iAx)]);
+    end
+end
+for iEu = 1:nEgUnits
+    for iAx = 1:5
+        ax = AX(iEu, iAx);
+        thisRD = euEg(iEu).getRasterData(TRIALTYPE{iAx}, window=DATAWINDOW{iAx}, sort=true, alignTo='stop', minTrialDuration=MINTRIALDURATION(iEu, iAx), maxTrialDuration=MAXTRIALDURATION(iEu, iAx));
+        thisETA = euEg(iEu).getETA('count', TRIALTYPE{iAx}, DATAWINDOW{iAx}, normalize='none', includeInvalid=false, alignTo='stop', minTrialDuration=MINTRIALDURATION(iEu, iAx), maxTrialDuration=MAXTRIALDURATION(iEu, iAx));
+        yyaxis(ax, 'right')
+        EphysUnit.plotRaster(ax, thisRD, xlim=XLIM{iAx}, iti=false, sz=1, maxTrials=40, maxTrialsMethod='uniformsample', ...
+            everyNth=EVERYNTH(iEu), timingCriterion=NaN, onlyPlotSpikes=true);
+        hRaster = ax.Children(1);
+        hRaster.MarkerFaceAlpha = 0.5;
+        ylabel(ax, '')
+        yticks(ax, [])
+        ax.YAxis(2).Direction = 'reverse';
+        yyaxis(ax, 'left')
+        plot(ax, thisETA.t, thisETA.X./0.1, LineWidth=1.5, Color=[0.2, 0.2, 0.8, 1.0])
+        hold(ax, 'on')
+        % set(ax.YAxis, FontSize=p.fontSize, Color=[0.15, 0.15, 0.15]);
+        set(ax.YAxis(1), FontSize=p.fontSize, Color=[0.2, 0.2, 0.8]);%0.15, 0.15, 0.15]);
+        set(ax.YAxis(2), FontSize=p.fontSize, Color=[0.15, 0.15, 0.15]);%0.15, 0.15, 0.15]);
+        ax.YAxis(1).TickLength = [0.025, 0.1];
+        ylabel(ax, 'Spike rate (sp/s)')
+        delete(ax.Legend)
+        xticks(ax, XTICKS{iAx})
+        xticklabels(ax, XTICKLABELS{iAx})
+        xtickangle(ax, 0)
+        if iEu == 1
+            title(ax, NAME(iAx))
+            xticks(ax, [])
+        else
+            title(ax, '')
+        end
+        xline(ax, 0, 'k--', LineWidth=1)
+        ylim(ax, 'auto')
+        xlabel(ax, '')
+        fontsize(ax, p.fontSize, 'points')
+    end
+end
+ylim(AX, [-10, 160]);
+yticks(AX(:, 1), [0, 75, 150])
+yticks(AX(:, 2:end), [])
+
+ax = AX(1, 1);
+hLetter = text(ax, 0, 0, 'a', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax.Units = 'inches';
+hLetter.HorizontalAlignment = 'right';
+hLetter.VerticalAlignment = 'top';
+hLetter.Position = [-0.3, ax.Position(4) + 0.2, 0];
+
+% xlabel(AX, '')
+ylabel(AX, '')
+ylabel(layout.child(1).tl, 'Spike rate (sp/s)', FontSize=p.fontSize, Color=[0.2, 0.2, 0.8, 1.0])
+xlabel(layout.child(1).tl, 'Time (s)', FontSize=p.fontSize)
+clear thisRD ax iEu AX
+
+% 6b. Heatmap, 5 phases of movement
 selUnits = 1:length(euArtiFree);
 ETASORT = {etaArtiFree.pressNorm, etaArtiFree.lickNorm, etaArtiFree.correctPressFirstLickNorm, etaArtiFree.correctLickLastLickOffNorm, etaArtiFree.correctReleaseNorm};
 ETA = {etaArtiFree.pressNorm, etaArtiFree.lickNorm, etaArtiFree.correctPressFirstLickNorm, etaArtiFree.correctLickLastLickOffNorm, etaArtiFree.correctReleaseNorm};
-SORTWINDOW = {[-0.3, 0.3], [-0.3, 0.3], [-0.1, 0.3], [-0.1, 0.3], [-0.1, 0.3]};
-NAME = ["Reach", "Lick", "First lick", "Last lick", "Bar release"];
-XTICKS = {[-1, 0], [-1, 0], [0, 0.3], [0, 0.3], [0, 0.3]};
-XTICKLABELS = {["-1", "touch"], ["-1", "lick"], ["lick", "0.3"], ["lick", "0.3"], ["release    ", "0.3"]};
 
 % Combine ETA, PCA, and sort along 1st dimension
 etaCombined = struct(X=[], t=[]);
@@ -208,36 +319,29 @@ groupVar = sum(horzcat(groupVar{:}), 2);
 
 % First, sort by number of negative modulations
 numNeg = sum(score<0, 2);
+numNeg(numNeg == 5) = -1;
 numNeg(numNeg > 1) = 2;
 [uniqueGroupVars, ia] = unique(groupVar);
 [~, I] = sort(numNeg(ia), 'ascend');
 groupVar = changem(groupVar, 0:length(uniqueGroupVars)-1, uniqueGroupVars(I));
 
-% % Then, put all small groups (excluding single neg ones) at the bottom
-% [uniqueGroupVars, ia] = unique(groupVar);
-% assert(length(uniqueGroupVars) == max(groupVar)+1);
-% groupSize = histcounts(groupVar, 0:length(uniqueGroupVars));
-% 
-% numUnitsInSameGroup = arrayfun(@(gv) nnz(groupVar==gv), groupVar);
-% isRare = numUnitsInSameGroup < 3;
-% isSingleNeg = numNeg==1;
-% groupVar(isRare & ~isSingleNeg) = max(groupVar)+1;
 % Tighten up the groupvars
 uniqueGroupVars = unique(groupVar);
 groupVar = changem(groupVar, 0:length(uniqueGroupVars)-1, uniqueGroupVars);
 groupSize = histcounts(groupVar, 0:length(uniqueGroupVars));
 groupSizeCum = cumsum(groupSize);
-[~, sortOrder] = sort(double(groupVar)*10 + score(:, 1)./max(abs(score(:, 1))), 'ascend');
+sortVal = groupVar*10 - score(:, 1)./max(abs(score(:, 1)));
+% selMultiNeg = groupVar >= 7;
+% sortVal(selMultiNeg) = max(uniqueGroupVars)*10 + (score(selMultiNeg, :)./max(abs(score(:)))*[-2; -1; 0; 1; 2]);
+[~, sortOrder] = sort(sortVal, 'ascend');
 
 ax = gobjects(1, length(XLIM));
 for i = 1:length(XLIM)
-    ax(i) = nexttile(tl, CW(i)+1, [1, W(i)]);
+    ax(i) = nexttile(layout.child(2).tl, CW(i)+1, [1, W(i)]);
 end
 for iAx = 1:length(ETA)
     hidecb = iAx < length(ETA);
     EphysUnit.plotETA(ax(iAx), ETA{iAx}, selUnits, xlim=XLIM{iAx}, clim=[-1.5, 1.5], order=sortOrder, hidecolorbar=hidecb);
-    % applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
-    % applyCustomColormap(ax(iAx), [-1.5, 3], hlim=[0.375, 0, 0, -0.375], llim=[0.25, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
     applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);    
     if ~hidecb
         ax(iAx).Colorbar.Layout.Tile = 'east';
@@ -256,16 +360,15 @@ for iAx = 1:length(ETA)
     xticklabels(ax(iAx), XTICKLABELS{iAx})
     xtickangle(ax(iAx), 0)
     xline(ax(iAx), 0, 'k-')
-    yline(ax(iAx), groupSizeCum([1, 6])+0.5, 'k--', LineWidth=2)
-    yline(ax(iAx), groupSizeCum(2:5)+0.5, 'k--', LineWidth=0.5)
+    yline(ax(iAx), groupSizeCum([2, 7])+0.5, 'k--', LineWidth=2) % Thick lines
+    yline(ax(iAx), groupSizeCum([1, 3,4,5,6])+0.5, 'k--', LineWidth=0.5) % Small lines
 end
-xlabel(tl, "Time (s)")
-ylabel(tl, "Unit")
-fontsize(fig, p.fontSize, 'points')
+xlabel(layout.child(2).tl, "Time (s)", FontSize=p.fontSize)
+ylabel(layout.child(2).tl, "Unit", FontSize=p.fontSize)
 % clear etaCombined nDims coeff score explained sortOrder fig tl ax iAx ETASORT NAME ZEROLABEL XLIM hidecp
 
 ax = ax(1);
-hLetter = text(ax, 0, 0, 'e', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+hLetter = text(ax, 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
 ax.Units = 'inches';
 hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
