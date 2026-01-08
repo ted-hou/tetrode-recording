@@ -156,6 +156,123 @@ clear sel trials expEuIndices FsLick lickHistEdges lickHistCenters lickHistNLick
 % metaArtiFree.eta = etaArtiFree;
 % save('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat', 'metaArtiFree')
 
+%%
+
+%% Now that we've seen the kinds of responses from the clustering, try to make a heatmap
+
+close all
+% p.fontSize = 12;
+XLIM = {[-1, 0.3], [-1, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3]};
+W = cellfun(@(xl) diff(xl*10), XLIM, UniformOutput=true);
+CW = cumsum([0, W]);
+
+fig = figure(Units='inches', Position=[1, 1, 6.5, 4]);
+tl = tiledlayout(fig, 1, sum(W), TileSpacing='compact', Padding='compact');
+selUnits = 1:length(euArtiFree);
+ETASORT = {etaArtiFree.pressNorm, etaArtiFree.lickNorm, etaArtiFree.correctPressFirstLickNorm, etaArtiFree.correctLickLastLickOffNorm, etaArtiFree.correctReleaseNorm};
+ETA = {etaArtiFree.pressNorm, etaArtiFree.lickNorm, etaArtiFree.correctPressFirstLickNorm, etaArtiFree.correctLickLastLickOffNorm, etaArtiFree.correctReleaseNorm};
+SORTWINDOW = {[-0.3, 0.3], [-0.3, 0.3], [-0.1, 0.3], [-0.1, 0.3], [-0.1, 0.3]};
+NAME = ["Reach", "Lick", "First lick", "Last lick", "Bar release"];
+XTICKS = {[-1, 0], [-1, 0], [0, 0.3], [0, 0.3], [0, 0.3]};
+XTICKLABELS = {["-1", "touch"], ["-1", "lick"], ["lick", "0.3"], ["lick", "0.3"], ["release    ", "0.3"]};
+
+% Combine ETA, PCA, and sort along 1st dimension
+etaCombined = struct(X=[], t=[]);
+etaCombined.X = cellfun(@(eta) eta.X, ETASORT, UniformOutput=false);
+etaCombined.X = cat(2, etaCombined.X{:});
+etaCombined.t = cellfun(@(eta) eta.t, ETASORT, UniformOutput=false);
+etaCombined.t = cat(2, etaCombined.t{:});
+etaCombined.epoch = arrayfun(@(i) i*ones(1, length(ETASORT{i}.t)), 1:length(ETASORT), UniformOutput=false);
+etaCombined.epoch = cat(2, etaCombined.epoch{:});
+etaCombined.X(etaCombined.X>1.5) = 1.5;
+etaCombined.X(etaCombined.X<-1.5) = -1.5;
+
+etaCombined.X = etaCombined.X(selUnits, :);
+
+% Make templates to project onto
+clear template
+template(length(ETASORT)) = struct(t=[], x=[]);
+for iETA = 1:length(ETASORT)
+    template(iETA).t = etaCombined.t;
+    template(iETA).x = zeros(1, length(etaCombined.t));
+    template(iETA).x(1, isin(etaCombined.t, SORTWINDOW{iETA}) & etaCombined.epoch==iETA) = 1;
+end
+
+score = zeros(size(etaCombined.X, 1), length(ETASORT));
+etaCombined.X(isnan(etaCombined.X)) = 0;
+for iETA = 1:length(ETASORT)
+    score(:, iETA) = etaCombined.X * template(iETA).x';
+end
+groupVar = arrayfun(@(i) bitshift(int16(score(:, i)>0), length(ETASORT)-i), 1:size(score, 2), UniformOutput=false);
+groupVar = sum(horzcat(groupVar{:}), 2);
+
+% First, sort by number of negative modulations
+numNeg = sum(score<0, 2);
+numNeg(numNeg > 1) = 2;
+[uniqueGroupVars, ia] = unique(groupVar);
+[~, I] = sort(numNeg(ia), 'ascend');
+groupVar = changem(groupVar, 0:length(uniqueGroupVars)-1, uniqueGroupVars(I));
+
+% % Then, put all small groups (excluding single neg ones) at the bottom
+% [uniqueGroupVars, ia] = unique(groupVar);
+% assert(length(uniqueGroupVars) == max(groupVar)+1);
+% groupSize = histcounts(groupVar, 0:length(uniqueGroupVars));
+% 
+% numUnitsInSameGroup = arrayfun(@(gv) nnz(groupVar==gv), groupVar);
+% isRare = numUnitsInSameGroup < 3;
+% isSingleNeg = numNeg==1;
+% groupVar(isRare & ~isSingleNeg) = max(groupVar)+1;
+% Tighten up the groupvars
+uniqueGroupVars = unique(groupVar);
+groupVar = changem(groupVar, 0:length(uniqueGroupVars)-1, uniqueGroupVars);
+groupSize = histcounts(groupVar, 0:length(uniqueGroupVars));
+groupSizeCum = cumsum(groupSize);
+[~, sortOrder] = sort(double(groupVar)*10 + score(:, 1)./max(abs(score(:, 1))), 'ascend');
+
+ax = gobjects(1, length(XLIM));
+for i = 1:length(XLIM)
+    ax(i) = nexttile(tl, CW(i)+1, [1, W(i)]);
+end
+for iAx = 1:length(ETA)
+    hidecb = iAx < length(ETA);
+    EphysUnit.plotETA(ax(iAx), ETA{iAx}, selUnits, xlim=XLIM{iAx}, clim=[-1.5, 1.5], order=sortOrder, hidecolorbar=hidecb);
+    % applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+    % applyCustomColormap(ax(iAx), [-1.5, 3], hlim=[0.375, 0, 0, -0.375], llim=[0.25, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+    applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);    
+    if ~hidecb
+        ax(iAx).Colorbar.Layout.Tile = 'east';
+        ax(iAx).Colorbar.Label.String = 'Normalized spike rate (a.u.)';
+    end
+    if iAx > 1
+        yticks(ax(iAx), [])
+    else
+        yticks(ax(iAx), groupSizeCum([1, 6, end])+0.5)
+        yticklabels(ax(iAx), string(groupSizeCum([1, 6, end])))
+    end
+    title(ax(iAx), strsplit(NAME{iAx}, "\\n"))
+    xlabel(ax(iAx), "")
+    ylabel(ax(iAx), "")
+    xticks(ax(iAx), XTICKS{iAx})
+    xticklabels(ax(iAx), XTICKLABELS{iAx})
+    xtickangle(ax(iAx), 0)
+    xline(ax(iAx), 0, 'k-')
+    yline(ax(iAx), groupSizeCum([1, 6])+0.5, 'k--', LineWidth=2)
+    yline(ax(iAx), groupSizeCum(2:5)+0.5, 'k--', LineWidth=0.5)
+end
+xlabel(tl, "Time (s)")
+ylabel(tl, "Unit")
+fontsize(fig, p.fontSize, 'points')
+% clear etaCombined nDims coeff score explained sortOrder fig tl ax iAx ETASORT NAME ZEROLABEL XLIM hidecp
+
+ax = ax(1);
+hLetter = text(ax, 0, 0, 'e', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax.Units = 'inches';
+hLetter.HorizontalAlignment = 'right';
+hLetter.VerticalAlignment = 'top';
+hLetter.Position = [-0.25, ax.Position(4) + 0.25, 0];
+
+copygraphics(fig, ContentType='vector', BackgroundColor='none')
+
 %% Fig6
 
 close all
