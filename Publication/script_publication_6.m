@@ -194,10 +194,10 @@ l = layout.child(2).tl; l.Layout.Tile = 1 + layout.ch(2); l.Layout.TileSpan = [l
 
 % 3rd row (osci)
 layout.child(3).h = [2, 5];
-layout.child(3).w = [2, 2, 3];
+layout.child(3).w = [3, 3, 3];
 layout.child(3).cw = cumsum([0, layout.child(3).w]);
 layout.child(3).ch = cumsum([0, layout.child(3).h]);
-layout.child(3).tl = tiledlayout(layout.tl, sum(layout.child(3).h), sum(layout.child(3).w), TileSpacing='compact', Padding='compact');
+layout.child(3).tl = tiledlayout(layout.tl, sum(layout.child(3).h), sum(layout.child(3).w), TileSpacing='loose', Padding='compact');
 l = layout.child(3).tl; l.Layout.Tile = 1 + layout.ch(3); l.Layout.TileSpan = [layout.h(3), layout.w];
 
 
@@ -346,6 +346,7 @@ for iAx = 1:length(ETA)
     if ~hidecb
         ax(iAx).Colorbar.Layout.Tile = 'east';
         ax(iAx).Colorbar.Label.String = 'Normalized spike rate (a.u.)';
+        axc2 = ax(iAx);
     end
     if iAx > 1
         yticks(ax(iAx), [])
@@ -375,38 +376,6 @@ hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
 hLetter.Position = [-0.25, ax.Position(4) + 0.25, 0];
 
-% 
-% clear layout l
-% layout.w = 7;
-% layout.h = 6.5;
-% layout.left.w = 3;
-% layout.right.w = 6;
-% layout.left.h = [4, 9, 4, 12];
-% layout.right.h = [3, 6];
-% 
-% fig = figure(Units='inches', Position=[1, 1, layout.w, layout.h], DefaultAxesFontSize=p.fontSize);
-% layout.tl = tiledlayout(fig, 1, layout.left.w + layout.right.w, TileSpacing='loose', Padding='loose');
-% 
-% layout.left.tl = tiledlayout(layout.tl, sum(layout.left.h), 1, TileSpacing='loose', Padding='loose');
-% l = layout.left.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [1, layout.left.w];
-% 
-% layout.right.tl = tiledlayout(layout.tl, sum(layout.right.h), 1, TileSpacing='compact', Padding='loose');
-% l = layout.right.tl; l.Layout.Tile = 1 + layout.left.w; l.Layout.TileSpan = [1, layout.right.w];
-% 
-% layout.left.top.tl = tiledlayout(layout.left.tl, sum(layout.left.h(1:3)), 1, TileSpacing='compact', Padding='compact');
-% l = layout.left.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [sum(layout.left.h(1:3)), 1];
-% 
-% layout.left.bottom.tl = tiledlayout(layout.left.tl, 4, 1, TileSpacing='compact', Padding='compact');
-% l = layout.left.bottom.tl; l.Layout.Tile = 1 + sum(layout.left.h(1:3)); l.Layout.TileSpan = [sum(layout.left.h(4)), 1];
-% 
-% layout.right.top.tl = tiledlayout(layout.right.tl, 1, 2, TileSpacing='compact', Padding='compact');
-% l = layout.right.top.tl; l.Layout.Tile = 1; l.Layout.TileSpan = [layout.right.h(1), 1];
-% 
-% layout.right.bottom.tl = tiledlayout(layout.right.tl, 4, sum(W), TileSpacing='compact', Padding='compact');
-% l = layout.right.bottom.tl; l.Layout.Tile = 1 + sum(layout.right.h(1)); l.Layout.TileSpan = [layout.right.h(2), 1];
-
-W = [0, 0.5 + nBoutsDisp/8, 0.5 + 0.8+(nBoutsDisp-1)/8]*40;
-
 % 6c. Correct lick bout lick histogram
 nBoutsDisp = 6;
 ax = nexttile(layout.child(3).tl, [layout.child(3).h(1), layout.child(3).w(1)]);
@@ -424,14 +393,14 @@ yticks(ax, [])
 ax.Box = 'off';
 fontsize(ax, p.fontSize, 'points')
 
-hLetter = text(ax, 0, 0, 'a', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+hLetter = text(ax, 0, 0, 'c', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
 ax.Units = 'inches';
 hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
 hLetter.Position = [-0.35, ax.Position(4) + 0.1, 0];
 
 
-% 7b ETA Heatmap osci lick
+% 6d ETA Heatmap osci lick
 tlp = tiledlayout(layout.child(3).tl, 1, 6+1, TileSpacing='tight');
 tlp.Layout.Tile = 1 + layout.child(3).ch(2)*sum(layout.child(3).w); tlp.Layout.TileSpan = [layout.child(3).h(2), layout.child(3).w(1)];
 
@@ -449,7 +418,6 @@ etaArtiFree.lickBoutNaiveNorm.X = normalize(etaArtiFree.lickBoutNaive.X, 2, 'zsc
 % etaArtiFree.lickBoutNaiveNorm.X(metaArtiFree.cc.hasPress, :) = (etaArtiFree.lickBoutNaive.X(metaArtiFree.cc.hasPress, :) - vertcat(etaArtiFree.press.stats(metaArtiFree.cc.hasPress).mean)./0.1) ./ (vertcat(etaArtiFree.press.stats(metaArtiFree.cc.hasPress).sd)./0.1);
 % etaArtiFree.lickBoutNaiveNorm.X(metaArtiFree.cc.hasPress, :) = (etaArtiFree.lickBoutNaive.X(metaArtiFree.cc.hasPress, :) - vertcat(etaArtiFree.press.stats(metaArtiFree.cc.hasPress).mean)./0.1) ./ (vertcat(etaArtiFree.press.stats(metaArtiFree.cc.hasPress).sd)./0.1);
 
-
 maxBoutCycles = 4;
 sel = metaArtiFree.cc.isLick;%metaArtiFree.cc.hasPress & metaArtiFree.cc.hasLick & metaArtiFree.cc.isLick;
 phase = angle(metaArtiFree.circlick.Z(sel));
@@ -464,6 +432,7 @@ applyCustomColormap(ax, [-5, 5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0
 xline(ax, (2:2:6)*pi, 'k--', LineWidth=1)
 xticks(ax, (0:2:8).*pi);
 xticklabels(ax, [{'0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2:2:8, UniformOutput=false)]);
+xtickangle(ax, 0)
 title(ax, 'Lick-entrained')
 ylabel(ax, 'Unit')
 xlabel(ax, 'Lick phase')
@@ -482,7 +451,7 @@ fontsize(ax, p.fontSize, 'points')
 fontname(ax, 'Arial')
 axc = ax;
 
-hLetter = text(ax, 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+hLetter = text(ax, 0, 0, 'd', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
 ax.Units = 'inches';
 hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
@@ -490,7 +459,6 @@ hLetter.Position = [-0.35, ax.Position(4) + 0.25, 0];
 
 
 % Phase calculations
-nBoutsDisp = 6;
 sel = find(metaArtiFree.cc.isLick);
 rectifiedPhase = phase;
 rectifiedPhase(phase < 0) = rectifiedPhase(phase < 0) + 2*pi;
@@ -557,9 +525,8 @@ lickHist.correctLickOsci.pdf = lickHistCounts ./ lickHistNLicks;
 lickHist.correctLickOsci.t = lickHistCenters;
 lickHist.correctLickOsci.edges = lickHistEdges;
 
-
-%% 5e. Osci lick phase distribution histogram
-ax = nexttile(layout.left.top.tl, [layout.left.h(3), 1]);
+% 5e. Osci lick phase distribution histogram
+ax = nexttile(layout.child(3).tl, 1 + layout.child(3).cw(2), [layout.child(3).h(1), layout.child(3).w(2)]);
 hold(ax, 'on')
 edges = -0:2*pi/32:2*pi;
 histogram(ax, rectifiedPhase(isInPhase), edges, FaceColor=colors(1, :), FaceAlpha=1, EdgeAlpha=0.5);
@@ -567,18 +534,18 @@ histogram(ax, rectifiedPhase(isFirstQuarterPhase), edges, FaceColor=colors(2, :)
 histogram(ax, rectifiedPhase(isAntiPhase), edges, FaceColor=colors(4, :), FaceAlpha=1, EdgeAlpha=0.5);
 histogram(ax, rectifiedPhase(isThirdQuarterPhase), edges, FaceColor=colors(3, :), FaceAlpha=1, EdgeAlpha=0.5);
 xticks(ax, 0:pi:2*pi)
-yticks(ax, [0, 20])
+yticks(ax, [0, 15])
 xlim(ax, pi*[0, 2])
 xticklabels(ax, {'0', '\pi', '2\pi'});
 xlabel('Lick phase')
-ylabel('# units')
+ylabel('units     ')
 fontsize(ax, p.fontSize, 'points')
 
-hLetter = text(ax, 0, 0, 'c', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+hLetter = text(ax, 0, 0, 'e', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
 ax.Units = 'inches';
 hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
-hLetter.Position = [-0.4, ax.Position(4) + 0.25, 0];
+hLetter.Position = [-0.25, ax.Position(4) + 0.25, 0];
 
 ID = {idInPhase; idFirstQuarterPhase; idAntiPhase; idThirdQuarterPhase};
 IDSplit = { ...
@@ -593,14 +560,69 @@ TASKTITLE = ["Self-timed lick", "Self-timed reach"];
 PHASENAME = ["2\pi", "1/2\pi", "\pi", "3/2\pi"];
 ICOLOR = [1, 2, 4, 3];
 
+% 7f. Reach vs. Lick (scatter)
+sz = 7;
+% sel = true(size(eu));
+x = metaArtiFree.meta.lickNorm;
+y = metaArtiFree.meta.pressNorm;
+subselResp = metaArtiFree.cc.isLick;
+subselNone = ~metaArtiFree.cc.isLick;
+
+mdl = fitlm(metaArtiFree.meta.lickNorm(subselResp), metaArtiFree.meta.pressNorm(subselResp));
+fprintf('press vs. lick (osci): LM slope p<%g.\n', mdl.Coefficients.pValue(2))
+
+
+% 7f right, scatter press vs lick META, color by lick entrainment phase: 
+ax = nexttile(layout.child(3).tl, 1 + layout.child(3).ch(2)*sum(layout.child(3).w) + layout.child(3).cw(2), [layout.child(3).h(2), layout.child(3).w(2)]);
+hold(ax, 'on')
+h = gobjects(5, 1);
+h(5) = scatter(ax, x(~metaArtiFree.cc.isLick), y(~metaArtiFree.cc.isLick), sz-2, [0.2 0.2 0.2], Marker='o', MarkerEdgeAlpha=0.25, DisplayName='not-entrained');
+for i = 1:4
+    sel = ID{i};
+    h(i) = scatter(ax, x(sel), y(sel), sz, colors(ICOLOR(i), :), 'filled', Marker='o', MarkerFaceAlpha=0.75, MarkerEdgeAlpha=1, DisplayName=PHASENAME(i));
+end
+
+plot(ax, [-10, 10], [0, 0], 'k:');
+plot(ax, [0, 0], [-10, 10], 'k:');
+plot(ax, [-10, 10], [-10, 10], 'k:')
+
+axis(ax, 'equal')
+xlim(ax, [-2, 5])
+ylim(ax, [-2, 5])
+
+fontsize(ax, p.fontSize, 'points')
+fontname(ax, 'Arial')
+
+ylabel(ax, 'Peri-reach activity (a.u.)', FontSize=p.fontSize)
+xlabel(ax, 'Peri-lick activity (a.u.)', FontSize=p.fontSize)
+
+hLetter = text(ax, 0, 0, 'f', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax.Units = 'inches';
+hLetter.HorizontalAlignment = 'right';
+hLetter.VerticalAlignment = 'top';
+hLetter.Position = [-0.3, ax.Position(4) + 0.3, 0];
+
+
+% 7g
+nBoutsDisp = 6;
+W = 40*[0.5 + nBoutsDisp/8; 0.5 + 0.8 + (nBoutsDisp-1)/8];
+tl = tiledlayout(layout.child(3).tl, 2, max(W));
+tl.Layout.Tile = 1 + layout.child(3).cw(3); 
+tl.Layout.TileSpan = [sum(layout.child(3).h), layout.child(3).w(3)];
+
+AX = gobjects(2, 1);
+% AX(1) = nexttile(tl, 1 + W(2) - W(1), [1, W(1)]);
+AX(1) = nexttile(tl, 1, [1, W(2)]);
+AX(2) = nexttile(tl, 1 + max(W), [1, W(2)]);
+
 % 7d (left) and 7g (right)
-AX = gobjects(4, 3);
-for iAx = 1:4
+% AX = gobjects(4, 3);
+for iAx = 2
     iEu = ID{iAx};
     for iTask = 1:2
         % First lick
-        ax = nexttile(layout.right.bottom.tl, (iAx-1)*sum(W) + 1 + sum(W(1:iTask)), [1, W(iTask + 1)]); 
-        AX(iAx, iTask + 1) = ax;
+        % ax = nexttile(layout.right.bottom.tl, (iAx-1)*sum(W) + 1 + sum(W(1:iTask)), [1, W(iTask + 1)]); 
+        ax = AX(iTask); 
         hold(ax, 'on')
         t = ETAMOVEBOUT{iTask}.t;
         switch TASKS(iTask)
@@ -622,20 +644,20 @@ for iAx = 1:4
             plot(ax, t, X, Color=[0.15, 0.15, 0.15, 0.05], LineWidth=0.5)
         end
 
-        ylim(ax, [-1.25, 1.75])
-        yticks(ax, [-1, 0, 1])
-        
+        ylim(ax, [-0.5, 2])
+        yticks(ax, [0, 1, 2])
+
         switch TASKS(iTask)
             case "press"
                 xline(ax, [0, 0.8,  0.8+(1:(nBoutsDisp-1))/8], LineStyle=':')
                 xlim(ax, [-0.5, 0.8+(nBoutsDisp-1)/8])
-                xticks(ax, [-2, -0.5, 0, 0.8,  0.8+(1:(nBoutsDisp-1))/8])
-                xticklabels(ax, {'-2', '-0.5', '0', '2\pi', '', '', '', '', '12\pi'})
+                xticks(ax, [-1, -0.5, 0, 0.8,  0.8+(1:(nBoutsDisp-1))/8])
+                xticklabels(ax, {'-1', '-0.5', 'reach', '2\pi', '', '', '', '', '12\pi'})
             case "lick"    
                 xline(ax, (0:nBoutsDisp)/8, LineStyle=':')       
-                xlim(ax, [-0.5, nBoutsDisp/8])
-                xticks(ax, [-2, -0.5, 0, (1:nBoutsDisp)/8])
-                xticklabels(ax, {'-2', '-0.5', '0', '', '', '', '', '', '12\pi'}) 
+                xlim(ax, [-0.5-0.675, nBoutsDisp/8])
+                xticks(ax, [-1, -0.5, 0, (1:nBoutsDisp)/8])
+                xticklabels(ax, {'-1', '-0.5', 'lick', '', '', '', '', '', '12\pi'}) 
         end
         ax.XAxis.TickLabelRotation = 0;
 
@@ -643,116 +665,56 @@ for iAx = 1:4
             title(ax, TASKTITLE(iTask))
         end
 
-        ax.XGrid = 'on';
+        % ax.XGrid = 'on';
         hold(ax, 'off')
         fontsize(ax, p.fontSize, 'points')
-        text(ax, 0.025, 1, sprintf('inc(n=%i)', nnz(IDSplit{iAx, iTask}{1})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='top', Interpreter='none', FontSize=p.fontSize-1)
-        text(ax, 0.025, 0.025, sprintf('dec(n=%i)', nnz(IDSplit{iAx, iTask}{3})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize-1)
+        % text(ax, 0.025, 1, sprintf('inc(n=%i)', nnz(IDSplit{iAx, iTask}{1})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='top', Interpreter='none', FontSize=p.fontSize-1)
+        % text(ax, 0.025, 0.025, sprintf('dec(n=%i)', nnz(IDSplit{iAx, iTask}{3})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize-1)
         yline(ax, 0, '--')
     end
 
-    % 6d. Any bout
-    ax = nexttile(layout.left.bottom.tl); AX(iAx, 1) = ax;
-    X = etaArtiFree.lickBoutNaiveNorm.X(iEu, :);
-    X = smoothdata(X, 2, 'gaussian', 5);
-    plot(ax, etaArtiFree.lickBoutNaiveNorm.t, mean(X, 1, 'omitnan'), Color=colors(ICOLOR(iAx), :), LineWidth=1.5)
-    hold(ax, 'on')
-    plot(ax, etaArtiFree.lickBoutNaiveNorm.t, X, Color=[0.15, 0.15, 0.15, 1./nnz(iEu)], LineWidth=0.5)
-    xticks(ax, 0:2*pi:8*pi)
-    xticklabels(ax, [{'0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2:2:8, UniformOutput=false)]);
-    xlim(ax, [0, 8*pi])
-    ylim(ax, [-4, 4])
-    yticks(ax, [-3, 3])
-    ax.XGrid = 'on';
-    fontsize(ax, p.fontSize, 'points')
-    text(ax, 0.05, -0.025, sprintf('n=%i', nnz(iEu)), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize-1.5)
-    yline(ax, 0, '--')
+    % % 6d. Any bout
+    % ax = nexttile(layout.left.bottom.tl); AX(iAx, 1) = ax;
+    % X = etaArtiFree.lickBoutNaiveNorm.X(iEu, :);
+    % X = smoothdata(X, 2, 'gaussian', 5);
+    % plot(ax, etaArtiFree.lickBoutNaiveNorm.t, mean(X, 1, 'omitnan'), Color=colors(ICOLOR(iAx), :), LineWidth=1.5)
+    % hold(ax, 'on')
+    % plot(ax, etaArtiFree.lickBoutNaiveNorm.t, X, Color=[0.15, 0.15, 0.15, 1./nnz(iEu)], LineWidth=0.5)
+    % xticks(ax, 0:2*pi:8*pi)
+    % xticklabels(ax, [{'0'}, arrayfun(@(x) sprintf('%i\\pi', x), 2:2:8, UniformOutput=false)]);
+    % xlim(ax, [0, 8*pi])
+    % ylim(ax, [-4, 4])
+    % yticks(ax, [-3, 3])
+    % ax.XGrid = 'on';
+    % fontsize(ax, p.fontSize, 'points')
+    % text(ax, 0.05, -0.025, sprintf('n=%i', nnz(iEu)), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize-1.5)
+    % yline(ax, 0, '--')
 end
-xlabel(layout.right.bottom.tl, 'Time from bar/spout contact (s) & lick phase', FontSize=p.fontSize);
-ylabel(layout.right.bottom.tl, 'Normalized spike rate (a.u.)', FontSize=p.fontSize)
-xlabel(layout.left.bottom.tl, 'Lick phase', FontSize=p.fontSize)
-ylabel(layout.left.bottom.tl, 'Normalized spike rate (a.u.)', FontSize=p.fontSize)
+% xlabel(layout.right.bottom.tl, 'Time from bar/spout contact (s) & lick phase', FontSize=p.fontSize);
+% ylabel(layout.right.bottom.tl, 'Normalized spike rate (a.u.)', FontSize=p.fontSize)
+% xlabel(layout.left.bottom.tl, 'Lick phase', FontSize=p.fontSize)
+% ylabel(layout.left.bottom.tl, 'Normalized spike rate (a.u.)', FontSize=p.fontSize)
+ylabel(tl, 'Norm spike rate (a.u.)', FontSize=p.fontSize)
+xlabel(tl, '   Time (s)           Lick phase', FontSize=p.fontSize)
 
-ax = AX(1, 1);
-hLetter = text(ax, 0, 0, 'd', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
-ax.Units = 'inches';
-hLetter.HorizontalAlignment = 'right';
-hLetter.VerticalAlignment = 'top';
-hLetter.Position = [-0.4, ax.Position(4) + 0.25, 0];
 
-ax = AX(1, 2);
+ax = AX(1);
 hLetter = text(ax, 0, 0, 'g', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
 ax.Units = 'inches';
 hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
-hLetter.Position = [-0.1, ax.Position(4) + 0.8, 0];
+hLetter.Position = [-0.25, ax.Position(4) + 0.25, 0];
 
-% 7f. Reach vs. Lick (scatter)
-AX = gobjects(2, 1);
-sz = 7;
-ax = nexttile(layout.right.top.tl); AX(1) = ax;
-hold(ax, 'on')
-% sel = true(size(eu));
-x = metaArtiFree.meta.lickNorm;
-y = metaArtiFree.meta.pressNorm;
-subselResp = metaArtiFree.cc.isLick;
-subselNone = ~metaArtiFree.cc.isLick;
-h = gobjects(2, 1);
-h(2) = scatter(ax, x(subselNone), y(subselNone), sz, 'black', 'filled', Marker='o', MarkerFaceAlpha=0.5, MarkerEdgeAlpha=0.5, DisplayName=sprintf('others (%i)', nnz(subselNone)));   
-h(1) = scatter(ax, x(subselResp), y(subselResp), sz, [0, 0.5, 0.5], 'filled', Marker='o', MarkerFaceAlpha=0.5, MarkerEdgeAlpha=0.5, DisplayName=sprintf('lick-entrained (%i)', nnz(subselResp)));
-
-mdl = fitlm(metaArtiFree.meta.lickNorm(subselResp), metaArtiFree.meta.pressNorm(subselResp));
-fprintf('press vs. lick (osci): LM slope p<%g.\n', mdl.Coefficients.pValue(2))
-
-plot(ax, [-10, 10], [0, 0], 'k:');
-plot(ax, [0, 0], [-10, 10], 'k:');
-plot(ax, [-10, 10], [-10, 10], 'k:')
-
-
-% 7e right, Additional plot, scatter press vs lick META, color by lick entrainment phase: 
-sz = 7;
-ax = nexttile(layout.right.top.tl); AX(2) = ax;
-hold(ax, 'on')
-x = metaArtiFree.meta.lickNorm;
-y = metaArtiFree.meta.pressNorm;
-h = gobjects(4, 1);
-for i = 1:4
-    sel = ID{i};
-    h(i) = scatter(ax, x(sel), y(sel), sz, colors(ICOLOR(i), :), 'filled', Marker='o', MarkerFaceAlpha=0.75, MarkerEdgeAlpha=1, DisplayName=PHASENAME(i));
-end
-
-plot(ax, [-10, 10], [0, 0], 'k:');
-plot(ax, [0, 0], [-10, 10], 'k:');
-plot(ax, [-10, 10], [-10, 10], 'k:')
-
-axis(AX, 'equal')
-xlim(AX, [-2, 5])
-ylim(AX, [-2, 5])
-
-fontsize(AX, p.fontSize, 'points')
-fontname(AX, 'Arial')
-
-ylabel(AX, 'Peri-reach activity (a.u.)', FontSize=p.fontSize)
-xlabel(AX, 'Peri-lick activity (a.u.)', FontSize=p.fontSize)
-
-ax = AX(1);
-hLetter = text(ax, 0, 0, 'e', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
-ax.Units = 'inches';
-hLetter.HorizontalAlignment = 'right';
-hLetter.VerticalAlignment = 'top';
-hLetter.Position = [-0.3, ax.Position(4) + 0.3, 0];
-
-ax = AX(2);
-hLetter = text(ax, 0, 0, 'f', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
-ax.Units = 'inches';
-hLetter.HorizontalAlignment = 'right';
-hLetter.VerticalAlignment = 'top';
-hLetter.Position = [-0.25, ax.Position(4) + 0.3, 0];
-
+% Colorbars need to be done at the end to avoid tiledlayout recursion nonsense
 hCb = colorbar(axc);
 hCb.Label.String = 'Norm spike rate (a.u.)';
 hCb.Label.Position(1) = 0;
 hCb.Label.VerticalAlignment = 'bottom';
 % hCb.Layout.Tile = 'east';
+
+hCb = axc2.Colorbar;
+hCb.Label.String = 'Norm spike rate (a.u.)';
+hCb.Label.Position(1) = 0;
+hCb.Label.VerticalAlignment = 'bottom';
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
