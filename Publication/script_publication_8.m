@@ -1,210 +1,98 @@
-p.fontSize = 9;
+read_SC_opto_trajectories_DLC;
+% [SNr_SCRetro.eu, SNr_SCRetro.rd, SNr_SCRetro.eta, SNr_SCRetro.meta, SNr_SCRetro.p, SNr_SCRetro.c, SNr_SCRetro.boot] = read_SNr_SCRetro();
+[SNr_SCRetro.eu, SNr_SCRetro.rd, SNr_SCRetro.eta, SNr_SCRetro.meta, SNr_SCRetro.p, SNr_SCRetro.c, SNr_SCRetro.boot] = read_SNr_SCRetro(metaPath='C:\SERVER\Units\meta_TwoColor_SNr_SCRetro_20250611.mat', readBootButRecalculateMeta=true, ...
+    stimBluePowers=[100, 500, 2000]*1e-6, ...
+    stimRedPowers=[2000, 8000, 16000]*1e-6, ...
+    stimBluePowersMustContain=["*1e6==100", "*1e6==500", "*1e6==2000"], ...
+    stimRedPowersMustContain=["*1e6==2000", "*1e6>=8000"] ...
+);
 
-%% Load all units
-load_ephysunits;
-% boot_response_dir;
 
-%% 6b-h. 
+%% Fig 8a SC Stim causes movements (medial SC stim vs. lateral SC stim)
 close all
 
-layout.w = 5/3*4;
-layout.h = 6;
-fig = figure(Units='inches', Position=[0, 0, layout.w, layout.h], DefaultAxesFontSize=p.fontSize);
-layout.tl = tiledlayout(fig, 3, 4, TileSpacing='compact', Padding='loose');
+useYYAxis = false;
+windowPreStim = [-0.25, 0];
+windowPostStim = [0, 0.45];
+WAVELENGTHS = [470, 635];
+COLORS = ["blue", "red"];
+BODYPARTS = ["HandCameraSide", "Jaw"];
+BODYPARTDISPNAMES = ["Forepaw", "Jaw"];
+YYAXIS = ["left", "right"];
+BODYPARTCOLORS = arrayfun(@(i) getColor(i, 3, 0.7), [1, 3], UniformOutput=false);
+% YLIMS = {[-2, 10], [-1, 5]};
+YLIMS = {[-1, 5], [-1, 5]};
+% YTICKS = {[0, 6], [0, 3]};
+YTICKS = {[0, 3], [0, 3]};
+p.fontSize = 9;
 
-TITLE = ["", "all", "reach-modulated", "lick-modulated", ...
-    "reach-dec\newlinelick-inc", "reach-inc\newlinelick-dec", "reach\neqlick", "lick-entrained", ...
-    "lateral-reach", "medial-reach", "?", "?"];
-
-selCommon = c.hasPress & c.hasLick & c.hasPos;
-SEL = { ...
-    [], selCommon, selCommon & c.isPressResponsive, selCommon & c.isLickResponsive, ...
-    selCommon & c.isPressDown & c.isLickUp, selCommon & c.isPressUp & c.isLickDown, selCommon & c.isPressVsLickSelective, selCommon & c.isLick, ...
-    c.isPressResponsive2tgt{1}, c.isPressResponsive2tgt{2}, c.isSelective.contraOutVsContraIn2tgt, ~c.isSelective.contraOutVsContraIn2tgt};
-t = trajCombined2tgt.eta.t;
-STATS = { ...
-    [], repmat(0.5, size(SEL{2})), meta.press, meta.lick, ...
-    repmat(0.5, size(SEL{7})), repmat(0.5, size(SEL{7})), repmat(0.5, size(SEL{7})), abs(meanZ)'./msr, ...
-    mean(trajCombined2tgt.eta(1).X(:, t > -0.1 & t < 0.2), 2, 'omitnan'), mean(trajCombined2tgt.eta(2).X(:, t > -0.1 & t < 0.2), 2, 'omitnan'), ...
-    mean(horzcat(mean(trajCombined2tgt.eta(1).X(:, t > -0.1 & t < 0.2), 2, 'omitnan'), mean(trajCombined2tgt.eta(2).X(:, t > -0.1 & t < 0.2), 2, 'omitnan')), 2), ...
-    mean(horzcat(mean(trajCombined2tgt.eta(1).X(:, t > -0.1 & t < 0.2), 2, 'omitnan'), mean(trajCombined2tgt.eta(2).X(:, t > -0.1 & t < 0.2), 2, 'omitnan')), 2)};
-SRANGE = { ...
-    [], [0, 5], [0, 5], [0, 5], ...
-    [0, 5], [0, 5], [0, 5], [0, 2], ...
-    [0, 5], [0, 5], [0, 5], [0, 5]};
-COLOR = { ...
-    [], [0.15, 0.15, 0.15], [], [], ...
-    [0.15, 0.15, 0.15], [0.15, 0.15, 0.15], [0.15, 0.15, 0.15], [0.15, 0.15, 0.15], ...
-    [], [], [], [], ...
-    };
-POS = { ...
-    euPos, euPos, euPos, euPos, ...
-    euPos, euPos, euPos, euPos, ...
-    euPos2tgt, euPos2tgt, euPos2tgt, euPos2tgt, ...
-    };
-
-ALPHA = repmat(0.25, 3, 4);
-
-AX = gobjects(1, 12);
-
-% Make a dummy axes for the legends (red, blue, yellow circles)
-ax = nexttile(layout.tl); 
-hold(ax, 'on')
-ax.Visible = 'off';
-hDummy = gobjects(2, 1);
-hDummy(1) = scatter(ax, 0, 0, 1, [1, 0, 0], 'filled', DisplayName='inc');
-hDummy(2) = scatter(ax, 0, 0, 1, [0, 0, 1], 'filled', DisplayName='dec');
-
-for iAx = 2:12
-    ax = nexttile(layout.tl);
-    sel = SEL{iAx};
-    coords = POS{iAx}(sel, :);
-    stats = STATS{iAx}(sel);
-    
-    AcuteRecording.plotMap(ax, coords, stats, SRANGE{iAx}, 0, UseSignedML=false, BubbleSize=[1, 5], MarkerAlpha=ALPHA(iAx), ...
-        MarkerEdgeAlpha=0.8, Color=COLOR{iAx});
-
-    title(ax, TITLE(iAx))
-    axis(ax, 'image')
-    xlim(ax, [0.9, 1.7])
-    ylim(ax, [-4.8, -3.7])
-    xticks(ax, [1, 1.6])
-    yticks(ax, [-4.7, -3.8])
-
-    xlabel(ax, 'ML')
-    if ismember(iAx, [2, 5])
-        ylabel(ax, 'DV')
-    else
-        ylabel(ax, '')
+iExp = length(trajectoriesSC);
+fig = figure(Units="inches", Position=[1, 1, 3.5, 1.75]);
+tl = tiledlayout(fig, 1, 2);
+h = gobjects(2, 1);
+AX = gobjects(length(BODYPARTS), 1);
+for iColor = 1:length(COLORS)
+    color = COLORS(iColor);
+    switch color
+        case "blue"
+            mwPower = pSC.stimBluePowers*1e3;
+        case "red"
+            mwPower = pSC.stimRedPowers*1e3;
     end
 
-    fontsize(ax, p.fontSize, 'points');
-    fontname(ax, 'Arial')
-    fprintf('%i %s modulated units\n', nnz(sel), TITLE{iAx})
+    ax = nexttile(tl);
+    AX(iColor) = ax;
+    hold(ax, 'on')
+    colororder(ax, getColor([1, 3], 3, 0.7))
+    for iBodypart = 1:length(BODYPARTS)
+        if useYYAxis
+            yyaxis(ax, YYAXIS(iBodypart));
+        end
+        bodypart = BODYPARTS(iBodypart);
+        t = trajectoriesSC(iExp).(bodypart).(color).t;
+        X = trajectoriesSC(iExp).(bodypart).(color).X;
+        Y = -trajectoriesSC(iExp).(bodypart).(color).Y;
+        nTrials = size(X, 1);
+        velX = diff(X, 1, 2)./diff(t);
+        velX = [NaN([size(velX, 1), 1]), velX];
+        velY = diff(Y, 1, 2)./diff(t);
+        velY = [NaN([size(velY, 1), 1]), velY];
+        spd = sqrt(velX.^2 + velY.^2);
+        spd = (spd - mean(spd(:, t<0), 'all', 'omitnan')) ./ std(spd(:, t<0), 0, 'all', 'omitnan');
+        mu = mean(spd, 1, 'omitnan');
+        sd = std(spd, 0, 1, 'omitnan');
+        mu(isnan(mu)) = 0;
+        sd(isnan(sd)) = 0;
+        assert(isscalar(mwPower))
+        col = BODYPARTCOLORS{iBodypart};
+        h(iBodypart) = plot(ax, t*1e3, mu, Color=col, DisplayName=BODYPARTDISPNAMES(iBodypart), LineWidth=1.5);
+        fprintf("%s %s\n", BODYPARTDISPNAMES(iBodypart), num2str(col));
+        patch(ax, [t, flip(t)]*1e3, [mu-sd, flip(mu+sd)], col, LineStyle='-', FaceAlpha=0.075, FaceColor=col, EdgeAlpha=0.075, EdgeColor=col)
+
+        ylim(ax, YLIMS{iBodypart})
+        yticks(ax, YTICKS{iBodypart})
+        if useYYAxis
+            ylabel(ax, sprintf("%s", BODYPARTDISPNAMES(iBodypart)))
+        end
+    end
+    
+    xline(ax, [0, 20], ':')
+    xlim(ax, [windowPreStim(1), windowPostStim(2)] * 1e3)
+    % fprintf("%i nm, %g mW, %i trials, %i sessions\n", WAVELENGTHS(iColor), mwPower, nTrials, length(exp));
+    title(ax, sprintf("%i nm, %g mW", WAVELENGTHS(iColor), mwPower))
+    fontsize(ax, p.fontSize, 'points')
+    set(ax.YAxis, TickLength=[0.04, 0.025])
+end
+xlabel(tl, 'Time from laser on (ms)', FontSize=p.fontSize);
+ylabel(tl, 'Speed (a.u.)', FontSize=p.fontSize)
+if ~useYYAxis
+    lgd = legend(h, Orientation='horizontal');
+    lgd.Layout.Tile = 'north';
 end
 
-lgd = legend(hDummy, Orientation='horizontal');
-fontsize(lgd, p.fontSize, 'points');
-fontname(lgd, 'Arial')
-lgd.Layout.Tile = 'north';
-lgd.Position(1) = lgd.Position(1) + 4;
+copygraphics(fig, BackgroundColor='none', ContentType='vector')
+clear windowPreStim windowPostStim WAVELENGTHS COLORS BODYPARTS BODYPARTDISPNAMES YYAXIS BODYPARTCOLORS YLIMS YTICKS
+clear iExp tl h AX iColor color mwPower ax iBodypart bodypart X Y t nTrials velX velY spd mu sd col h lgd useYYAxis
+clear fig
 
-copygraphics(fig, ContentType='vector', BackgroundColor='none')
-
-
-%%
-% %6b Salt and pepper map (lick vs. reach vs. osci lick)
-% MOVETYPE = {'press', 'lick', 'lickosci'};
-% SEL = {c.hasPos & c.isPressResponsive & c.hasPress & c.hasLick; c.hasPos & c.isLickResponsive & c.hasPress & c.hasLick; c.hasPos & c.isLick & c.hasPress & c.hasLick};
-% % SEL = {c.isPressResponsive; c.isLickResponsive; c.isLick};
-% sd = arrayfun(@(eu) eu.SpikeRateStats.mad, eu);
-% STATS = {meta.press, meta.lick, abs(meanZ)'./sd};%pi - abs(phase(freq==8, :)), meta.anyLickNorm};
-% SRANGE = {[0, 5], [0, 5], [0, 2]};
-% TITLE = {'Pre-reach', 'Pre-lick', 'Lick-entrained'};
-% COLOR = {[], [], hsl2rgb([50/360, 1, 0.4])};
-% ALPHA = {0.25, 0.25, 0.25};
-% POS = { ...
-%         [0.05,0.18,0.8/3,0.6], ...
-%         [0.10+0.8/3,0.18,0.8/3,0.6], ...
-%         [0.15+0.8/3*2,0.18,0.8/3,0.6], ...
-%     };
-% 
-% fprintf('%i units from %i animals %i sessions. (posinfo, %i+ trials for both reach and lick):\n', nnz(c.hasPos & c.hasPress & c.hasLick), length(unique(eu(c.hasPos & c.hasPress & c.hasLick).getAnimalName())), length(unique({eu(c.hasPos & c.hasPress & c.hasLick).ExpName})), p.minNumTrials)
-% 
-% for iMove = 1:length(MOVETYPE)
-% %     ax = subplot(1, length(MOVETYPE), iMove);
-%     ax = axes(fig, Position=POS{iMove});
-%     sel = SEL{iMove};
-%     coords = euPos(sel, :);
-%     stats = STATS{iMove}(sel);
-%     AcuteRecording.plotMap(ax, coords, stats, SRANGE{iMove}, 0, UseSignedML=false, BubbleSize=[1, 5], MarkerAlpha=ALPHA{iMove}, MarkerEdgeAlpha=0.8, Color=COLOR{iMove});
-%     title(ax, TITLE{iMove})
-%     axis(ax, 'image')
-%     xlim(ax, [0.9, 1.7])
-%     ylim(ax, [-4.8, -3.7])
-%     xticks(ax, [1, 1.6])
-%     yticks(ax, [-4.7, -3.8])
-%     if iMove > 1
-%         ylabel(ax, "");
-%     end
-%     xlabel(ax, 'ML');
-% %     fontsize(fig, p.fontSize, 'points');
-% %     fontname(fig, 'Arial')
-%     fontsize(ax, p.fontSize, 'points');
-%     fontname(ax, 'Arial')
-%     fprintf('%i %s modulated units\n', nnz(sel), TITLE{iMove})
-% end
-% 
-% % Make a dummy axes for the legends (red, blue, yellow circles)
-% ax = axes(fig, Position=[0.5, 0.8, 0, 0]); hold(ax, 'on')
-% ax.Visible = 'off';
-% scatter(ax, 0, 0, 1, [1, 0, 0], 'filled', DisplayName='excited')
-% scatter(ax, 0, 0, 1, [0, 0, 1], 'filled', DisplayName='suppressed')
-% scatter(ax, 0, 0, 1, COLOR{3}, 'filled', DisplayName='lick-entrained')
-% h = legend(ax, Position=[0.181886578916949,0.868923612275264,0.643749990314244,0.098958331005027], Orientation='horizontal');
-% fontsize(h, p.fontSize, 'points');
-% fontname(h, 'Arial')
-% 
-% copygraphics(fig, ContentType='vector')
-% 
-% cellfun(@(s) nnz(s), SEL)
-% 
-% 
-% 
-% %% 6c. Salt and pepper map (reach selective vs. press selective vs. pure oscilick)
-% close all
-% MOVETYPE = {'press', 'lick', 'lickosci'};
-% SEL = {c.hasPos & c.isPressDown & c.isLickUp & c.hasPress & c.hasLick; 
-%     c.hasPos & c.isLickDown & c.isPressUp & c.hasPress & c.hasLick; 
-%     c.hasPos & c.isLick & c.hasPress & c.hasLick & ~c.isPressResponsive & ~c.isLickResponsive};
-% % SEL = {c.isPressResponsive; c.isLickResponsive; c.isLick};
-% sd = arrayfun(@(eu) eu.SpikeRateStats.mad, eu);
-% STATS = {meta.press, meta.lick, abs(meanZ)'./sd};%pi - abs(phase(freq==8, :)), meta.anyLickNorm};
-% SRANGE = {[0, 5], [0, 5], [0, 2]};
-% TITLE = {'Reach-selective', 'Lick-selective', 'Pure lick-entrained'};
-% COLOR = {[], [], hsl2rgb([50/360, 1, 0.4])};
-% ALPHA = {0.25, 0.25, 0.25};
-% POS = { ...
-%         [0.05,0.18,0.8/3,0.6], ...
-%         [0.10+0.8/3,0.18,0.8/3,0.6], ...
-%         [0.15+0.8/3*2,0.18,0.8/3,0.6], ...
-%     };
-% 
-% fig = figure(Units='inches', Position=[0, 0, p.width, p.height], DefaultAxesFontSize=p.fontSize);
-% for iMove = 1:length(MOVETYPE)
-% %     ax = subplot(1, length(MOVETYPE), iMove);
-%     ax = axes(fig, Position=POS{iMove});
-%     sel = SEL{iMove};
-%     coords = euPos(sel, :);
-%     stats = STATS{iMove}(sel);
-%     AcuteRecording.plotMap(ax, coords, stats, SRANGE{iMove}, 0, UseSignedML=false, BubbleSize=[1, 5], MarkerAlpha=ALPHA{iMove}, MarkerEdgeAlpha=0.8, Color=COLOR{iMove});
-%     title(ax, TITLE{iMove})
-%     axis(ax, 'image')
-%     xlim(ax, [0.9, 1.7])
-%     ylim(ax, [-4.8, -3.7])
-%     xticks(ax, [1, 1.6])
-%     yticks(ax, [-4.7, -3.8])
-%     if iMove > 1
-%         ylabel(ax, "");
-%     end
-%     xlabel(ax, 'ML');
-% %     fontsize(fig, p.fontSize, 'points');
-% %     fontname(fig, 'Arial')
-%     fontsize(ax, p.fontSize, 'points');
-%     fontname(ax, 'Arial')
-%     fprintf('%i %s modulated units\n', nnz(sel), TITLE{iMove})
-% end
-% 
-% % Make a dummy axes for the legends (red, blue, yellow circles)
-% ax = axes(fig, Position=[0.5, 0.8, 0, 0]); hold(ax, 'on')
-% ax.Visible = 'off';
-% scatter(ax, 0, 0, 1, [1, 0, 0], 'filled', DisplayName='excited')
-% scatter(ax, 0, 0, 1, [0, 0, 1], 'filled', DisplayName='suppressed')
-% scatter(ax, 0, 0, 1, COLOR{3}, 'filled', DisplayName='lick-entrained')
-% h = legend(ax, Position=[0.181886578916949,0.868923612275264,0.643749990314244,0.098958331005027], Orientation='horizontal');
-% fontsize(h, p.fontSize, 'points');
-% fontname(h, 'Arial')
-% 
-% copygraphics(fig, ContentType='vector')
-% 
-% cellfun(@(s) nnz(s), SEL)
+%% Fig 8b. Rasters of optotagging SNr neurons
