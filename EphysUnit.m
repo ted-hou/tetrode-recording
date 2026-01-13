@@ -2031,7 +2031,8 @@ classdef EphysUnit < handle
             p.addParameter('sz', 2.5, @isnumeric)
             p.addParameter('everyNth', 1, @isnumeric)
             p.addParameter('timingCriterion', NaN, @isnumeric) % 4s for self timed movements, will plot horizontal line dividing trials into correct/incorrect
-            p.addParameter('twoColorGroups', struct([]), @(x) isstruct(x) && all(isfield(x, {'trials', 'pulseIndices', 'label', 'wavelength', 'power'})))
+            p.addParameter('filterByTwoColorConditions', struct([]), @(x) isstruct(x) && any(isfield(x, {'wavelength', 'power', 'duration'})))
+            p.addParameter('mergeStimTrains', false, @islogical)
             p.addParameter('onlyPlotSpikes', false, @islogical)
             p.parse(varargin{:})
             rd = p.Results.rd;
@@ -2041,7 +2042,8 @@ classdef EphysUnit < handle
             maxTrials = p.Results.maxTrials;
             everyNth = p.Results.everyNth;
             timingCriterion = p.Results.timingCriterion;
-            twoColorGroups = p.Results.twoColorGroups;
+            filterByTwoColorConditions = p.Results.filterByTwoColorConditions;
+            mergeStimTrains = p.Results.mergeStimTrains;
             onlyPlotSpikes = p.Results.onlyPlotSpikes;
             
             assert(length(rd) == 1);
@@ -2143,8 +2145,6 @@ classdef EphysUnit < handle
                     h(4) = scatter(ax, (tEvent + rd.iti) .* timescale, 1:nTrials, 5, 'g', 'filled', DisplayName='ITI end');
                 end
             elseif isTwoColorStim
-                h = gobjects(1, 1);
-                h(1) = scatter(ax, rd.t(1:everyNth:end) * timescale, rd.I(1:everyNth:end), sz, 'k', 'filled', DisplayName='spikes');
                 stimLog = rd.tce.stimLog;
                 trainOrder = rd.tce.trainOrder;
                 pulseOrder = rd.tce.pulseOrder;
@@ -2153,38 +2153,128 @@ classdef EphysUnit < handle
                 tceParams = rd.tce.params;
                 % Draw a box to mark the stim window
                 stimBoxDict = dictionary();
-                if isempty(twoColorGroups)
-                    for iTrain = 1:length(stimLog)
-                        selPulse = trainIndices == iTrain;
-                        iPulseStart = strfind(selPulse, [0, 1]) + 1;
-                        iPulseEnd = strfind(selPulse, [1, 0]);
+                t = rd.t;
+                I = rd.I;
+
+                % Only keep requested conditions
+                if ~isempty(filterByTwoColorConditions)
+                    selTrains = true(length(stimLog), 1);
+                    if isfield(filterByTwoColorConditions, 'wavelength') && ~isempty(filterByTwoColorConditions.wavelength)
+                        selThisCondition = ismember(vertcat(stimLog.wavelength), filterByTwoColorConditions.wavelength);
+                        selTrains = selTrains & selThisCondition;
+                    end
+                    if isfield(filterByTwoColorConditions, 'power') && ~isempty(filterByTwoColorConditions.power)
+                        assert(isstring(filterByTwoColorConditions.power))
+                        powers = vertcat(stimLog.targetPower);
+                        powers = round(powers.*1e5)./1e5;
+
+                        selThisCondition = false(length(stimLog), 1);
+                        for iCond = 1:length(filterByTwoColorConditions.power)
+                            selThisCondition = selThisCondition | eval(sprintf('powers%s', filterByTwoColorConditions.power(iCond)));
+                        end
+                        selTrains = selTrains & selThisCondition;
+                    end
+                    if isfield(filterByTwoColorConditions, 'duration') && ~isempty(filterByTwoColorConditions.duration)
+                        durations = arrayfun(@(log) log.params.pulseWidth, stimLog);
+                        durations = durations(:);
+
+                        selThisCondition = ismember(durations, filterByTwoColorConditions.duration);
+                        selTrains = selTrains & selThisCondition;
+                    end
+                    selTrains = find(selTrains);
+                    selPulses = find(ismember(trainIndices, selTrains));
+                    
+                    % rd.I uses sorted trial placement (pulseOrder/trainOrder)
+                    II = pulseOrder(I); % Original pulse index for each spike?
+                    t = t(ismember(II, selPulses));
+                    I = I(ismember(II, selPulses));
+                    % Tighten up I (skip missing values, so that I ranges between 1 and length(unique(I))
+                    oldValues = unique(I, 'sorted');
+                    newValues = 1:length(unique(I));
+                    I = changem(I, newValues, oldValues);
+
+                    trainOrder = trainOrder(ismember(trainOrder, selTrains));
+                    [lia, locb] = ismember(pulseOrder, selPulses);
+                    locblia = locb(lia);
+                    pulseOrder = pulseOrder(lia);
+                    trainIndices = trainIndices(selPulses);
+                    nPulses = length(pulseOrder);
+                else
+                    locblia = [];
+                end
+
+                h = gobjects(1, 1);
+                h(1) = scatter(ax, t(1:everyNth:end) * timescale, I(1:everyNth:end), sz, 'k', 'filled', DisplayName='spikes');
+                ax.YAxis(1).Direction = 'reverse';
+                if mergeStimTrains
+                    trainsWithStimBoxDrawnAlready = [];
+                end
+                for iTrain = trainOrder(:)'
+                    if mergeStimTrains
+                        if ismember(iTrain, trainsWithStimBoxDrawnAlready)
+                            continue
+                        end
+
+                        % Find all other trains with same condition
+                        % (exclude mirror pos)
+                        isSimilarTrain = [stimLog.wavelength] == stimLog(iTrain).wavelength & [stimLog.targetPower] == stimLog(iTrain).targetPower & arrayfun(@(log) log.params.pulseWidth, stimLog) == stimLog(iTrain).params.pulseWidth;
+                        trainsWithStimBoxDrawnAlready = [trainsWithStimBoxDrawnAlready, find(isSimilarTrain)];
+                        selPulseFiltered = ismember(trainIndices, find(isSimilarTrain));
+                        if isempty(locblia)
+                            error('Not implemented')
+                        else
+                            selPulseFiltered = selPulseFiltered(locblia);
+                            iPulseStart = strfind(selPulseFiltered, [0, 1]) + 1;
+                            iPulseEnd = strfind(selPulseFiltered, [1, 0]);
+                            if isempty(iPulseStart)
+                                iPulseStart = 1;
+                            end
+                            if isempty(iPulseEnd)
+                                iPulseEnd = nPulses;
+                            end
+                        end
+                    else
+                        selPulseFiltered = trainIndices == iTrain;
+                        iPulseStart = strfind(selPulseFiltered, [0, 1]) + 1;
+                        iPulseEnd = strfind(selPulseFiltered, [1, 0]);
                         if isempty(iPulseStart)
                             iPulseStart = 1;
                         end
                         if isempty(iPulseEnd)
                             iPulseEnd = nPulses;
                         end
-                        iPulseStart = find(pulseOrder == iPulseStart);
-                        iPulseEnd = find(pulseOrder == iPulseEnd);
-                        pulseWidth = stimLog(iTrain).params.pulseWidth * timescale;
-                        switch stimLog(iTrain).wavelength
-                            case {473, 465, 470}
-                                color = [0.2, 0.2, 0.8];
-                            case {593, 635, 660}
-                                color = [0.8, 0.2, 0.2];
-                            otherwise 
-                                color = [0.2, 0.2, 0.2];
+                        if isempty(locblia)
+                            iPulseStart = find(pulseOrder == iPulseStart);
+                            iPulseEnd = find(pulseOrder == iPulseEnd);
+                        else
+                            iPulseStart = find(locblia == iPulseStart);
+                            iPulseEnd = find(locblia == iPulseEnd);
                         end
+                    end
+                    pulseWidth = stimLog(iTrain).params.pulseWidth * timescale;
+                    switch stimLog(iTrain).wavelength
+                        case {473, 465, 470}
+                            color = [0.2, 0.2, 0.8];
+                        case {593, 635, 660}
+                            color = [0.8, 0.2, 0.2];
+                        otherwise 
+                            color = [0.2, 0.2, 0.2];
+                    end
+                    if isempty(filterByTwoColorConditions)
                         alpha = 0.2 + 0.4*((stimLog(iTrain).params.iPower - 1)./(length(tceParams.targetPowers) - 1));
-                        partialHash = stimLog(iTrain).params.iPower + stimLog(iTrain).wavelength*10;
-                        partialDesc = sprintf('%guW \t%inm', tceParams.targetPowers(stimLog(iTrain).params.iPower)*1e6, stimLog(iTrain).wavelength);
-                        stimBoxDict(partialHash) = patch(ax, [0, pulseWidth, pulseWidth, 0], [iPulseStart, iPulseStart, iPulseEnd, iPulseEnd], color, ...
-                            FaceAlpha=alpha, EdgeColor=color, EdgeAlpha=alpha, DisplayName=partialDesc);
+                    else
+                        filteredPowers = unique([stimLog(trainOrder).targetPower]);
+                        alpha = 0.2 + 0.4*((find(filteredPowers == stimLog(iTrain).targetPower) - 1)./(length(filteredPowers) - 1));
                     end
-                else
-                    for iGroup = 1:length(twoColorGroups)
-                        error('Not implemented')
+                    partialHash = stimLog(iTrain).params.iPower + stimLog(iTrain).wavelength*10;
+                    partialDesc = sprintf('%gmW \t%inm', tceParams.targetPowers(stimLog(iTrain).params.iPower)*1e3, stimLog(iTrain).wavelength);
+                    if mergeStimTrains
+                        edgeAlpha = 0.8;
+                    else
+                        edgeAlpha = alpha;
                     end
+                    stimBoxDict(partialHash) = patch(ax, [0, pulseWidth, pulseWidth, 0], [iPulseStart, iPulseStart, iPulseEnd, iPulseEnd], color, ...
+                        FaceAlpha=alpha, EdgeColor=color, EdgeAlpha=edgeAlpha, LineWidth=0.5, DisplayName=partialDesc);
                 end
                 [~, I] = sort(stimBoxDict.keys);
                 handles = stimBoxDict.values;
@@ -2194,7 +2284,11 @@ classdef EphysUnit < handle
             hold(ax, 'off')
             ax.YAxis(1).Direction = 'reverse';
             xlim(ax, p.Results.xlim);
-            ylim(ax, [min(rd.I) - 1, max(rd.I) + 1]);
+            if isempty(filterByTwoColorConditions)
+                ylim(ax, [min(rd.I) - 1, max(rd.I) + 1]);
+            else
+                ylim(ax, [0, nPulses + 1]);
+            end
 %             if nTrials <= maxTrials
 %                 ylim(ax, [min(rd.I) - 1, max(rd.I) + 1]);
 %             else
@@ -2212,7 +2306,7 @@ classdef EphysUnit < handle
             if ~isTwoColorStim
                 legend(ax, h, Location='northwest', FontSize=9);
             else
-                legend(ax, h, Location='eastoutside', FontSize=9);
+                legend(ax, h(2:end), Location='eastoutside', FontSize=9);
             end
         end
 
