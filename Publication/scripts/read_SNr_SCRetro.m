@@ -114,7 +114,7 @@ XRed = dictionary([string(redPowers*1e6), groupRedPowersAboveName, "all"]', X);
 %%
 
 for iEu = 1:length(eu)
-    fprintf('groupingStim, iEu=%i/%i\n', iEu, length(eu))
+    lineLength = fprintf('groupingStim, iEu=%i/%i\n', iEu, length(eu));
     groupsBlue = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimBluePowers, duration=p.stimBlueDurations, location=[], wavelength=[470, 473]));
     groupsRed = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimRedPowers, duration=p.stimRedDurations, location=[], wavelength=[590, 635]));
 
@@ -164,22 +164,25 @@ for iEu = 1:length(eu)
         XRed(key) = {X};
     end
 
+    fprintf(repmat('\b', [1, lineLength]));
     % fprintf('nan=%i, nan=%i\n', nnz(isnan(XBlue{iEu})), nnz(isnan(XRed{iEu})))
 end
 %%
 eta.stimBlue = configureDictionary("string", "struct");
 eta.stimRed = configureDictionary("string", "struct");
 
-for key = XBlue.keys
+for key = XBlue.keys'
     X = XBlue(key);
     X = X{1};
-    eta.stimBlue(key) = struct(X=cat(1, X{:}), t=t, N=[], D=[], stats=[]);
+    X = cat(1, X{:});
+    eta.stimBlue(key) = struct(X=X, t=t, N=[], D=[], stats=[]);
 end
 
-for key = XRed.keys
+for key = XRed.keys'
     X = XRed(key);
     X = X{1};
-    eta.stimRed(key) = struct(X=cat(1, X{:}), t=t, N=[], D=[], stats=[]);
+    X = cat(1, X{:});
+    eta.stimRed(key) = struct(X=X, t=t, N=[], D=[], stats=[]);
 end
 %%
 clear XBlue XRed iEu groupsBlue groupsRed isi t selBaseline normSR

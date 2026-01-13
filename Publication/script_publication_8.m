@@ -33,9 +33,20 @@ end
     groupRedPowersAbove=2000*1e-6 ...
 );
 
+% Just load
+% [SNr_SCRetro.eu, SNr_SCRetro.rd, SNr_SCRetro.eta, SNr_SCRetro.meta, SNr_SCRetro.p, SNr_SCRetro.c, SNr_SCRetro.boot] = read_SNr_SCRetro( ...
+%     eu=eu, metaPath=metaPath, recalculateBootstrap=false, recalculateETA=false, ...
+%     metaSavePath=metaSavePath, ...
+%     stimBluePowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
+%     stimRedPowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
+%     stimBluePowersMustContain=["*1e6==100", "*1e6==500", "*1e6==2000"], ...
+%     stimRedPowersMustContain="*1e6>=2000", ...
+%     groupRedPowersAbove=2000*1e-6 ...
+% );
+
 clear metaPath metaSavePath
 
-%% Load SNr_SCRetro_ReverseInjection
+% Load SNr_SCRetro_ReverseInjection
 if ~exist('E:\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr_withTrials', 'dir')
     euReverseInjection = EphysUnit.load('C:\SERVER\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr_withTrials', waveforms=false, spikecounts=false, spikerates=false);
     metaPath = 'C:\SERVER\Units\meta_TwoColor_SNr_SCRetro_ReverseInjection_20260112.mat';
@@ -66,6 +77,17 @@ end
     stimRedPowersMustContain="*1e6>=2000", ...
     groupRedPowersAbove=2000*1e-6 ...
 );
+
+% Just load
+% [SNr_SCRetro_ReverseInjection.eu, SNr_SCRetro_ReverseInjection.rd, SNr_SCRetro_ReverseInjection.eta, SNr_SCRetro_ReverseInjection.meta, SNr_SCRetro_ReverseInjection.p, SNr_SCRetro_ReverseInjection.c, SNr_SCRetro_ReverseInjection.boot] = read_SNr_SCRetro( ...
+%     eu=euReverseInjection, metaPath=metaPath, recalculateBootstrap=false, recalculateETA=false, ...
+%     metaSavePath=metaSavePath, ...
+%     stimBluePowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
+%     stimRedPowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
+%     stimBluePowersMustContain=["*1e6==100", "*1e6==500", "*1e6==2000"], ...
+%     stimRedPowersMustContain="*1e6>=2000", ...
+%     groupRedPowersAbove=2000*1e-6 ...
+% );
 
 clear metaPath metaSavePath
 
@@ -247,10 +269,32 @@ ylabel(tl, 'Trial', FontSize=p.fontSize)
 ax(1, 2).Legend.Location = 'eastoutside';
 ax(2, 2).Legend.Location = 'eastoutside';
 copygraphics(fig, BackgroundColor='none', ContentType='vector')
-% clear i j fig tl ax egUnitNames iUnit iEu
+clear i j fig tl ax egUnitNames iUnit iEu
 
-%% Fig 8e. Line-point plot Laser pwr vs. response (\deltaSR)
-%% Fig 8f. Line-point plot Laser pwr vs. response latency
-%% Fig 8g. Heatmap, All optotagged (thus SC-projecting) SNr neurons (lick vs. reach)
-%% Fig 8h. Heatmap, SNr->LickSC (lick vs. reach)
-%% Fig 8i. Heatmap, SNr->ReachSC (lick vs. reach)
+%% Fig 8e. Heatmap, All optotagged (thus SC-projecting) SNr neurons (lick vs. reach)
+
+p.stimThreshold = 2;
+
+XRed = cat(2, SNr_SCRetro.meta.stimRed.values{:});
+XBlue = cat(2, SNr_SCRetro.meta.stimBlue.values{:});
+
+XRed = array2table(XRed, VariableNames=SNr_SCRetro.meta.stimRed.keys);
+XBlue = array2table(XBlue, VariableNames=SNr_SCRetro.meta.stimBlue.keys);
+
+% close all
+% ax = axes(figure);
+% hold(ax, 'on')
+% histogram(ax, xRed, [-Inf, -10:1:40, Inf], FaceColor='red', FaceAlpha=0.33)
+% histogram(ax, xBlue, [-Inf, -10:1:40, Inf], FaceColor='blue', FaceAlpha=0.33)
+% clear ax
+
+cStim.isRed = xRed>p.stimThreshold;
+cStim.isBlue = xBlue>p.stimThreshold;
+cStim.isBlueNotRed = cStim.isBlue & ~cStim.isRed;
+cStim.isRedNotBlue = cStim.isRed & ~cStim.isBlue;
+fprintf("isRed = %i, isBlue = %i, isBlueNotRed = %i, isRedNotBlue = %i\n", nnz(cStim.isRed), nnz(cStim.isBlue), nnz(cStim.isBlueNotRed), nnz(cStim.isRedNotBlue));
+
+% clear xRed xBlue
+
+%% Fig 8f. Heatmap, SNr->LickSC (lick vs. reach)
+%% Fig 8g. Heatmap, SNr->ReachSC (lick vs. reach)
