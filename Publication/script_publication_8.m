@@ -58,7 +58,7 @@ end
 
 % Subsequent times, regenerate meta but load boostrap
 [SNr_SCRetro_ReverseInjection.eu, SNr_SCRetro_ReverseInjection.rd, SNr_SCRetro_ReverseInjection.eta, SNr_SCRetro_ReverseInjection.meta, SNr_SCRetro_ReverseInjection.p, SNr_SCRetro_ReverseInjection.c, SNr_SCRetro_ReverseInjection.boot] = read_SNr_SCRetro( ...
-    eu=eu, metaPath=metaPath, recalculateBootstrap=false, recalculateETA=true, ...
+    eu=euReverseInjection, metaPath=metaPath, recalculateBootstrap=false, recalculateETA=true, ...
     metaSavePath=metaSavePath, ...
     stimBluePowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
     stimRedPowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
@@ -210,16 +210,44 @@ egUnitNames = { ...
     };
 
 close all
-for iAx = 1:length(egUnitNames)
-    fig = figure(Units='inches', Position=[1, 1, 7, 3]);
-    tl = tiledlayout(fig, 1, 2);
-    ax = gobjects(1, 2);
-    ax(1) = nexttile(tl);
-    ax(2) = nexttile(tl);
-
-    iEu = find(string({SNr_SCRetro.rd.stim.name}) == egUnitNames{iAx});
-    EphysUnit.plotRaster(ax(1), SNr_SCRetro.rd.stim(iEu), twoColorGroups=struct());
+p.sz = 1.5;
+fig = figure(Units='inches', Position=[1, 1, 5, 2]);
+tl = tiledlayout(fig, length(egUnitNames), 2, TileSpacing='tight');
+ax = gobjects(2, 2);
+for i = 1:2
+    for j = 1:2
+        ax(i, j) = nexttile(tl);
+    end
 end
+for iUnit = 1:length(egUnitNames)
+    iEu = find(string({SNr_SCRetro.rd.stim.name}) == egUnitNames{iUnit});
+    EphysUnit.plotRaster(ax(1, iUnit), SNr_SCRetro.rd.stim(iEu), xlim=[-0.02, 0.05], filterByTwoColorConditions=struct(wavelength=[470, 473], power=["*1e6>25"], duration=[20e-3]), mergeStimTrains=true, sz=p.sz);
+    EphysUnit.plotRaster(ax(2, iUnit), SNr_SCRetro.rd.stim(iEu), xlim=[-0.02, 0.05], filterByTwoColorConditions=struct(wavelength=[590, 593, 635], power=["*1e6>25"], duration=[20e-3]), mergeStimTrains=true, sz=p.sz);
+    if iUnit == 2
+        ax(1, iUnit).Legend.FontSize = 7;
+        ax(2, iUnit).Legend.FontSize = 7;
+    else
+        delete(ax(1, iUnit).Legend);
+        delete(ax(2, iUnit).Legend);
+    end
+    title(ax(1, iUnit), sprintf('SNr unit %i', iUnit))
+    title(ax(2, iUnit), '')
+    % title(tl, SNr_SCRetro.rd.stim(iEu).name, Interpreter='none')
+end
+xlim(ax, [-0.02, 0.05])
+xticks(ax, [0, 20, 50]*1e-3)
+xticklabels(ax, ["0", "20", "50"])
+xlabel(ax, '')
+ylabel(ax, '')
+xticklabels(ax(1, :), ["", "", ""])
+fontsize(ax, p.fontSize, 'points')
+xlabel(tl, 'Time from opto onset (ms)', FontSize=p.fontSize)
+ylabel(tl, 'Trial', FontSize=p.fontSize)
+
+ax(1, 2).Legend.Location = 'eastoutside';
+ax(2, 2).Legend.Location = 'eastoutside';
+copygraphics(fig, BackgroundColor='none', ContentType='vector')
+% clear i j fig tl ax egUnitNames iUnit iEu
 
 %% Fig 8e. Line-point plot Laser pwr vs. response (\deltaSR)
 %% Fig 8f. Line-point plot Laser pwr vs. response latency
