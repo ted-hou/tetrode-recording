@@ -94,16 +94,20 @@ eu = eu(selEu);
 
 
 %%
+dataLength = diff(p.isiWindow)/p.isiRes + 1;
+assert(mod(dataLength, 1) == 0);
+defaultArray = NaN(1, dataLength);
+
 X = cell(length(p.stimBluePowers) + 1, 1);
 for i = 1:length(X)
-    X{i} = cell(length(eu), 1);
+    X{i} = repelem({defaultArray}, length(eu), 1);
 end
 XBlue = dictionary([string(p.stimBluePowers*1e6), "all"]', X);
 
 
 X = cell(length(p.stimRedPowers) + 1, 1);
 for i = 1:length(X)
-    X{i} = cell(length(eu), 1);
+    X{i} = repelem({defaultArray}, length(eu), 1);
 end
 redPowers = p.stimRedPowers;
 redPowers(redPowers >= groupRedPowersAbove) = [];
