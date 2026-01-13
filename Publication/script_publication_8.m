@@ -1,14 +1,93 @@
 read_SC_opto_trajectories_DLC;
-% [SNr_SCRetro.eu, SNr_SCRetro.rd, SNr_SCRetro.eta, SNr_SCRetro.meta, SNr_SCRetro.p, SNr_SCRetro.c, SNr_SCRetro.boot] = read_SNr_SCRetro();
-[SNr_SCRetro.eu, SNr_SCRetro.rd, SNr_SCRetro.eta, SNr_SCRetro.meta, SNr_SCRetro.p, SNr_SCRetro.c, SNr_SCRetro.boot] = read_SNr_SCRetro(metaPath='C:\SERVER\Units\meta_TwoColor_SNr_SCRetro_20250611.mat', readBootButRecalculateMeta=true, ...
-    stimBluePowers=[100, 500, 2000]*1e-6, ...
-    stimRedPowers=[2000, 8000, 16000]*1e-6, ...
+
+%% Load SNr_SCRetro
+if ~exist('E:\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr', 'dir')
+    eu = EphysUnit.load('C:\SERVER\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
+    metaPath = 'C:\SERVER\Units\meta_TwoColor_SNr_SCRetro_20260112.mat';
+    metaSavePath = 'C:\\SERVER\\Units\\meta_TwoColor_SNr_SCRetro_%s.mat';    
+else
+    eu = EphysUnit.load('E:\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
+    metaPath = 'E:\Data\Units\meta_TwoColor_SNr_SCRetro_20260112.mat';
+    metaSavePath = 'E:\\Data\\Units\\meta_TwoColor_SNr_SCRetro_%s.mat';
+end
+
+% First time, generate meta and boostrap
+% [SNr_SCRetro.eu, SNr_SCRetro.rd, SNr_SCRetro.eta, SNr_SCRetro.meta, SNr_SCRetro.p, SNr_SCRetro.c, SNr_SCRetro.boot] = read_SNr_SCRetro( ...
+%     eu=eu, recalculateBootstrap=true, ...
+%     metaSavePath=metaSavePath, ...
+%     stimBluePowers=[100, 500, 2000]*1e-6, ...
+%     stimRedPowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
+%     stimBluePowersMustContain=["*1e6==100", "*1e6==500", "*1e6==2000"], ...
+%     stimRedPowersMustContain="*1e6>=2000", ...
+%     groupRedPowersAbove=2000*1e-6 ...
+% );
+
+% Subsequent times, regenerate meta but load boostrap
+[SNr_SCRetro.eu, SNr_SCRetro.rd, SNr_SCRetro.eta, SNr_SCRetro.meta, SNr_SCRetro.p, SNr_SCRetro.c, SNr_SCRetro.boot] = read_SNr_SCRetro( ...
+    eu=eu, metaPath=metaPath, recalculateBootstrap=false, recalculateETA=true, ...
+    metaSavePath=metaSavePath, ...
+    stimBluePowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
+    stimRedPowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
     stimBluePowersMustContain=["*1e6==100", "*1e6==500", "*1e6==2000"], ...
-    stimRedPowersMustContain=["*1e6==2000", "*1e6>=8000"] ...
+    stimRedPowersMustContain="*1e6>=2000", ...
+    groupRedPowersAbove=2000*1e-6 ...
 );
 
+clear metaPath metaSavePath
 
-%% Fig 8a SC Stim causes movements (medial SC stim vs. lateral SC stim)
+%% Load SNr_SCRetro_ReverseInjection
+if ~exist('E:\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr_withTrials', 'dir')
+    euReverseInjection = EphysUnit.load('C:\SERVER\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr_withTrials', waveforms=false, spikecounts=false, spikerates=false);
+    metaPath = 'C:\SERVER\Units\meta_TwoColor_SNr_SCRetro_ReverseInjection_20260112.mat';
+    metaSavePath = 'C:\\SERVER\\Units\\meta_TwoColor_SNr_SCRetro_ReverseInjection_%s.mat';    
+else
+    euReverseInjection = EphysUnit.load('E:\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr_withTrials', waveforms=false, spikecounts=false, spikerates=false);
+    metaPath = 'E:\Data\Units\meta_TwoColor_SNr_SCRetro_ReverseInjection_20260112.mat';
+    metaSavePath = 'E:\\Data\\Units\\meta_TwoColor_SNr_SCRetro_ReverseInjection_%s.mat';
+end
+% First time, generate meta and boostrap
+% [SNr_SCRetro_ReverseInjection.eu, SNr_SCRetro_ReverseInjection.rd, SNr_SCRetro_ReverseInjection.eta, SNr_SCRetro_ReverseInjection.meta, SNr_SCRetro_ReverseInjection.p, SNr_SCRetro_ReverseInjection.c, SNr_SCRetro_ReverseInjection.boot] = read_SNr_SCRetro( ...
+%     eu=euReverseInjection, recalculateBootstrap=true, ...
+%     metaSavePath=metaSavePath, ...
+%     stimBluePowers=[100, 500, 2000]*1e-6, ...
+%     stimRedPowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
+%     stimBluePowersMustContain=["*1e6==100", "*1e6==500", "*1e6==2000"], ...
+%     stimRedPowersMustContain="*1e6>=2000", ...
+%     groupRedPowersAbove=2000*1e-6 ...
+% );
+
+% Subsequent times, regenerate meta but load boostrap
+[SNr_SCRetro_ReverseInjection.eu, SNr_SCRetro_ReverseInjection.rd, SNr_SCRetro_ReverseInjection.eta, SNr_SCRetro_ReverseInjection.meta, SNr_SCRetro_ReverseInjection.p, SNr_SCRetro_ReverseInjection.c, SNr_SCRetro_ReverseInjection.boot] = read_SNr_SCRetro( ...
+    eu=eu, metaPath=metaPath, recalculateBootstrap=false, recalculateETA=true, ...
+    metaSavePath=metaSavePath, ...
+    stimBluePowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
+    stimRedPowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
+    stimBluePowersMustContain=["*1e6==100", "*1e6==500", "*1e6==2000"], ...
+    stimRedPowersMustContain="*1e6>=2000", ...
+    groupRedPowersAbove=2000*1e-6 ...
+);
+
+clear metaPath metaSavePath
+
+%% Read channel map, filter out non-SNr neurons
+% Probe is mounted along ML, the flat bit is facing forward, the dovetail
+% is facing posterior of animal (if otherwise, map needs to be mirrored).
+% Looking from behind the animal is equivalent to SpikeGLX view
+% Map is looking from behind animal:
+%   shank 1 - 4 are left-to-right.
+%   col 1 - 2 are left-to-right, on same shank
+%   row 1 - n are bottom to top
+%   x is horizontal coord (um, 0 is center of all 4 shanks, negative is left)
+%   y is vertical coord (um, 0 is tip of shank, negative is down)
+
+[~, SNr_SCRetro.coords] = getNeuroPixelChannelMap(SNr_SCRetro.eu, ml=1300, ap=-3280, dv=-4700);
+SNr_SCRetro.c.isSNr = SNr_SCRetro.coords(:, 2) <= -3.8*1e3;
+
+[~, SNr_SCRetro_ReverseInjection.coords] = getNeuroPixelChannelMap(SNr_SCRetro_ReverseInjection.eu, ml=1300, ap=-3280, dv=-4700);
+SNr_SCRetro_ReverseInjection.c.isSNr = SNr_SCRetro_ReverseInjection.coords(:, 2) <= -3.8*1e3;
+
+
+%% Fig 8b SC Stim causes movements (medial SC stim vs. lateral SC stim)
 close all
 
 useYYAxis = false;
@@ -95,4 +174,55 @@ clear windowPreStim windowPostStim WAVELENGTHS COLORS BODYPARTS BODYPARTDISPNAME
 clear iExp tl h AX iColor color mwPower ax iBodypart bodypart X Y t nTrials velX velY spd mu sd col h lgd useYYAxis
 clear fig
 
-%% Fig 8b. Rasters of optotagging SNr neurons
+%% Fig 8d. Example rasters of optotagging SNr neurons (left: blue, right: red)
+% close all
+% path = 'E:\Figures\Rasters_SNr_SCRetro';
+% fig = figure(Units='inches', Position=[1 1 7 7]);
+% ax = axes(fig);
+% for iEu = 1:length(SNr_SCRetro.rd.stim)
+%     if ~SNr_SCRetro.c.isSNr(iEu)
+%         continue
+%     end
+%     cla(ax);
+%     EphysUnit.plotRaster(ax, SNr_SCRetro.rd.stim(iEu), xlim=[-0.1, 0.4]);
+%     print(fig, sprintf("%s\\%s.png", path, SNr_SCRetro.rd.stim(iEu).name), '-dpng', '-r0')
+% end 
+% close all
+% path = 'E:\Figures\Rasters_SNr_SCRetro_ReverseInjection';
+% fig = figure(Units='inches', Position=[1 1 7 7]);
+% ax = axes(fig);
+% for iEu = 1:length(SNr_SCRetro_ReverseInjection.rd.stim)
+%     if ~SNr_SCRetro_ReverseInjection.c.isSNr(iEu)
+%         continue
+%     end
+%     cla(ax);
+%     EphysUnit.plotRaster(ax, SNr_SCRetro_ReverseInjection.rd.stim(iEu), xlim=[-0.1, 0.4]);
+%     print(fig, sprintf("%s\\%s.png", path, SNr_SCRetro_ReverseInjection.rd.stim(iEu).name), '-dpng', '-r0')
+% end
+% clear path fig ax iEu 
+
+egUnitNames = { ...
+    % 'daisy26_20250425_Channel83_Unit1', ... Only blue
+    % 'daisy26_20250425_Channel143_Unit1', ... Only blue, latency scales
+    % 'desmond38_20250403_Channel362_Unit1', ... Only blue,  25uW -> 8mW
+    "desmond39_20250423_Channel380_Unit1", ... Only blue (100uW->2mW), not red (100uW->16mW)
+    "daisy26_20250425_Channel185_Unit1", ... blue (100uW->2mW), also red (2mW->16mW)
+    };
+
+close all
+for iAx = 1:length(egUnitNames)
+    fig = figure(Units='inches', Position=[1, 1, 7, 3]);
+    tl = tiledlayout(fig, 1, 2);
+    ax = gobjects(1, 2);
+    ax(1) = nexttile(tl);
+    ax(2) = nexttile(tl);
+
+    iEu = find(string({SNr_SCRetro.rd.stim.name}) == egUnitNames{iAx});
+    EphysUnit.plotRaster(ax(1), SNr_SCRetro.rd.stim(iEu), twoColorGroups=struct());
+end
+
+%% Fig 8e. Line-point plot Laser pwr vs. response (\deltaSR)
+%% Fig 8f. Line-point plot Laser pwr vs. response latency
+%% Fig 8g. Heatmap, All optotagged (thus SC-projecting) SNr neurons (lick vs. reach)
+%% Fig 8h. Heatmap, SNr->LickSC (lick vs. reach)
+%% Fig 8i. Heatmap, SNr->ReachSC (lick vs. reach)
