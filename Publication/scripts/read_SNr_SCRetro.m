@@ -193,20 +193,20 @@ clear XBlue XRed iEu groupsBlue groupsRed isi t selBaseline normSR
 
 % Make Raster
 rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shutterDelay=0, photoelectricBlankDuration=0.5e-3);
-rd.press = eu.getRasterData('press', window=[-4, 0], alignTo='stop');
+rd.press = eu.getRasterData('press', window=[-4, 0.5], alignTo='stop');
 % rd.pressMed = eu.getRasterData('press_spontaneous_medial', window=[-4, 0], alignTo='stop');
 % rd.pressLat = eu.getRasterData('press_spontaneous_lateral', window=[-4, 0], alignTo='stop');
-rd.lick = eu.getRasterData('lick', window=[-4, 0], alignTo='stop');
+rd.lick = eu.getRasterData('lick', window=[-4, 0.5], alignTo='stop');
 
 % Make ETA
-eta.pressRaw = eu.getETA('count', 'press', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none');
+eta.pressRaw = eu.getETA('count', 'press', [-4, 0.5], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none');
 % eta.pressMedRaw = eu.getETA('count', 'press_spontaneous_medial', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none');
 % eta.pressLatRaw = eu.getETA('count', 'press_spontaneous_lateral', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none');
-eta.lickRaw = eu.getETA('count', 'lick', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none');
-eta.press = eu.getETA('count', 'press', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2]);
+eta.lickRaw = eu.getETA('count', 'lick', [-4, 0.5], resolution=0.1, alignTo='stop', includeInvalid=false, normalize='none');
+eta.press = eu.getETA('count', 'press', [-4, 0.5], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2]);
 % eta.pressMed = eu.getETA('count', 'press_spontaneous_medial', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2]);
 % eta.pressLat = eu.getETA('count', 'press_spontaneous_lateral', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2]);
-eta.lick = eu.getETA('count', 'lick', [-4, 0], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2]);
+eta.lick = eu.getETA('count', 'lick', [-4, 0.5], resolution=0.1, alignTo='stop', includeInvalid=false, normalize=[-4, -2]);
 eta.pressRaw.X = eta.pressRaw.X ./ 0.1;
 % eta.pressMedRaw.X = eta.pressMedRaw.X ./ 0.1;
 % eta.pressLatRaw.X = eta.pressLatRaw.X ./ 0.1;

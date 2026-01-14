@@ -3,11 +3,11 @@ read_SC_opto_trajectories_DLC;
 %% Load SNr_SCRetro
 if ~exist('E:\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr', 'dir')
     eu = EphysUnit.load('C:\SERVER\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
-    metaPath = 'C:\SERVER\Units\meta_TwoColor_SNr_SCRetro_20260112.mat';
+    metaPath = 'C:\SERVER\Units\meta_TwoColor_SNr_SCRetro_20260113.mat';
     metaSavePath = 'C:\\SERVER\\Units\\meta_TwoColor_SNr_SCRetro_%s.mat';    
 else
     eu = EphysUnit.load('E:\Data\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
-    metaPath = 'E:\Data\Units\meta_TwoColor_SNr_SCRetro_20260112.mat';
+    metaPath = 'E:\Data\Units\meta_TwoColor_SNr_SCRetro_20260113.mat';
     metaSavePath = 'E:\\Data\\Units\\meta_TwoColor_SNr_SCRetro_%s.mat';
 end
 
@@ -49,11 +49,11 @@ clear metaPath metaSavePath
 % Load SNr_SCRetro_ReverseInjection
 if ~exist('E:\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr_withTrials', 'dir')
     euReverseInjection = EphysUnit.load('C:\SERVER\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr_withTrials', waveforms=false, spikecounts=false, spikerates=false);
-    metaPath = 'C:\SERVER\Units\meta_TwoColor_SNr_SCRetro_ReverseInjection_20260112.mat';
+    metaPath = 'C:\SERVER\Units\meta_TwoColor_SNr_SCRetro_ReverseInjection_20260113.mat';
     metaSavePath = 'C:\\SERVER\\Units\\meta_TwoColor_SNr_SCRetro_ReverseInjection_%s.mat';    
 else
     euReverseInjection = EphysUnit.load('E:\Data\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr_withTrials', waveforms=false, spikecounts=false, spikerates=false);
-    metaPath = 'E:\Data\Units\meta_TwoColor_SNr_SCRetro_ReverseInjection_20260112.mat';
+    metaPath = 'E:\Data\Units\meta_TwoColor_SNr_SCRetro_ReverseInjection_20260113.mat';
     metaSavePath = 'E:\\Data\\Units\\meta_TwoColor_SNr_SCRetro_ReverseInjection_%s.mat';
 end
 % First time, generate meta and boostrap
@@ -120,7 +120,8 @@ COLORS = ["blue", "red"];
 BODYPARTS = ["HandCameraSide", "Jaw"];
 BODYPARTDISPNAMES = ["Forepaw", "Jaw"];
 YYAXIS = ["left", "right"];
-BODYPARTCOLORS = arrayfun(@(i) getColor(i, 3, 0.7), [1, 3], UniformOutput=false);
+% BODYPARTCOLORS = arrayfun(@(i) getColor(i, 7, 0.7), [1, 3], UniformOutput=false);
+BODYPARTCOLORS = {hsl2rgb([170/360, 0.5, 0.35]); hsl2rgb([308/360, 0.5, 0.5])};
 % YLIMS = {[-2, 10], [-1, 5]};
 YLIMS = {[-1, 5], [-1, 5]};
 % YTICKS = {[0, 6], [0, 3]};
@@ -184,12 +185,18 @@ for iColor = 1:length(COLORS)
     fontsize(ax, p.fontSize, 'points')
     set(ax.YAxis, TickLength=[0.04, 0.025])
 end
-xlabel(tl, 'Time from laser on (ms)', FontSize=p.fontSize);
+xlabel(tl, 'Time from opto onset (ms)', FontSize=p.fontSize);
 ylabel(tl, 'Speed (a.u.)', FontSize=p.fontSize)
 if ~useYYAxis
     lgd = legend(h, Orientation='horizontal');
     lgd.Layout.Tile = 'north';
 end
+ax = AX(1);
+hLetter = text(ax, 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax.Units = 'inches';
+hLetter.HorizontalAlignment = 'right';
+hLetter.VerticalAlignment = 'top';
+hLetter.Position = [-0.25, ax.Position(4) + 0.5, 0];
 
 copygraphics(fig, BackgroundColor='none', ContentType='vector')
 clear windowPreStim windowPostStim WAVELENGTHS COLORS BODYPARTS BODYPARTDISPNAMES YYAXIS BODYPARTCOLORS YLIMS YTICKS
@@ -268,33 +275,257 @@ ylabel(tl, 'Trial', FontSize=p.fontSize)
 
 ax(1, 2).Legend.Location = 'eastoutside';
 ax(2, 2).Legend.Location = 'eastoutside';
+ax(1, 2).Legend.Position = [0.722222222222222,0.599045134873854,0.234027777777778,0.223958333333333];
+
+hLetter = text(ax(1, 1), 0, 0, 'd', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax(1).Units = 'inches';
+hLetter.HorizontalAlignment = 'right';
+hLetter.VerticalAlignment = 'top';
+hLetter.Position = [-0.4, ax(1).Position(4) + 0.25, 0];
+
 copygraphics(fig, BackgroundColor='none', ContentType='vector')
-clear i j fig tl ax egUnitNames iUnit iEu
+clear i j fig tl ax egUnitNames iUnit iEu hLetter
 
-%% Fig 8e. Heatmap, All optotagged (thus SC-projecting) SNr neurons (lick vs. reach)
-
+%% Fig 8e/f. Bar chart, modulation strength/latency scales with light power
 p.stimThreshold = 2;
 
-XRed = cat(2, SNr_SCRetro.meta.stimRed.values{:});
-XBlue = cat(2, SNr_SCRetro.meta.stimBlue.values{:});
+% Calculate onset timing
+etaRed = SNr_SCRetro.eta.stimRed(["100", "500", "2000+"]);
+etaBlue = SNr_SCRetro.eta.stimBlue(["100", "500", "2000"]);
+clear tOnset
+tOnset.red = NaN(length(eu), 3);
+tOnset.blue = NaN(length(eu), 3);
+for iPower = 1:length(etaRed)
+    t = etaRed(iPower).t;
+    X = etaRed(iPower).X(:, t>=0);
+    t = t(t>=0);
+    for iEu = 1:size(X, 1)
+        iStart = strfind([false, X(iEu, :)>2], [0, 1, 1]);
+        if isempty(iStart)
+            tOnset.red(iEu, iPower) = NaN;
+        else
+            iStart = iStart(1) - 1;
+            if iStart > 0
+                tOnset.red(iEu, iPower) = t(iStart);
+            else
+                tOnset.red(iEu, iPower) = 0;
+            end
+        end
+    end
+end
 
-XRed = array2table(XRed, VariableNames=SNr_SCRetro.meta.stimRed.keys);
-XBlue = array2table(XBlue, VariableNames=SNr_SCRetro.meta.stimBlue.keys);
+for iPower = 1:length(etaBlue)
+    t = etaBlue(iPower).t;
+    X = etaBlue(iPower).X(:, t>=0);
+    t = t(t>=0);
+    for iEu = 1:size(X, 1)
+        iStart = strfind([false, X(iEu, :)>p.stimThreshold], [0, 1, 1]);
+        if isempty(iStart)
+            tOnset.blue(iEu, iPower) = NaN;
+        else
+            iStart = iStart(1) - 1;
+            if iStart > 0
+                tOnset.blue(iEu, iPower) = t(iStart);
+            else
+                tOnset.blue(iEu, iPower) = 0;
+            end
+        end
+    end
+end
 
-% close all
-% ax = axes(figure);
-% hold(ax, 'on')
-% histogram(ax, xRed, [-Inf, -10:1:40, Inf], FaceColor='red', FaceAlpha=0.33)
-% histogram(ax, xBlue, [-Inf, -10:1:40, Inf], FaceColor='blue', FaceAlpha=0.33)
-% clear ax
+% Calculate stim response
+metaRed = cat(2, SNr_SCRetro.meta.stimRed.values{:});
+metaBlue = cat(2, SNr_SCRetro.meta.stimBlue.values{:});
+metaRed = array2table(metaRed, VariableNames=SNr_SCRetro.meta.stimRed.keys);
+metaBlue = array2table(metaBlue, VariableNames=SNr_SCRetro.meta.stimBlue.keys);
 
-cStim.isRed = xRed>p.stimThreshold;
-cStim.isBlue = xBlue>p.stimThreshold;
-cStim.isBlueNotRed = cStim.isBlue & ~cStim.isRed;
-cStim.isRedNotBlue = cStim.isRed & ~cStim.isBlue;
+cStim.isRed = metaRed{:, "2000+"}>p.stimThreshold;
+cStim.isBlue100 = metaBlue{:, "100"}>p.stimThreshold;
+cStim.isBlue500 = metaBlue{:, "500"}>p.stimThreshold;
+cStim.isBlue2000 = metaBlue{:, "2000"}>p.stimThreshold;
+cStim.isBlueNotRed = cStim.isBlue500 & ~cStim.isRed;
+cStim.isRedNotBlue = cStim.isRed & ~cStim.isBlue2000;
 fprintf("isRed = %i, isBlue = %i, isBlueNotRed = %i, isRedNotBlue = %i\n", nnz(cStim.isRed), nnz(cStim.isBlue), nnz(cStim.isBlueNotRed), nnz(cStim.isRedNotBlue));
 
-% clear xRed xBlue
 
-%% Fig 8f. Heatmap, SNr->LickSC (lick vs. reach)
-%% Fig 8g. Heatmap, SNr->ReachSC (lick vs. reach)
+% 8e. Plot stim response
+close all
+fig = figure(Units='inches', Position=[1, 1, 6.5, 1.25]);
+tlp = tiledlayout(fig, 1, 2, TileSpacing='loose', Padding='compact');
+tl = gobjects(1, 2);
+tl(1) = tiledlayout(tlp, 1, 2, TileSpacing='compact', Padding='compact'); tl(1).Layout.Tile = 1;
+tl(2) = tiledlayout(tlp, 1, 2, TileSpacing='compact', Padding='compact'); tl(2).Layout.Tile = 2;
+ax = gobjects(1, 2);
+for i = 1:2
+    ax(i) = nexttile(tl(1));
+end
+hold(ax, 'on')
+
+h = gobjects(2, 2);
+h(1, :) = bar(ax(1), 1:3, [mean(metaBlue{cStim.isBlueNotRed, 1:3}, 1, 'omitnan'); mean(metaRed{cStim.isBlueNotRed, 1:3}, 1, 'omitnan')], 1, FaceAlpha=0.33);
+title(ax(1), sprintf('CoChR^+\n(n=%i)', nnz(cStim.isBlueNotRed)))
+
+h(2, :) = bar(ax(2), 1:3, [mean(metaBlue{cStim.isRed, 1:3}, 1, 'omitnan'); mean(metaRed{cStim.isRed, 1:3}, 1, 'omitnan')], 1, FaceAlpha=0.33);
+title(ax(2), sprintf('ChrimsonR^+\n(n=%i)', nnz(cStim.isRed)))
+
+set(h(:, 1), FaceColor='blue', DisplayName='470nm')
+set(h(:, 2), FaceColor='red', DisplayName='635nm')
+
+xticks(ax, 1:3)
+xticklabels(ax(1), ["0.1", "0.5", "2+"])
+xticklabels(ax(2), ["0.1", "0.5", "2+"])
+xtickangle(ax, 0)
+xlim(ax, [0.5, 3.5])
+yl = vertcat(ax.YLim);
+ylim(ax, [min(yl(:, 1)), max(yl(:, 2))])
+yticks(ax(2), [])
+
+xlabel(tl(1), 'Light power (mW)')
+ylabel(tl(1), ["Response", "(a.u.)"])
+fontsize(tl(1), p.fontSize, 'points')
+
+hLetter = text(ax(1), 0, 0, 'e', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax(1).Units = 'inches';
+hLetter.HorizontalAlignment = 'right';
+hLetter.VerticalAlignment = 'top';
+hLetter.Position = [-0.45, ax(1).Position(4) + 0.45, 0];
+
+% 8f. Plot stim latency
+ax = gobjects(1, 2);
+for i = 1:2
+    ax(i) = nexttile(tl(2));
+end
+hold(ax, 'on')
+
+h = gobjects(2, 2);
+h(1, :) = bar(ax(1), 1:3, 1e3*[mean(tOnset.blue(cStim.isBlueNotRed, 1:3), 1, 'omitnan'); mean(tOnset.red(cStim.isBlueNotRed, 1:3), 1, 'omitnan')], 1, FaceAlpha=0.33);
+title(ax(1), sprintf('CoChR^+\n(n=%i)', nnz(cStim.isBlueNotRed)))
+
+h(2, :) = bar(ax(2), 1:3, 1e3*[mean(tOnset.blue(cStim.isRed, 1:3), 1, 'omitnan'); mean(tOnset.red(cStim.isRed, 1:3), 1, 'omitnan')], 1, FaceAlpha=0.33);
+title(ax(2), sprintf('ChrimsonR^+\n(n=%i)', nnz(cStim.isRed)))
+
+set(h(:, 1), FaceColor='blue', DisplayName='470nm')
+set(h(:, 2), FaceColor='red', DisplayName='635nm')
+
+xticks(ax, 1:3)
+xticklabels(ax(1), ["0.1", "0.5", "2+"])
+xticklabels(ax(2), ["0.1", "0.5", "2+"])
+xtickangle(ax, 0)
+xlim(ax, [0.5, 3.5])
+yl = vertcat(ax.YLim);
+ylim(ax, [min(yl(:, 1)), max(yl(:, 2))])
+yticks(ax(2), [])
+
+xlabel(tl(2), 'Light power (mW)')
+ylabel(tl(2), ["Latency", "(ms)"])
+fontsize(tl(2), p.fontSize, 'points')
+
+
+hLetter = text(ax(1), 0, 0, 'f', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax(1).Units = 'inches';
+hLetter.HorizontalAlignment = 'right';
+hLetter.VerticalAlignment = 'top';
+hLetter.Position = [-0.6, ax(1).Position(4) + 0.45, 0];
+
+l = legend(h(2, :), Orientation='vertical', FontSize=7);
+l.Layout.Tile = 'east';
+copygraphics(fig, BackgroundColor='none', ContentType='vector')
+
+clear metaRed metaBlue fig tl tlp ax i yl h l
+
+%% Fig 8e/f/g. Heatmap, {SNr->SC, SNr->LickSC, SNr->ReachSC} SNr neurons (lick vs. reach)
+cStim.isSCProjecting = (cStim.isRed | cStim.isBlue);
+cStim.isReachSCProjecting = cStim.isBlueNotRed;
+cStim.isLickSCProjecting = cStim.isRed;
+
+xPress = SNr_SCRetro.meta.press;
+xLick = SNr_SCRetro.meta.lick;
+
+groupVar = NaN(length(eu), 1);
+groupVar(xPress<0 & xLick>0) = 0;
+groupVar(xPress>0 & xLick<0) = 1;
+groupVar(xPress<0 & xLick<0) = 2;
+groupVar(xPress>0 & xLick>0) = 3;
+
+groupVarPress = NaN(length(eu), 1);
+groupVarPress(xPress<0 & xLick>0) = 0;
+groupVarPress(xPress<0 & xLick<0) = 1;
+groupVarPress(xPress>0 & xLick>0) = 2;
+groupVarPress(xPress>0 & xLick<0) = 3;
+
+groupVarLick = NaN(length(eu), 1);
+groupVarLick(xLick<0 & xPress>0) = 0;
+groupVarLick(xLick<0 & xPress<0) = 1;
+groupVarLick(xLick>0 & xPress>0) = 2;
+groupVarLick(xLick>0 & xPress<0) = 3;
+
+SEL = {cStim.isSCProjecting, cStim.isReachSCProjecting, cStim.isLickSCProjecting};
+TITLE = {"SC-projecting", "SC^{limb}-projecting", "SC^{orofacial}-projecting"};
+GROUPVAR = {groupVar, groupVarPress, groupVarLick};
+LETTER = 'ghi';
+
+close all
+fig = figure(Units='inches', Position=[1, 1, 6.5, 3.5]);
+tlp = tiledlayout(fig, 1, 3, TileSpacing='loose', Padding='compact');
+tl = gobjects(1, 3);
+tl(1) = tiledlayout(tlp, 1, 2, TileSpacing='tight', Padding='tight'); tl(1).Layout.Tile = 1;
+tl(2) = tiledlayout(tlp, 1, 2, TileSpacing='tight', Padding='tight'); tl(2).Layout.Tile = 2;
+tl(3) = tiledlayout(tlp, 1, 2, TileSpacing='tight', Padding='tight'); tl(3).Layout.Tile = 3;
+
+for iTl = 1:3
+    sel = SEL{iTl};
+    ax = gobjects(1, 2);
+    for i = 1:2
+        ax(i) = nexttile(tl(iTl));
+    end
+    [~, order] = EphysUnit.plotETA(ax(1), SNr_SCRetro.eta.press, sel, hideColorbar=true, xlim=[-2, 0], ...
+        sortGroup=GROUPVAR{iTl}(sel), sortWindow=[-3, 0], signWindow=[-0.3, 0], sortThreshold=0.25, negativeSortThreshold=0.25);
+    EphysUnit.plotETA(ax(2), SNr_SCRetro.eta.lick, sel, hideColorbar=true, xlim=[-2, 0], ...
+        sortGroup=GROUPVAR{iTl}(sel), order=order);
+    applyCustomColormap(ax(1), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+    applyCustomColormap(ax(2), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+
+    N = histcounts(GROUPVAR{iTl}(sel), [-0.5, 0.5, 1.5, 2.5, 3.5]);
+    yline(ax(1), cumsum(N(1:end-1)) + 1, 'k--');
+    yline(ax(2), cumsum(N(1:end-1)) + 1, 'k--');
+    xline(ax(1), 0, 'k--')
+    xline(ax(2), 0, 'k--')
+
+    yt = unique([cumsum(N(1:end-1)) + 1, nnz(sel)]);
+    yticks(ax(1), yt)
+    yticks(ax(2), [])
+    set(ax(1).YAxis, TickLength=[0, 0])
+
+    % Manual yticks for the last panel
+    if iTl == 3
+        ytl = string(yt);
+        yt(end-1) = yt(end-1) - 1.5;
+        yt(end) = yt(end) + 0.5;
+        yticks(ax(1), yt)
+        yticklabels(ax(1), ytl)
+    end
+
+    title(ax(1), 'reach')
+    title(ax(2), 'lick')
+    xlabel(ax, '')
+    ylabel(ax, '')
+    title(tl(iTl), sprintf("%s\n(n=%i)", TITLE{iTl}, nnz(sel)), FontWeight='bold', FontSize=p.fontSize)
+
+    fontsize(ax, p.fontSize, 'points')
+
+    if iTl == 1
+        hLetter = text(ax(1), 0, 0, LETTER(iTl), FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+        ax(1).Units = 'inches';
+        hLetter.HorizontalAlignment = 'right';
+        hLetter.VerticalAlignment = 'top';
+        hLetter.Position = [-0.35, ax(1).Position(4) + 0.25, 0];
+    end
+end
+xlabel(tl, 'Time to bar/spout contact (s)', FontSize=p.fontSize)
+ylabel(tlp, 'Unit', FontSize=p.fontSize)
+
+h = colorbar(ax(2)); 
+h.Layout.Tile = 'east';
+h.Label.String = 'Normalized spike rate (a.u.)';
+
+copygraphics(fig, BackgroundColor='none', ContentType='vector')
