@@ -164,8 +164,13 @@
 %     ... 'C:\SERVER\daisy29\daisy29_20251103', ... SORTED, EU
 %     ... 'C:\SERVER\daisy29\daisy29_20251120', ... SORTED, EU
 %     ... 'C:\SERVER\daisy30\daisy30_20251121', ... SORTED, EU
-%     'C:\SERVER\desmond42\desmond42_20251121', ... SORTED
-%     'C:\SERVER\desmond41\desmond41_20251124', ... SORTED
+%     ... 'C:\SERVER\desmond42\desmond42_20251121', ... SORTED, EU
+%     ... 'C:\SERVER\desmond41\desmond41_20251124', ... SORTED, EU
+%     'C:\SERVER\daisy31\daisy31_20251208', ... This is control (ChrimsonR) striatal optrode recording
+%     'C:\SERVER\daisy31\daisy31_20251209', ... This is control (ChrimsonR) striatal optrode recording
+%     'C:\SERVER\daisy32\daisy32_20251210', ... This is control (ChrimsonR) striatal optrode recording
+%     'C:\SERVER\daisy32\daisy32_20251211', ... This is control (ChrimsonR) striatal optrode recording
+%     'C:\SERVER\daisy31\daisy31_20251211', ... This is control (ChrimsonR) striatal optrode recording    
 %     };
 % 
 % chunkSize = 32; % NumChannelsPerChunk
