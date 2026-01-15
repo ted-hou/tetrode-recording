@@ -8,7 +8,8 @@ load_behavior_sessions
 load_ephysunits;
 % boot_response_dir;
 % load('C:\SERVER\Units\boot_20241024_perimovement_0.3_0.mat')
-
+etaFine.press = eu.getETA('count', 'press', [-4, 2], minTrialDuration=2, normalize=[-4, -2], resolution=0.025);
+% etaFine.lick = eu.getETA('count', 'lick', [-4, 2], minTrialDuration=2, normalize=[-4, -2], resolution=0.025);
 %% Report baseline spike rate tests, stats
 bsr = NaN(length(eta.press.stats), 1);
 bsr(c.hasPress) = [eta.press.stats(c.hasPress).mean]./0.1;
@@ -34,7 +35,7 @@ fprintf(['Baseline spike rate (median+-mad): decrease=%.2f+-%.2f, increase=%.2f+
 
 
 
-%% Fig 2.
+%% Fig 1.
 
 
 p.fontSize = 9;
@@ -82,7 +83,7 @@ l = layout.bottom.right.tlp; l.Layout.Tile = 1 + layout.bottom.left.w; l.Layout.
 layout.bottom.right.tl = tiledlayout(layout.bottom.right.tlp, 3, 1, TileSpacing='tight', Padding='tight');
 l = layout.bottom.right.tl; l.Layout.Tile = 1 + layout.bottom.right.hh(1); l.Layout.TileSpan = [sum(layout.bottom.right.hh(2:end)), 1];
 
-% 2c'. Behavior
+% 1c'. Behavior
 edges = 0:0.5:10;
 
 % Plot aggregate histograms as line plots
@@ -188,7 +189,8 @@ EphysUnit.plotETA(ax, etaFine.press, c.hasPress, xlim=[-4,0.5], clim=[-1.5, 1.5]
     order=onset.pressOrder(c.hasPress)); 
 hold(ax, 'on')
 xline(ax, 0, 'k--')
-applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+% applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
 
 yt = 0:100:nnz(c.hasPress);
 yt(1) = 1;

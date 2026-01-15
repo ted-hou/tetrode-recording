@@ -23,19 +23,8 @@ end
 % );
 
 % Subsequent times, regenerate meta but load boostrap
-[SNr_SCRetro.eu, SNr_SCRetro.rd, SNr_SCRetro.eta, SNr_SCRetro.meta, SNr_SCRetro.p, SNr_SCRetro.c, SNr_SCRetro.boot] = read_SNr_SCRetro( ...
-    eu=eu, metaPath=metaPath, recalculateBootstrap=false, recalculateETA=true, ...
-    metaSavePath=metaSavePath, ...
-    stimBluePowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
-    stimRedPowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
-    stimBluePowersMustContain=["*1e6==100", "*1e6==500", "*1e6==2000"], ...
-    stimRedPowersMustContain="*1e6>=2000", ...
-    groupRedPowersAbove=2000*1e-6 ...
-);
-
-% Just load
 % [SNr_SCRetro.eu, SNr_SCRetro.rd, SNr_SCRetro.eta, SNr_SCRetro.meta, SNr_SCRetro.p, SNr_SCRetro.c, SNr_SCRetro.boot] = read_SNr_SCRetro( ...
-%     eu=eu, metaPath=metaPath, recalculateBootstrap=false, recalculateETA=false, ...
+%     eu=eu, metaPath=metaPath, recalculateBootstrap=false, recalculateETA=true, ...
 %     metaSavePath=metaSavePath, ...
 %     stimBluePowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
 %     stimRedPowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
@@ -43,6 +32,17 @@ end
 %     stimRedPowersMustContain="*1e6>=2000", ...
 %     groupRedPowersAbove=2000*1e-6 ...
 % );
+
+% Just load
+[SNr_SCRetro.eu, SNr_SCRetro.rd, SNr_SCRetro.eta, SNr_SCRetro.meta, SNr_SCRetro.p, SNr_SCRetro.c, SNr_SCRetro.boot] = read_SNr_SCRetro( ...
+    eu=eu, metaPath=metaPath, recalculateBootstrap=false, recalculateETA=false, ...
+    metaSavePath=metaSavePath, ...
+    stimBluePowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
+    stimRedPowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
+    stimBluePowersMustContain=["*1e6==100", "*1e6==500", "*1e6==2000"], ...
+    stimRedPowersMustContain="*1e6>=2000", ...
+    groupRedPowersAbove=2000*1e-6 ...
+);
 
 clear metaPath metaSavePath
 
@@ -68,19 +68,8 @@ end
 % );
 
 % Subsequent times, regenerate meta but load boostrap
-[SNr_SCRetro_ReverseInjection.eu, SNr_SCRetro_ReverseInjection.rd, SNr_SCRetro_ReverseInjection.eta, SNr_SCRetro_ReverseInjection.meta, SNr_SCRetro_ReverseInjection.p, SNr_SCRetro_ReverseInjection.c, SNr_SCRetro_ReverseInjection.boot] = read_SNr_SCRetro( ...
-    eu=euReverseInjection, metaPath=metaPath, recalculateBootstrap=false, recalculateETA=true, ...
-    metaSavePath=metaSavePath, ...
-    stimBluePowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
-    stimRedPowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
-    stimBluePowersMustContain=["*1e6==100", "*1e6==500", "*1e6==2000"], ...
-    stimRedPowersMustContain="*1e6>=2000", ...
-    groupRedPowersAbove=2000*1e-6 ...
-);
-
-% Just load
 % [SNr_SCRetro_ReverseInjection.eu, SNr_SCRetro_ReverseInjection.rd, SNr_SCRetro_ReverseInjection.eta, SNr_SCRetro_ReverseInjection.meta, SNr_SCRetro_ReverseInjection.p, SNr_SCRetro_ReverseInjection.c, SNr_SCRetro_ReverseInjection.boot] = read_SNr_SCRetro( ...
-%     eu=euReverseInjection, metaPath=metaPath, recalculateBootstrap=false, recalculateETA=false, ...
+%     eu=euReverseInjection, metaPath=metaPath, recalculateBootstrap=false, recalculateETA=true, ...
 %     metaSavePath=metaSavePath, ...
 %     stimBluePowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
 %     stimRedPowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
@@ -88,6 +77,17 @@ end
 %     stimRedPowersMustContain="*1e6>=2000", ...
 %     groupRedPowersAbove=2000*1e-6 ...
 % );
+
+% Just load
+[SNr_SCRetro_ReverseInjection.eu, SNr_SCRetro_ReverseInjection.rd, SNr_SCRetro_ReverseInjection.eta, SNr_SCRetro_ReverseInjection.meta, SNr_SCRetro_ReverseInjection.p, SNr_SCRetro_ReverseInjection.c, SNr_SCRetro_ReverseInjection.boot] = read_SNr_SCRetro( ...
+    eu=euReverseInjection, metaPath=metaPath, recalculateBootstrap=false, recalculateETA=false, ...
+    metaSavePath=metaSavePath, ...
+    stimBluePowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
+    stimRedPowers=[100, 500, 2000, 8000, 16000]*1e-6, ...
+    stimBluePowersMustContain=["*1e6==100", "*1e6==500", "*1e6==2000"], ...
+    stimRedPowersMustContain="*1e6>=2000", ...
+    groupRedPowersAbove=2000*1e-6 ...
+);
 
 clear metaPath metaSavePath
 
@@ -103,10 +103,10 @@ clear metaPath metaSavePath
 %   y is vertical coord (um, 0 is tip of shank, negative is down)
 
 [~, SNr_SCRetro.coords] = getNeuroPixelChannelMap(SNr_SCRetro.eu, ml=1300, ap=-3280, dv=-4700);
-SNr_SCRetro.c.isSNr = SNr_SCRetro.coords(:, 2) <= -3.8*1e3;
+SNr_SCRetro.c.isSNr = SNr_SCRetro.coords(:, 2) <= -3.6*1e3;
 
 [~, SNr_SCRetro_ReverseInjection.coords] = getNeuroPixelChannelMap(SNr_SCRetro_ReverseInjection.eu, ml=1300, ap=-3280, dv=-4700);
-SNr_SCRetro_ReverseInjection.c.isSNr = SNr_SCRetro_ReverseInjection.coords(:, 2) <= -3.8*1e3;
+SNr_SCRetro_ReverseInjection.c.isSNr = SNr_SCRetro_ReverseInjection.coords(:, 2) <= -3.6*1e3;
 
 
 %% Fig 8b SC Stim causes movements (medial SC stim vs. lateral SC stim)
@@ -240,7 +240,7 @@ egUnitNames = { ...
 
 close all
 p.sz = 1.5;
-fig = figure(Units='inches', Position=[1, 1, 5, 2]);
+fig = figure(Units='inches', Position=[1, 1, 4.7, 2]);
 tl = tiledlayout(fig, length(egUnitNames), 2, TileSpacing='tight');
 ax = gobjects(2, 2);
 for i = 1:2
@@ -275,7 +275,7 @@ ylabel(tl, 'Trial', FontSize=p.fontSize)
 
 ax(1, 2).Legend.Location = 'eastoutside';
 ax(2, 2).Legend.Location = 'eastoutside';
-ax(1, 2).Legend.Position = [0.722222222222222,0.599045134873854,0.234027777777778,0.223958333333333];
+ax(1, 2).Legend.Position = [0.704491725768321,0.604253468207187,0.234027777777778,0.223958333333333];
 
 hLetter = text(ax(1, 1), 0, 0, 'd', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
 ax(1).Units = 'inches';
@@ -339,18 +339,20 @@ metaBlue = cat(2, SNr_SCRetro.meta.stimBlue.values{:});
 metaRed = array2table(metaRed, VariableNames=SNr_SCRetro.meta.stimRed.keys);
 metaBlue = array2table(metaBlue, VariableNames=SNr_SCRetro.meta.stimBlue.keys);
 
-cStim.isRed = metaRed{:, "2000+"}>p.stimThreshold;
-cStim.isBlue100 = metaBlue{:, "100"}>p.stimThreshold;
-cStim.isBlue500 = metaBlue{:, "500"}>p.stimThreshold;
-cStim.isBlue2000 = metaBlue{:, "2000"}>p.stimThreshold;
-cStim.isBlueNotRed = cStim.isBlue500 & ~cStim.isRed;
-cStim.isRedNotBlue = cStim.isRed & ~cStim.isBlue2000;
-fprintf("isRed = %i, isBlue = %i, isBlueNotRed = %i, isRedNotBlue = %i\n", nnz(cStim.isRed), nnz(cStim.isBlue), nnz(cStim.isBlueNotRed), nnz(cStim.isRedNotBlue));
+cStim.isRed = metaRed{:, "2000+"}>p.stimThreshold & SNr_SCRetro.c.isSNr;
+cStim.isBlue100 = metaBlue{:, "100"}>p.stimThreshold & SNr_SCRetro.c.isSNr;
+cStim.isBlue = metaBlue{:, "500"}>p.stimThreshold & SNr_SCRetro.c.isSNr;
+cStim.isBlue500 = metaBlue{:, "500"}>p.stimThreshold & SNr_SCRetro.c.isSNr;
+cStim.isBlue2000 = metaBlue{:, "2000"}>p.stimThreshold & SNr_SCRetro.c.isSNr;
+cStim.isBlueNotRed = cStim.isBlue500 & ~cStim.isRed & SNr_SCRetro.c.isSNr;
+cStim.isRedNotBlue = cStim.isRed & ~cStim.isBlue2000 & SNr_SCRetro.c.isSNr;
+fprintf("%i (of %i) neurons with DV < -3.6\n", nnz(SNr_SCRetro.c.isSNr), length(SNr_SCRetro.c.isSNr));
+fprintf("isRed = %i, isBlue = %i, isBlueNotRed = %i, isRedNotBlue = %i\n", nnz(cStim.isRed), nnz(cStim.isBlue500), nnz(cStim.isBlueNotRed), nnz(cStim.isRedNotBlue));
 
 
 % 8e. Plot stim response
 close all
-fig = figure(Units='inches', Position=[1, 1, 6.5, 1.25]);
+fig = figure(Units='inches', Position=[1, 1, 6.5, 1.5]);
 tlp = tiledlayout(fig, 1, 2, TileSpacing='loose', Padding='compact');
 tl = gobjects(1, 2);
 tl(1) = tiledlayout(tlp, 1, 2, TileSpacing='compact', Padding='compact'); tl(1).Layout.Tile = 1;
@@ -362,10 +364,14 @@ end
 hold(ax, 'on')
 
 h = gobjects(2, 2);
-h(1, :) = bar(ax(1), 1:3, [mean(metaBlue{cStim.isBlueNotRed, 1:3}, 1, 'omitnan'); mean(metaRed{cStim.isBlueNotRed, 1:3}, 1, 'omitnan')], 1, FaceAlpha=0.33);
+h(1, :) = bar(ax(1), 1:3, [mean(metaBlue{cStim.isBlueNotRed, 1:3}, 1, 'omitnan'); mean(metaRed{cStim.isBlueNotRed, 1:3}, 1, 'omitnan')], 1, FaceAlpha=0.33, Clipping='off');
+errorbar(ax(1), (1:3)-0.15, mean(metaBlue{cStim.isBlueNotRed, 1:3}, 1, 'omitnan'), std(metaBlue{cStim.isBlueNotRed, 1:3}, 0, 1, 'omitnan')*0.1, LineStyle='none', Color='black', CapSize=3, Clipping='off');
+errorbar(ax(1), (1:3)+0.15, mean(metaRed{cStim.isBlueNotRed, 1:3}, 1, 'omitnan'), std(metaRed{cStim.isBlueNotRed, 1:3}, 0, 1, 'omitnan')*0.1, LineStyle='none', Color='black', CapSize=3, Clipping='off');
 title(ax(1), sprintf('CoChR^+\n(n=%i)', nnz(cStim.isBlueNotRed)))
 
-h(2, :) = bar(ax(2), 1:3, [mean(metaBlue{cStim.isRed, 1:3}, 1, 'omitnan'); mean(metaRed{cStim.isRed, 1:3}, 1, 'omitnan')], 1, FaceAlpha=0.33);
+h(2, :) = bar(ax(2), 1:3, [mean(metaBlue{cStim.isRed, 1:3}, 1, 'omitnan'); mean(metaRed{cStim.isRed, 1:3}, 1, 'omitnan')], 1, FaceAlpha=0.33, Clipping='off');
+errorbar(ax(2), (1:3)-0.15, mean(metaBlue{cStim.isRed, 1:3}, 1, 'omitnan'), std(metaBlue{cStim.isRed, 1:3}, 0, 1, 'omitnan')*0.1, LineStyle='none', Color='black', CapSize=3, Clipping='off')
+errorbar(ax(2), (1:3)+0.15, mean(metaRed{cStim.isRed, 1:3}, 1, 'omitnan'), std(metaRed{cStim.isRed, 1:3}, 0, 1, 'omitnan')*0.1, LineStyle='none', Color='black', CapSize=3, Clipping='off')
 title(ax(2), sprintf('ChrimsonR^+\n(n=%i)', nnz(cStim.isRed)))
 
 set(h(:, 1), FaceColor='blue', DisplayName='470nm')
@@ -377,7 +383,8 @@ xticklabels(ax(2), ["0.1", "0.5", "2+"])
 xtickangle(ax, 0)
 xlim(ax, [0.5, 3.5])
 yl = vertcat(ax.YLim);
-ylim(ax, [min(yl(:, 1)), max(yl(:, 2))])
+% ylim(ax, [0, max(yl(:, 2))])
+ylim(ax, [0, 25])
 yticks(ax(2), [])
 
 xlabel(tl(1), 'Light power (mW)')
@@ -399,9 +406,13 @@ hold(ax, 'on')
 
 h = gobjects(2, 2);
 h(1, :) = bar(ax(1), 1:3, 1e3*[mean(tOnset.blue(cStim.isBlueNotRed, 1:3), 1, 'omitnan'); mean(tOnset.red(cStim.isBlueNotRed, 1:3), 1, 'omitnan')], 1, FaceAlpha=0.33);
+errorbar(ax(1), (1:3)-0.15, 1e3*mean(tOnset.blue(cStim.isBlueNotRed, 1:3), 1, 'omitnan'), std(1e3*tOnset.blue(cStim.isBlueNotRed, 1:3), 0, 1, 'omitnan')*0.1, LineStyle='none', Color='black', CapSize=3, Clipping='off')
+errorbar(ax(1), (1:3)+0.15, 1e3*mean(tOnset.red(cStim.isBlueNotRed, 1:3), 1, 'omitnan'), std(1e3*tOnset.red(cStim.isBlueNotRed, 1:3), 0, 1, 'omitnan')*0.1, LineStyle='none', Color='black', CapSize=3, Clipping='on')
 title(ax(1), sprintf('CoChR^+\n(n=%i)', nnz(cStim.isBlueNotRed)))
 
 h(2, :) = bar(ax(2), 1:3, 1e3*[mean(tOnset.blue(cStim.isRed, 1:3), 1, 'omitnan'); mean(tOnset.red(cStim.isRed, 1:3), 1, 'omitnan')], 1, FaceAlpha=0.33);
+errorbar(ax(2), (1:3)-0.15, 1e3*mean(tOnset.blue(cStim.isRed, 1:3), 1, 'omitnan'), std(1e3*tOnset.blue(cStim.isRed, 1:3), 0, 1, 'omitnan')*0.1, LineStyle='none', Color='black', CapSize=3, Clipping='off')
+errorbar(ax(2), (1:3)+0.15, 1e3*mean(tOnset.red(cStim.isRed, 1:3), 1, 'omitnan'), std(1e3*tOnset.red(cStim.isRed, 1:3), 0, 1, 'omitnan')*0.1, LineStyle='none', Color='black', CapSize=3, Clipping='on')
 title(ax(2), sprintf('ChrimsonR^+\n(n=%i)', nnz(cStim.isRed)))
 
 set(h(:, 1), FaceColor='blue', DisplayName='470nm')
@@ -413,7 +424,8 @@ xticklabels(ax(2), ["0.1", "0.5", "2+"])
 xtickangle(ax, 0)
 xlim(ax, [0.5, 3.5])
 yl = vertcat(ax.YLim);
-ylim(ax, [min(yl(:, 1)), max(yl(:, 2))])
+% ylim(ax, [0, max(yl(:, 2))])
+ylim(ax, [0, 100])
 yticks(ax(2), [])
 
 xlabel(tl(2), 'Light power (mW)')
@@ -460,12 +472,12 @@ groupVarLick(xLick>0 & xPress>0) = 2;
 groupVarLick(xLick>0 & xPress<0) = 3;
 
 SEL = {cStim.isSCProjecting, cStim.isReachSCProjecting, cStim.isLickSCProjecting};
-TITLE = {"SC-projecting", "SC^{limb}-projecting", "SC^{orofacial}-projecting"};
+TITLE = {"SC-projecting", "SC^{arm}-projecting", "SC^{orofacial}-projecting"};
 GROUPVAR = {groupVar, groupVarPress, groupVarLick};
 LETTER = 'ghi';
 
 close all
-fig = figure(Units='inches', Position=[1, 1, 6.5, 3.5]);
+fig = figure(Units='inches', Position=[1, 1, 6.5, 3.25]);
 tlp = tiledlayout(fig, 1, 3, TileSpacing='loose', Padding='compact');
 tl = gobjects(1, 3);
 tl(1) = tiledlayout(tlp, 1, 2, TileSpacing='tight', Padding='tight'); tl(1).Layout.Tile = 1;
@@ -479,26 +491,30 @@ for iTl = 1:3
         ax(i) = nexttile(tl(iTl));
     end
     [~, order] = EphysUnit.plotETA(ax(1), SNr_SCRetro.eta.press, sel, hideColorbar=true, xlim=[-2, 0], ...
-        sortGroup=GROUPVAR{iTl}(sel), sortWindow=[-3, 0], signWindow=[-0.3, 0], sortThreshold=0.25, negativeSortThreshold=0.25);
+        sortGroup=GROUPVAR{iTl}(sel), sortWindow=[-2.5, 0], signWindow=[-0.3, 0], sortThreshold=0.25, negativeSortThreshold=0.25);
     EphysUnit.plotETA(ax(2), SNr_SCRetro.eta.lick, sel, hideColorbar=true, xlim=[-2, 0], ...
         sortGroup=GROUPVAR{iTl}(sel), order=order);
     applyCustomColormap(ax(1), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
     applyCustomColormap(ax(2), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
 
     N = histcounts(GROUPVAR{iTl}(sel), [-0.5, 0.5, 1.5, 2.5, 3.5]);
-    yline(ax(1), cumsum(N(1:end-1)) + 1, 'k--');
-    yline(ax(2), cumsum(N(1:end-1)) + 1, 'k--');
+    yline(ax(1), cumsum(N(1:end-1)) + 0.5, 'k--');
+    yline(ax(2), cumsum(N(1:end-1)) + 0.5, 'k--');
     xline(ax(1), 0, 'k--')
     xline(ax(2), 0, 'k--')
 
-    yt = unique([cumsum(N(1:end-1)) + 1, nnz(sel)]);
+    yt = unique([cumsum(N(1:end-1)) + 0.5, nnz(sel)]);
+    ytl = string(unique([cumsum(N(1:end-1)), nnz(sel)]));
     yticks(ax(1), yt)
+    yticklabels(ax(1), ytl)
     yticks(ax(2), [])
+    ylim(ax, [0.5, nnz(sel)+0.5])
     set(ax(1).YAxis, TickLength=[0, 0])
 
     % Manual yticks for the last panel
     if iTl == 3
-        ytl = string(yt);
+        yt = unique([cumsum(N(1:end-1)) + 0.5, nnz(sel)]);
+        ytl = string(unique([cumsum(N(1:end-1)), nnz(sel)]));
         yt(end-1) = yt(end-1) - 1.5;
         yt(end) = yt(end) + 0.5;
         yticks(ax(1), yt)
@@ -509,7 +525,7 @@ for iTl = 1:3
     title(ax(2), 'lick')
     xlabel(ax, '')
     ylabel(ax, '')
-    title(tl(iTl), sprintf("%s\n(n=%i)", TITLE{iTl}, nnz(sel)), FontWeight='bold', FontSize=p.fontSize)
+    title(tl(iTl), sprintf("%s (n=%i)", TITLE{iTl}, nnz(sel)), FontWeight='bold', FontSize=p.fontSize)
 
     fontsize(ax, p.fontSize, 'points')
 

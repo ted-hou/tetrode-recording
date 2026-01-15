@@ -2264,7 +2264,7 @@ classdef EphysUnit < handle
                         alpha = 0.2 + 0.4*((stimLog(iTrain).params.iPower - 1)./(length(tceParams.targetPowers) - 1));
                     else
                         filteredPowers = unique([stimLog(trainOrder).targetPower]);
-                        alpha = 0.2 + 0.4*((find(filteredPowers == stimLog(iTrain).targetPower) - 1)./(length(filteredPowers) - 1));
+                        alpha = 0.3*((find(filteredPowers == stimLog(iTrain).targetPower) - 1)./(length(filteredPowers) - 1));
                     end
                     partialHash = stimLog(iTrain).params.iPower + stimLog(iTrain).wavelength*10;
                     partialDesc = sprintf('%gmW \t%inm', tceParams.targetPowers(stimLog(iTrain).params.iPower)*1e3, stimLog(iTrain).wavelength);

@@ -1,8 +1,8 @@
  %% 
 % read_reachDir_4tgt;
 % read_reachDir_2tgt;
-% euReachDir2tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction_2tgts\SingleUnits_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
-% euReachDir4tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction\SingleUnits_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
+euReachDir2tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction_2tgts\SingleUnits_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
+euReachDir4tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction\SingleUnits_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
 
 load('C:\SERVER\Units\traj_reachDir_2tgt.mat')
 load('C:\SERVER\Units\traj_reachDir_4tgt.mat')
@@ -270,7 +270,8 @@ for iCol = 1:3
     fontsize(ax, p.fontSize, 'points')
     fontname(ax, 'Arial')
     ax.YAxis.Direction = 'reverse';
-    applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+    % applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+    applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
 end
 
 ax = AX;
@@ -430,7 +431,8 @@ for iTarget = [2 4 1 3]
     xlabel(ax, '');    
     title(ax, targetNames{iTarget})
     colorbar(ax, 'off')
-    applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+    % applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+    applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
 
 %     if iTarget < 4
 %         colorbar(ax, 'off')

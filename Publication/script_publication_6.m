@@ -6,7 +6,8 @@ if exist('E:\Data\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials',
     etaArtiFree = metaArtiFree.eta;
 else
     euArtiFree = EphysUnit.load('C:\SERVER\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials');
-    metaArtiFree = load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved_Full.mat');
+    load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat');
+    etaArtiFree = metaArtiFree.eta;
 end
 
 % %% Calculate ETA for correct reach vs. incorrect reach; correct vs. incorrect retract; correct vs. incorrect release; correct vs. incorrect lick
@@ -193,7 +194,7 @@ layout.child(2).tl = tiledlayout(layout.tl, sum(layout.child(2).h), sum(layout.c
 l = layout.child(2).tl; l.Layout.Tile = 1 + layout.ch(2); l.Layout.TileSpan = [layout.h(2), layout.w];
 
 % 3rd row (osci)
-layout.child(3).h = [2, 5];
+layout.child(3).h = [9, 20];
 layout.child(3).w = [3, 3, 3];
 layout.child(3).cw = cumsum([0, layout.child(3).w]);
 layout.child(3).ch = cumsum([0, layout.child(3).h]);
@@ -219,8 +220,8 @@ MAXTRIALDURATION = [...
         Inf, Inf, Inf, Inf, Inf; ...
     ];
 EVERYNTH = [5, 5, 5, 5, 5];
-% YLIM = {[20, 80], [20, 140], [20, 80]};
-% YTICKS = {20:30:80, 20:60:140, 20:30:80};
+YLIM = {[40, 160]; [10, 130]};
+YTICKS = {[40, 100, 160]; [10, 70, 130]};
 
 AX = gobjects(nEgUnits, 5);
 for iEu = 1:nEgUnits
@@ -260,14 +261,15 @@ for iEu = 1:nEgUnits
             title(ax, '')
         end
         xline(ax, 0, 'k--', LineWidth=1)
-        ylim(ax, 'auto')
+        ylim(ax, YLIM{iEu})
+        yticks(ax, YTICKS{iEu})
         xlabel(ax, '')
         fontsize(ax, p.fontSize, 'points')
     end
 end
-ylim(AX, [-10, 160]);
-yticks(AX(:, 1), [0, 75, 150])
-yticks(AX(:, 2:end), [])
+% ylim(AX, [-10, 160]);
+% yticks(AX(:, 1), [0, 75, 150])
+yticklabels(AX(:, 2:end), [])
 
 ax = AX(1, 1);
 hLetter = text(ax, 0, 0, 'a', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
@@ -351,8 +353,8 @@ for iAx = 1:length(ETA)
     if iAx > 1
         yticks(ax(iAx), [])
     else
-        yticks(ax(iAx), groupSizeCum([1, 6, end])+0.5)
-        yticklabels(ax(iAx), string(groupSizeCum([1, 6, end])))
+        yticks(ax(iAx), groupSizeCum([1, 2, 6, end])+0.5)
+        yticklabels(ax(iAx), string(groupSizeCum([1, 2, 6, end])))
     end
     title(ax(iAx), strsplit(NAME{iAx}, "\\n"))
     xlabel(ax(iAx), "")
@@ -496,7 +498,7 @@ idThirdQuarterPhaseLickDown = sel(isThirdQuarterPhase & isHighAmp & metaArtiFree
 idThirdQuarterPhasePressUp = sel(isThirdQuarterPhase & isHighAmp & metaArtiFree.cc.isPressUp(sel));
 idThirdQuarterPhasePressFlat = sel(isThirdQuarterPhase & isHighAmp & ~metaArtiFree.cc.isPressResponsive(sel));
 idThirdQuarterPhasePressDown = sel(isThirdQuarterPhase & isHighAmp & metaArtiFree.cc.isPressDown(sel));
-colors = getColor(1:4, 4, 0.6);
+colors = getColor([1, 3, 2, 4], 4, 0.6);%getColor(1:4, 4, 0.6);
 
 euSel = euArtiFree(sel);
 [~, expEuIndices] = unique({euSel.ExpName});
