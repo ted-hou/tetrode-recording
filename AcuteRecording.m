@@ -1615,6 +1615,7 @@ classdef AcuteRecording < handle
             p.addParameter('XJitter', 'density') % 'none' | 'density' | 'rand' | 'randn'
             p.addParameter('XJitterWidth', 0.1, @isnumeric)
             p.addParameter('LineWidth', 0.5, @isnumeric)
+            p.addParameter('BackgroundCoords', [], @isnumeric) % Will be shown as small grey dots 
             p.parse(varargin{:})
             
             coords = p.Results.coords;

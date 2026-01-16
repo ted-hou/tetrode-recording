@@ -26,7 +26,7 @@ shankPitch = 250;
 columnPitch = 15; % vertical distance between electrodes
 rowPitch = 32; % horizontal distance between electrodes
 
-if ~exist("D:\Data\tips_out.imro", 'file')
+if ~exist("E:\Data\tips_out.imro", 'file')
     file = "C:\SERVER\tips_out.imro";
 else
     file = "E:\Data\tips_out.imro";
