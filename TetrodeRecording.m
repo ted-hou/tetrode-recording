@@ -322,7 +322,7 @@ classdef TetrodeRecording < handle
                             obj.SpikeDetect(1:size(obj.Amplifier.Data, 1), NumSigmas=numSigmas, NumSigmasReturn=numSigmasReturn, NumSigmasReject=numSigmasReject, ...
                                 WaveformWindow=waveformWindow, Direction=direction, Append=false, MaxMicroVolts=750, MinThresholdMicroVolts=45, MaxThresholdMicroVolts=75, UseClampedThresholdInsteadOfSigma=true);
                         end
-                        obj.ReadNIDQ(Duration=duration, ReadMode='single');
+                        obj.ReadNIDQ(TimeWindow=duration, ReadMode='simple');
                     end
                     
 			end
