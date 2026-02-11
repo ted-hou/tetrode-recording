@@ -113,7 +113,7 @@ SNr_SCRetro_ReverseInjection.c.isSNr = SNr_SCRetro_ReverseInjection.coords(:, 2)
 %% Fig 8b SC Stim causes movements (medial SC stim vs. lateral SC stim)
 close all
 
-useYYAxis = false;
+useYYAxis = true;
 windowPreStim = [-0.25, 0];
 windowPostStim = [0, 0.45];
 WAVELENGTHS = [470, 635];
@@ -124,14 +124,14 @@ YYAXIS = ["left", "right"];
 % BODYPARTCOLORS = arrayfun(@(i) getColor(i, 7, 0.7), [1, 3], UniformOutput=false);
 BODYPARTCOLORS = {hsl2rgb([170/360, 0.5, 0.35]); hsl2rgb([308/360, 0.5, 0.5])};
 % YLIMS = {[-2, 10], [-1, 5]};
-YLIMS = {[-1, 5], [-1, 5]};
+YLIMS = {[-1, 4], [-1, 4]};
 % YTICKS = {[0, 6], [0, 3]};
 YTICKS = {[0, 3], [0, 3]};
 p.fontSize = 9;
 
 iExp = length(trajectoriesSC);
-fig = figure(Units="inches", Position=[1, 1, 3.5, 1.75]);
-tl = tiledlayout(fig, 1, 2);
+fig = figure(Units="inches", Position=[1, 1, 4, 1.5]);
+tl = tiledlayout(fig, 1, 2, Padding='loose', TileSpacing='loose');
 h = gobjects(2, 1);
 AX = gobjects(length(BODYPARTS), 1);
 for iColor = 1:length(COLORS)
@@ -146,10 +146,11 @@ for iColor = 1:length(COLORS)
     ax = nexttile(tl);
     AX(iColor) = ax;
     hold(ax, 'on')
-    colororder(ax, getColor([1, 3], 3, 0.7))
+    % colororder(ax, getColor([1, 3], 3, 0.7))
     for iBodypart = 1:length(BODYPARTS)
         if useYYAxis
             yyaxis(ax, YYAXIS(iBodypart));
+            ax.YAxis(iBodypart).Color = BODYPARTCOLORS{iBodypart};
         end
         bodypart = BODYPARTS(iBodypart);
         t = trajectoriesSC(iExp).(bodypart).(color).t;
@@ -197,7 +198,7 @@ hLetter = text(ax, 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold', 
 ax.Units = 'inches';
 hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
-hLetter.Position = [-0.25, ax.Position(4) + 0.5, 0];
+hLetter.Position = [-0.35, ax.Position(4) + 0.35, 0];
 
 copygraphics(fig, BackgroundColor='none', ContentType='vector')
 clear windowPreStim windowPostStim WAVELENGTHS COLORS BODYPARTS BODYPARTDISPNAMES YYAXIS BODYPARTCOLORS YLIMS YTICKS
@@ -604,7 +605,106 @@ clear paxinos
 paxinos.snr = load('E:\Data\SNr_Paxinos_3280.mat');
 snrPoly = polyshape(paxinos.snr.pos(:, 1)/1000, paxinos.snr.pos(:, 2)/1000);
 
-%% S8. SC Reverse injection and Somatotopy (combined Neuropixel and Intan)
+%% Load SC reverse trajectories
+read_SC_opto_trajectories_DLC_ReverseInjection;
+
+%% Fig S8d SC Stim causes movements (medial SC stim vs. lateral SC stim)
+close all
+
+useYYAxis = true;
+windowPreStim = [-0.2, 0];
+windowPostStim = [0, 0.6];
+WAVELENGTHS = [470, 635];
+COLORS = ["blue", "red"];
+BODYPARTS = ["HandIpsi", "Jaw"]; % HandIpsi means camera side (right paw, contralateral to SC stim site)
+BODYPARTDISPNAMES = ["Forepaw", "Jaw"];
+YYAXIS = ["left", "right"];
+% BODYPARTCOLORS = arrayfun(@(i) getColor(i, 7, 0.7), [1, 3], UniformOutput=false);
+BODYPARTCOLORS = {hsl2rgb([170/360, 0.5, 0.35]); hsl2rgb([308/360, 0.5, 0.5])};
+% YLIMS = {[-2, 10], [-1, 5]};
+YLIMS = {[-0.25, 1.25], [-0.5, 2.5]};
+% YTICKS = {[0, 6], [0, 3]};
+YTICKS = {[0, 1], [0, 2]};
+p.fontSize = 9;
+
+iExp = length(trajectoriesSCRevInj);
+fig = figure(Units="inches", Position=[1, 1, 4, 1.5]);
+tl = tiledlayout(fig, 1, 2, TileSpacing='loose', Padding='loose');
+h = gobjects(2, 1);
+AX = gobjects(length(BODYPARTS), 1);
+for iColor = 1:length(COLORS)
+    color = COLORS(iColor);
+    switch color
+        case "blue"
+            mwPower = pSCRevInj.stimBluePowers*1e3;
+        case "red"
+            mwPower = pSCRevInj.stimRedPowers*1e3;
+    end
+
+    ax = nexttile(tl);
+    AX(iColor) = ax;
+    hold(ax, 'on')
+    % colororder(ax, getColor([1, 3], 3, 0.7))
+    for iBodypart = 1:length(BODYPARTS)
+        if useYYAxis
+            yyaxis(ax, YYAXIS(iBodypart));
+            ax.YAxis(iBodypart).Color = BODYPARTCOLORS{iBodypart};
+        end
+        bodypart = BODYPARTS(iBodypart);
+        t = trajectoriesSCRevInj(iExp).(bodypart).(color).t;
+        X = trajectoriesSCRevInj(iExp).(bodypart).(color).X;
+        Y = -trajectoriesSCRevInj(iExp).(bodypart).(color).Y;
+        nTrials = size(X, 1);
+        velX = diff(X, 1, 2)./diff(t);
+        velX = [NaN([size(velX, 1), 1]), velX];
+        velY = diff(Y, 1, 2)./diff(t);
+        velY = [NaN([size(velY, 1), 1]), velY];
+        spd = sqrt(velX.^2 + velY.^2);
+        spd = (spd - mean(spd(:, t<0), 'all', 'omitnan')) ./ std(spd(:, t<0), 0, 'all', 'omitnan');
+        mu = mean(spd, 1, 'omitnan');
+        sd = std(spd, 0, 1, 'omitnan');
+        mu(isnan(mu)) = 0;
+        sd(isnan(sd)) = 0;
+        assert(isscalar(mwPower))
+        col = BODYPARTCOLORS{iBodypart};
+        h(iBodypart) = plot(ax, t*1e3, mu, Color=col, DisplayName=BODYPARTDISPNAMES(iBodypart), LineWidth=1.5);
+        fprintf("%s %s\n", BODYPARTDISPNAMES(iBodypart), num2str(col));
+        patch(ax, [t, flip(t)]*1e3, [mu-sd, flip(mu+sd)], col, LineStyle='-', FaceAlpha=0.075, FaceColor=col, EdgeAlpha=0.075, EdgeColor=col)
+
+        ylim(ax, YLIMS{iBodypart})
+        yticks(ax, YTICKS{iBodypart})
+        if useYYAxis
+            ylabel(ax, sprintf("%s", BODYPARTDISPNAMES(iBodypart)))
+        end
+    end
+    
+    xline(ax, [0, 250], ':')
+    xlim(ax, [windowPreStim(1), windowPostStim(2)] * 1e3)
+    xticks(ax, [0, 250, 500, 750])
+    % fprintf("%i nm, %g mW, %i trials, %i sessions\n", WAVELENGTHS(iColor), mwPower, nTrials, length(exp));
+    title(ax, sprintf("%i nm, %g mW", WAVELENGTHS(iColor), mwPower))
+    fontsize(ax, p.fontSize, 'points')
+    set(ax.YAxis, TickLength=[0.04, 0.025])
+end
+xlabel(tl, 'Time from opto onset (ms)', FontSize=p.fontSize);
+ylabel(tl, 'Speed (a.u.)', FontSize=p.fontSize)
+if ~useYYAxis
+    lgd = legend(h, Orientation='horizontal');
+    lgd.Layout.Tile = 'north';
+end
+ax = AX(1);
+hLetter = text(ax, 0, 0, 'd', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax.Units = 'inches';
+hLetter.HorizontalAlignment = 'right';
+hLetter.VerticalAlignment = 'top';
+hLetter.Position = [-0.4, ax.Position(4) + 0.35, 0];
+
+copygraphics(fig, BackgroundColor='none', ContentType='vector')
+clear windowPreStim windowPostStim WAVELENGTHS COLORS BODYPARTS BODYPARTDISPNAMES YYAXIS BODYPARTCOLORS YLIMS YTICKS
+clear iExp tl h AX iColor color mwPower ax iBodypart bodypart X Y t nTrials velX velY spd mu sd col h lgd useYYAxis
+clear fig
+
+%% S8efghi. SC Reverse injection and Somatotopy (combined Neuropixel and Intan)
 close all
 
 layout.w = 5/3*4;
@@ -622,7 +722,7 @@ SEL = { ...
     };
 SELBACKGROUND = { ...
     selCommon, selCommon, selCommon; ...
-    selCommon, selCommon, true(length(euArtiFree), 1), ...
+    selCommon, selCommon, metaArtiFree.cc.isIntan(:), ...
     };
 STATS = { ...
     repmat(0.5, size(SEL{2})), metaMerge.press, metaMerge.lick; ...
@@ -644,7 +744,7 @@ POS = { ...
 ALPHA = repmat(0.25, 2, 3);
 
 AX = gobjects(2, 3);
-
+LETTERS = 'efghij';
 
 for i = 1:2
     for j = 1:3
@@ -657,7 +757,7 @@ for i = 1:2
         hold(ax, 'on')
         AcuteRecording.plotMap(ax, coords, stats, SRANGE{i, j}, 0, UseSignedML=false, BubbleSize=[1, 5], MarkerAlpha=ALPHA(i, j), ...
             MarkerEdgeAlpha=0.8, Color=COLOR{i, j});
-        plot(snrPoly, FaceAlpha=0, EdgeColor='black', LineStyle='--', LineWidth=1)
+        % plot(snrPoly, FaceAlpha=0, EdgeColor='black', LineStyle='--', LineWidth=1)
     
         if i == 1 && j == 2
             hDummy = gobjects(2, 1);
@@ -682,6 +782,12 @@ for i = 1:2
         fontsize(ax, p.fontSize, 'points');
         fontname(ax, 'Arial')
         fprintf('%i/%i %s modulated units\n', nnz(sel), nnz(selBackground), TITLE{i, j})
+
+        hLetter = text(ax, 0, 0, LETTERS(3*(i-1)+j), FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+        ax.Units = 'inches';
+        hLetter.HorizontalAlignment = 'right';
+        hLetter.VerticalAlignment = 'top';
+        hLetter.Position = [-0.4, ax.Position(4) + 0.3, 0];
     end
 end
 
