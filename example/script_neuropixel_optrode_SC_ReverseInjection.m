@@ -1,7 +1,7 @@
 
 %% Spike detection
 folders = { ...
-    'C:\SERVER\daisy27\daisy27_20250707', ...
+    % 'C:\SERVER\daisy27\daisy27_20250707', ...
     'C:\SERVER\daisy27\daisy27_20250715', ... % 16mW mirror 0, 100ms moved arm
     'C:\SERVER\daisy28\daisy28_20250714', ... % 16mW mirror 0, 100ms moved arm
     };
@@ -10,7 +10,7 @@ for iSession = 1:length(folders)
     try
         tr = TetrodeRecording;
         tr.SelectFiles(NeuropixelPath=folders{iSession});
-        tr.ReadFiles(Duration=240, Channels=1:384, NumSigmas=4, NumSigmasReturn=1.5, NumSigmasReject=20, WaveformWindow=[-0.5, 1])
+        tr.ReadFiles(Duration=120, Channels=1:384, NumSigmas=4, NumSigmasReturn=1.5, NumSigmasReject=20, WaveformWindow=[-0.5, 1])
         tr.SaveNeuropixelIO()
         
         % Read detected spikes and NIDQ digital/analog channels

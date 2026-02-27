@@ -720,3 +720,95 @@ hCb.Label.Position(1) = 0;
 hCb.Label.VerticalAlignment = 'bottom';
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
+
+
+
+%% Alternate panel f
+fig = figure(Units='inches', Position=[1, 1, 2, 2]);
+thisTL = tiledlayout(fig, 1, 2, TileSpacing='compact');
+% 5b/metaArtiFree.cc. PETH Reach vs. Lick vs. Osci Lick
+% Reach, Lick, Osci Lick, sorted amongst themselves
+% close all
+ax = gobjects(1, 2);
+ax(1) = nexttile(thisTL);
+ax(2) = nexttile(thisTL);
+% ax(3) = nexttile(layout.middle.right.tl);
+% ax(4) = nexttile(layout.middle.right.tl);
+
+
+sel = metaArtiFree.cc.isLick;
+% sel = 1:length(eu);
+
+metaArtiFree.cc.isLickUnresponsiveButUp = ~metaArtiFree.cc.isLickResponsive & metaArtiFree.meta.lickNorm > 0;
+metaArtiFree.cc.isLickUnresponsiveButDown = ~metaArtiFree.cc.isLickResponsive & metaArtiFree.meta.lickNorm < 0;
+metaArtiFree.cc.isPressUnresponsiveButUp = ~metaArtiFree.cc.isPressResponsive & metaArtiFree.meta.pressNorm > 0;
+metaArtiFree.cc.isPressUnresponsiveButDown = ~metaArtiFree.cc.isPressResponsive & metaArtiFree.meta.pressNorm < 0;
+
+groupVar = NaN(length(sel), 1);
+groupVar(metaArtiFree.cc.isPressUnresponsiveButDown & metaArtiFree.cc.isLickUp) = 0;
+groupVar(metaArtiFree.cc.isPressUnresponsiveButDown & metaArtiFree.cc.isLickUnresponsiveButUp) = 0;
+groupVar(metaArtiFree.cc.isPressDown & metaArtiFree.cc.isLickUp) = 0;
+groupVar(metaArtiFree.cc.isPressDown & metaArtiFree.cc.isLickUnresponsiveButUp) = 0;
+groupVar(metaArtiFree.cc.isPressUp & metaArtiFree.cc.isLickUnresponsiveButDown) = 1;
+groupVar(metaArtiFree.cc.isPressUp & metaArtiFree.cc.isLickDown) = 1;
+groupVar(metaArtiFree.cc.isPressUnresponsiveButUp & metaArtiFree.cc.isLickUnresponsiveButDown) = 1;
+groupVar(metaArtiFree.cc.isPressUnresponsiveButUp & metaArtiFree.cc.isLickDown) = 1;
+
+groupVar(metaArtiFree.cc.isPressUnresponsiveButDown & metaArtiFree.cc.isLickUnresponsiveButDown) = 2;
+groupVar(metaArtiFree.cc.isPressUnresponsiveButDown & metaArtiFree.cc.isLickDown) = 2;
+groupVar(metaArtiFree.cc.isPressDown & metaArtiFree.cc.isLickUnresponsiveButDown) = 2;
+groupVar(metaArtiFree.cc.isPressDown & metaArtiFree.cc.isLickDown) = 2;
+groupVar(metaArtiFree.cc.isPressUp & metaArtiFree.cc.isLickUp) = 3;
+groupVar(metaArtiFree.cc.isPressUp & metaArtiFree.cc.isLickUnresponsiveButUp) = 3;
+groupVar(metaArtiFree.cc.isPressUnresponsiveButUp & metaArtiFree.cc.isLickUp) = 3;
+groupVar(metaArtiFree.cc.isPressUnresponsiveButUp & metaArtiFree.cc.isLickUnresponsiveButUp) = 3;
+groupVar = groupVar(sel);
+[~, order] = EphysUnit.plotETA(ax(1), etaArtiFree.pressNorm, sel, sortGroup=groupVar, ...
+    clim=[-1.5, 1.5], xlim=[-2.5, 0.5], sortWindow=[-3, 0], signWindow=[-0.3, 0], ...
+    sortThreshold=0.25, negativeSortThreshold=0.25, hidecolorbar=true);
+EphysUnit.plotETA(ax(2), etaArtiFree.lickNorm, sel, order=order, sortGroup=groupVar, ...
+    clim=[-1.5, 1.5], xlim=[-2.5, 0.5], hidecolorbar=true);
+
+for iAx = 1:2
+    applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+    % applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, -0.375, -0.375], llim=[0.1, 1, 1, 0.3], hpwr=.3, lpwr=0.25, h0=0.33);
+    % applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.125, 0.5, 0.5, 0.25], hpwr=.5, lpwr=1, h0=0.33);
+end
+
+N = histcounts(groupVar, -0.5:2:3.5);
+yline(ax(1), cumsum(N(1:end-1)) + 1, 'k--');
+yline(ax(2), cumsum(N(1:end-1)) + 1, 'k--');
+
+xline(ax(1), 0, 'k--')
+xline(ax(2), 0, 'k--')
+ylim(ax(1:2), [0, nnz(sel)+1])
+yt = 0:100:nnz(sel);
+yt(1) = 1;
+if round(yt(end)./100) == round(nnz(sel)./100)
+    yt(end) = nnz(sel);
+else
+    yt(end + 1) = nnz(sel);
+end
+yt = unique(yt);
+yticks(ax(1), yt)
+yticks(ax(2), [])
+
+title(ax(1), 'Reach')
+title(ax(2), 'Lick')
+ylabel(thisTL, 'Unit', FontSize=p.fontSize)
+ylabel(ax, '')
+xlabel(thisTL, 'Time to bar/spout contact (s)', FontSize=p.fontSize)
+xlabel(ax, '')
+fontsize(ax, p.fontSize, 'points')
+fontname(ax, 'Arial')
+axc = ax(2);
+
+hLetter = text(ax(1), 0, 0, 'f', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+ax(1).Units = 'inches';
+hLetter.HorizontalAlignment = 'right';
+hLetter.VerticalAlignment = 'top';
+hLetter.Position = [-0.3, ax(1).Position(4) + 0.3, 0];
+
+clear yt
+
+copygraphics(fig, ContentType='vector', BackgroundColor='none')
