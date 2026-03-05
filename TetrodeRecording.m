@@ -3130,6 +3130,7 @@ classdef TetrodeRecording < handle
         function [tce, tOn, tOff, trainIndices] = LoadTwoColorExperiment(obj, varargin)
             p = inputParser();
             p.addParameter('pulseWidthErrorMargin', 1e-3, @isnumeric)
+            p.addParameter('minPulseWidth', 1e-4, @isnumeric)
             p.parse(varargin{:})
 
             if strcmpi(obj.System, 'intan')
@@ -3155,6 +3156,11 @@ classdef TetrodeRecording < handle
             
             tOn = obj.DigitalEvents.StimOn;
             tOff = obj.DigitalEvents.StimOff;
+            sel = (tOff - tOn) >= p.Results.minPulseWidth;
+            tOn = tOn(sel);
+            tOff = tOff(sel);
+            obj.DigitalEvents.StimOn = tOn;
+            obj.DigitalEvents.StimOff = tOff;
             
             nPulsesPerTrain = arrayfun(@(log) log.params.nPulses, tce.Log);
             pulseWidth = arrayfun(@(log) repmat(log.params.pulseWidth, [1, log.params.nPulses]), tce.Log, UniformOutput=false);
