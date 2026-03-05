@@ -47,18 +47,30 @@ classdef CompleteExperiment3 < CompleteExperiment
             animalName = strsplit(expName, '_');
             animalName = animalName{1};
 
+            if sidenum == -1
+                vtd = [];
+                return
+            end
 
-            if isempty(path)
-                if isempty(obj.tce)
-                    deepLabCutFiles = dir(sprintf('C:\\SERVER\\%s\\%s\\%s_%g*.csv', animalName, expName, expName, sidenum));
+            if sidenum ~= 0
+                if isempty(path)
+                    if isempty(obj.tce)
+                        deepLabCutFiles = dir(sprintf('C:\\SERVER\\%s\\%s\\%s_%g*.csv', animalName, expName, expName, sidenum));
+                    else
+                        deepLabCutFiles = dir(sprintf('C:\\SERVER\\%s\\%s\\%s_laser_%g*.csv', animalName, expName, expName, sidenum));
+                    end
                 else
-                    deepLabCutFiles = dir(sprintf('C:\\SERVER\\%s\\%s\\%s_laser_%g*.csv', animalName, expName, expName, sidenum));
+                    if isempty(obj.tce)
+                        deepLabCutFiles = dir(sprintf('%s\\%s_%g*.csv', path, expName, sidenum));
+                    else
+                        deepLabCutFiles = dir(sprintf('%s\\%s_laser_%g*.csv', path, expName, sidenum));
+                    end
                 end
             else
-                if isempty(obj.tce)
-                    deepLabCutFiles = dir(sprintf('%s\\%s_%g*.csv', path, expName, sidenum));
+                if isempty(path)
+                    deepLabCutFiles = dir(sprintf('C:\\SERVER\\%s\\%s\\%s*.csv', animalName, expName, expName));
                 else
-                    deepLabCutFiles = dir(sprintf('%s\\%s_laser_%g*.csv', path, expName, sidenum));
+                    deepLabCutFiles = dir(sprintf('%s\\%s*.csv', path, expName));
                 end
             end
             % Deep lab cut
@@ -115,8 +127,18 @@ classdef CompleteExperiment3 < CompleteExperiment
                     lcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('l')).Camera.EventLog.FrameNumber];
                 end
                 if ~isempty(obj.vtdR)
-                    rcamDateTime = datetime([obj.ac.Cameras(obj.getCameraIndex('r')).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
-                    rcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('r')).Camera.EventLog.FrameNumber];
+                    sidenum = obj.getCameraIndex('r');
+                    if sidenum ~= 0
+                        rcamDateTime = datetime([obj.ac.Cameras(obj.getCameraIndex('r')).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
+                        rcamFrameNum = [obj.ac.Cameras(obj.getCameraIndex('r')).Camera.EventLog.FrameNumber];
+                    elseif isempty(obj.ac.Cameras)
+                        rcamDateTime = datetime([obj.ac.Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
+                        rcamFrameNum = [obj.ac.Camera.EventLog.FrameNumber];
+                    else
+                        assert(length(obj.ac.Cameras) == 1)
+                        rcamDateTime = datetime([obj.ac.Cameras(1).Camera.EventLog.Timestamp], ConvertFrom='datenum', TimeZone='America/New_York');
+                        rcamFrameNum = [obj.ac.Cameras(1).Camera.EventLog.FrameNumber];
+                    end
                 end
 
                 % Find event in ephystime
@@ -137,8 +159,9 @@ classdef CompleteExperiment3 < CompleteExperiment
 
                 % Some assertions: 
                 try
-                    assert(length(eventEphysTime) == length(eventDateTime), 'Arduino has %g %s events, but ephys has %g %s events.', length(eventDateTime), refEventNameArduino, length(eventEphysTime), refEventNameEphys)
+                    assert(length(eventEphysTime) == length(eventDateTime))
                 catch
+                    warning('Arduino has %g %s events, but ephys has %g %s events.', length(eventDateTime), string(refEventNameArduino), length(eventEphysTime), string(refEventNameEphys))
                     itiEphys = diff(eventEphysTime);
                     itiArduino = seconds(diff(eventDateTime));
                     n = length(eventDateTime) - length(eventEphysTime);
@@ -182,6 +205,7 @@ classdef CompleteExperiment3 < CompleteExperiment
                     end
                 end
                 assert(all(abs(diff(eventEphysTime(:)) - seconds(diff(eventDateTime(:)))) < trialDurationTolerance), 'Adruino trial lengths differe significantly from ephys, max different: %g.', max(abs(diff(eventEphysTime(:)) - seconds(diff(eventDateTime(:))))))
+
                 fprintf(1, '\tInter-ref-intervals match between ephys and arduino for %g trials with a tolerance of %gs.\n', length(eventEphysTime), trialDurationTolerance);
 
                 [uniqueEventDateTime, ia] = unique(eventDateTime);
@@ -262,13 +286,14 @@ classdef CompleteExperiment3 < CompleteExperiment
             assert(length(obj) == 1)
             animalName = strsplit(obj.name, '_');
             animalName = animalName{1};
-            switch animalName
+            switch lower(animalName)
                 case {'daisy2', 'daisy3', 'daisy8', 'daisy9'}
                     switch lower(side)
                         case {'r', 'right'}
                             i = 0;
                         otherwise
-                            error('Unrecognized side string: ''%s''', side)
+                            i = -1;
+                            warning('Unrecognized side string: ''%s'' for animal ''%s''', side, animalName)
                     end
                 case {'daisy23', 'daisy24', 'daisy25', 'desmond38', 'desmond39', 'daisy26', 'daisy27', 'daisy28'}
                     switch lower(side)
@@ -279,7 +304,8 @@ classdef CompleteExperiment3 < CompleteExperiment
                         case {'r', 'right'}
                             i = 1;
                         otherwise
-                            error('Unrecognized side string: ''%s''', side)
+                            i = -1;
+                            warning('Unrecognized side string: ''%s'' for animal ''%s''', side, animalName)
                     end
                 case {'desmond28', 'desmond29', 'desmond30'}
                     switch lower(side)
@@ -290,7 +316,8 @@ classdef CompleteExperiment3 < CompleteExperiment
                         case {'r', 'right'}
                             i = 3;
                         otherwise
-                            error('Unrecognized side string: ''%s''', side)
+                            i = -1;
+                            warning('Unrecognized side string: ''%s'' for animal ''%s''', side, animalName)
                     end
                 case {'daisy14', 'daisy15', 'daisy16', 'desmond23', 'desmond24', 'desmond25', 'desmond26', 'desmond27'}
                     switch lower(side)
@@ -299,7 +326,8 @@ classdef CompleteExperiment3 < CompleteExperiment
                         case {'r', 'right'}
                             i = 1;
                         otherwise
-                            error('Unrecognized side string: ''%s''', side)
+                            i = -1;
+                            warning('Unrecognized side string: ''%s'' for animal ''%s''', side, animalName)
                     end
             end
         end
