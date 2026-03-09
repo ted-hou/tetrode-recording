@@ -1,12 +1,12 @@
 if ~exist('euArtiFree', 'var')
     if exist('E:\Data\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials', 'dir')
         euArtiFree = EphysUnit.load('E:\Data\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials');
-        load('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat');
-        etaArtiFree = metaArtiFree.eta;
+        % load('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat');
+        % etaArtiFree = metaArtiFree.eta;
     else
         euArtiFree = EphysUnit.load('C:\SERVER\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials');
-        load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat');
-        etaArtiFree = metaArtiFree.eta;
+        % load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat');
+        % etaArtiFree = metaArtiFree.eta;
     end
 end
 %% Daisy 2, 3, 8, 9, 10, 13, 14, 15, desmond10, 11, 22, 23, 24, 25, 26, 27
@@ -121,47 +121,17 @@ clear sel
 %% Reset
 clearvars -except euArtiFree paths sessionNames sessions exp results
 
-%% Collect sequence of events for rewarded reach trials
-clear sequence trials
-sequence(length(exp)) = struct(CorrectReach=[], CorrectLick=[]);
-for iExp = 1:length(exp)
-    trials(iExp).CueToLeverReleaseCorrect = exp(iExp).eu(1).Trials.CueToLeverReleaseCorrect;
-    trials(iExp).PressCorrect = exp(iExp).eu(1).Trials.PressCorrect;
-    trials(iExp).CorrectPressToFirstRewardLick = exp(iExp).eu(1).Trials.CorrectPressToFirstRewardLick;
-    trials(iExp).LickCorrect = exp(iExp).eu(1).Trials.LickCorrect;
-    trials(iExp).CueToLastLickOffCorrect = exp(iExp).eu(1).Trials.CueToLastLickOffCorrect;
-    
-    [lia, locb] = ismember([trials(iExp).PressCorrect.Start], [trials(iExp).CueToLeverReleaseCorrect.Start]);
-    if ~all(lia)
-        trials(iExp).PressCorrect = trials(iExp).PressCorrect(lia);
-    end
-    sequence(iExp).CorrectReach.Cue = [trials(iExp).PressCorrect.Start];
-    sequence(iExp).CorrectReach.ReachEnd = [trials(iExp).PressCorrect.Stop];
-    sequence(iExp).CorrectReach.RetractStart = [trials(iExp).CueToLeverReleaseCorrect.Stop];
-
-    % First lick after bar-contact, before arm-retract
-    lickOn = [trials(iExp).CorrectPressToFirstRewardLick.Stop];
-    [lia, locb] = ismember([trials(iExp).CorrectPressToFirstRewardLick.Start], [trials(iExp).PressCorrect.Stop]);
-    if ~all(lia)
-        trials(iExp).CorrectPressToFirstRewardLick = trials(iExp).CorrectPressToFirstRewardLick(lia);
-        lickOn = lickOn(lia);
-        locb = locb(lia);
-    end
-    sequence(iExp).CorrectReach.FirstLick = NaN(1, length(trials(iExp).PressCorrect));
-    sequence(iExp).CorrectReach.FirstLick(locb) = lickOn;
-
-    % CorrectLick
-    sequence(iExp).CorrectLick.Cue = [trials(iExp).LickCorrect.Start];
-    sequence(iExp).CorrectLick.Lick = [trials(iExp).LickCorrect.Stop];
-    sequence(iExp).CorrectLick.LastLickOff = [trials(iExp).CueToLastLickOffCorrect.Stop];
-end
-clear iExp lia locb trialsBarHeld B I lickOn
-
 %% Get the onset of arm reach/offset of arm retraction via video
+p.useContinuousSequence = true;
 % Get ReachStart
 for iExp = 1:length(exp)
-    [X, Y, L, t] = exp(iExp).getTrajectoryByTrial('r', 'HandR', trialType='press', trials=trials(iExp).PressCorrect, alignTo='stop', window=[-4, 0], includeInvalid=true, likelihoodThreshold=0.5);
-    selBaseline = t <= -2 & t >= -4;
+    if p.useContinuousSequence
+        theseTrials = exp(iExp).eu(1).Trials.PressCorrect;
+    else
+        theseTrials = exp(iExp).eu(1).Trials.PressValid;
+    end
+    [X, Y, L, t] = exp(iExp).getTrajectoryByTrial('r', 'HandR', trialType='press', trials=theseTrials, alignTo='stop', window=[-4, 0], includeInvalid=true, likelihoodThreshold=0.5);
+    selBaseline = t >= -4 & t <= -2;
     X = (X - mean(X(:, selBaseline), 2, 'omitnan')) ./ std(X(:, selBaseline), 0, 2, 'omitnan');
     Y = (Y - mean(Y(:, selBaseline), 2, 'omitnan')) ./ std(Y(:, selBaseline), 0, 2, 'omitnan');
     theta = 3;
@@ -176,17 +146,34 @@ for iExp = 1:length(exp)
             tOnset(1, iTrial) = t(iOnset);
         end
     end
-    sequence(iExp).CorrectReach.ReachStart = tOnset + sequence(iExp).CorrectReach.ReachEnd;
+    fprintf('Found reach onset for %.0f%% (%i/%i) of trials, NaNs are replaced with the session median of %.0f ms.\n', 100*nnz(~isnan(tOnset))./length(tOnset), nnz(~isnan(tOnset)), length(tOnset), 1e3*median(tOnset, 'all', 'omitnan'));
+    tOnset(isnan(tOnset)) = median(tOnset, 'all', 'omitnan');
+    cueTrials = Trial([theseTrials.Start], [theseTrials.Stop] + tOnset, advancedValidation=false);
+    theseTrials = Trial([theseTrials.Stop] + tOnset, [theseTrials.Stop], advancedValidation=false);
+    for iEu = 1:length(exp(iExp).eu)
+        if p.useContinuousSequence
+            exp(iExp).eu(iEu).Trials.CorrectReachStartToReachEnd = theseTrials;
+            exp(iExp).eu(iEu).Trials.CorrectCueToReachStart = cueTrials;
+        else
+            exp(iExp).eu(iEu).Trials.ValidReachStartToReachEnd = theseTrials;
+            exp(iExp).eu(iEu).Trials.ValidCueToReachStart = cueTrials;
+        end
+    end
 end
-clear iExp X Y L t selBaseline theta B tOnset iTrial iOnset
+clear iExp X Y L t selBaseline theta B tOnset iTrial iOnset theseTrials
 
-% Get RetractEnd
+%% Get RetractEnd
 for iExp = 1:length(exp)
-    [X, Y, L, t] = exp(iExp).getTrajectoryByTrial('r', 'HandR', trialType='press', trials=trials(iExp).CueToLeverReleaseCorrect, alignTo='stop', window=[0, 4], includeInvalid=true, likelihoodThreshold=0.5);
-    selBaseline = t <= 4 & t >= 2;
+    if p.useContinuousSequence
+        theseTrials = exp(iExp).eu(1).Trials.CueToLeverReleaseCorrect;
+    else
+        theseTrials = exp(iExp).eu(1).Trials.CueToLeverRelease;
+    end
+    [X, Y, L, t] = exp(iExp).getTrajectoryByTrial('r', 'HandR', trialType='press', trials=theseTrials, alignTo='stop', window=[0, 10], includeInvalid=true, likelihoodThreshold=0.5);
+    selBaseline = t >= 4 & t <= 10;
     X = (X - mean(X(:, selBaseline), 2, 'omitnan')) ./ std(X(:, selBaseline), 0, 2, 'omitnan');
     Y = (Y - mean(Y(:, selBaseline), 2, 'omitnan')) ./ std(Y(:, selBaseline), 0, 2, 'omitnan');
-    theta = 0.5;
+    theta = 2;
     B = abs(X) <= theta & abs(Y) <= theta;
     tOffset = NaN(1, size(B, 1));
     for iTrial = 1:size(B, 1)
@@ -198,59 +185,229 @@ for iExp = 1:length(exp)
             tOffset(1, iTrial) = t(iOffset);
         end
     end
-    sequence(iExp).CorrectReach.RetractEnd = tOffset + sequence(iExp).CorrectReach.RetractStart;
+    fprintf('Found retract offset for %.0f%% (%i/%i) of trials, NaNs are replaced with the session median of %.0f ms.\n', 100*nnz(~isnan(tOffset))./length(tOffset), nnz(~isnan(tOffset)), length(tOffset), 1e3*median(tOffset, 'all', 'omitnan'));
+    tOffset(isnan(tOffset)) = median(tOffset, 'all', 'omitnan');
+    cueTrials = Trial([theseTrials.Start], [theseTrials.Stop] + tOffset, advancedValidation=false);
+    theseTrials = Trial([theseTrials.Stop], [theseTrials.Stop] + tOffset, advancedValidation=false);
+    for iEu = 1:length(exp(iExp).eu)
+        if p.useContinuousSequence
+            exp(iExp).eu(iEu).Trials.CorrectRetractStartToRetractEnd = theseTrials;
+            exp(iExp).eu(iEu).Trials.CorrectCueToRetractEnd = cueTrials;
+        else
+            exp(iExp).eu(iEu).Trials.ValidRetractStartToRetractEnd = theseTrials;
+            exp(iExp).eu(iEu).Trials.ValidCueToRetractEnd = cueTrials;
+        end
+    end
 end
-clear iExp X Y L t selBaseline theta B tOffset iTrial iOffset
+clear iExp X Y L t selBaseline theta B tOffset iTrial iOffset theseTrials cueTrials
 
-%% Reshape and select common elements
+%% Collect sequence of events for rewarded reach trials
+clear sequence trials
+sequence(length(exp)) = struct(CorrectReach=[], CorrectLick=[]);
+% trials(length(exp)) = struct(CueToLeverReleaseCorrect=[], PressCorrect=[], CorrectPressToFirstRewardLick=[], LickCorrect=[], CueToLastLickOffCorrect=[]);
 for iExp = 1:length(exp)
-    sel = true(length(sequence(iExp).CorrectReach.Cue), 1);
-    for fn = ["Cue", "ReachStart", "ReachEnd", "FirstLick", "RetractStart", "RetractEnd"]
-        sel = sel & ~isnan(sequence(iExp).CorrectReach.(fn)');
-    end
-    sequence(iExp).CorrectReach.isValid = sel;
-    for fn = ["Cue", "ReachStart", "ReachEnd", "FirstLick", "RetractStart", "RetractEnd"]
-        sequence(iExp).CorrectReach.(fn) = sequence(iExp).CorrectReach.(fn)(sel)';
+    % trials(iExp).CueToLeverReleaseCorrect = exp(iExp).eu(1).Trials.CueToLeverReleaseCorrect;
+    % trials(iExp).CueToCorrectPress = exp(iExp).eu(1).Trials.PressCorrect;
+    % trials(iExp).CorrectPressToFirstRewardLick = exp(iExp).eu(1).Trials.CorrectPressToFirstRewardLick;
+    % trials(iExp).CueToCorrectLick = exp(iExp).eu(1).Trials.LickCorrect;
+    % trials(iExp).CueToLastLickOffCorrect = exp(iExp).eu(1).Trials.CueToLastLickOffCorrect;
+    % 
+    % trials(iExp).CueToPress = exp(iExp).eu(1).Trials.PressValid;
+    % trials(iExp).CueToLick = exp(iExp).eu(1).Trials.LickValid;
+
+    % Only use trials with all events present (Cue/Reach/FirstLick/Retract)
+    % data is stored in `sequence`
+    if p.useContinuousSequence
+        fprintf('iExp = %i:\n', iExp)
+        % Reach/retract in correct reach trials
+        cueToReachStartTrials = exp(iExp).eu(1).Trials.CorrectCueToReachStart;
+        cueToReachEndTrials = exp(iExp).eu(1).Trials.PressCorrect;
+        assert(isequal([cueToReachStartTrials.Start], [cueToReachEndTrials.Start]))
+        cueToRetractEndTrials = exp(iExp).eu(1).Trials.CorrectCueToRetractEnd;
+        reachTrials = exp(iExp).eu(1).Trials.CorrectReachStartToReachEnd;
+        retractTrials = exp(iExp).eu(1).Trials.CorrectRetractStartToRetractEnd;
+        reachLickTrials = exp(iExp).eu(1).Trials.CorrectPressToFirstRewardLick;
+
+        % Make sure each reach matches its retract
+        [lia, ~] = ismember([cueToReachStartTrials.Start], [cueToRetractEndTrials.Start]);
+        if ~all(lia)
+            cueToReachStartTrials = cueToReachStartTrials(lia);
+            cueToReachEndTrials = cueToReachEndTrials(lia);
+            reachTrials = reachTrials(lia);
+            fprintf('\tRemoved %i/%i reach trials without retracts\n', nnz(~lia), length(lia))
+        end
+        % Make sure each retract matches its reach
+        [lia, ~] = ismember([cueToRetractEndTrials.Start], [cueToReachStartTrials.Start]);
+        if ~all(lia)
+            cueToRetractEndTrials = cueToRetractEndTrials(lia);
+            retractTrials = retractTrials(lia);
+            fprintf('\tRemoved %i/%i retract trials without reaches\n', nnz(~lia), length(lia))
+        end
+        % Make sure each firstLick matches its reach
+        [lia, ~] = ismember([reachLickTrials.Start], [reachTrials.Stop]);
+        if ~all(lia)
+            reachLickTrials = reachLickTrials(lia);
+            fprintf('\tRemoved %i/%i firstLick trials without reach\n', nnz(~lia), length(lia))
+        end
+
+        % Make sure each reach matches its first lick
+        [lia, ~] = ismember([reachTrials.Stop], [reachLickTrials.Start]);
+        if ~all(lia)
+            cueToReachStartTrials = cueToReachStartTrials(lia);
+            cueToReachEndTrials = cueToReachEndTrials(lia);
+            reachTrials = reachTrials(lia);
+            fprintf('\tRemoved %i/%i reach trials without firstLicks\n', nnz(~lia), length(lia))
+
+            % Trim retract trials as well b/c we trimmed some reach trials
+            [lia, ~] = ismember([cueToRetractEndTrials.Start], [cueToReachStartTrials.Start]);
+            if ~all(lia)
+                cueToRetractEndTrials = cueToRetractEndTrials(lia);
+                retractTrials = retractTrials(lia);
+                fprintf('\tRemoved %i/%i retract trials without firstLicks\n', nnz(~lia), length(lia))
+            end
+        end
+        assert(all(ismember([reachLickTrials.Start], [reachTrials.Stop])), 'We should not need to retrim correctReach->firstLick trials');
+
+        sequence(iExp).CorrectReach.ReachStart = [reachTrials.Start];
+        sequence(iExp).CorrectReach.ReachEnd = [reachTrials.Stop];
+        sequence(iExp).CorrectReach.FirstLick = [reachLickTrials.Stop];
+        sequence(iExp).CorrectReach.RetractStart = [retractTrials.Start];
+        sequence(iExp).CorrectReach.RetractEnd = [retractTrials.Stop];
+        clear reachTrials retractTrials reachLickTrials cueToReachStartTrials cueToRetractEndTrials cueToReachEndTrials lia
+
+        % CorrectLick
+        lickTrials = exp(iExp).eu(1).Trials.LickCorrect;
+        lastLickOffTrials = exp(iExp).eu(1).Trials.CueToLastLickOffCorrect;
+        % Make sure each lick matches its lastLickOff
+        [lia, ~] = ismember([lickTrials.Start], [lastLickOffTrials.Start]);
+        if ~all(lia)
+            lickTrials = lickTrials(lia);
+            fprintf('\tRemoved %i/%i lick trials without lastLickOffs\n', nnz(~lia), length(lia))
+        end
+        % Make sure each lastLickOff matches its lick
+        [lia, ~] = ismember([lastLickOffTrials.Start], [lickTrials.Start]);
+        if ~all(lia)
+            lastLickOffTrials = lastLickOffTrials(lia);
+            fprintf('\tRemoved %i/%i lastLickOff trials without firstLick\n', nnz(~lia), length(lia))
+        end
+
+        sequence(iExp).CorrectLick.Lick = [lickTrials.Stop];
+        sequence(iExp).CorrectLick.LastLickOff = [lastLickOffTrials.Stop];
+
+        clear lickTrials lastLickOffTrials lia
+    % Use all trials for each epoch, when applicable
+    % Data is stored in `trials`
+    else
     end
 end
-clear iExp sel fn
+clear iExp
 
-%% Filter out invalid sessions
-minNumTrials = 5;
+% Reshape and select common elements
+if p.useContinuousSequence
+    for iExp = 1:length(exp)
+        sel = true(length(sequence(iExp).CorrectReach.ReachStart), 1);
+        for fn = ["ReachStart", "ReachEnd", "FirstLick", "RetractStart", "RetractEnd"]
+            sel = sel & ~isnan(sequence(iExp).CorrectReach.(fn)');
+        end
+        sequence(iExp).CorrectReach.isValid = sel;
+        for fn = ["ReachStart", "ReachEnd", "FirstLick", "RetractStart", "RetractEnd"]
+            sequence(iExp).CorrectReach.(fn) = sequence(iExp).CorrectReach.(fn)(sel)';
+        end
+        assert(all(sequence(iExp).CorrectReach.isValid), 'We should not need to trim events now since it was done at the previous step.')
+        for fn = ["Lick", "LastLickOff"]
+            sequence(iExp).CorrectLick.(fn) = sequence(iExp).CorrectLick.(fn)';
+        end
+    end
+    clear iExp sel fn
+end
+
+% Filter out invalid sessions
+p.minNumTrials = 5;
 thisSeq = [sequence.CorrectReach];
-sel = cellfun(@(b) nnz(b) >= minNumTrials, {thisSeq.isValid});
+sel = cellfun(@(b) nnz(b) >= p.minNumTrials, {thisSeq.isValid});
 sequence = sequence(sel);
 results = results(sel);
 exp = exp(sel);
 eu = [exp.eu];
-clear sel
+clear sel thisSeq
+
+%% Analyze distribution of sequence durations
+assert(p.useContinuousSequence)
+close all
+sequenceStats = struct(CorrectReach=[], CorrectLick=[]);
+for task = ["CorrectReach", "CorrectLick"]
+    switch task
+        case "CorrectReach"
+            events = ["ReachStart", "ReachEnd", "FirstLick", "RetractStart", "RetractEnd"];
+        case "CorrectLick"
+            events = ["Lick", "LastLickOff"];
+        otherwise
+            error()
+    end
+    thisSeq = [sequence.(task)];
+    nEpochs = length(events) - 1;
+    for iEpoch = 1:nEpochs
+        sequenceStats.(task)(iEpoch).name = sprintf("%s_to_%s",  events(iEpoch),  events(iEpoch+1));
+        sequenceStats.(task)(iEpoch).duration = vertcat(thisSeq.(events(iEpoch+1))) - vertcat(thisSeq.(events(iEpoch)));
+        sequenceStats.(task)(iEpoch).startEvent = events(iEpoch);
+        sequenceStats.(task)(iEpoch).stopEvent = events(iEpoch+1);
+    end
+    fig = figure(Units='inches', Position=[1, 1, 3, nEpochs*1.5]);
+    tl = tiledlayout(fig, nEpochs, 1);
+    ax = gobjects(nEpochs, 1);
+    for iEpoch = 1:nEpochs
+        ax(iEpoch) = nexttile(tl);
+        x = 1e3*sequenceStats.(task)(iEpoch).duration;
+        histogram(ax(iEpoch), x, 100, DisplayName=sprintf("mean=%.0fms\nmedian=%.0fms", mean(x), median(x)));
+        xlabel(ax(iEpoch), sprintf("%s (ms)", sequenceStats.(task)(iEpoch).name), Interpreter='none')
+        legend(ax(iEpoch), Location='northeast')
+    end
+end
+clear task thisSeq iEpoch fig tl ax x
 
 %% Get binned spike counts and trajectories
 [lia, expIndex] = ismember({eu.ExpName}, {exp.name});
 assert(all(lia));
 clear lia sc sr msr
 
-nSamples = 8;
-nSamplesBaseline = 20;
-durationPreMove = 2;
+p.nSamplesPerSecond = 10;
+p.nSamplesMin = 3;
+p.nSamplesMax = 8;
+p.nSamples = struct(CorrectReach=[], CorrectLick=[]);
+p.nSamplesBaseline = 20;
+p.durationPreMove = 2;
+p.durationPostMove = 2;
+
+p.nSamples.CorrectReach(1) = min(p.nSamplesMax, max(p.nSamplesMin, 1 + ceil(p.nSamplesPerSecond * p.durationPreMove)));
+p.nSamples.CorrectReach(2) = min(p.nSamplesMax, max(p.nSamplesMin, 1 + ceil(p.nSamplesPerSecond * median(sequenceStats.CorrectReach(1).duration))));
+p.nSamples.CorrectReach(3) = min(p.nSamplesMax, max(p.nSamplesMin, 1 + ceil(p.nSamplesPerSecond * median(sequenceStats.CorrectReach(2).duration))));
+p.nSamples.CorrectReach(4) = min(p.nSamplesMax, max(p.nSamplesMin, 1 + ceil(p.nSamplesPerSecond * 1)));
+p.nSamples.CorrectReach(5) = min(p.nSamplesMax, max(p.nSamplesMin, 1 + ceil(p.nSamplesPerSecond * median(sequenceStats.CorrectReach(3).duration) - 1)));
+p.nSamples.CorrectReach(6) = min(p.nSamplesMax, max(p.nSamplesMin, 1 + ceil(p.nSamplesPerSecond * median(sequenceStats.CorrectReach(4).duration))));
+p.nSamples.CorrectReach(7) = min(p.nSamplesMax, max(p.nSamplesMin, 1 + ceil(p.nSamplesPerSecond * p.durationPostMove)));
+
+p.nSamples.CorrectLick(1) = min(p.nSamplesMax, max(p.nSamplesMin, 1 + ceil(p.nSamplesPerSecond * p.durationPreMove)));
+p.nSamples.CorrectLick(2) = min(p.nSamplesMax, max(p.nSamplesMin, 1 + ceil(p.nSamplesPerSecond * 1)));
+p.nSamples.CorrectLick(3) = min(p.nSamplesMax, max(p.nSamplesMin, 1 + ceil(p.nSamplesPerSecond * median(sequenceStats.CorrectLick(1).duration) - 1)));
+p.nSamples.CorrectLick(4) = min(p.nSamplesMax, max(p.nSamplesMin, 1 + ceil(p.nSamplesPerSecond * p.durationPostMove)));
 
 % shuffle = [-100, 100];
 shuffle = [0, 0];
 
 tLocal.CorrectReach = unique([ ...
-    linspace(-2, -1, nSamples), ... ReachStart-2 -> ReachStart
-    linspace(-1, 0, nSamples), ... ReachStart -> ReachEnd
-    linspace(0, 1, nSamples), ... ReachEnd -> FirstLick
-    linspace(1, 2, nSamples), ... FirstLick -> FirstLick+1
-    linspace(2, 3, nSamples), ... FirstLick+1 -> RetractStart
-    linspace(3, 4, nSamples), ... RetractStart -> RetractEnd
-    linspace(4, 5, nSamples) ... RetractEnd -> RetractEnd+2
+    linspace(-2, -1, p.nSamples.CorrectReach(1)), ... ReachStart-2 -> ReachStart
+    linspace(-1, 0, p.nSamples.CorrectReach(2)), ... ReachStart -> ReachEnd
+    linspace(0, 1, p.nSamples.CorrectReach(3)), ... ReachEnd -> FirstLick
+    linspace(1, 2, p.nSamples.CorrectReach(4)), ... FirstLick -> FirstLick+1
+    linspace(2, 3, p.nSamples.CorrectReach(5)), ... FirstLick+1 -> RetractStart
+    linspace(3, 4, p.nSamples.CorrectReach(6)), ... RetractStart -> RetractEnd
+    linspace(4, 5, p.nSamples.CorrectReach(7)) ... RetractEnd -> RetractEnd+2
     ]);
 tLocal.CorrectLick = unique([ ...
-    linspace(-1, 0, nSamples), ... Lick-2 -> Lick
-    linspace(0, 1, nSamples), ... Lick -> Lick+1
-    linspace(1, 2, nSamples), ... Lick+1 -> LastLickOff
-    linspace(2, 3, nSamples), ... LastLickOff -> LastLickOff+2
+    linspace(-1, 0, p.nSamples.CorrectLick(1)), ... Lick-2 -> Lick
+    linspace(0, 1, p.nSamples.CorrectLick(2)), ... Lick -> Lick+1
+    linspace(1, 2, p.nSamples.CorrectLick(3)), ... Lick+1 -> LastLickOff
+    linspace(2, 3, p.nSamples.CorrectLick(4)), ... LastLickOff -> LastLickOff+2
     ]);
 msr.CorrectReach = NaN(length(eu), length(tLocal.CorrectReach)-1);
 msr.CorrectLick = NaN(length(eu), length(tLocal.CorrectLick)-1);
@@ -258,28 +415,28 @@ for iEu = 1:length(eu)
     iExp = expIndex(iEu);
 
     % CorrectReach
-    nTrials = length(sequence(iExp).CorrectReach.Cue);
+    nTrials = length(sequence(iExp).CorrectReach.ReachStart);
     sr = NaN(nTrials, length(tLocal.CorrectReach)-1);
     for iTrial = 1:nTrials
         try
             shuffledTimeShift = shuffle(1) + (rand(1) * diff(shuffle));
             edges = [ ...
-                linspace(sequence(iExp).CorrectReach.ReachStart(iTrial)-durationPreMove, sequence(iExp).CorrectReach.ReachStart(iTrial), nSamples), ...ReachStart-2 -> ReachStart
-                linspace(sequence(iExp).CorrectReach.ReachStart(iTrial), sequence(iExp).CorrectReach.ReachEnd(iTrial), nSamples), ... ReachStart -> ReachEnd
-                linspace(sequence(iExp).CorrectReach.ReachEnd(iTrial), sequence(iExp).CorrectReach.FirstLick(iTrial), nSamples), ... ReachEnd -> FirstLick
-                linspace(sequence(iExp).CorrectReach.FirstLick(iTrial), min(sequence(iExp).CorrectReach.FirstLick(iTrial)+1, sequence(iExp).CorrectReach.RetractStart(iTrial)), nSamples), ... FirstLick -> FirstLick+1
-                linspace(min(sequence(iExp).CorrectReach.FirstLick(iTrial)+1, sequence(iExp).CorrectReach.RetractStart(iTrial)), sequence(iExp).CorrectReach.RetractStart(iTrial), nSamples), ... FirstLick+1 -> RetractStart
-                linspace(sequence(iExp).CorrectReach.RetractStart(iTrial), sequence(iExp).CorrectReach.RetractEnd(iTrial), nSamples), ... RetractStart -> RetractEnd
-                linspace(sequence(iExp).CorrectReach.RetractEnd(iTrial), sequence(iExp).CorrectReach.RetractEnd(iTrial)+2, nSamples) ... RetractEnd -> RetractEnd+2
+                linspace(sequence(iExp).CorrectReach.ReachStart(iTrial)-p.durationPreMove, sequence(iExp).CorrectReach.ReachStart(iTrial), p.nSamples.CorrectReach(1)), ...ReachStart-2 -> ReachStart
+                linspace(sequence(iExp).CorrectReach.ReachStart(iTrial), sequence(iExp).CorrectReach.ReachEnd(iTrial), p.nSamples.CorrectReach(2)), ... ReachStart -> ReachEnd
+                linspace(sequence(iExp).CorrectReach.ReachEnd(iTrial), sequence(iExp).CorrectReach.FirstLick(iTrial), p.nSamples.CorrectReach(3)), ... ReachEnd -> FirstLick
+                linspace(sequence(iExp).CorrectReach.FirstLick(iTrial), min(sequence(iExp).CorrectReach.FirstLick(iTrial)+1, sequence(iExp).CorrectReach.RetractStart(iTrial)), p.nSamples.CorrectReach(4)), ... FirstLick -> FirstLick+1
+                linspace(min(sequence(iExp).CorrectReach.FirstLick(iTrial)+1, sequence(iExp).CorrectReach.RetractStart(iTrial)), sequence(iExp).CorrectReach.RetractStart(iTrial), p.nSamples.CorrectReach(5)), ... FirstLick+1 -> RetractStart
+                linspace(sequence(iExp).CorrectReach.RetractStart(iTrial), sequence(iExp).CorrectReach.RetractEnd(iTrial), p.nSamples.CorrectReach(6)), ... RetractStart -> RetractEnd
+                linspace(sequence(iExp).CorrectReach.RetractEnd(iTrial), sequence(iExp).CorrectReach.RetractEnd(iTrial)+p.durationPostMove, p.nSamples.CorrectReach(7)) ... RetractEnd -> RetractEnd+2
                 ];
             if ~all(diff(edges) >= 0)
                 error()
             end
             edges = unique(edges) + shuffledTimeShift;
-            [sc, t] = eu(iEu).getSpikeCounts(edges);
+            [sc, ~] = eu(iEu).getSpikeCounts(edges);
     
             sc = double(sc)./diff(edges);
-            baselineEdges = linspace(sequence(iExp).CorrectReach.ReachStart(iTrial)-4, sequence(iExp).CorrectReach.ReachStart(iTrial)-2, nSamplesBaseline);
+            baselineEdges = linspace(sequence(iExp).CorrectReach.ReachStart(iTrial)-4, sequence(iExp).CorrectReach.ReachStart(iTrial)-2, p.nSamplesBaseline);
             [bsc, ~] = eu(iEu).getSpikeCounts(baselineEdges);
             bsc = double(bsc)./diff(baselineEdges);
     
@@ -291,25 +448,25 @@ for iEu = 1:length(eu)
     msr.CorrectReach(iEu, :) = mean(sr, 1, 'omitnan');
 
     % CorrectLick
-    nTrials = length(sequence(iExp).CorrectLick.Cue);
+    nTrials = length(sequence(iExp).CorrectLick.Lick);
     sr = NaN(nTrials, length(tLocal.CorrectLick)-1);
     for iTrial = 1:nTrials
         try
             shuffledTimeShift = shuffle(1) + (rand(1) * diff(shuffle));
             edges = [ ...
-                    linspace(sequence(iExp).CorrectLick.Lick(iTrial)-durationPreMove, sequence(iExp).CorrectLick.Lick(iTrial), nSamples), ... Lick-2 -> Lick
-                    linspace(sequence(iExp).CorrectLick.Lick(iTrial), min(sequence(iExp).CorrectLick.Lick(iTrial)+1, sequence(iExp).CorrectLick.LastLickOff(iTrial)), nSamples), ... Lick -> Lick+1
-                    linspace(min(sequence(iExp).CorrectLick.Lick(iTrial)+1, sequence(iExp).CorrectLick.LastLickOff(iTrial)), sequence(iExp).CorrectLick.LastLickOff(iTrial), nSamples), ... Lick+1 -> LastLickOff
-                    linspace(sequence(iExp).CorrectLick.LastLickOff(iTrial), sequence(iExp).CorrectLick.LastLickOff(iTrial)+durationPreMove, nSamples), ... LastLickOff -> LastLickOff+2
+                    linspace(sequence(iExp).CorrectLick.Lick(iTrial)-p.durationPreMove, sequence(iExp).CorrectLick.Lick(iTrial), p.nSamples.CorrectLick(1)), ... Lick-2 -> Lick
+                    linspace(sequence(iExp).CorrectLick.Lick(iTrial), min(sequence(iExp).CorrectLick.Lick(iTrial)+1, sequence(iExp).CorrectLick.LastLickOff(iTrial)), p.nSamples.CorrectLick(2)), ... Lick -> Lick+1
+                    linspace(min(sequence(iExp).CorrectLick.Lick(iTrial)+1, sequence(iExp).CorrectLick.LastLickOff(iTrial)), sequence(iExp).CorrectLick.LastLickOff(iTrial), p.nSamples.CorrectLick(3)), ... Lick+1 -> LastLickOff
+                    linspace(sequence(iExp).CorrectLick.LastLickOff(iTrial), sequence(iExp).CorrectLick.LastLickOff(iTrial)+p.durationPostMove, p.nSamples.CorrectLick(4)), ... LastLickOff -> LastLickOff+2
                 ];
             if ~all(diff(edges) >= 0)
                 error()
             end
             edges = unique(edges) + shuffledTimeShift;
-            [sc, t] = eu(iEu).getSpikeCounts(edges);
+            [sc, ~] = eu(iEu).getSpikeCounts(edges);
     
             sc = double(sc)./diff(edges);
-            baselineEdges = linspace(sequence(iExp).CorrectLick.Lick(iTrial)-4, sequence(iExp).CorrectLick.Lick(iTrial)-2, nSamplesBaseline);
+            baselineEdges = linspace(sequence(iExp).CorrectLick.Lick(iTrial)-4, sequence(iExp).CorrectLick.Lick(iTrial)-2, p.nSamplesBaseline);
             [bsc, ~] = eu(iEu).getSpikeCounts(baselineEdges);
             bsc = double(bsc)./diff(baselineEdges);
     
@@ -322,34 +479,32 @@ for iEu = 1:length(eu)
 
 
 end
-clear iEu iExp nTrials sr iTrial edges sc t baselineEdges bsc
-
-
+clear iEu iExp nTrials sr iTrial edges sc t baselineEdges bsc shuffledTimeShift
 
 %% Get trajectories per experiment
 clear traj
 traj(length(exp)) = struct(CorrectReach=[], CorrectLick=[]);
 for iExp = 1:length(exp)
-    nTrials = length(sequence(iExp).CorrectReach.Cue);
+    nTrials = length(sequence(iExp).CorrectReach.ReachStart);
 
     for bodypart = ["HandR", "Tongue"]
         X = zeros(nTrials, length(tLocal.CorrectReach));
         Y = X;
         L = X;
         T = X;
-        XBase = zeros(nTrials, nSamplesBaseline);
+        XBase = zeros(nTrials, p.nSamplesBaseline);
         YBase = XBase;
     
         for iTrial = 1:nTrials
             try
                 t = [ ...
-                    linspace(sequence(iExp).CorrectReach.ReachStart(iTrial)-durationPreMove, sequence(iExp).CorrectReach.ReachStart(iTrial), nSamples), ...ReachStart-2 -> ReachStart
-                    linspace(sequence(iExp).CorrectReach.ReachStart(iTrial), sequence(iExp).CorrectReach.ReachEnd(iTrial), nSamples), ... ReachStart -> ReachEnd
-                    linspace(sequence(iExp).CorrectReach.ReachEnd(iTrial), sequence(iExp).CorrectReach.FirstLick(iTrial), nSamples), ... ReachEnd -> FirstLick
-                    linspace(sequence(iExp).CorrectReach.FirstLick(iTrial), min(sequence(iExp).CorrectReach.FirstLick(iTrial)+1, sequence(iExp).CorrectReach.RetractStart(iTrial)), nSamples), ... FirstLick -> FirstLick+1
-                    linspace(min(sequence(iExp).CorrectReach.FirstLick(iTrial)+1, sequence(iExp).CorrectReach.RetractStart(iTrial)), sequence(iExp).CorrectReach.RetractStart(iTrial), nSamples), ... FirstLick+1 -> RetractStart
-                    linspace(sequence(iExp).CorrectReach.RetractStart(iTrial), sequence(iExp).CorrectReach.RetractEnd(iTrial), nSamples), ... RetractStart -> RetractEnd
-                    linspace(sequence(iExp).CorrectReach.RetractEnd(iTrial), sequence(iExp).CorrectReach.RetractEnd(iTrial)+2, nSamples) ... RetractEnd -> RetractEnd+2
+                        linspace(sequence(iExp).CorrectReach.ReachStart(iTrial)-p.durationPreMove, sequence(iExp).CorrectReach.ReachStart(iTrial), p.nSamples.CorrectReach(1)), ...ReachStart-2 -> ReachStart
+                        linspace(sequence(iExp).CorrectReach.ReachStart(iTrial), sequence(iExp).CorrectReach.ReachEnd(iTrial), p.nSamples.CorrectReach(2)), ... ReachStart -> ReachEnd
+                        linspace(sequence(iExp).CorrectReach.ReachEnd(iTrial), sequence(iExp).CorrectReach.FirstLick(iTrial), p.nSamples.CorrectReach(3)), ... ReachEnd -> FirstLick
+                        linspace(sequence(iExp).CorrectReach.FirstLick(iTrial), min(sequence(iExp).CorrectReach.FirstLick(iTrial)+1, sequence(iExp).CorrectReach.RetractStart(iTrial)), p.nSamples.CorrectReach(4)), ... FirstLick -> FirstLick+1
+                        linspace(min(sequence(iExp).CorrectReach.FirstLick(iTrial)+1, sequence(iExp).CorrectReach.RetractStart(iTrial)), sequence(iExp).CorrectReach.RetractStart(iTrial), p.nSamples.CorrectReach(5)), ... FirstLick+1 -> RetractStart
+                        linspace(sequence(iExp).CorrectReach.RetractStart(iTrial), sequence(iExp).CorrectReach.RetractEnd(iTrial), p.nSamples.CorrectReach(6)), ... RetractStart -> RetractEnd
+                        linspace(sequence(iExp).CorrectReach.RetractEnd(iTrial), sequence(iExp).CorrectReach.RetractEnd(iTrial)+p.durationPostMove, p.nSamples.CorrectReach(7)) ... RetractEnd -> RetractEnd+2
                     ];
                 if ~all(diff(t) >= 0)
                     error()
@@ -360,7 +515,7 @@ for iExp = 1:length(exp)
                 T(iTrial, :) = t;
         
                 % Baseline [-4, -2]
-                tBaseline = linspace(sequence(iExp).CorrectReach.ReachStart(iTrial)-4, sequence(iExp).CorrectReach.ReachStart(iTrial)-2, nSamplesBaseline);
+                tBaseline = linspace(sequence(iExp).CorrectReach.ReachStart(iTrial)-4, sequence(iExp).CorrectReach.ReachStart(iTrial)-2, p.nSamplesBaseline);
                 [XBase(iTrial, :), YBase(iTrial, :), ~] =  exp(iExp).getTrajectory(tBaseline, 'r', char(bodypart), likelihoodThreshold=0.5);
             catch
                 warning('Cannot process "%s" trajectory for iExp=%i, iTrial=%i, %s', bodypart, iExp, iTrial, exp(iExp).name)
@@ -374,22 +529,22 @@ for iExp = 1:length(exp)
     end
 
 
-    nTrials = length(sequence(iExp).CorrectLick.Cue);
+    nTrials = length(sequence(iExp).CorrectLick.Lick);
     for bodypart = ["HandR", "Tongue"]
         X = zeros(nTrials, length(tLocal.CorrectLick));
         Y = X;
         L = X;
         T = X;
-        XBase = zeros(nTrials, nSamplesBaseline);
+        XBase = zeros(nTrials, p.nSamplesBaseline);
         YBase = XBase;
     
         for iTrial = 1:nTrials
             try
                 t = [ ...
-                    linspace(sequence(iExp).CorrectLick.Lick(iTrial)-durationPreMove, sequence(iExp).CorrectLick.Lick(iTrial), nSamples), ... Lick-2 -> Lick
-                    linspace(sequence(iExp).CorrectLick.Lick(iTrial), min(sequence(iExp).CorrectLick.Lick(iTrial)+1, sequence(iExp).CorrectLick.LastLickOff(iTrial)), nSamples), ... Lick -> Lick+1
-                    linspace(min(sequence(iExp).CorrectLick.Lick(iTrial)+1, sequence(iExp).CorrectLick.LastLickOff(iTrial)), sequence(iExp).CorrectLick.LastLickOff(iTrial), nSamples), ... Lick+1 -> LastLickOff
-                    linspace(sequence(iExp).CorrectLick.LastLickOff(iTrial), sequence(iExp).CorrectLick.LastLickOff(iTrial)+durationPreMove, nSamples), ... LastLickOff -> LastLickOff+2
+                        linspace(sequence(iExp).CorrectLick.Lick(iTrial)-p.durationPreMove, sequence(iExp).CorrectLick.Lick(iTrial), p.nSamples.CorrectLick(1)), ... Lick-2 -> Lick
+                        linspace(sequence(iExp).CorrectLick.Lick(iTrial), min(sequence(iExp).CorrectLick.Lick(iTrial)+1, sequence(iExp).CorrectLick.LastLickOff(iTrial)), p.nSamples.CorrectLick(2)), ... Lick -> Lick+1
+                        linspace(min(sequence(iExp).CorrectLick.Lick(iTrial)+1, sequence(iExp).CorrectLick.LastLickOff(iTrial)), sequence(iExp).CorrectLick.LastLickOff(iTrial), p.nSamples.CorrectLick(3)), ... Lick+1 -> LastLickOff
+                        linspace(sequence(iExp).CorrectLick.LastLickOff(iTrial), sequence(iExp).CorrectLick.LastLickOff(iTrial)+p.durationPostMove, p.nSamples.CorrectLick(4)), ... LastLickOff -> LastLickOff+2
                     ];
                 if ~all(diff(t) >= 0)
                     error()
@@ -400,7 +555,7 @@ for iExp = 1:length(exp)
                 T(iTrial, :) = t;
         
                 % Baseline [-4, -2]
-                tBaseline = linspace(sequence(iExp).CorrectLick.Lick(iTrial)-4, sequence(iExp).CorrectLick.Lick(iTrial)-2, nSamplesBaseline);
+                tBaseline = linspace(sequence(iExp).CorrectLick.Lick(iTrial)-4, sequence(iExp).CorrectLick.Lick(iTrial)-2, p.nSamplesBaseline);
                 [XBase(iTrial, :), YBase(iTrial, :), ~] =  exp(iExp).getTrajectory(tBaseline, 'r', char(bodypart), likelihoodThreshold=0.5);
             catch
                 warning('Cannot process "%s" trajectory for iExp=%i, iTrial=%i, %s', bodypart, iExp, iTrial, exp(iExp).name)
@@ -427,6 +582,25 @@ AX = gobjects(2, 2);
 ax = nexttile(tl, 1, [layout.h(1), layout.w(1)]);
 AX(1, 1) = ax;
 hold(ax, 'on')
+trajTemp = [traj.CorrectLick];
+HandR = [trajTemp.HandR];
+Tongue = [trajTemp.Tongue];
+x = mean(cat(1, HandR.X), 1, 'omitnan');
+y = mean(cat(1, HandR.Y), 1, 'omitnan');
+l = cat(1, Tongue.L);
+l(l>0.5) = 1;
+l(l<0.5) = 0;
+l = mean(l, 1, 'omitnan');
+l = l./max(l);
+colororder(ax, [0.75, 0.15, 0.15; 0.15, 0.15, 0.75])
+yyaxis(ax, 'left')
+plot(ax, HandR(1).t, sqrt(x.^2 + y.^2), Color=[0.75, 0.15, 0.15], DisplayName='HandR')
+ylabel(ax, 'HandR')
+yyaxis(ax, 'right')
+plot(ax, Tongue(1).t, l, Color=[0.15, 0.15, 0.75], DisplayName='Tongue')
+ylim(ax, [0, 1])
+ylabel(ax, 'Tongue')
+clear HandR Tongue trajTemp x y l
 
 % CorrectLick PETH
 ax = nexttile(tl, layout.h(1) + 1, [layout.h(2), layout.w(1)]);
@@ -638,7 +812,7 @@ xticklabels(AX(2, 2), ...
 xtickangle(AX, 90)
 fontsize(fig, 9, 'points')
 
-clear ax AX eta iAx fig tl IValley nValley order meta
+clear ax AX eta iAx fig tl IValley nValley order meta yl
 
 
 %% Do some neuron categorization by response
@@ -649,11 +823,11 @@ meta.reachLick = mean(msr.CorrectReach(:, tLocal.CorrectReach>=1 & tLocal.Correc
 meta.reach = mean(msr.CorrectReach(:, tLocal.CorrectReach>=-1 & tLocal.CorrectReach<=0), 2, 'omitnan');
 
 tl = tiledlayout(figure(Units='inches', Position=[1, 1, 10, 3]), 1, 3);
-epochs = ["lick", "reachLick", "reach"];
+sequenceStats = ["lick", "reachLick", "reach"];
 for i = 1:3
     ax = nexttile(tl);
-    histogram(ax, meta.(epochs(i)), -30:1:30)
-    title(ax, epochs(i))
+    histogram(ax, meta.(sequenceStats(i)), -30:1:30)
+    title(ax, sequenceStats(i))
 end
 
 % theta.pos = 1;
@@ -664,11 +838,11 @@ theta.neg = 0;
 
 metaSign = struct(lick=[], reachLick=[], reach=[]);
 for i = 1:3
-    x = meta.(epochs(i));
+    x = meta.(sequenceStats(i));
     y = ones(size(x));
     y(x<=theta.neg) = 0;
     y(x>=theta.pos) = 2;
-    metaSign.(epochs(i)) = y;
+    metaSign.(sequenceStats(i)) = y;
 end
 
 base = 3;
@@ -689,7 +863,7 @@ for i = 1:3
     end
 end
 
-exportPath = 'E:\Figures\reach_vs_lick_continuous\heatmaps_by_hash';
+exportPath = 'E:\Figures\reach_vs_lick_continuous\heatmaps_by_hash_continuousSequence_variableBins';
 uniqueMetaHash = reshape(unique(metaHash), 1, []);
 if exist(exportPath)
     rmdir(exportPath, 's')
@@ -900,4 +1074,4 @@ for hash = uniqueMetaHash
     end
 end
 
-clear tl epochs i ax theta metaSign meta i x y base metaHash descElements hashDesc i j k exportPath uniqueMetaHash layout iFig wFig hashGroups H0 hashGroupNames hash sel iGroup fig  ax AX eta IValley nValley tValley iEu selT w order desc
+clear tl i ax theta metaSign meta i x y base metaHash descElements hashDesc i j k exportPath uniqueMetaHash layout iFig wFig hashGroups H0 hashGroupNames hash sel iGroup fig  ax AX eta IValley nValley tValley iEu selT w order desc yl iRow iTask
