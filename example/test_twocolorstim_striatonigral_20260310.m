@@ -1,6 +1,10 @@
 
 folders = { ...
-    'C:\SERVER\desmond43\desmond43_20260313',
+    'C:\SERVER\desmond43\desmond43_20260313', ...
+    };
+
+outputFolders = { ...
+    'C:\SERVER\Units\Test\desmond43', ...
     };
 
 chunkSize = 32; % NumChannelsPerChunk
@@ -25,7 +29,7 @@ for iSession = 1:length(folders)
 
             ar = AcuteRecording(tr, 'N/A');
             ar.binMoveResponse(tr, 'none', Window=[-1, 0], Store=true);
-            eu = EphysUnit(ar, readWaveforms=false, cullITI=false, savepath='C:\Data\Units\Test\desmond43', tr=tr);
+            eu = EphysUnit(ar, readWaveforms=false, cullITI=false, savepath=outputFolders{iSession}, tr=tr);
 
             tr.Spikes = [];
             clear eu
@@ -37,7 +41,7 @@ for iSession = 1:length(folders)
 end
 %%
 clear clc
-eu = EphysUnit.load('C:\Data\Units\Test\desmond43', waveforms=false, spikecounts=false, spikerates=false);
+eu = EphysUnit.load(outputFolders{1}, waveforms=false, spikecounts=false, spikerates=false);
 
 %% Do psth
 rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shutterDelay=0, photoelectricBlankDuration=1.5e-3, photoelectricOffsetBlankWindow=[10e-3, 10.5e-3]);
@@ -57,6 +61,10 @@ p.xlim.move = [-4, 2];
 p.path = 'E:\Data\Figures\Test';
 p.rasterSzStim = 3;
 p.rasterSzMove = 1;
+
+p.artifacts = struct(event=[], length=[], lengthUnit=[], direction=[]);
+p.artifacts(1) = struct(event='StimOn', length=0.5, lengthUnit='ms', direction='right');
+p.artifacts(2) = struct(event='StimOff', length=0.5, lengthUnit='ms', direction='right');
 
 close all
 XBlue = cell(length(eu), 1);
@@ -164,7 +172,7 @@ for iEu = 1:length(eu)
             % etaTemp = eu(iEu).getETA('count', 'stimtwocolor', [-0.5, 0.5], normalize=[-0.5, -0.3], resolution=0.025, alignTo='start', ...
             %     trials = groups(iGrp).trials);
             etaTemp = eu(iEu).getETA('count', 'stimtwocolor', [-0.5, 0.5], normalize=[-0.5, -0.3], resolution=0.025, alignTo='start', ...
-                trials = groups(iGrp).trials);
+                trials = groups(iGrp).trials, artifacts=p.artifacts);
             t = etaTemp.t;
             deltaSR(iGrp, :) = etaTemp.X;
         end
