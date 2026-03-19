@@ -11,6 +11,7 @@ load('C:\SERVER\Units\boot_20241118_Figure7.mat')
 read_lda
 nt = 16;
 % boot_amplitude_difference;
+
 %% Fig7. Lever-2-pos
 p.fontSize = 9;
 p.view = [0, 90];
@@ -296,6 +297,14 @@ lgd = legend(hDummy, Orientation='horizontal');
 lgd.Layout.Tile = 'south';
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
+
+clear hLetters layout fig l PAWNAME SELTRIALS XL XTICKLABELS TITLES 
+clear DOTFACTOR DOTPOWER AX hDummy iCol ax AX nTargets nFrames targetNames 
+clear targetNamesDisp iTarget iColor selFrames selTrials x y z 
+clear xrange yrange zrange axl ETA N selUnits metaWindow ex ey metaX metaY 
+clear t latTrialLat latTrialMed medTrialLat medTrialMed DATA COLOR LABEL h
+clear iMove mu selUnits2tgt nAnimals2tgt TARGETNAME TARGETNAMEDISP SELTRIALS
+clear FIELDNAME ITARGET AX targetNamesDisp nUnits CL iCol iCol order lgd
 
 %% Fig S8. Lever-4-pos and scatter META comparisons for any A vs. B movement
 close all

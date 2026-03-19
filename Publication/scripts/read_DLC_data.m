@@ -26,6 +26,7 @@ assert(all(lia))
 aiAcute = ai(locb);
 implantSide([aiAcute.ml] > 0) = 'R';
 leverSide([aiAcute.ml] > 0) = 'L';
+
 %% 1.1.1 Get trial aligned movement velocity data (slow)
 p.velETAWindow = [-10, 3];
 p.velETABinWidth = 0.025;
@@ -92,7 +93,7 @@ for iExp = 1:length(expAcute)
                     F(:, {'t', 'inTrial'}) = [];
                     thisData = table2array(F);
                     thisData(~inTrial, :) = NaN;
-        
+
                     % Incorrect
                     if trials(iTrial).duration < 4
                         iTrialIncorrect = iTrialIncorrect + 1;

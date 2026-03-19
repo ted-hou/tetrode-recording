@@ -43,9 +43,7 @@ clear iSession iPath files
 %% Make CompleteExperiment3 objects
 clc
 exp = CompleteExperiment3([sessions.eu], cameras='lr', deeplabcutPath='\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\DeepLabCut\Results');
-
 exp.alignTimestamps(refEventNameArduino={'CUE_ON'}, refEventNameEphys={'Cue'}, trialDurationTolerance=2);
-
 
 %%
 clear results
@@ -63,7 +61,6 @@ for iExp = 1:length(exp)
     end
 end
 clear iExp
-
 
 % Rename variables
 from = ["HandCameraSide", "handIpsi", "handCont", "footIpsi", "footCont", "tongue"];

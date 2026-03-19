@@ -13,15 +13,14 @@ for iEu = 1:length(euReachDir2tgt)
         fprintf(1, 'Cannot find AR: %s\n', euReachDir2tgt(iEu).ExpName)
     end
 end
-%%
+
+%% 
 for iEu = 1:length(euReachDir2tgt)
     trials = euReachDir2tgt(iEu).makeTrials('press_spontaneous');
     goodTrials = trials(trials.duration() > 4);
     euReachDir2tgt(iEu).Trials.PressSpontaneous = goodTrials;
 end
-
 pa2tgt = Pawnalyzer2(euReachDir2tgt, refEvent='press');
-
 
 % Make trajectories
 pa2tgt.getClips(noImage=true, nFramesBefore=15, nFramesAfter=0, keepData=false, trials='PressSpontaneous');
@@ -77,7 +76,6 @@ r.ipsi = [...
 r.contra = sum(sqrt(sum(r.contra.^2, 3)), 2);
 r.ipsi = sum(sqrt(sum(r.ipsi.^2, 3)), 2);
 
-
 tl = tiledlayout(figure(Units='inches', Position=[1 1 2 7]), 3, 1);
 ax = nexttile(tl);
 hold(ax, 'on')
@@ -107,8 +105,6 @@ ax = nexttile(tl);
 histogram(ax, r.ipsi, 0:10:150);
 xline(ax, ipsiThreshold)
 title(ax, 'ipsi range')
-
-
 
 % trajCombined2tgt.usedIpsiPaw = r.ipsi' > mdl.predict(r.contra)';
 trajCombined2tgt.usedIpsiPaw = r.ipsi' > r.contra';
