@@ -818,9 +818,9 @@ classdef EphysUnit < handle
             p.addParameter('shutterDelay', 0, @isnumeric)
             p.addParameter('correction', [], @isnumeric)
             p.addParameter('photoelectricBlankDuration', 0, @isnumeric); %0.5e-3
-            p.addParameter('photoelectricNumSigmasThreshold', 3, @isnumeric);
+            % p.addParameter('photoelectricNumSigmasThreshold', 3, @isnumeric);
             p.addParameter('photoelectricOffsetBlankWindow', [], @isnumeric); %[10e-3, 10.5e-3]
-            p.addParameter('photoelectricOffsetNumSigmasThreshold', 3, @isnumeric);
+            % p.addParameter('photoelectricOffsetNumSigmasThreshold', 3, @isnumeric);
             p.parse(trialType, varargin{:})
             trialType = p.Results.trialType;
             window = p.Results.window;
@@ -830,9 +830,9 @@ classdef EphysUnit < handle
             alignTo = p.Results.alignTo;
             correction = p.Results.correction;
             photoelectricBlankDuration = p.Results.photoelectricBlankDuration;
-            photoelectricNumSigmasThreshold = p.Results.photoelectricNumSigmasThreshold;
+            % photoelectricNumSigmasThreshold = p.Results.photoelectricNumSigmasThreshold;
             photoelectricOffsetBlankWindow = p.Results.photoelectricOffsetBlankWindow;
-            photoelectricOffsetNumSigmasThreshold = p.Results.photoelectricOffsetNumSigmasThreshold;
+            % photoelectricOffsetNumSigmasThreshold = p.Results.photoelectricOffsetNumSigmasThreshold;
 
             if strcmp(alignTo, 'default')
                 switch lower(trialType)
@@ -937,34 +937,34 @@ classdef EphysUnit < handle
                 % Do blanking
                 if photoelectricBlankDuration > 0
                     % assert(mod(window(1)/photoelectricBlankDuration, 1) == 0)
-                    tShift = window(1) : photoelectricBlankDuration : window(2);
-                    pethBlank = nnz(t >= 0 & t < photoelectricBlankDuration); % Num spikes in onset blank
-                    pethAll = arrayfun(@(tShift) nnz(t >= tShift & t < tShift + photoelectricBlankDuration), tShift); % photo-electric time histogram, eh? get it?
+                    % tShift = window(1) : photoelectricBlankDuration : window(2);
+                    % pethBlank = nnz(t >= 0 & t < photoelectricBlankDuration); % Num spikes in onset blank
+                    % pethAll = arrayfun(@(tShift) nnz(t >= tShift & t < tShift + photoelectricBlankDuration), tShift); % photo-electric time histogram, eh? get it?
                                 
-                    hasArtifact = pethBlank > mean(pethAll) + photoelectricNumSigmasThreshold*std(pethAll);
+                    % hasArtifact = pethBlank > mean(pethAll) + photoelectricNumSigmasThreshold*std(pethAll);
 
-                    if hasArtifact
+                    % if hasArtifact
                         sel = t >= 0 & t < photoelectricBlankDuration;
                         t(sel) = [];
                         I(sel) = [];
-                        % fprintf('Removed %i spike photoelectric artifacts.\n', nnz(sel));
-                    end
+                        fprintf('Removed %i onset spike photoelectric artifacts.\n', nnz(sel));
+                    % end
                 end
 
                 if ~isempty(photoelectricOffsetBlankWindow)
                     % assert(mod(window(1)/photoelectricBlankDuration, 1) == 0)
-                    tShift = window(1) : photoelectricBlankDuration : window(2);
-                    pethBlank = nnz(t >= 0 & t < photoelectricBlankDuration); % Num spikes in onset blank
-                    pethAll = arrayfun(@(tShift) nnz(t >= tShift & t < tShift + photoelectricBlankDuration), tShift); % photo-electric time histogram, eh? get it?
+                    % tShift = window(1) : diff(photoelectricOffsetBlankWindow) : window(2);
+                    % pethBlank = nnz(t >= photoelectricOffsetBlankWindow(1) & t < photoelectricOffsetBlankWindow(2)); % Num spikes in offset blank
+                    % pethAll = arrayfun(@(tShift) nnz(t >= tShift & t < tShift + diff(photoelectricOffsetBlankWindow)), tShift); % photo-electric time histogram, eh? get it? heh. you think you're funny do ya?
                                 
-                    hasArtifact = pethBlank > mean(pethAll) + photoelectricNumSigmasThreshold*std(pethAll);
+                    % hasArtifact = pethBlank > mean(pethAll) + photoelectricNumSigmasThreshold*std(pethAll);
 
-                    if hasArtifact
-                        sel = t >= 0 & t < photoelectricBlankDuration;
+                    % if hasArtifact
+                        sel = t >= photoelectricOffsetBlankWindow(1) & t < photoelectricOffsetBlankWindow(2);
                         t(sel) = [];
                         I(sel) = [];
-                        % fprintf('Removed %i spike photoelectric artifacts.\n', nnz(sel));
-                    end
+                        fprintf('Removed %i offset spike photoelectric artifacts.\n', nnz(sel));
+                    % end
                 end
 
                 rd.name = obj.getName('_');

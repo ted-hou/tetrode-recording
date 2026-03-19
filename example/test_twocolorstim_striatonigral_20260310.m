@@ -40,7 +40,7 @@ clear clc
 eu = EphysUnit.load('C:\Data\Units\Test\desmond43', waveforms=false, spikecounts=false, spikerates=false);
 
 %% Do psth
-rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shutterDelay=0, photoelectricBlankDuration=1.5e-3);
+rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shutterDelay=0, photoelectricBlankDuration=1.5e-3, photoelectricOffsetBlankWindow=[10e-3, 10.5e-3]);
 
 %%
 % ETA Stim
