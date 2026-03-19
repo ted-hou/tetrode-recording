@@ -1,6 +1,6 @@
 
 folders = { ...
-    'C:\SERVER\daisy34\daisy34_20260309',
+    'C:\SERVER\desmond43\desmond43_20260313',
     };
 
 chunkSize = 32; % NumChannelsPerChunk
@@ -25,7 +25,7 @@ for iSession = 1:length(folders)
 
             ar = AcuteRecording(tr, 'N/A');
             ar.binMoveResponse(tr, 'none', Window=[-1, 0], Store=true);
-            eu = EphysUnit(ar, readWaveforms=false, cullITI=false, savepath='E:\Data\Units\Test', tr=tr);
+            eu = EphysUnit(ar, readWaveforms=false, cullITI=false, savepath='C:\Data\Units\Test\desmond43', tr=tr);
 
             tr.Spikes = [];
             clear eu
@@ -36,7 +36,8 @@ for iSession = 1:length(folders)
     end
 end
 %%
-eu = EphysUnit.load('E:\Data\Units\Test', waveforms=false, spikecounts=false, spikerates=false);
+clear clc
+eu = EphysUnit.load('C:\Data\Units\Test\desmond43', waveforms=false, spikecounts=false, spikerates=false);
 
 %% Do psth
 rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shutterDelay=0, photoelectricBlankDuration=1.5e-3);
@@ -44,8 +45,8 @@ rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shut
 %%
 % ETA Stim
 p.isiBaselineWindow = [-0.2, 0];
-p.stimBluePowers = [500, 2000]*1e-6; 
-p.stimRedPowers = [500, 2000]*1e-6;
+p.stimBluePowers = [5000, 20000]*1e-6; 
+p.stimRedPowers = [5000, 20000]*1e-6;
 p.stimBlueDurations = [10]*1e-3;
 p.stimRedDurations = [10]*1e-3;
 
@@ -54,7 +55,7 @@ p.isiRes = 1e-3;
 p.xlim.stim = [-0.05, 0.1];
 p.xlim.move = [-4, 2];
 p.path = 'E:\Data\Figures\Test';
-p.rasterSzStim = 1;
+p.rasterSzStim = 3;
 p.rasterSzMove = 1;
 
 close all
@@ -128,7 +129,7 @@ layout.ax(2, 1) = nexttile(layout.tl, [layout.h(3), layout.w(1)]);
 % layout.ax(2, 2) = nexttile(layout.tl, [layout.h(2), layout.w(2)]);
 % layout.ax(3, 2) = nexttile(layout.tl, [layout.h(3), layout.w(2)]);
 
-p.path = 'E:\Data\Figures\Test';
+p.path = 'C:\Data\Figures\Test';
 selUnits = find(c.isStimBlueUpRedNotUpThereforeCoChrMaybe);
 
 % p.path = 'C:\SERVER\Figures\TwoColor_SNr_SCRetro\ReverseInjection\ChrimsonR';
@@ -162,7 +163,7 @@ for iEu = 1:length(eu)
             % deltaSR(iGrp, :) = 1./isi(iGrp, :) - mean(1./isi(iGrp, t<0), 'omitnan');
             % etaTemp = eu(iEu).getETA('count', 'stimtwocolor', [-0.5, 0.5], normalize=[-0.5, -0.3], resolution=0.025, alignTo='start', ...
             %     trials = groups(iGrp).trials);
-            etaTemp = eu(iEu).getETA('count', 'stimtwocolor', [-0.5, 0.5], normalize=struct(mean=mean(), sd=[]), resolution=0.025, alignTo='start', ...
+            etaTemp = eu(iEu).getETA('count', 'stimtwocolor', [-0.5, 0.5], normalize=[-0.5, -0.3], resolution=0.025, alignTo='start', ...
                 trials = groups(iGrp).trials);
             t = etaTemp.t;
             deltaSR(iGrp, :) = etaTemp.X;
@@ -175,7 +176,7 @@ for iEu = 1:length(eu)
         % colormap(ax, 'turbo')
         applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
         h = colorbar(ax, 'westoutside');
-        h.Label.String = '\Deltasp/s';
+        h.Label.String = '\DeltaSR (a.u.)';
         yticks(ax, 1:length(groups));
         yticklabels(ax, {groups.label})
         xlabel(ax, 'Time from opto onset (ms)')
