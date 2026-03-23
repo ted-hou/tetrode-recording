@@ -533,7 +533,7 @@ clear tLocal iEu x t mu sd maxT IT XBoot tDip tRise tTic iBoot tDipBoot T X iDip
 
 %% Plot dip-triggered average kinematics
 close all
-exportPath = fullfile("E:\Figures\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims.mat", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples, 100*p.riseSamples));
+exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims.mat", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples(1), 100*p.riseSamples(2)));
 if ~exist(exportPath, 'dir')
     mkdir(exportPath)
 end
