@@ -222,6 +222,9 @@ p.riseThresholdSubQuantile = 1 - p.dipThresholdSubQuantile;
 p.risePattern = arrayfun(@(n) [0, ones(1, n), 0] , p.riseSamples(1):p.riseSamples(2), UniformOutput=false);
 p.risePatternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.risePattern);
 
+p.nBoot = 1000;
+p.bootAlpha = 0.05;
+
 % Process vtdFeatues
 clear kinematics
 kinematics(length(exp)) = struct(HandR=[], HandL=[], FootR=[], FootL=[], Tongue=[]);
@@ -291,11 +294,13 @@ for iExp = 1:length(exp)
 end
 clear iExp iFeature vn fn vtd L X Y D selnan
 
+%%
 tLocal = p.dtaWindow(1):p.dtaRes:p.dtaWindow(2);
 clear dta rta
 lineLength = 0;
+lineLength2 = 0;
 tTicTotal = tic();
-
+rng(42)
 for iEu = 1:length(eu)
     iExp = expIndices(iEu);
 
@@ -320,14 +325,13 @@ for iEu = 1:length(eu)
 
     fprintf(repmat('\b', [1, lineLength]))
     lineLength = fprintf('Unit %i/%i;; %i dips (x<%.2f), %i rises (x>%.2f)... %.1fs elapsed...', iEu, length(eu), length(tDip), dipThreshold, length(tRise), riseThreshold, toc(tTicTotal));
-    
+
     dta(iEu).iExp = iExp;
     rta(iEu).iExp = iExp;
     dta(iEu).params = p;
     rta(iEu).params = p;
     dta(iEu).tDip = tDip;
     rta(iEu).tRise = tRise;
-
 
     if ~isempty(tDip)
         T = tLocal + tDip';
@@ -357,8 +361,42 @@ for iEu = 1:length(eu)
                 continue
             end
             for iDip = 1:length(tDip)
-                dta(iEu).(fn).X(iDip, :) = interp1(kinematics(iExp).(fn).t, kinematics(iExp).(fn).X, T(iDip, :), 'linear');
+                dta(iEu).(fn).X(iDip, :) = interp1(kinematics(iExp).(fn).t, kinematics(iExp).(fn).X, T(iDip, :), 'linear'); % Consider doing shifts instead of interp1 for faster bootstraping
             end
+        end
+
+        % Bootstrap dip-triggered kinematics
+        if p.nBoot > 0
+            XBoot = NaN(p.nBoot, length(tLocal), length(p.features));
+            IT = 1:length(tLocal);
+            IFEATURE = 1:length(p.features);
+            maxT = kinematics(iExp).HandR.t(end);
+            kinematicsTemp = kinematics(iExp);
+            tTic = tic();
+            parfor iBoot = 1:p.nBoot   
+                tDipBoot = rand([length(tDip), 1]) * maxT;
+                T = tLocal + tDipBoot;
+                for iFeature = IFEATURE
+                    fn = p.features(iFeature);
+                    if isempty(kinematicsTemp.(fn))
+                        continue
+                    end
+                    X = NaN(length(tDipBoot), length(tLocal));
+                    for iDip = 1:length(tDipBoot)
+                        X(iDip, :) = interp1(kinematicsTemp.(fn).t, kinematicsTemp.(fn).X, T(iDip, :), 'linear');
+                    end
+                    XBoot(iBoot, IT, iFeature) = mean(X, 1, 'omitnan');
+                end
+            end
+            for iFeature = 1:length(p.features)
+                fn = p.features(iFeature);
+                if isempty(kinematicsTemp.(fn))
+                    continue
+                end
+                dta(iEu).(fn).XBoot = XBoot(:, :, iFeature);
+            end
+            lineLength = lineLength + fprintf('%.1fs;', toc(tTic));
+            clear iBoot tDipBoot T X XBoot IT IFEATURE maxT kinematicsTemp tTic
         end
     end
    
@@ -379,7 +417,7 @@ for iEu = 1:length(eu)
             lineLength = lineLength + fprintf('\tSubselecting %i/%i rises...', nnz(selRises), length(selRises));
         end
 
-        % dip-triggered kinematics
+        % rise-triggered kinematics
         for fn = p.features
             rta(iEu).(fn) = struct(t=tLocal, X=NaN(length(tRise), length(tLocal)));
         end
@@ -392,18 +430,110 @@ for iEu = 1:length(eu)
                 rta(iEu).(fn).X(iRise, :) = interp1(kinematics(iExp).(fn).t, kinematics(iExp).(fn).X, T(iRise, :), 'linear');
             end
         end
+
+        % Bootstrap rise-triggered kinematics
+        if p.nBoot > 0
+            XBoot = NaN(p.nBoot, length(tLocal), length(p.features));
+            IT = 1:length(tLocal);
+            IFEATURE = 1:length(p.features);
+            maxT = kinematics(iExp).HandR.t(end);
+            kinematicsTemp = kinematics(iExp);
+            tTic = tic();
+            parfor iBoot = 1:p.nBoot   
+                tRiseBoot = rand([length(tRise), 1]) * maxT;
+                T = tLocal + tRiseBoot;
+                for iFeature = IFEATURE
+                    fn = p.features(iFeature);
+                    if isempty(kinematicsTemp.(fn))
+                        continue
+                    end
+                    X = NaN(length(tRiseBoot), length(tLocal));
+                    for iRise = 1:length(tRiseBoot)
+                        X(iRise, :) = interp1(kinematicsTemp.(fn).t, kinematicsTemp.(fn).X, T(iRise, :), 'linear');
+                    end
+                    XBoot(iBoot, IT, iFeature) = mean(X, 1, 'omitnan');
+                end
+            end
+            for iFeature = 1:length(p.features)
+                fn = p.features(iFeature);
+                if isempty(kinematicsTemp.(fn))
+                    continue
+                end
+                rta(iEu).(fn).XBoot = XBoot(:, :, iFeature);
+            end
+            lineLength = lineLength + fprintf('%.1fs;', toc(tTic));
+            clear iBoot tRiseBoot T X XBoot IT IFEATURE maxT kinematicsTemp tTic
+        end
     end
     lineLength = lineLength + fprintf('\n');
 end
 
-clear iEu iExp lineLength tLocal tTicTotal x t mu sd dipThreshold iDip tDip riseThreshold iRise tRise T dipMagnitude selDips riseMagnitude selRises
+clear iEu iExp lineLength tLocal tTicTotal x t mu sd dipThreshold iRise tDip riseThreshold iRise tRise T dipMagnitude selDips riseMagnitude selRises
+clear lineLength2 I2 iDip
 save(fullfile("E:\Data", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims.mat", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples, 100*p.riseSamples)), 'dta', 'rta', '-v7.3')
 
 
+%% Post-hoc do a bootstrap for dta/rta spikerate
+lineLength = 0;
+tTicTotal = tic();
+tLocal = p.dtaWindow(1):p.dtaRes:p.dtaWindow(2);
+if p.nBoot > 0
+    for iEu = 1:length(dta)
+        fprintf(repmat('\b', [1, lineLength]))
+        lineLength = fprintf('Unit %i/%i... %.1fs;', iEu, length(eu), toc(tTicTotal));
+
+        % Whole session spike rates
+        [x, t] = eu(iEu).getSpikeCounts(0.1);
+        x = double(x)./0.1;
+        mu = mean(x);
+        sd = std(x, 0);
+        x = (x-mu)/sd;
+
+        maxT = t(end);
+        IT = 1:length(tLocal);
+        XBoot = NaN(p.nBoot, length(tLocal));
+
+        if ~isempty(dta(iEu).tDip)
+            tDip = dta(iEu).tDip;
+            lineLength = lineLength + fprintf(' %i dips...', length(tDip));
+            tTic = tic();
+            parfor iBoot = 1:p.nBoot   
+                tDipBoot = rand([length(tDip), 1]) * maxT;
+                T = tLocal + tDipBoot;
+                X = NaN(length(tDipBoot), length(tLocal));
+                for iDip = 1:length(tDipBoot)
+                    X(iDip, :) = interp1(t, x, T(iDip, :), 'linear');
+                end
+                XBoot(iBoot, IT) = mean(X, 1, 'omitnan');
+            end
+            dta(iEu).spikerate.XBoot = XBoot(:, :);
+            lineLength = lineLength + fprintf('%.1fs;', toc(tTic));
+        end
+
+        if ~isempty(rta(iEu).tRise)
+            tRise = rta(iEu).tRise;
+            lineLength = lineLength + fprintf(' %i rises...', length(tRise));
+            tTic = tic();
+            parfor iBoot = 1:p.nBoot   
+                tRiseBoot = rand([length(tRise), 1]) * maxT;
+                T = tLocal + tRiseBoot;
+                X = NaN(length(tRiseBoot), length(tLocal));
+                for iRise = 1:length(tRiseBoot)
+                    X(iRise, :) = interp1(t, x, T(iRise, :), 'linear');
+                end
+                XBoot(iBoot, IT) = mean(X, 1, 'omitnan');
+            end
+            rta(iEu).spikerate.XBoot = XBoot(:, :);
+            lineLength = lineLength + fprintf('%.1fs;', toc(tTic));
+        end
+    end
+end
+fprintf('\n')
+clear tLocal iEu x t mu sd maxT IT XBoot tDip tRise tTic iBoot tDipBoot T X iDip iRise lineLength tTic tTicTotal
 
 %% Plot dip-triggered average kinematics
 close all
-exportPath = fullfile("E:\Figures\LickVsReach_DTA_RTA", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims.mat", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples, 100*p.riseSamples));
+exportPath = fullfile("E:\Figures\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims.mat", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples, 100*p.riseSamples));
 if ~exist(exportPath, 'dir')
     mkdir(exportPath)
 end
@@ -463,15 +593,15 @@ for iUnit = 1:length(dta)
                 t = 1e3*dta(iUnit).(fn).t;
                 mu = mean(dta(iUnit).(fn).X, 1, 'omitnan');
                 err = std(dta(iUnit).(fn).X, 0, 1, 'omitnan')./sqrt(size(dta(iUnit).(fn).X, 1));
-                prc = quantile(dta(iUnit).(fn).X, [0.25, 0.75], 1);
+                prc = quantile(dta(iUnit).(fn).XBoot, [p.bootAlpha/2, 1-p.bootAlpha/2], 1);
             else
                 t = 1e3*rta(iUnit).(fn).t;
                 mu = mean(rta(iUnit).(fn).X, 1, 'omitnan');
                 err = std(rta(iUnit).(fn).X, 0, 1, 'omitnan')./sqrt(size(rta(iUnit).(fn).X, 1));
-                prc = quantile(rta(iUnit).(fn).X, [0.25, 0.75], 1);
+                prc = quantile(rta(iUnit).(fn).XBoot, [p.bootAlpha/2, 1-p.bootAlpha/2], 1);
             end
             plot(ax(iRow, iAx), t, mu, Color=c, LineWidth=1.5);
-            patch(ax(iRow, iAx), [t, flip(t)], [mu-err, flip(mu+err)], c, FaceAlpha=0.15, EdgeColor=c);
+            % patch(ax(iRow, iAx), [t, flip(t)], [mu-err, flip(mu+err)], c, FaceAlpha=0.15, EdgeColor=c);
             patch(ax(iRow, iAx), [t, flip(t)], [prc(1, :), flip(prc(2, :))], c, FaceAlpha=0.05, EdgeColor=c, EdgeAlpha=0.5);
             xline(ax(iRow, iAx), 1e3*p.mdtaWindow, 'k--', Alpha=0.1)
             xline(ax(iRow, iAx), 0, 'k-', Alpha=0.1)
@@ -499,4 +629,4 @@ for iUnit = 1:length(dta)
     fontsize(fig, 9, 'points')
     print(fig, fullfile(exportPath, sprintf("dta_rta_unit_%03i", iUnit)), '-dpng', '-r0')
 end
-clear features featureUnits fig tl ax iAx iUnit fn c t mu err
+clear features featureUnits fig tl ax iAx iUnit fn c t mu err iRow iFeature tlp yl
