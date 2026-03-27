@@ -470,7 +470,8 @@ end
 
 clear iEu iExp lineLength tLocal tTicTotal x t mu sd dipThreshold iRise tDip riseThreshold iRise tRise T dipMagnitude selDips riseMagnitude selRises
 clear lineLength2 I2 iDip
-save(fullfile("E:\Data", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims.mat", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples, 100*p.riseSamples)), 'dta', 'rta', '-v7.3')
+exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims.mat", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples(1), 100*p.riseSamples(2)));
+save(exportPath, 'dta', 'rta', 'kinematics', 'p', '-v7.3')
 
 
 %% Post-hoc do a bootstrap for dta/rta spikerate
@@ -531,86 +532,430 @@ end
 fprintf('\n')
 clear tLocal iEu x t mu sd maxT IT XBoot tDip tRise tTic iBoot tDipBoot T X iDip iRise lineLength tTic tTicTotal
 
-%% Plot dip-triggered average kinematics
+%% Post-hoc calculate the bootstrpped 95%CI of the RMS of the displacement traces
+p.rms.features = ["HandR", "HandL", "FootR", "FootL", "Tongue", "Lick"];
+p.rms.window = [-0.3, 0.6];
+
+for iUnit = 1:length(dta)
+    for fn = p.rms.features
+        if isempty(dta(iUnit).(fn))
+            continue
+        end
+        selT = dta(iUnit).(fn).t >= p.rms.window(1) & dta(iUnit).(fn).t <= p.rms.window(2);
+        dta(iUnit).(fn).stats.rms = rms(mean(dta(iUnit).(fn).X(:, selT), 1, 'omitnan'), 2, 'omitnan');
+        dta(iUnit).(fn).stats.rmsBoot = rms(dta(iUnit).(fn).XBoot(:, selT), 2, 'omitnan');
+    end
+    for fn = p.rms.features
+        if isempty(rta(iUnit).(fn))
+            continue
+        end
+        selT = rta(iUnit).(fn).t >= p.rms.window(1) & rta(iUnit).(fn).t <= p.rms.window(2);
+        rta(iUnit).(fn).stats.rms = rms(mean(rta(iUnit).(fn).X(:, selT), 1, 'omitnan'), 2, 'omitnan');
+        rta(iUnit).(fn).stats.rmsBoot = rms(rta(iUnit).(fn).XBoot(:, selT), 2, 'omitnan');
+    end
+end
+
+clear iUnit fn selT
+
+%% Post-hoc calculate the bootstrpped 95%CI of the STD of the displacement traces
+p = rmfield(p, 'rms');
+
+p.std.features = ["HandR", "HandL", "FootR", "FootL", "Tongue", "Lick"];
+p.std.window = [-0.3, 0.6];
+
+for iUnit = 1:length(dta)
+    for fn = p.std.features
+        if isempty(dta(iUnit).(fn))
+            continue
+        end
+        selT = dta(iUnit).(fn).t >= p.std.window(1) & dta(iUnit).(fn).t <= p.std.window(2);
+        dta(iUnit).(fn).stats.std = std(mean(dta(iUnit).(fn).X(:, selT), 1, 'omitnan'), 0, 2, 'omitnan');
+        dta(iUnit).(fn).stats.stdBoot = std(dta(iUnit).(fn).XBoot(:, selT), 0, 2, 'omitnan');
+    end
+    for fn = p.std.features
+        if isempty(rta(iUnit).(fn))
+            continue
+        end
+        selT = rta(iUnit).(fn).t >= p.std.window(1) & rta(iUnit).(fn).t <= p.std.window(2);
+        rta(iUnit).(fn).stats.std = std(mean(rta(iUnit).(fn).X(:, selT), 1, 'omitnan'), 0, 2, 'omitnan');
+        rta(iUnit).(fn).stats.stdBoot = std(rta(iUnit).(fn).XBoot(:, selT), 0, 2, 'omitnan');
+    end
+end
+
+clear iUnit fn selT
+
+
+%% Plot dip-triggered average kinematics (RMS VERSION)
+% close all
+% exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot\Figures", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples(1), 100*p.riseSamples(2)));
+% if ~exist(exportPath, 'dir')
+%     mkdir(exportPath)
+% end
+% features = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Tongue", "Lick"];
+% featureUnits = ["a.u.", "a.u.", "a.u.", "a.u.", "a.u.", "prob", "prob"];
+% yl = {[-2.5, 5], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 1.1], [-0.1, 1.1]};
+% fig = figure(Units='inches', InnerPosition=[2, 2, 2*(2+length(features)), 5]);
+% tlp = tiledlayout(fig, 2, 1, TileSpacing='compact', Padding='compact');
+% tl = gobjects(2, 1);
+% tl(1) = tiledlayout(tlp, 1, length(features) + 2, TileSpacing='compact', Padding='compact');
+% tl(2) = tiledlayout(tlp, 1, length(features) + 2, TileSpacing='compact', Padding='compact');
+% tl(1).Layout.Tile = 1;
+% tl(2).Layout.Tile = 2;
+% 
+% ax = gobjects(2, length(features) + 2);
+% for iType = 1:2
+%     for iAx = 1:length(features) + 2
+%         ax(iType, iAx) = nexttile(tl(iType));
+%     end
+% end
+% for iUnit = 1:length(dta)
+%     for iType = 1:2
+%         % Check existence
+%         if iType == 1
+%             if isempty(dta(iUnit).tDip)
+%                 for iAx = 1:length(features)
+%                     cla(ax(iType, iAx))
+%                     ax(iType, iAx).Visible = false;
+%                 end
+%                 continue
+%             end
+%         else
+%             if isempty(rta(iUnit).tRise)
+%                 for iAx = 1:length(features)
+%                     cla(ax(iType, iAx))
+%                     ax(iType, iAx).Visible = false;
+%                 end
+%                 continue
+%             end
+%         end
+%         for iAx = 1:length(features)
+%             cla(ax(iType, iAx))
+%             fn = features(iAx);
+%             if iType == 1 && isempty(dta(iUnit).(fn))
+%                 ax(iType, iAx).Visible = false;
+%                 continue
+%             elseif iType == 2 && isempty(rta(iUnit).(fn))
+%                 ax(iType, iAx).Visible = false;
+%                 continue
+%             end
+% 
+%             ax(iType, iAx).Visible = true;
+% 
+%             hold(ax(iType, iAx), 'on')
+%             c = getColor(iAx, length(features), 0.7);
+%             if iType == 1
+%                 t = 1e3*dta(iUnit).(fn).t;
+%                 X = dta(iUnit).(fn).X;
+%                 mu = mean(dta(iUnit).(fn).X, 1, 'omitnan');
+%                 err = std(dta(iUnit).(fn).X, 0, 1, 'omitnan')./sqrt(size(dta(iUnit).(fn).X, 1));
+%                 prc = quantile(dta(iUnit).(fn).XBoot, [p.bootAlpha/2, 1-p.bootAlpha/2], 1);
+% 
+%                 if ismember(fn, p.rms.features)
+%                     prcRMS = quantile(dta(iUnit).(fn).stats.rmsBoot, [0.95, 0.99, 0.999]);
+%                     nStarsRMS = sum(dta(iUnit).(fn).stats.rms > prcRMS);
+%                 else
+%                     nStarsRMS = 0;
+%                 end
+%             else
+%                 t = 1e3*rta(iUnit).(fn).t;
+%                 X = rta(iUnit).(fn).X;
+%                 mu = mean(rta(iUnit).(fn).X, 1, 'omitnan');
+%                 err = std(rta(iUnit).(fn).X, 0, 1, 'omitnan')./sqrt(size(rta(iUnit).(fn).X, 1));
+%                 prc = quantile(rta(iUnit).(fn).XBoot, [p.bootAlpha/2, 1-p.bootAlpha/2], 1);
+% 
+%                 if ismember(fn, p.rms.features)
+%                     prcRMS = quantile(rta(iUnit).(fn).stats.rmsBoot, [0.95, 0.99, 0.999]);
+%                     nStarsRMS = sum(rta(iUnit).(fn).stats.rms > prcRMS);
+%                 else
+%                     nStarsRMS = 0;
+%                 end
+%             end
+%             plot(ax(iType, iAx), t, X, Color=[c, 0.1]);
+%             plot(ax(iType, iAx), t, mu, Color=c, LineWidth=1.5);
+%             % patch(ax(iRow, iAx), [t, flip(t)], [mu-err, flip(mu+err)], c, FaceAlpha=0.15, EdgeColor=c);
+%             patch(ax(iType, iAx), [t, flip(t)], [prc(1, :), flip(prc(2, :))], c, FaceAlpha=0.05, EdgeColor=c, EdgeAlpha=0.5);
+%             % xline(ax(iRow, iAx), 1e3*p.mdtaWindow, 'k--', Alpha=0.1)
+%             xline(ax(iType, iAx), 1e3*p.rms.window, 'k--', Alpha=0.1)
+%             xline(ax(iType, iAx), 0, 'k-', Alpha=0.1)
+%             % xticks(ax(iRow, iAx), 1e3*p.mdtaWindow)
+%             xticks(ax(iType, iAx), [-300, 0, 600])
+%             xtickangle(ax(iType, iAx), 0)
+% 
+%             ylabel(ax(iType, iAx), featureUnits(iAx))
+% 
+%             fnDisp = sprintf("%s %s", fn, repmat('*', [1, nStarsRMS]));
+%             title(ax(iType, iAx), fnDisp, Interpreter='none')
+%             ylim(ax(iType, iAx), yl{iAx})
+%         end
+% 
+%         % Correlegram
+%         iAx = iAx + 1;
+%         r = NaN(length(p.rms.features));
+%         for i = 1:length(p.rms.features)
+%             fni = p.rms.features(i);
+%             if isempty(dta(iUnit).(fni))
+%                 continue
+%             end
+%             for j = 1:length(p.rms.features)
+%                 fnj = p.rms.features(j);
+%                 if isempty(dta(iUnit).(fnj))
+%                     continue
+%                 end
+%                 if iType == 1
+%                     selT = dta(iUnit).(fni).t >= p.rms.window(1) & dta(iUnit).(fni).t <= p.rms.window(2);
+%                     r(i, j) = corr(rms(dta(iUnit).(fni).X(:, selT), 2, 'omitnan'), rms(dta(iUnit).(fnj).X(:, selT), 2, 'omitnan'), Rows='complete');
+%                 else
+%                     selT = rta(iUnit).(fni).t >= p.rms.window(1) & rta(iUnit).(fni).t <= p.rms.window(2);
+%                     r(i, j) = corr(rms(rta(iUnit).(fni).X(:, selT), 2, 'omitnan'), rms(rta(iUnit).(fnj).X(:, selT), 2, 'omitnan'), Rows='complete');
+%                 end
+%             end
+%         end
+%         r(isnan(r)) = 0;
+%         imagesc(ax(iType, iAx), r);
+%         xticks(ax(iType, iAx), 1:length(p.rms.features))
+%         yticks(ax(iType, iAx), 1:length(p.rms.features))
+%         xticklabels(ax(iType, iAx), p.rms.features)
+%         yticklabels(ax(iType, iAx), p.rms.features)
+%         xtickangle(ax(iType, iAx), 90)
+%         ax(iType, iAx).XAxisLocation = 'top';
+%         axis(ax(iType, iAx), 'image')
+%         ax(iType, iAx).XAxis.Direction = 'normal';
+%         clim(ax(iType, iAx), [0, 1])
+%         colormap(ax(iType, iAx), 'gray')
+%         colorbar(ax(iType, iAx), 'eastoutside')
+%         applyCustomColormap(ax(iType, iAx), [-1, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+% 
+%         % Movement diversity matrix
+%         iAx = iAx + 1;
+%         if iType == 1
+%             xta = dta(iUnit);
+%             mdm = NaN(length(xta.tDip), length(p.rms.features));
+%         else
+%             xta = rta(iUnit);
+%             mdm = NaN(length(xta.tRise), length(p.rms.features));
+%         end
+%         for i = 1:length(p.rms.features)
+%             fn = p.rms.features(i);
+%             if isempty(xta.(fn))
+%                 continue
+%             end
+%             t = xta.(fn).t;
+%             selT = t >= p.rms.window(1) & t <= p.rms.window(2);
+%             rmsObs = rms(xta.(fn).X(:, selT), 2, 'omitnan');
+%             mdm(:, i) = arrayfun(@(data) nnz(xta.(fn).stats.rmsBoot < data) ./ length(xta.(fn).stats.rmsBoot), rmsObs, UniformOutput=true);
+%         end
+%         mdm(isnan(mdm)) = 0;
+%         hash = sum((mdm > 0.95) .* 2.^(size(mdm, 2)-1:-1:0), 2);
+%         [~, I] = sort(hash, 'descend');
+%         imagesc(ax(iType, iAx), mdm(I, :))
+%         % colormap(ax(iType, iAx), [1, 1, 1; 0, 0, 0])
+%         % applyCustomColormap(ax(iType, iAx), [-1, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+%         applyCustomColormap(ax(iType, iAx), [0, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.025, h0=0.33);
+%         % ax(iType, iAx).ColorScale = 'log';
+%         xticks(ax(iType, iAx), 1:length(p.rms.features))
+%         xticklabels(ax(iType, iAx), p.rms.features)
+%         colorbar(ax(iType, iAx), Orientation='horizontal', Location='southoutside')
+%         ax(iType, iAx).XAxisLocation = 'top';
+%         ylabel(ax(iType, iAx), 'Trial')
+%         clear iType xta mdm i fn t selT rmsObs pObs hash I
+% 
+%     end
+%     if ~isempty(dta(iUnit).HandR)
+%         xlabel(tl(1), 'time from dip onset (ms)')
+%         title(tl(1), sprintf("Unit %i (n=%i dips)", iUnit, length(dta(iUnit).tDip)), FontWeight='bold')
+%     else
+%         xlabel(tl(1), '')
+%         title(tl(1), '')
+%     end
+%     if ~isempty(rta(iUnit).HandR)
+%         xlabel(tl(2), 'time from rise onset (ms)')
+%         title(tl(2), sprintf("Unit %i (n=%i rises)", iUnit, length(rta(iUnit).tRise)), FontWeight='bold')
+%     else
+%         xlabel(tl(2), '')
+%         title(tl(2), '')
+%     end
+%     % xlim(ax(:, 1:end-1), 1e3*p.rms.window)
+%     xlim(ax(:, 1:end-2), 1e3*[-0.5, 1])
+%     fontsize(fig, 9, 'points')
+%     print(fig, fullfile(exportPath, sprintf("dta_rta_unit_%03i", iUnit)), '-dpng', '-r0')
+% end
+% clear features featureUnits fig tlp tl ax iAx iUnit fn c t mu err iType iFeature tlp yl fnDisp
+% clear prcRMS nStarsRMS i j fni fnj r selT
+
+%% Plot dip-triggered average kinematics (STD Version
 close all
-exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims.mat", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples(1), 100*p.riseSamples(2)));
+exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot\Figures", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples(1), 100*p.riseSamples(2)));
 if ~exist(exportPath, 'dir')
     mkdir(exportPath)
 end
 features = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Tongue", "Lick"];
 featureUnits = ["a.u.", "a.u.", "a.u.", "a.u.", "a.u.", "prob", "prob"];
 yl = {[-2.5, 5], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 1.1], [-0.1, 1.1]};
-fig = figure(Units='inches', InnerPosition=[2, 2, 2*length(features), 5]);
+fig = figure(Units='inches', InnerPosition=[2, 2, 2*(2+length(features)), 5]);
 tlp = tiledlayout(fig, 2, 1, TileSpacing='compact', Padding='compact');
 tl = gobjects(2, 1);
-tl(1) = tiledlayout(tlp, 1, length(features), TileSpacing='compact', Padding='compact');
-tl(2) = tiledlayout(tlp, 1, length(features), TileSpacing='compact', Padding='compact');
+tl(1) = tiledlayout(tlp, 1, length(features) + 2, TileSpacing='compact', Padding='compact');
+tl(2) = tiledlayout(tlp, 1, length(features) + 2, TileSpacing='compact', Padding='compact');
 tl(1).Layout.Tile = 1;
 tl(2).Layout.Tile = 2;
 
-ax = gobjects(2, length(features));
-for iRow = 1:2
-    for iAx = 1:length(features)
-        ax(iRow, iAx) = nexttile(tl(iRow));
+ax = gobjects(2, length(features) + 2);
+for iType = 1:2
+    for iAx = 1:length(features) + 2
+        ax(iType, iAx) = nexttile(tl(iType));
     end
 end
 for iUnit = 1:length(dta)
-    for iRow = 1:2
+    for iType = 1:2
         % Check existence
-        if iRow == 1
+        if iType == 1
             if isempty(dta(iUnit).tDip)
                 for iAx = 1:length(features)
-                    cla(ax(iRow, iAx))
-                    ax(iRow, iAx).Visible = false;
+                    cla(ax(iType, iAx))
+                    ax(iType, iAx).Visible = false;
                 end
                 continue
             end
         else
             if isempty(rta(iUnit).tRise)
                 for iAx = 1:length(features)
-                    cla(ax(iRow, iAx))
-                    ax(iRow, iAx).Visible = false;
+                    cla(ax(iType, iAx))
+                    ax(iType, iAx).Visible = false;
                 end
                 continue
             end
         end
         for iAx = 1:length(features)
-            cla(ax(iRow, iAx))
+            cla(ax(iType, iAx))
             fn = features(iAx);
-            if iRow == 1 && isempty(dta(iUnit).(fn))
-                ax(iRow, iAx).Visible = false;
+            if iType == 1 && isempty(dta(iUnit).(fn))
+                ax(iType, iAx).Visible = false;
                 continue
-            elseif iRow == 2 && isempty(rta(iUnit).(fn))
-                ax(iRow, iAx).Visible = false;
+            elseif iType == 2 && isempty(rta(iUnit).(fn))
+                ax(iType, iAx).Visible = false;
                 continue
             end
 
-            ax(iRow, iAx).Visible = true;
+            ax(iType, iAx).Visible = true;
 
-            hold(ax(iRow, iAx), 'on')
+            hold(ax(iType, iAx), 'on')
             c = getColor(iAx, length(features), 0.7);
-            if iRow == 1
+            if iType == 1
                 t = 1e3*dta(iUnit).(fn).t;
+                X = dta(iUnit).(fn).X;
                 mu = mean(dta(iUnit).(fn).X, 1, 'omitnan');
                 err = std(dta(iUnit).(fn).X, 0, 1, 'omitnan')./sqrt(size(dta(iUnit).(fn).X, 1));
                 prc = quantile(dta(iUnit).(fn).XBoot, [p.bootAlpha/2, 1-p.bootAlpha/2], 1);
+
+                if ismember(fn, p.std.features)
+                    prcSTD = quantile(dta(iUnit).(fn).stats.stdBoot, [0.95, 0.99, 0.999]);
+                    nStarsSTD = sum(dta(iUnit).(fn).stats.std > prcSTD);
+                else
+                    nStarsSTD = 0;
+                end
             else
                 t = 1e3*rta(iUnit).(fn).t;
+                X = rta(iUnit).(fn).X;
                 mu = mean(rta(iUnit).(fn).X, 1, 'omitnan');
                 err = std(rta(iUnit).(fn).X, 0, 1, 'omitnan')./sqrt(size(rta(iUnit).(fn).X, 1));
                 prc = quantile(rta(iUnit).(fn).XBoot, [p.bootAlpha/2, 1-p.bootAlpha/2], 1);
+
+                if ismember(fn, p.std.features)
+                    prcSTD = quantile(rta(iUnit).(fn).stats.stdBoot, [0.95, 0.99, 0.999]);
+                    nStarsSTD = sum(rta(iUnit).(fn).stats.std > prcSTD);
+                else
+                    nStarsSTD = 0;
+                end
             end
-            plot(ax(iRow, iAx), t, mu, Color=c, LineWidth=1.5);
+            plot(ax(iType, iAx), t, X, Color=[0.15, 0.15, 0.15, 0.1]);
+            plot(ax(iType, iAx), t, mu, Color=c, LineWidth=1.5);
             % patch(ax(iRow, iAx), [t, flip(t)], [mu-err, flip(mu+err)], c, FaceAlpha=0.15, EdgeColor=c);
-            patch(ax(iRow, iAx), [t, flip(t)], [prc(1, :), flip(prc(2, :))], c, FaceAlpha=0.05, EdgeColor=c, EdgeAlpha=0.5);
-            xline(ax(iRow, iAx), 1e3*p.mdtaWindow, 'k--', Alpha=0.1)
-            xline(ax(iRow, iAx), 0, 'k-', Alpha=0.1)
-            xticks(ax(iRow, iAx), 1e3*p.mdtaWindow)
+            patch(ax(iType, iAx), [t, flip(t)], [prc(1, :), flip(prc(2, :))], c, FaceAlpha=0.05, EdgeColor=c, EdgeAlpha=0.5);
+            % xline(ax(iRow, iAx), 1e3*p.mdtaWindow, 'k--', Alpha=0.1)
+            xline(ax(iType, iAx), 1e3*p.std.window, 'k--', Alpha=0.1)
+            xline(ax(iType, iAx), 0, 'k-', Alpha=0.1)
+            % xticks(ax(iRow, iAx), 1e3*p.mdtaWindow)
+            xticks(ax(iType, iAx), [-300, 0, 600])
+            xtickangle(ax(iType, iAx), 0)
     
-            ylabel(ax(iRow, iAx), featureUnits(iAx))
-            title(ax(iRow, iAx), fn, Interpreter='none')
-            ylim(ax(iRow, iAx), yl{iAx})
+            ylabel(ax(iType, iAx), featureUnits(iAx))
+            
+            fnDisp = sprintf("%s %s", fn, repmat('*', [1, nStarsSTD]));
+            title(ax(iType, iAx), fnDisp, Interpreter='none')
+            ylim(ax(iType, iAx), yl{iAx})
         end
+
+        % Correlegram
+        iAx = iAx + 1;
+        r = NaN(length(p.std.features));
+        for i = 1:length(p.std.features)
+            fni = p.std.features(i);
+            if isempty(dta(iUnit).(fni))
+                continue
+            end
+            for j = 1:length(p.std.features)
+                fnj = p.std.features(j);
+                if isempty(dta(iUnit).(fnj))
+                    continue
+                end
+                if iType == 1
+                    selT = dta(iUnit).(fni).t >= p.std.window(1) & dta(iUnit).(fni).t <= p.std.window(2);
+                    r(i, j) = corr(std(dta(iUnit).(fni).X(:, selT), 0, 2, 'omitnan'), std(dta(iUnit).(fnj).X(:, selT), 0, 2, 'omitnan'), Rows='complete');
+                else
+                    selT = rta(iUnit).(fni).t >= p.std.window(1) & rta(iUnit).(fni).t <= p.std.window(2);
+                    r(i, j) = corr(std(rta(iUnit).(fni).X(:, selT), 0, 2, 'omitnan'), std(rta(iUnit).(fnj).X(:, selT), 0, 2, 'omitnan'), Rows='complete');
+                end
+            end
+        end
+        r(isnan(r)) = 0;
+        imagesc(ax(iType, iAx), r);
+        xticks(ax(iType, iAx), 1:length(p.std.features))
+        yticks(ax(iType, iAx), 1:length(p.std.features))
+        xticklabels(ax(iType, iAx), p.std.features)
+        yticklabels(ax(iType, iAx), p.std.features)
+        xtickangle(ax(iType, iAx), 90)
+        ax(iType, iAx).XAxisLocation = 'top';
+        axis(ax(iType, iAx), 'image')
+        ax(iType, iAx).XAxis.Direction = 'normal';
+        clim(ax(iType, iAx), [0, 1])
+        colormap(ax(iType, iAx), 'gray')
+        colorbar(ax(iType, iAx), 'eastoutside')
+        applyCustomColormap(ax(iType, iAx), [-1, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+
+        % Movement diversity matrix
+        iAx = iAx + 1;
+        if iType == 1
+            xta = dta(iUnit);
+            mdm = NaN(length(xta.tDip), length(p.std.features));
+        else
+            xta = rta(iUnit);
+            mdm = NaN(length(xta.tRise), length(p.std.features));
+        end
+        for i = 1:length(p.std.features)
+            fn = p.std.features(i);
+            if isempty(xta.(fn))
+                continue
+            end
+            t = xta.(fn).t;
+            selT = t >= p.std.window(1) & t <= p.std.window(2);
+            stdObs = std(xta.(fn).X(:, selT), 0, 2, 'omitnan');
+            mdm(:, i) = arrayfun(@(data) nnz(xta.(fn).stats.stdBoot < data) ./ length(xta.(fn).stats.stdBoot), stdObs, UniformOutput=true);
+        end
+        mdm(isnan(mdm)) = 0;
+        hash = sum((mdm > 0.95) .* 2.^(size(mdm, 2)-1:-1:0), 2);
+        [~, I] = sort(hash, 'descend');
+        imagesc(ax(iType, iAx), mdm(I, :))
+        % colormap(ax(iType, iAx), [1, 1, 1; 0, 0, 0])
+        % applyCustomColormap(ax(iType, iAx), [-1, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+        applyCustomColormap(ax(iType, iAx), [0, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.025, h0=0.33);
+        % ax(iType, iAx).ColorScale = 'log';
+        xticks(ax(iType, iAx), 1:length(p.std.features))
+        xticklabels(ax(iType, iAx), p.std.features)
+        colorbar(ax(iType, iAx), Orientation='horizontal', Location='southoutside')
+        ax(iType, iAx).XAxisLocation = 'top';
+        ylabel(ax(iType, iAx), 'Trial')
+        clear iType xta mdm i fn t selT stdObs pObs hash I
+        
     end
     if ~isempty(dta(iUnit).HandR)
         xlabel(tl(1), 'time from dip onset (ms)')
@@ -626,7 +971,104 @@ for iUnit = 1:length(dta)
         xlabel(tl(2), '')
         title(tl(2), '')
     end
+    % xlim(ax(:, 1:end-1), 1e3*p.std.window)
+    xlim(ax(:, 1:end-2), 1e3*[-0.5, 1])
     fontsize(fig, 9, 'points')
     print(fig, fullfile(exportPath, sprintf("dta_rta_unit_%03i", iUnit)), '-dpng', '-r0')
 end
-clear features featureUnits fig tl ax iAx iUnit fn c t mu err iRow iFeature tlp yl
+clear features featureUnits fig tlp tl ax iAx iUnit fn c t mu err iType iFeature tlp yl fnDisp
+clear prcSTD nStarsSTD i j fni fnj r selT
+
+%% Plot scatter of body movements
+close all
+exportPath = fullfile("E:\DATA\LickVsReach_DTA_RTA_boot\Figures", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples(1), 100*p.riseSamples(2)));
+if ~exist(exportPath, 'dir')
+    mkdir(exportPath)
+end
+features = ["HandR", "HandL", "FootR", "FootL", "Tongue", "Lick"];
+featureUnits = ["a.u.", "a.u.", "a.u.", "a.u.", "prob", "prob"];
+yl = {[0, 2], [0, 2], [0, 2], [0, 2], [0, 1], [0, 1]};
+fig = figure(Units='inches', InnerPosition=[0.1, 0.1, 2*length(features), 1*length(features)]);
+tlp = tiledlayout(fig, 1, 2, TileSpacing='compact', Padding='compact');
+tl = gobjects(2, 1);
+tl(1) = tiledlayout(tlp, length(features), length(features), TileSpacing='tight', Padding='tight');
+tl(2) = tiledlayout(tlp, length(features), length(features), TileSpacing='tight', Padding='tight');
+tl(1).Layout.Tile = 1;
+tl(2).Layout.Tile = 2;
+
+ax = gobjects(2, length(features), length(features));
+for iType = 1:2
+    for i = 1:length(features)
+        for j = 1:length(features)
+            ax(iType, i, j) = nexttile(tl(iType));
+            ax(iType, i, j).XAxis.Direction = 'reverse';
+            % ax(iType, i, j).XAxisLocation = 'top';
+            ax(iType, i, j).YAxisLocation = 'right';
+            axis(ax(iType, i, j), 'square')
+        end
+    end
+end
+set(ax, Visible=false)
+set(ax, Box='on')
+
+for iUnit = 1:length(dta)
+    set(ax, Visible=false)
+    cla(ax)
+    for iType = 1:2
+        switch iType
+            case 1
+                xta = dta(iUnit);
+            case 2
+                xta = rta(iUnit);
+        end
+        for j = 1:length(features)
+            fnj = features(j);
+            if isempty(xta.(fnj))
+                continue
+            end
+            for i = 1:j
+                fni = features(i);
+                if isempty(xta.(fni))
+                    continue
+                end
+                axTemp = ax(iType, i, j);
+                set(axTemp, Visible=true)
+                hold(axTemp, 'on')
+                t = xta.(fni).t;
+                selT = t >= p.rms.window(1) & t <= p.rms.window(2);
+                rmsI = rms(xta.(fni).X(:, selT), 2, 'omitnan');
+                rmsJ = rms(xta.(fnj).X(:, selT), 2, 'omitnan');
+                prcI = arrayfun(@(data) nnz(xta.(fni).stats.rmsBoot <= data) ./ length(xta.(fni).stats.rmsBoot), rmsI, UniformOutput=true);
+                prcJ = arrayfun(@(data) nnz(xta.(fnj).stats.rmsBoot <= data) ./ length(xta.(fnj).stats.rmsBoot), rmsJ, UniformOutput=true);
+                if i == j
+                    col = [0.75, 0.15, 0.15, 1];
+                else
+                    col = [0.15, 0.15, 0.15, 1];
+                end
+                plot(axTemp, prcI, prcJ, 'o', Color=col, MarkerSize=2)
+                xlim(axTemp, [-0.05, 1.05])
+                ylim(axTemp, [-0.05, 1.05])
+                xlabel(axTemp, features(i))
+                ylabel(axTemp, features(j))
+                if i == j
+                    col = [0.75, 0.15, 0.15, 0.33];
+                else
+                    col = [0.15, 0.15, 0.15, 0.33];
+                end
+                plot(axTemp, [0, 1], [0, 1], '--', Color=col)
+                hold(axTemp, 'off')
+                xticks(axTemp, [0, 1])
+                yticks(axTemp, [0, 1])
+            end
+        end
+        if iType == 1
+            title(tl(iType), sprintf('Dips (n=%i)', length(xta.tDip)))
+        else
+            title(tl(iType), sprintf('Rises (n=%i)', length(xta.tRise)))
+        end
+    end
+
+    fontsize(fig, 9, 'points')
+    print(fig, fullfile(exportPath, sprintf("dta_rta_unit_%03i_movement_scatter", iUnit)), '-dpng', '-r0')
+end
+clear features featureUnits fig tlp tl ax iType i j iUnit fni fnj t selT rmsI rmsJ prcI prcJ
