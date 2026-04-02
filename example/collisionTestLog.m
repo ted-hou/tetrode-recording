@@ -290,3 +290,44 @@ for iTr = 1:length(expNamesUnique)
         warning(sprintf('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message))
     end
 end
+
+
+%% 20260402 - for John's grant application, redrawing some example units
+% Mouse, date, channel (TR label), unit, collision, clear response, any (including multiunit) response, notes
+collisionTestUnits = ...
+{ ...
+    'desmond15', '20200302_2', 5, 1, true, true, true, 'High SNR, Collisions. Every. Time.';...
+    'desmond15', '20200227', 12, 1, true, true, true, 'High SNR, Collisions. Every. Time.';...
+    'desmond18', '20200311', 5, 1, true, true, true, 'Stim response, Collisions. high SNR..';...
+};
+
+ctUnitDesc = struct('Animal', collisionTestUnits(:, 1), 'Date', collisionTestUnits(:, 2), 'Channel', collisionTestUnits(:, 3), 'Unit', collisionTestUnits(:, 4), 'HasCollision', collisionTestUnits(:, 5), 'HasTrueResponse', collisionTestUnits(:, 6), 'HasAnyResponse', collisionTestUnits(:, 7), 'Notes', collisionTestUnits(:, 8));
+ctud = CollisionTestUnitDesc(collisionTestUnits);
+ctud = ctud([ctud.HasAnyResponse]);
+clear collisionTestUnits;
+
+%%
+ctud.read();
+%%
+maxTrains = [];
+[obj.Data, obj.Timestamps, obj.SampleRate, obj.SysInitDelay] = readAnalogTrains(ctud(3).CollisionTest, ctud(3).Channel, maxTrains, [-20, 20], ctud(3).CollisionTest.TrainOn, ctud(3).CollisionTest.TrainOff);
+
+%%
+
+% close all
+% tl = tiledlayout(figure(Units='normalized', OuterPosition=[0, 0, 1, 1]), 10, 1, TileSpacing='tight', Padding='tight');
+% for iTrain = 1:10
+%     ax = nexttile(tl);
+%     hold(ax, 'on')
+%     plot(ax, 1000*timestampsByTrain(iTrain, :), dataByTrain(iTrain, :, 1), 'k-')
+%     xline(ax, 1000*obj.PulseOn(1+(iTrain-1)*20:iTrain*20), 'r:')
+%     hold(ax, 'off')
+%     ax.XAxis.Exponent = 0;
+% end
+% clear tl iTrain ax
+%%
+for i = 3:length(ctud)
+    ctud(i).CollisionTest.plot(ctud(i).Channel, Units=ctud(i).Unit, ...
+        SortPulsesByUnit=NaN, CollisionCutoff=1e-3, ...
+        LimitPulseDuration=[-Inf, Inf], OverlayUnitTraces=true, TracesPerPage=100);
+end

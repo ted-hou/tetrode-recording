@@ -15,7 +15,7 @@ classdef CollisionTest < handle
         SysInitDelay = 0
     end
 
-    properties (Transient, Access = {})
+    properties (Transient)
         TR
         PTR
     end
@@ -56,7 +56,7 @@ classdef CollisionTest < handle
             end
 
             % Validate folder
-            [~, obj.Filename, obj.ExpName, allValid, obj.IsSorted] = CollisionTest.validateFolders(folder, 'SuppressWarnings', true, 'TRSource', p.Results.TRSource);
+            [~, obj.Filename, obj.ExpName, allValid, obj.IsSorted] = CollisionTest.validateFolders(folder, 'SuppressWarnings', false, 'TRSource', p.Results.TRSource);
             if ~allValid
                 error('Invalid folder %s', folder);
             end
@@ -180,7 +180,7 @@ classdef CollisionTest < handle
     end
 
     % Private methods
-    methods (Access = {})
+    methods% (Access = {})
         function read(obj, channels, maxTrains, extendedWindow)
         %read - Read data from tr/ptr/ns5 files.
         % Syntax: read(obj, varargin)
@@ -208,6 +208,9 @@ classdef CollisionTest < handle
         end
 
         function sysInitDelay = getSysInitDelay(obj)
+            if contains(obj.Filename.NSx, 'NEUROBIOLOGY SHARED\')
+                obj.Filename.NSx = strrep(obj.Filename.NSx, 'NEUROBIOLOGY SHARED\', '');
+            end
             NSx = openNSx(obj.Filename.NSx, 'read', 'channels', 1, 'duration', [0, 20], 'sec');
             sampleRate = obj.SampleRate;
             if iscell(NSx.Data)
@@ -255,9 +258,11 @@ classdef CollisionTest < handle
             sysInitDelay = obj.getSysInitDelay();
             
             tTic = tic();
-            fprintf('Reading %d trains, %d channels...', length(trainOn), length(channels));
+            lineLength = 0;
 
             for iTrain = 1:length(trainOn)
+                fprintf(repmat('\b', [1, lineLength]))
+                lineLength = fprintf('Reading %d/%d trains, %d channels... (%.2fs elapsed)\n', iTrain, length(trainOn), length(channels), toc(tTic));
                 trainWindow = [trainOn(iTrain), trainOff(iTrain)] + extendedWindow;
 
                 % Read window for NSx file. Must shift to the right by sysInitDelay to exclude discarded data when the other rig started.
@@ -270,10 +275,11 @@ classdef CollisionTest < handle
                 % timestampsByTrain(iTrain, 1:numSamples) = (firstSampleIndex : firstSampleIndex + numSamples - 1) / sampleRate;
                 % timestampsByTrain(iTrain, 1:numSamples) = readWindow(1):1/sampleRate:readWindow(2);
                 timestampsByTrain(iTrain, 1:numSamples) = trainWindow(1) : (1 / sampleRate) : (trainWindow(1) + (numSamples - 1) * 1/sampleRate);
+
             end
 
             data = reshape(permute(dataByTrain, [2, 1, 3]), size(dataByTrain, 1) * size(dataByTrain, 2), []);
-            timestamps = reshape(permute(timestampsByTrain, [2, 1]), [], 1);
+            timestamps = reshape(transpose(timestampsByTrain), [], 1);
 
             hasData = ~isnan(timestamps);
             data = data(hasData, :);
@@ -651,6 +657,12 @@ classdef CollisionTest < handle
 
                 % Plot trace
                 plot(ax, t, y, 'k');
+
+                disp(nnz(isInPlotWindow));
+                if iPulse == 141
+                    plot(ax, t, y, 'r');
+                    disp(141)
+                end
 
                 % Plot stim window
                 stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 0;
