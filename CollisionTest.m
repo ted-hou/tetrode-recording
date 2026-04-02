@@ -66,6 +66,18 @@ classdef CollisionTest < handle
             end
         end
 
+        function read(obj, channels, maxTrains, extendedWindow)
+        %read - Read data from tr/ptr/ns5 files.
+        % Syntax: read(obj, varargin)
+            obj.readTR();
+
+            [obj.PulseOn, obj.PulseOff, obj.TrainOn, obj.TrainOff] = obj.readDigitalEvents();
+            [obj.Data, obj.Timestamps, obj.SampleRate, obj.SysInitDelay] = readAnalogTrains(obj, channels, maxTrains, extendedWindow, obj.TrainOn, obj.TrainOff);
+
+            obj.readSpikes();
+            obj.removeEmptySpikes();
+        end
+
         function save(obj, varargin)
         %save - Save the object to a .mat file.
         %
@@ -106,7 +118,6 @@ classdef CollisionTest < handle
                 end
                 obj = allObjs;
             end
-
         end
     end
 
@@ -180,19 +191,7 @@ classdef CollisionTest < handle
     end
 
     % Private methods
-    methods% (Access = {})
-        function read(obj, channels, maxTrains, extendedWindow)
-        %read - Read data from tr/ptr/ns5 files.
-        % Syntax: read(obj, varargin)
-            obj.readTR();
-
-            [obj.PulseOn, obj.PulseOff, obj.TrainOn, obj.TrainOff] = obj.readDigitalEvents();
-            [obj.Data, obj.Timestamps, obj.SampleRate, obj.SysInitDelay] = readAnalogTrains(obj, channels, maxTrains, extendedWindow, obj.TrainOn, obj.TrainOff);
-
-            obj.readSpikes();
-            obj.removeEmptySpikes();
-        end
-
+    methods (Access = {})
         function varargout = readDigitalEvents(obj)
         %readDigitalEvents - Read digital events (stimulus onsets & offsets).
             % Read digital events

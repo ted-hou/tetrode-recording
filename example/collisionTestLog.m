@@ -310,7 +310,7 @@ clear collisionTestUnits;
 ctud.read();
 ct = [ctud.CollisionTest];
 %% Reread raw data, overlapping extended windows were likely causing issues
-for i = 1:length(ct)
+for i = 2:length(ct)
     ct(i).read(ctud(i).Channel, [], [-4, 4]);
 end
 
@@ -332,8 +332,9 @@ maxTrains = [];
 % end
 % clear tl iTrain ax
 %%
-for i = 3:length(ctud)
-    ctud(i).CollisionTest.plot(ctud(i).Channel, Units=ctud(i).Unit, ...
+for i = 3:length(ct)
+    assert(size(ct(i).Data, 2) == 1)
+    ct(i).plot(1, Units=ct(i).Unit, ...
         SortPulsesByUnit=NaN, CollisionCutoff=1e-3, ...
         LimitPulseDuration=[-Inf, Inf], OverlayUnitTraces=true, TracesPerPage=100);
 end
