@@ -268,7 +268,7 @@ classdef CollisionTest < handle
                 lineLength = fprintf('Reading %d/%d trains, %d channels... (%.2fs elapsed)\n', iTrain, length(trainOn), length(channels), toc(tTic));
                 trainWindow = [trainOn(iTrain), trainOff(iTrain)] + extendedWindow;
                 lTrim = max(0 - trainWindow(1), 0);
-                rTrim = max(trainWindow(2) - dataDuration, 0);
+                rTrim = max(trainWindow(2) + sysInitDelay - dataDuration, 0);
                 trainWindow = [trainWindow(1) + lTrim, trainWindow(2) - rTrim];
                 numSamplesRequested = floor(diff(trainWindow)*sampleRate) + 1;
 
