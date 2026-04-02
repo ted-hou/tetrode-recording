@@ -314,10 +314,14 @@ for i = 1:length(ct)
     ct(i).read(ctud(i).Channel, [], [-4, 4]);
 end
 
-%% Plot data
-for i = 1:length(ct)
-    assert(size(ct(i).Data, 2) == 1)
-    ctud(i).CollisionTest.plot(ctud(i).Channel, Units=ctud(i).Unit, ...
-        SortPulsesByUnit=ctud(i).Unit, CollisionCutoff=1e-3, ...
-        LimitPulseDuration=[0, 1e-3], OverlayUnitTraces=true, TracesPerPage=100);
+%% Plot data 
+close all
+for i = 1:3
+    [fig, tl, ax] = ctud(i).CollisionTest.plotSimple(ctud(i).Channel, Units=ctud(i).Unit, SortPulsesByUnit=ctud(i).Unit, ...
+        LimitPulseDuration=[0, 1e-3], OverlayUnitTraces=true, ...
+        Start=[41, 1], TracesPerPage=40, ...
+        XLim=[-10, 10], MarkerSize=0, LineWidth=1, YSpacing=0.75);
+    set(fig, Units='inches', Position=[1 1 3.5 3])
+    fontsize(fig, 9, 'points')
+    copygraphics(fig, BackgroundColor='none', ContentType='vector')
 end

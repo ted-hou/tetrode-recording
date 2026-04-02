@@ -514,6 +514,149 @@ classdef CollisionTest < handle
 
     %% Plotting
     methods
+        function [fig, tl, ax] = plotSimple(obj, channel, varargin)
+        %plotSimple - Plot two side by side views of raw traces, left: high latency, right: low latency.
+            p = inputParser();
+            p.addRequired('Channel', @isnumeric);
+            p.addParameter('Start', [1, 100], @(x) isnumeric(x) || length(x) == 2);
+            p.addParameter('TracesPerPage', 25, @isnumeric);
+            p.addParameter('YLim', [-500, 500], @(x) isnumeric(x) && length(x) == 2 && diff(x) > 0);
+            p.addParameter('XLim', obj.Window, @(x) isnumeric(x) && length(x) == 2 && diff(x) > 0);
+            p.addParameter('YSpacing', 1, @(x) isnumeric(x) && length(x) == 1);
+            p.addParameter('Units', [], @isnumeric);
+            p.addParameter('OverlayUnitTraces', false, @islogical);
+            p.addParameter('SortPulsesByUnit', NaN, @(x) isnumeric(x) && length(x) == 1);
+            p.addParameter('SortPulsesByUnitTimeCutoff', 5e-4, @isnumeric);
+            p.addParameter('LimitPulseDuration', [0, Inf], @(x) isnumeric(x) && length(x) >= 2 && x(end) >= x(1))
+            p.addParameter('LimitPulseDurationTolerance', 1e-4, @(x) isnumeric(x) && length(x) == 1)
+            p.addParameter('MarkerSize', 20, @isnumeric)
+            p.addParameter('LineWidth', 1.5, @isnumeric)
+            p.parse(channel, varargin{:})
+            xRange = p.Results.XLim;
+
+            % Sort pulses by last spikeTime before pulse on
+            sortPulsesByUnit = p.Results.SortPulsesByUnit;
+            sortPulsesByUnitTimeCutoff = p.Results.SortPulsesByUnitTimeCutoff;
+            if ~isnan(sortPulsesByUnit)
+                [~, pulseOrder, spikeToPulseLatency] = obj.sortPulses(channel, sortPulsesByUnit, sortPulsesByUnitTimeCutoff);
+            else
+                pulseOrder = 1:length(obj.PulseOn);
+            end
+
+            % Selected Pulses by duration
+            [pulseOrder, ~] = obj.selectPulsesByDuration(p.Results.LimitPulseDuration(1), p.Results.LimitPulseDuration(end), 'Tolerance', p.Results.LimitPulseDurationTolerance, 'PulseOrder', pulseOrder);
+
+            % Create figure
+            fig = figure('Units', 'normalized', 'OuterPosition', [0, 0.05, 1, 0.95]);
+            tl = tiledlayout(fig, 1, 2, TileSpacing='tight', Padding='compact');
+            ax = gobjects(1, 2);
+            ax(1) = nexttile(tl);
+            ax(2) = nexttile(tl);
+
+            % set(ax, YDir='reverse');
+            grid(ax, 'on');
+            hold(ax, 'on');
+            xlim(ax, xRange);
+
+            xlabel(tl, 'Time from stim on (ms)')
+            ylabel(tl, 'Trial')
+
+            trChannel = p.Results.Channel;
+            pulseOn = obj.PulseOn(pulseOrder);
+            pulseOff = obj.PulseOff(pulseOrder);
+            dataChannel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Data');
+            spikesChannel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Spikes');
+
+            tracesPerPage = p.Results.TracesPerPage;
+            yRange = p.Results.YLim;
+            ySpacing = p.Results.YSpacing;
+
+            for iPage = 1:2
+                startTrace = p.Results.Start(iPage);
+                plotWindow = 0.001 * obj.Window;
+    
+                % Normalize voltage data and align to stimOnsetTime;
+                for iPulse = startTrace:startTrace + tracesPerPage - 1
+    
+                    iPulseInPage = iPulse - startTrace + 1;
+    
+                    isInPlotWindow = obj.Timestamps > pulseOn(iPulse) + plotWindow(1) & obj.Timestamps <= pulseOn(iPulse) + plotWindow(2);
+                    pulseData = obj.Data(isInPlotWindow, dataChannel);
+                    pulseTimestamps = obj.Timestamps(isInPlotWindow);
+    
+                    % Normalize voltage to yRange.
+                    y = -(pulseData - yRange(1)) ./ diff(yRange) + iPulse * ySpacing + 0.5;
+                    
+                    % Align time to stimOn
+                    t = 1000 * (pulseTimestamps - pulseOn(iPulse));
+    
+                    % Plot trace
+                    plot(ax(iPage), t, y, 'k');
+    
+                    % Plot stim window
+                    stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 0;
+                    stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1] - 0.5;
+                    stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 1000 * (pulseOff(iPulse) - pulseOn(iPulse));
+                    stimOffVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 2) = [iPulse * ySpacing, iPulse * ySpacing + 1] - 0.5;
+    
+                    colors = 'rgbcmyk';
+    
+                    % Plot sorted spike timestamps
+                    units = p.Results.Units;
+                    if isempty(units)
+                        units = 1:max(1, length(obj.Spikes(spikesChannel).Units) - 1);
+                    end
+                    for iUnit = units
+                        if p.Results.MarkerSize > 0
+                            unitTimestamps = obj.Spikes(spikesChannel).Units(iUnit).Timestamps;
+                            isInPlotWindow = unitTimestamps > pulseOn(iPulse) + plotWindow(1) & unitTimestamps <= pulseOn(iPulse) + plotWindow(2);
+                            t = 1000 * (unitTimestamps(isInPlotWindow) - pulseOn(iPulse));
+                            y = repmat(iPulse * ySpacing, [nnz(isInPlotWindow), 1]);
+                            plot(ax(iPage), t, y, sprintf('%so', colors(iUnit)), 'MarkerSize', p.Results.MarkerSize);
+                        end
+    
+                        if p.Results.OverlayUnitTraces
+                            if isempty(obj.TR)
+                                obj.readTR();
+                            end
+    
+                            trTimestamps = obj.TR.Spikes(trChannel).Timestamps;
+                            isInPlotWindow = trTimestamps > pulseOn(iPulse) + plotWindow(1) & trTimestamps <= pulseOn(iPulse) + plotWindow(2);
+    
+                            iSelWaveforms = find(isInPlotWindow);
+    
+                            for iWave = iSelWaveforms
+                                t = 1000 * (trTimestamps(iWave) - pulseOn(iPulse)) + obj.TR.Spikes(trChannel).WaveformTimestamps;
+                                y = obj.TR.Spikes(trChannel).Waveforms(iWave, :);
+                                y = -(y - yRange(1)) ./ diff(yRange) + iPulse * ySpacing + 0.5;
+                                iCluster = obj.TR.Spikes(trChannel).Cluster.Classes(iWave);
+                                if ismember(iCluster, units)
+                                    thisColor = colors(iCluster);
+                                    plot(ax(iPage), t, y, 'Color', thisColor, 'LineWidth', p.Results.LineWidth);
+                                end
+                            end
+    
+                            obj.TR.Spikes(trChannel);
+    
+                        end
+                    end
+    
+                    if iPulse >= length(pulseOrder)
+                        break
+                    end
+                end
+
+                % Page done
+                stimPatchVertices = vertcat(stimOnVertices, stimOffVertices(end:-1:1, :));
+                patch(ax(iPage), 'XData', stimPatchVertices(:, 1), 'YData', stimPatchVertices(:, 2), 'FaceColor', [77, 190, 238] / 255, 'FaceAlpha', 0.33, 'EdgeAlpha', 0);
+                ylim(ax(iPage), [(iPulse - iPulseInPage + 1) * ySpacing - .5, iPulse * ySpacing + .5])
+                yticks(ax(iPage), p.Results.YSpacing*[startTrace, startTrace+9:10:startTrace + tracesPerPage]) 
+                yticklabels(ax(iPage), string([startTrace, startTrace+9:10:startTrace + tracesPerPage])) 
+                title(ax(iPage), sprintf('Pulses %d - %d', iPulse - iPulseInPage + 1, iPulse), Interpreter='none')
+            end
+            title(tl, sprintf('%s Chn%d', obj.ExpName, trChannel), Interpreter='none', FontWeight='bold')
+        end
+
         function plot(obj, channel, varargin)
         %plot - Plot electrode data aligned on stimulation onset events.
         % Syntax: plot(obj, channel, varargin)
@@ -768,6 +911,9 @@ classdef CollisionTest < handle
                 iBin = bin(iTrace);
 
                 iSampleStart = find(obj.Timestamps >= pulseOn(iTrace), 1, 'first');
+                if isempty(iSampleStart)
+                    continue
+                end
                 selSamples = iSampleStart : iSampleStart + numSamples - 1;
 
                 Bin(iBin).Traces(Bin(iBin).NumTraces + 1, :) = obj.Data(selSamples, dataChannel);
@@ -790,7 +936,7 @@ classdef CollisionTest < handle
             xlabel(ax, 'Time from stim on (ms)')
             ylabel(ax, 'Mean voltage (mV)')
             title(ax, sprintf('%s Chn %i, Unit %i', obj.ExpName, trChannel, p.Results.SortPulsesByUnit), 'Interpreter', 'none')
-            colors = 'rgbcmyk';
+            colors = 'kr';
 
             for i = 1:length(uniqueBins)
                 iBin = uniqueBins(i);
