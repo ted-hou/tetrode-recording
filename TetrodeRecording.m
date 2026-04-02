@@ -1730,6 +1730,9 @@ classdef TetrodeRecording < handle
 
 		function ReadChannelMapFromPreview(obj)
 			% Check if ptr file exists
+            if contains(obj.Path, 'NEUROBIOLOGY SHARED\')
+                obj.Path = strrep(obj.Path, 'NEUROBIOLOGY SHARED\', '');
+            end
 			ptrFile = sprintf('%s..\\SpikeSort\\ptr_%s.mat', obj.Path, obj.GetExpName());
 			ptr = dir(ptrFile);
             if ~isempty(ptr)
