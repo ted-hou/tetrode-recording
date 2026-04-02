@@ -260,16 +260,28 @@ classdef CollisionTest < handle
             tTic = tic();
             lineLength = 0;
 
+            NSx = openNSx(obj.Filename.NSx, 'noread');
+            dataDuration = NSx.MetaTags.DataDurationSec;
+            dataLength = NSx.MetaTags.DataPoints;
             for iTrain = 1:length(trainOn)
                 fprintf(repmat('\b', [1, lineLength]))
                 lineLength = fprintf('Reading %d/%d trains, %d channels... (%.2fs elapsed)\n', iTrain, length(trainOn), length(channels), toc(tTic));
                 trainWindow = [trainOn(iTrain), trainOff(iTrain)] + extendedWindow;
+                lTrim = max(0 - trainWindow(1), 0);
+                rTrim = max(trainWindow(2) - dataDuration, 0);
+                trainWindow = [trainWindow(1) + lTrim, trainWindow(2) - rTrim];
+                numSamplesRequested = floor(diff(trainWindow)*sampleRate) + 1;
 
                 % Read window for NSx file. Must shift to the right by sysInitDelay to exclude discarded data when the other rig started.
-                readWindow = trainWindow + sysInitDelay;
+                readWindow = floor((trainWindow + sysInitDelay) * sampleRate) + 1;
+                readWindow(2) = readWindow(2) - 1;
+                assert(readWindow(1) > 1);
+                assert(readWindow(2) <= dataLength);
 
-                NSx = openNSx(obj.Filename.NSx, 'read', 'channels', nsxChannels, 'duration', readWindow, 'sec');
+                NSx = openNSx(obj.Filename.NSx, 'read', 'channels', nsxChannels, 'duration', readWindow, 'sample');
                 numSamples = size(NSx.Data, 2);
+                assert(numSamples-numSamplesRequested<=1, "numSamples=%i, numSamplesRequested=%i, diff(readWindow)+1=%i", numSamples, numSamplesRequested, diff(readWindow)+1);
+                assert(numSamples<=maxTrainLength)
 
                 dataByTrain(iTrain, 1:numSamples, :) = reshape(transpose(NSx.Data), 1, numSamples, []);
                 % timestampsByTrain(iTrain, 1:numSamples) = (firstSampleIndex : firstSampleIndex + numSamples - 1) / sampleRate;

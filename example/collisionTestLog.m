@@ -311,7 +311,7 @@ ctud.read();
 ct = [ctud.CollisionTest];
 %% Reread raw data, overlapping extended windows were likely causing issues
 for i = 1:length(ct)
-    ct(i).read(ctud(i).Channel, [], [-20, 20]);
+    ct(i).read(ctud(i).Channel, [], [-4, 4]);
 end
 
 %%
