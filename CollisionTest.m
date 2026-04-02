@@ -382,6 +382,10 @@ classdef CollisionTest < handle
                     return
 
                 case 'data'
+                    if size(obj.Data, 2) == 1
+                        outChannels = ones(size(channels));
+                        return
+                    end
                     [~, outChannels] = ismember(channels, [obj.Spikes.Channel]);
                     outChannels(isnan(outChannels)) = NaN;
                     return
