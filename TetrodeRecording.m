@@ -1735,7 +1735,7 @@ classdef TetrodeRecording < handle
             end
 			ptrFile = sprintf('%s..\\SpikeSort\\ptr_%s.mat', obj.Path, obj.GetExpName());
 			ptr = dir(ptrFile);
-            if ~isempty(ptr)
+            if isempty(ptr)
 			    ptrFile = sprintf('%s..\\..\\SpikeSort\\ptr_%s.mat', obj.Path, obj.GetExpName());
 			    ptr = dir(ptrFile);
             end
@@ -5886,7 +5886,7 @@ classdef TetrodeRecording < handle
 				for iFile = 1:length(expNames)
                     tTic = tic();
                     if contains(expNames{iFile}, 'NEUROBIOLOGY SHARED')
-                        expNames{iFile} = strrep(expNames{iFile}, 'NEUROBIOLOGY SHARED\', '')
+                        expNames{iFile} = strrep(expNames{iFile}, 'NEUROBIOLOGY SHARED\', '');
                     end
 					if (isfile(expNames{iFile}))
 						files{length(files) + 1} = expNames{iFile};
