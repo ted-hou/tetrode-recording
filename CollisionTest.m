@@ -353,7 +353,7 @@ classdef CollisionTest < handle
             p = inputParser();
             p.addRequired('Channels', @isnumeric);
             p.addParameter('From', 'TR', @ischar);
-            p.addParameter("To", "NSx", @ischar);
+            p.addParameter("To", 'NSx', @ischar); % nsx, data, spikes
             p.parse(channels, varargin{:});
             channels = p.Results.Channels;
             from = p.Results.From;
@@ -390,8 +390,13 @@ classdef CollisionTest < handle
                     outChannels(isnan(outChannels)) = NaN;
                     return
 
+                case 'spikes'
+                    [~, outChannels] = ismember(channels, [obj.Spikes.Channel]);
+                    outChannels(isnan(outChannels)) = NaN;
+                    return
+
                 otherwise
-                    warning('%s is not an acceptable value for argument "To". Only "NSx" or "Data" is supported.', to);
+                    warning('%s is not an acceptable value for argument "To". Only "NSx" or "Data" or "Spikes" is supported.', to);
             end
         end
     end
@@ -645,7 +650,8 @@ classdef CollisionTest < handle
             trChannel = p.Results.Channel;
             pulseOn = obj.PulseOn(pulseOrder);
             pulseOff = obj.PulseOff(pulseOrder);
-            channel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Data');
+            dataChannel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Data');
+            spikesChannel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Spikes');
 
             tracesPerPage = p.Results.TracesPerPage;
             yRange = p.Results.YLim;
@@ -664,7 +670,7 @@ classdef CollisionTest < handle
                 iPulseInPage = iPulse - startTrace + 1;
 
                 isInPlotWindow = obj.Timestamps > pulseOn(iPulse) + plotWindow(1) & obj.Timestamps <= pulseOn(iPulse) + plotWindow(2);
-                pulseData = obj.Data(isInPlotWindow, channel);
+                pulseData = obj.Data(isInPlotWindow, dataChannel);
                 pulseTimestamps = obj.Timestamps(isInPlotWindow);
 
                 % Normalize voltage to yRange.
@@ -687,10 +693,10 @@ classdef CollisionTest < handle
                 % Plot sorted spike timestamps
                 units = p.Results.Units;
                 if isempty(units)
-                    units = 1:max(1, length(obj.Spikes(channel).Units) - 1);
+                    units = 1:max(1, length(obj.Spikes(spikesChannel).Units) - 1);
                 end
                 for iUnit = units
-                    unitTimestamps = obj.Spikes(channel).Units(iUnit).Timestamps;
+                    unitTimestamps = obj.Spikes(spikesChannel).Units(iUnit).Timestamps;
                     isInPlotWindow = unitTimestamps > pulseOn(iPulse) + plotWindow(1) & unitTimestamps <= pulseOn(iPulse) + plotWindow(2);
                     t = 1000 * (unitTimestamps(isInPlotWindow) - pulseOn(iPulse));
                     y = repmat(iPulse * ySpacing, [nnz(isInPlotWindow), 1]);
@@ -737,7 +743,7 @@ classdef CollisionTest < handle
 
         function plotMeanByCollision(obj, ax, p, spikeToPulseLatency, pulseOrder)
             trChannel = p.Results.Channel;
-            channel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Data');
+            dataChannel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Data');
 
             plotWindow = 0.001 * obj.Window(2);
             numSamples = ceil(plotWindow * obj.SampleRate);
@@ -764,7 +770,7 @@ classdef CollisionTest < handle
                 iSampleStart = find(obj.Timestamps >= pulseOn(iTrace), 1, 'first');
                 selSamples = iSampleStart : iSampleStart + numSamples - 1;
 
-                Bin(iBin).Traces(Bin(iBin).NumTraces + 1, :) = obj.Data(selSamples, channel);
+                Bin(iBin).Traces(Bin(iBin).NumTraces + 1, :) = obj.Data(selSamples, dataChannel);
                 Bin(iBin).NumTraces = Bin(iBin).NumTraces + 1;
             end
 
@@ -802,20 +808,20 @@ classdef CollisionTest < handle
 
         function plotWaveforms(obj, ax, channel)
             trChannel = channel;
-            channel = obj.mapChannels(channel, 'From', 'TR', 'To', 'Data');
+            spikesChannel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Spikes');
 
             xlabel(ax, 'Time (ms)')
             ylabel(ax, 'Voltage (mV)')
             title(ax, sprintf('%s Chn %i', obj.ExpName, trChannel), 'Interpreter', 'none')
             hold(ax, 'on')
 
-            t = obj.Spikes(channel).WaveformTimestamps;
+            t = obj.Spikes(spikesChannel).WaveformTimestamps;
 
             colors = 'rgbcmyk';
 
-            for iUnit = 1:length(obj.Spikes(channel).Units)
+            for iUnit = 1:length(obj.Spikes(spikesChannel).Units)
                 thisColor = colors(iUnit);
-                Waveform = obj.Spikes(channel).Units(iUnit).Waveform;
+                Waveform = obj.Spikes(spikesChannel).Units(iUnit).Waveform;
                 spikeRate = obj.getSpikeRate(trChannel, iUnit);
                 h(iUnit) = line(ax, t, Waveform.Mean, 'LineStyle', '-', 'Color', thisColor, 'DisplayName', sprintf('%.0f sp/s', spikeRate));
                 patch(ax, [t, flip(t)], [Waveform.Percentile05, flip(Waveform.Percentile95)], thisColor,...
@@ -848,10 +854,10 @@ classdef CollisionTest < handle
 
             % Map channel labels to data
             trChannel = channel;
-            channel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Data');
+            spikesChannel = obj.mapChannels(trChannel, 'From', 'TR', 'To', 'Spikes');
 
             % Read unit spike timestamps relative to pulse on
-            allSpikeTimes = obj.Spikes(channel).Units(unit).Timestamps;
+            allSpikeTimes = obj.Spikes(spikesChannel).Units(unit).Timestamps;
 
             spikeToPulseLatency = zeros(length(obj.PulseOn), 1);
 

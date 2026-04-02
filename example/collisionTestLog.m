@@ -310,31 +310,14 @@ clear collisionTestUnits;
 ctud.read();
 ct = [ctud.CollisionTest];
 %% Reread raw data, overlapping extended windows were likely causing issues
-for i = 2:length(ct)
+for i = 1:length(ct)
     ct(i).read(ctud(i).Channel, [], [-4, 4]);
 end
 
-%%
-maxTrains = [];
-[obj.Data, obj.Timestamps, obj.SampleRate, obj.SysInitDelay] = readAnalogTrains(ctud(3).CollisionTest, ctud(3).Channel, maxTrains, [-20, 20], ctud(3).CollisionTest.TrainOn, ctud(3).CollisionTest.TrainOff);
-
-%%
-
-% close all
-% tl = tiledlayout(figure(Units='normalized', OuterPosition=[0, 0, 1, 1]), 10, 1, TileSpacing='tight', Padding='tight');
-% for iTrain = 1:10
-%     ax = nexttile(tl);
-%     hold(ax, 'on')
-%     plot(ax, 1000*timestampsByTrain(iTrain, :), dataByTrain(iTrain, :, 1), 'k-')
-%     xline(ax, 1000*obj.PulseOn(1+(iTrain-1)*20:iTrain*20), 'r:')
-%     hold(ax, 'off')
-%     ax.XAxis.Exponent = 0;
-% end
-% clear tl iTrain ax
-%%
+%% Plot data
 for i = 1:length(ct)
     assert(size(ct(i).Data, 2) == 1)
     ctud(i).CollisionTest.plot(ctud(i).Channel, Units=ctud(i).Unit, ...
-        SortPulsesByUnit=NaN, CollisionCutoff=1e-3, ...
-        LimitPulseDuration=[-Inf, Inf], OverlayUnitTraces=true, TracesPerPage=100);
+        SortPulsesByUnit=ctud(i).Unit, CollisionCutoff=1e-3, ...
+        LimitPulseDuration=[0, 1e-3], OverlayUnitTraces=true, TracesPerPage=100);
 end
