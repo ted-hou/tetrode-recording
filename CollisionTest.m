@@ -261,8 +261,8 @@ classdef CollisionTest < handle
             lineLength = 0;
 
             NSx = openNSx(obj.Filename.NSx, 'noread');
-            dataDuration = NSx.MetaTags.DataDurationSec;
-            dataLength = NSx.MetaTags.DataPoints;
+            dataDuration = NSx.MetaTags.DataDurationSec(end);
+            dataLength = NSx.MetaTags.DataPoints(end);
             for iTrain = 1:length(trainOn)
                 fprintf(repmat('\b', [1, lineLength]))
                 lineLength = fprintf('Reading %d/%d trains, %d channels... (%.2fs elapsed)\n', iTrain, length(trainOn), length(channels), toc(tTic));
