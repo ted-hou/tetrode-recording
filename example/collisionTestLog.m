@@ -306,8 +306,14 @@ ctud = CollisionTestUnitDesc(collisionTestUnits);
 ctud = ctud([ctud.HasAnyResponse]);
 clear collisionTestUnits;
 
-%%
+%% Read Collision Test Files
 ctud.read();
+ct = [ctud.CollisionTest];
+%% Reread raw data, overlapping extended windows were likely causing issues
+for i = 1:length(ct)
+    ct(i).read(ctud(i).Channel, [], [-20, 20]);
+end
+
 %%
 maxTrains = [];
 [obj.Data, obj.Timestamps, obj.SampleRate, obj.SysInitDelay] = readAnalogTrains(ctud(3).CollisionTest, ctud(3).Channel, maxTrains, [-20, 20], ctud(3).CollisionTest.TrainOn, ctud(3).CollisionTest.TrainOff);

@@ -285,6 +285,9 @@ classdef CollisionTest < handle
             data = data(hasData, :);
             timestamps = timestamps(hasData);
 
+            [timestamps, ia, ~] = unique(timestamps);
+            data = data(ia, :);
+
             if (~CollisionTest.validateTimestamps(timestamps))
                 error('Timestamps are not monotonic increasing. Digital events data probably needs to be trimmed.')
             end
@@ -657,12 +660,6 @@ classdef CollisionTest < handle
 
                 % Plot trace
                 plot(ax, t, y, 'k');
-
-                disp(nnz(isInPlotWindow));
-                if iPulse == 141
-                    plot(ax, t, y, 'r');
-                    disp(141)
-                end
 
                 % Plot stim window
                 stimOnVertices(2 * iPulseInPage - 1: 2 * iPulseInPage, 1) = 0;
