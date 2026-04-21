@@ -120,7 +120,7 @@ for iExp = 1:length(exp)
         exp(iExp).vtdR = vtd;
     end
 end
-
+%%
 clearvars -except eu exp results
 
 expIndices = cellfun(@(name) find(strcmpi(name, {exp.name}), 1, 'first'), {eu.ExpName});
@@ -146,7 +146,7 @@ p.riseThresholdSubQuantile = 1 - p.dipThresholdSubQuantile;
 p.risePattern = arrayfun(@(n) [0, 0, 0, ones(1, n), 0, 0, 0] , p.riseSamples(1):p.riseSamples(2), UniformOutput=false);
 p.risePatternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.risePattern);
 
-p.nBoot = 0;
+p.nBoot = 1000;
 if p.nBoot < 1000
     warning("Running bootstrap with nBoot=%i<1000 is only recommended for testing purposes. Run a real bootstrap pls you lazy bum.", p.nBoot)
 end
@@ -520,8 +520,8 @@ end
 clear iUnit fn selT
 
 % Save results
-% exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot\NewData", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims.mat", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples(1), 100*p.riseSamples(2)));
-% save(exportPath, 'dta', 'rta', 'kinematics', 'p', '-v7.3')
+exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot\NewData", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims.mat", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples(1), 100*p.riseSamples(2)));
+save(exportPath, 'dta', 'rta', 'kinematics', 'p', '-v7.3')
 
 
 %% Plot dip-triggered average kinematics (STD Version
