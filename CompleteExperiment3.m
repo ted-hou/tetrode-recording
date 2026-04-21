@@ -295,7 +295,7 @@ classdef CompleteExperiment3 < CompleteExperiment
                             i = -1;
                             warning('Unrecognized side string: ''%s'' for animal ''%s''', side, animalName)
                     end
-                case {'daisy23', 'daisy24', 'daisy25', 'desmond38', 'desmond39', 'daisy26', 'daisy27', 'daisy28'}
+                case {'daisy23', 'daisy24', 'daisy25', 'daisy26', 'daisy27', 'daisy28', 'daisy29', 'daisy30', 'daisy31', 'daisy32', 'daisy33', 'daisy34', 'desmond38', 'desmond39', 'desmond40', 'desmond41', 'desmond42', 'desmond43', 'desmond44', 'desmond45'}
                     switch lower(side)
                         case {'f', 'front'}
                             i = 2;
@@ -329,6 +329,8 @@ classdef CompleteExperiment3 < CompleteExperiment
                             i = -1;
                             warning('Unrecognized side string: ''%s'' for animal ''%s''', side, animalName)
                     end
+                otherwise
+                    error('Unrecognized animal name "%s"', animalName)
             end
         end
 

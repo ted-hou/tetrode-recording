@@ -1696,7 +1696,7 @@ classdef EphysUnit < handle
     methods (Static)
         function obj = load(varargin)
             p = inputParser();
-            if ischar(varargin{1})
+            if ischar(varargin{1}) || isstring(varargin{1})
                 p.addOptional('path', 'C:\SERVER\Units', @isfolder);
             elseif iscell(varargin{1})
                 p.addOptional('files', {}, @iscell);
