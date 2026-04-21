@@ -120,7 +120,8 @@ for iExp = 1:length(exp)
         exp(iExp).vtdR = vtd;
     end
 end
-%%
+
+%% Reset results
 clearvars -except eu exp results
 
 expIndices = cellfun(@(name) find(strcmpi(name, {exp.name}), 1, 'first'), {eu.ExpName});
@@ -146,14 +147,17 @@ p.riseThresholdSubQuantile = 1 - p.dipThresholdSubQuantile;
 p.risePattern = arrayfun(@(n) [0, 0, 0, ones(1, n), 0, 0, 0] , p.riseSamples(1):p.riseSamples(2), UniformOutput=false);
 p.risePatternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.risePattern);
 
+p.blank(1).event = "StimOn";
+p.blank(1).window = [-1, 1];
+
 p.nBoot = 1000;
 if p.nBoot < 1000
     warning("Running bootstrap with nBoot=%i<1000 is only recommended for testing purposes. Run a real bootstrap pls you lazy bum.", p.nBoot)
 end
 p.bootAlpha = 0.05;
 
-selUnits = 1:20;
-% selUnits = 1:length(eu);
+% selUnits = 1:20;
+selUnits = 1:length(eu);
 
 % Process vtdFeatues
 clear kinematics
@@ -268,15 +272,36 @@ for iEu = selUnits
     iDip = arrayfun(@(i) strfind(x<=dipThreshold, p.dipPattern{i}) + p.dipPatternOnset(i), 1:length(p.dipPattern), UniformOutput=false);
     iDip = cat(2, iDip{:});
     tDip = t(iDip);
+    nDipsTotal = length(tDip);
+
+    for iEvent = 1:length(p.blank)
+        tEvent = eu(iEu).EventTimes.(p.blank(iEvent).event);
+        windows = tEvent(:) + p.blank(iEvent).window;
+        for i = 1:length(tEvent)
+            tDip(tDip>=windows(i, 1) & tDip<=windows(i, 2)) = [];
+        end
+    end
+    clear iEvent tEvent windows i iDip
 
     % Find rises
     riseThreshold = quantile(x(x>0), p.riseThresholdQuantile);
     iRise = arrayfun(@(i) strfind(x>=riseThreshold, p.risePattern{i}) + p.risePatternOnset(i), 1:length(p.risePattern), UniformOutput=false);
     iRise = cat(2, iRise{:});
     tRise = t(iRise);
+    nRisesTotal = length(tRise);
+
+    for iEvent = 1:length(p.blank)
+        tEvent = eu(iEu).EventTimes.(p.blank(iEvent).event);
+        windows = tEvent(:) + p.blank(iEvent).window;
+        for i = 1:length(tEvent)
+            tRise(tRise>=windows(i, 1) & tRise<=windows(i, 2)) = [];
+        end
+    end
+    clear iEvent tEvent windows i iRise
+
 
     fprintf(repmat('\b', [1, lineLength]))
-    lineLength = fprintf('Unit %i/%i; %i dips (x<%.2f), %i rises (x>%.2f)... %.1fs elapsed...', iEu, length(eu), length(tDip), dipThreshold, length(tRise), riseThreshold, toc(tTicTotal));
+    lineLength = fprintf('Unit %i/%i; %i(-%i) dips (x<%.2f), %i(-%i) rises (x>%.2f)... %.1fs elapsed...', iEu, length(eu), length(tDip), nDipsTotal-length(tDip), dipThreshold, length(tRise), nRisesTotal-length(tRise), riseThreshold, toc(tTicTotal));
 
     dta(iEu).iExp = iExp;
     rta(iEu).iExp = iExp;
@@ -520,8 +545,8 @@ end
 clear iUnit fn selT
 
 % Save results
-exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot\NewData", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims.mat", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples(1), 100*p.riseSamples(2)));
-save(exportPath, 'dta', 'rta', 'kinematics', 'p', '-v7.3')
+% exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot\NewData", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims.mat", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples(1), 100*p.riseSamples(2)));
+% save(exportPath, 'dta', 'rta', 'kinematics', 'p', '-v7.3')
 
 
 %% Plot dip-triggered average kinematics (STD Version
