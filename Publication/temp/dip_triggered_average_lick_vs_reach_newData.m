@@ -128,8 +128,10 @@ expIndices = cellfun(@(name) find(strcmpi(name, {exp.name}), 1, 'first'), {eu.Ex
 
 %% Detect dips in firing
 p.features = ["HandR", "HandL", "FootR", "FootL", "Tongue", "Jaw", "Spine"];
+p.featureStats = ["xPos", "xPos", "xPos", "xPos", "likelihood", "yPos", "yPos"]; % xPos, yPos, xVel, yVel, likelihood, displacement, speed
 p.vtdNames = ["vtdR", "vtdL", "vtdR", "vtdL", "both", "both", "both"];
-p.smoothWindow = [10, 10, 10, 10, 5, 10, 10];
+% p.smoothWindow = [10, 10, 10, 10, 5, 10, 10];
+p.smoothWindow = [20, 20, 20, 20, 5, 20, 20];
 p.minL = [0.5, 0.5, 0.5, 0.5, 0.2, 0.5, 0.5];
 p.dtaRes = 1/30;
 
@@ -150,13 +152,12 @@ p.risePatternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.risePattern);
 p.blank(1).event = "StimOn";
 p.blank(1).window = [-1, 1];
 
-p.nBoot = 1000;
+p.nBoot = 0;
 if p.nBoot < 1000
     warning("Running bootstrap with nBoot=%i<1000 is only recommended for testing purposes. Run a real bootstrap pls you lazy bum.", p.nBoot)
 end
 p.bootAlpha = 0.05;
 
-% selUnits = 1:20;
 selUnits = 1:length(eu);
 
 % Process vtdFeatues
@@ -166,6 +167,7 @@ for iExp = 1:length(exp)
     for iFeature = 1:length(p.features)
         fn = p.features(iFeature);
         vn = p.vtdNames(iFeature);
+        sn = p.featureStats(iFeature);
         if ismember(vn, ["vtdL", "vtdR"])
             vtd = exp(iExp).(vn);
             if isempty(vtd)
@@ -174,6 +176,7 @@ for iExp = 1:length(exp)
         end
         % Tongue uses bilateral likelihood
         if fn == "Tongue"
+            assert(sn == "likelihood");
             iSide = 0;
             t = 0:p.dtaRes:max(exp(iExp).vtdL.Timestamp(end), exp(iExp).vtdR.Timestamp(end));
             L = NaN(length(t), 1);
@@ -193,6 +196,7 @@ for iExp = 1:length(exp)
             clear t
         % Licks from digital events
         elseif fn == "Lick"
+            assert(sn == "likelihood");
             L = exp(iExp).eu(1).EventTimes.LickOn;
             t = 0:p.dtaRes:exp(iExp).vtdR.Timestamp(end);
             edges = [t - p.dtaRes/2, t(end) + p.dtaRes/2];
@@ -204,7 +208,7 @@ for iExp = 1:length(exp)
         elseif vn == "both"
             iSide = 0;
             t = 0:p.dtaRes:max(exp(iExp).vtdL.Timestamp(end), exp(iExp).vtdR.Timestamp(end));
-            D = NaN(length(t), 1);
+            S = NaN(length(t), 1);
             for side = ["vtdL", "vtdR"]
                 iSide = iSide + 1;
                 x = exp(iExp).(side).(sprintf("%s_X", fn));
@@ -214,37 +218,91 @@ for iExp = 1:length(exp)
                 y(l<p.minL(iFeature)) = NaN;
                 x = (x - mean(x, 'all', 'omitnan')) ./ std(x, 0, 'all', 'omitnan');
                 y = (y - mean(y, 'all', 'omitnan')) ./ std(y, 0, 'all', 'omitnan');
-                d = sqrt(x.^2 + y.^2);
+                tt = exp(iExp).(side).Timestamp;
+
+                switch sn
+                    case "xPos"
+                        if vn == "vtdR"
+                            s = x;
+                        else
+                            s = -x;
+                        end
+                    case "yPos"
+                        s = y;
+                    case "xVel"
+                        if vn == "vtdR"
+                            s = [NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
+                        else
+                            s = -[NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
+                        end
+                    case "yVel"
+                        s = [NaN; diff(smoothdata(y, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
+                    case "displacement"
+                        s = sqrt(x.^2 + y.^2);
+                    case "speed"
+                        x = [NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
+                        y = [NaN; diff(smoothdata(y, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
+                        s = sqrt(x.^2 + y.^2);
+                    otherwise
+                        error("Unsupported stat '%s' for feature '%s'", sn, fn)
+                end
 
                 % l = smoothdata(l, 'gaussian', 7);
-                D(:, iSide) = interp1(exp(iExp).(side).Timestamp, d, t, 'linear');
+                S(:, iSide) = interp1(tt, s, t, 'linear');
             end
             clear iSide side x y l d
-            D = mean(D, 2, 'omitnan');
-            D = smoothdata(D, 'gaussian', p.smoothWindow(iFeature));
-            kinematics(iExp).(fn) = struct(X=D, t=t);
+            S = mean(S, 2, 'omitnan');
+            if ~ismember(sn, ["xVel", "yVel", "speed"])
+                S = smoothdata(S, 'gaussian', p.smoothWindow(iFeature));
+            end
+            kinematics(iExp).(fn) = struct(X=S, t=t);
             clear t
         % Other tracking points use position or speed
         elseif ismember(sprintf("%s_X", fn), vtd.Properties.VariableNames)
-            X = vtd.(sprintf("%s_X", fn));
-            Y = vtd.(sprintf("%s_Y", fn));
-            L = vtd.(sprintf("%s_Likelihood", fn));
+            x = vtd.(sprintf("%s_X", fn));
+            y = vtd.(sprintf("%s_Y", fn));
+            l = vtd.(sprintf("%s_Likelihood", fn));
             t = vtd.Timestamp;
-            X(L<p.minL(iFeature)) = NaN;
-            Y(L<p.minL(iFeature)) = NaN;
-            X = (X - mean(X, 'all', 'omitnan')) ./ std(X, 0, 'all', 'omitnan');
-            Y = (Y - mean(Y, 'all', 'omitnan')) ./ std(Y, 0, 'all', 'omitnan');
-            % X = [NaN; diff(X)]./[NaN; diff(t)];
-            % Y = [NaN; diff(Y)]./[NaN; diff(t)];
-            D = sqrt(X.^2 + Y.^2);
+            x(l<p.minL(iFeature)) = NaN;
+            y(l<p.minL(iFeature)) = NaN;
+            x = (x - mean(x, 'all', 'omitnan')) ./ std(x, 0, 'all', 'omitnan');
+            y = (y - mean(y, 'all', 'omitnan')) ./ std(y, 0, 'all', 'omitnan');
+            switch sn
+                case "xPos"
+                    if vn == "vtdR"
+                        s = x;
+                    else
+                        s = -x;
+                    end
+                case "yPos"
+                    s = y;
+                case "xVel"
+                    if vn == "vtdR"
+                        s = [NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
+                    else
+                        s = -[NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
+                    end
+                case "yVel"
+                    s = [NaN; diff(smoothdata(y, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
+                case "displacement"
+                    s = sqrt(x.^2 + y.^2);
+                case "speed"
+                    x = [NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
+                    y = [NaN; diff(smoothdata(y, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
+                    s = sqrt(x.^2 + y.^2);
+                otherwise
+                    error("Unsupported stat '%s' for feature '%s'", sn, fn)
+            end
             % selnan = isnan(D);
             % D(selnan) = interp1(vtd.Timestamp(~selnan), D(~selnan), vtd.Timestamp(selnan), 'linear');
-            D = smoothdata(D, 'gaussian', p.smoothWindow(iFeature));
-            kinematics(iExp).(fn) = struct(X=D, t=vtd.Timestamp);
+            if ~ismember(sn, ["xVel", "yVel", "speed"])
+                s = smoothdata(s, 'gaussian', p.smoothWindow(iFeature));
+            end
+            kinematics(iExp).(fn) = struct(X=s, t=vtd.Timestamp);
         end
     end
 end
-clear iExp iFeature vn fn vtd L X Y D selnan
+clear iExp iFeature vn fn vtd L X Y S selnan
 
 % Process dip/rise-triggered kinematics
 tLocal = p.dtaWindow(1):p.dtaRes:p.dtaWindow(2);
@@ -446,7 +504,7 @@ for iEu = selUnits
 end
 
 clear iEu iExp lineLength tLocal tTicTotal x t mu sd dipThreshold iRise tDip riseThreshold iRise tRise T dipMagnitude selDips riseMagnitude selRises
-clear lineLength2 I2 iDip
+clear lineLength2 I2 iDip iFeature fn nDipsTotal nRisesTotal
 
 
 % Post-hoc do a bootstrap for dta/rta spikerate
@@ -544,10 +602,24 @@ end
 
 clear iUnit fn selT
 
-% Save results
-% exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot\NewData", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims.mat", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples(1), 100*p.riseSamples(2)));
-% save(exportPath, 'dta', 'rta', 'kinematics', 'p', '-v7.3')
+%% Save results
+exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot\NewData", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_units%ito%i_%iboots.mat", 100*p.dipThresholdQuantile, 100*p.dipThresholdSubQuantile, 100*p.dipSamples(1), 100*p.riseSamples(2), selUnits(1), selUnits(end), p.nBoot));
+save(exportPath, 'dta', 'rta', 'kinematics', 'p', '-v7.3')
 
+%% Make a metaDTA/metaRTA
+for fn = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"]
+    X = arrayfun(@(xta) xta.(fn).X, dta(selUnits), UniformOutput=false);
+    X = cat(1, X{:});
+    dta(length(eu) + 1).(fn) = struct(X=mean(X, 1, 'omitnan'), t=dta(1).(fn).t);
+    X = arrayfun(@(xta) xta.(fn).X, rta(selUnits), UniformOutput=false);
+    X = cat(1, X{:});
+    rta(length(eu) + 1).(fn) = struct(X=mean(X, 1, 'omitnan'), t=rta(1).(fn).t);
+    clear X
+end
+dta(length(eu) + 1).iExp = 0;
+rta(length(eu) + 1).iExp = 0;
+dta(length(eu) + 1).tDip = [dta(selUnits).tDip];
+rta(length(eu) + 1).tRise = [rta(selUnits).tRise];
 
 %% Plot dip-triggered average kinematics (STD Version
 close all
@@ -555,9 +627,11 @@ exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot\NewData\Figures", spri
 if ~exist(exportPath, 'dir')
     mkdir(exportPath)
 end
-features = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Tongue", "Jaw", "Spine"];
-featureUnits = ["a.u.", "a.u.", "a.u.", "a.u.", "a.u.", "prob", "a.u.", "a.u."];
-yl = {[-2.5, 5], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 1.1], [-0.1, 5.1], [-0.1, 5.1]};
+features = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
+featureUnits = ["a.u.", "AP pos (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "DV pos (a.u.)", "DV pos (a.u.)", "prob"];
+statFeatures = ["HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
+% yl = {[-2.5, 5], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 1.1]};
+yl = {[-2.5, 5], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [0, 1]};
 fig = figure(Units='inches', InnerPosition=[2, 2, 2*(2+length(features)), 5]);
 tlp = tiledlayout(fig, 2, 1, TileSpacing='compact', Padding='compact');
 tl = gobjects(2, 1);
@@ -572,11 +646,17 @@ for iType = 1:2
         ax(iType, iAx) = nexttile(tl(iType));
     end
 end
-for iUnit = selUnits
+for iUnit = [length(eu)+1, selUnits]
+% for iUnit = length(eu)+1
+    for iType = 1:2
+        for iAx = 1:length(features)
+            cla(ax(iType, iAx))
+        end
+    end
     for iType = 1:2
         % Check existence
         if iType == 1
-            if isempty(dta(iUnit).tDip)
+            if isempty(dta(iUnit).tDip) && dta(iUnit).iExp > 0
                 for iAx = 1:length(features)
                     cla(ax(iType, iAx))
                     ax(iType, iAx).Visible = false;
@@ -584,7 +664,7 @@ for iUnit = selUnits
                 continue
             end
         else
-            if isempty(rta(iUnit).tRise)
+            if isempty(rta(iUnit).tRise) && dta(iUnit).iExp > 0
                 for iAx = 1:length(features)
                     cla(ax(iType, iAx))
                     ax(iType, iAx).Visible = false;
@@ -593,7 +673,6 @@ for iUnit = selUnits
             end
         end
         for iAx = 1:length(features)
-            cla(ax(iType, iAx))
             fn = features(iAx);
             if iType == 1 && isempty(dta(iUnit).(fn))
                 ax(iType, iAx).Visible = false;
@@ -638,7 +717,8 @@ for iUnit = selUnits
                     nStarsSTD = 0;
                 end
             end
-            plot(ax(iType, iAx), t, X, Color=[0.15, 0.15, 0.15, 0.1]);
+            % plot(ax(iType, iAx), t, X, Color=[0.15, 0.15, 0.15, 0.1]);
+            plot(ax(2+1-iType, iAx), t, mu, Color=[0.15, 0.15, 0.15, 0.1], LineWidth=1.5);
             plot(ax(iType, iAx), t, mu, Color=c, LineWidth=1.5);
             if p.nBoot > 0
                 patch(ax(iType, iAx), [t, flip(t)], [prc(1, :), flip(prc(2, :))], c, FaceAlpha=0.05, EdgeColor=c, EdgeAlpha=0.5);
@@ -660,15 +740,18 @@ for iUnit = selUnits
         end
 
         % Correlegram
+        [lia, statFeatureOrder] = ismember(statFeatures, p.std.features);
+        assert(all(lia), 'Some members of statFeatureOrder are not found.')
+
         iAx = iAx + 1;
         r = NaN(length(p.std.features));
         for i = 1:length(p.std.features)
-            fni = p.std.features(i);
+            fni = p.std.features(statFeatureOrder(i));
             if isempty(dta(iUnit).(fni))
                 continue
             end
             for j = 1:length(p.std.features)
-                fnj = p.std.features(j);
+                fnj = p.std.features(statFeatureOrder(j));
                 if isempty(dta(iUnit).(fnj))
                     continue
                 end
@@ -685,8 +768,8 @@ for iUnit = selUnits
         imagesc(ax(iType, iAx), r);
         xticks(ax(iType, iAx), 1:length(p.std.features))
         yticks(ax(iType, iAx), 1:length(p.std.features))
-        xticklabels(ax(iType, iAx), p.std.features)
-        yticklabels(ax(iType, iAx), p.std.features)
+        xticklabels(ax(iType, iAx), p.std.features(statFeatureOrder))
+        yticklabels(ax(iType, iAx), p.std.features(statFeatureOrder))
         xtickangle(ax(iType, iAx), 90)
         ax(iType, iAx).XAxisLocation = 'top';
         axis(ax(iType, iAx), 'image')
@@ -707,7 +790,7 @@ for iUnit = selUnits
                 mdm = NaN(length(xta.tRise), length(p.std.features));
             end
             for i = 1:length(p.std.features)
-                fn = p.std.features(i);
+                fn = p.std.features(statFeatureOrder(i));
                 if isempty(xta.(fn))
                     continue
                 end
@@ -725,7 +808,7 @@ for iUnit = selUnits
             applyCustomColormap(ax(iType, iAx), [0, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.025, h0=0.33);
             % ax(iType, iAx).ColorScale = 'log';
             xticks(ax(iType, iAx), 1:length(p.std.features))
-            xticklabels(ax(iType, iAx), p.std.features)
+            xticklabels(ax(iType, iAx), p.std.features(statFeatureOrder))
             colorbar(ax(iType, iAx), Orientation='horizontal', Location='southoutside')
             ax(iType, iAx).XAxisLocation = 'top';
             ylabel(ax(iType, iAx), 'Trial')
@@ -734,14 +817,22 @@ for iUnit = selUnits
     end
     if ~isempty(dta(iUnit).HandR)
         xlabel(tl(1), 'time from dip onset (ms)')
-        title(tl(1), sprintf("Unit %i (n=%i dips)", iUnit, length(dta(iUnit).tDip)), FontWeight='bold')
+        if dta(iUnit).iExp > 0
+            title(tl(1), sprintf("Unit %i (n=%i dips)", iUnit, length(dta(iUnit).tDip)), FontWeight='bold')
+        else
+            title(tl(1), sprintf("%i units (n=%i dips)", length(eu), length(dta(iUnit).tDip)), FontWeight='bold')
+        end
     else
         xlabel(tl(1), '')
         title(tl(1), '')
     end
     if ~isempty(rta(iUnit).HandR)
         xlabel(tl(2), 'time from rise onset (ms)')
-        title(tl(2), sprintf("Unit %i (n=%i rises)", iUnit, length(rta(iUnit).tRise)), FontWeight='bold')
+        if rta(iUnit).iExp > 0
+            title(tl(2), sprintf("Unit %i (n=%i rises)", iUnit, length(rta(iUnit).tRise)), FontWeight='bold')
+        else
+            title(tl(2), sprintf("%i units (n=%i rises)", length(eu), length(rta(iUnit).tRise)), FontWeight='bold')
+        end
     else
         xlabel(tl(2), '')
         title(tl(2), '')
