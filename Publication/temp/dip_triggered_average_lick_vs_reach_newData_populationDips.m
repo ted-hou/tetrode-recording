@@ -128,35 +128,3 @@ expIndices = cellfun(@(name) find(strcmpi(name, {exp.name}), 1, 'first'), {eu.Ex
 
 
 %% Detect dips/rises in population firing
-p.features = ["HandR", "HandL", "FootR", "FootL", "Tongue", "Jaw", "Spine"];
-p.featureStats = ["xPos", "xPos", "xPos", "xPos", "likelihood", "yPos", "yPos"]; % xPos, yPos, xVel, yVel, likelihood, displacement, speed
-p.vtdNames = ["vtdR", "vtdL", "vtdR", "vtdL", "both", "both", "both"];
-% p.smoothWindow = [10, 10, 10, 10, 5, 10, 10];
-p.smoothWindow = [20, 20, 20, 20, 5, 20, 20];
-p.minL = [0.5, 0.5, 0.5, 0.5, 0.2, 0.5, 0.5];
-p.xtaRes = 1/30;
-
-p.xtaSamples = [2, 8];
-p.dipThresholdQuantile = 0.25;
-p.dipThresholdSubQuantile = 0.25;
-p.dipPattern = arrayfun(@(n) [0, 0, 0, ones(1, n), 0, 0, 0] , p.xtaSamples(1):p.xtaSamples(2), UniformOutput=false); % 100-300ms dips
-p.dipPatternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.dipPattern); % finds the onset
-p.dtaWindow = [-1, 1];
-p.mdtaWindow = [-0.3, 0.3];
-
-p.riseThresholdQuantile = 1 - p.dipThresholdQuantile;
-p.riseThresholdSubQuantile = 1 - p.dipThresholdSubQuantile;
-p.risePattern = arrayfun(@(n) [0, 0, 0, ones(1, n), 0, 0, 0] , p.ztaSamples(1):p.ztaSamples(2), UniformOutput=false);
-p.risePatternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.risePattern);
-
-p.blank(1).event = "StimOn";
-p.blank(1).window = [-1, 1];
-
-p.nBoot = 0;
-if p.nBoot < 1000
-    warning("Running bootstrap with nBoot=%i<1000 is only recommended for testing purposes. Run a real bootstrap pls you lazy bum.", p.nBoot)
-end
-p.bootAlpha = 0.05;
-
-selUnits = 1:length(eu);
-
