@@ -513,11 +513,11 @@ end
 
 clear iUnit fn selT
 
-%% Save results
+% Save results
 exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot\NewData", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_units%ito%i_%iboots.mat", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2), selUnits(1), selUnits(end), p.nBoot));
 save(exportPath, 'xta', 'xta', 'kinematics', 'p', '-v7.3')
 
-%% Make a metaDTA/metaRTA
+% Make a metaDTA/metaRTA
 for fn = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"]
     X = arrayfun(@(xta) xta.(fn).X, xta.dip(selUnits), UniformOutput=false);
     X = cat(1, X{:});
@@ -591,11 +591,11 @@ for iUnit = [length(eu)+1, selUnits]
             X = xta.(dir)(iUnit).(fn).X;
             mu = mean(xta.(dir)(iUnit).(fn).X, 1, 'omitnan');
             err = std(xta.(dir)(iUnit).(fn).X, 0, 1, 'omitnan')./sqrt(size(xta.(dir)(iUnit).(fn).X, 1));
-            if p.nBoot > 0
+            if p.nBoot > 0 && isfield(xta.(dir)(iUnit).(fn), 'XBoot')
                 prc = quantile(xta.(dir)(iUnit).(fn).XBoot, [p.bootAlpha/2, 1-p.bootAlpha/2], 1);
             end
 
-            if p.nBoot > 0 && ismember(fn, p.std.features)
+            if p.nBoot > 0 && ismember(fn, p.std.features) && isfield(xta.(dir)(iUnit).(fn), 'stats')
                 prcSTD = quantile(xta.(dir)(iUnit).(fn).stats.stdBoot, [0.95, 0.99, 0.999]);
                 nStarsSTD = sum(xta.(dir)(iUnit).(fn).stats.std > prcSTD);
             else
@@ -605,7 +605,7 @@ for iUnit = [length(eu)+1, selUnits]
             % plot(ax(iType, iAx), t, X, Color=[0.15, 0.15, 0.15, 0.1]);
             plot(ax(2+1-iDir, iAx), t, mu, Color=[0.15, 0.15, 0.15, 0.1], LineWidth=1.5);
             plot(ax(iDir, iAx), t, mu, Color=c, LineWidth=1.5);
-            if p.nBoot > 0
+            if p.nBoot > 0 && isfield(xta.(dir)(iUnit).(fn), 'XBoot')
                 patch(ax(iDir, iAx), [t, flip(t)], [prc(1, :), flip(prc(2, :))], c, FaceAlpha=0.05, EdgeColor=c, EdgeAlpha=0.5);
             else
                 patch(ax(iDir, iAx), [t, flip(t)], [mu-err, flip(mu+err)], c, FaceAlpha=0.05, EdgeColor=c, EdgeAlpha=0.5);
@@ -616,9 +616,9 @@ for iUnit = [length(eu)+1, selUnits]
             % xticks(ax(iRow, iAx), 1e3*p.xta.meanWindow)
             xticks(ax(iDir, iAx), [-300, 0, 600])
             xtickangle(ax(iDir, iAx), 0)
-    
+
             ylabel(ax(iDir, iAx), featureUnits(iAx))
-            
+
             fnDisp = sprintf("%s %s", fn, repmat('*', [1, nStarsSTD]));
             title(ax(iDir, iAx), fnDisp, Interpreter='none')
             ylim(ax(iDir, iAx), yl{iAx})
@@ -660,9 +660,9 @@ for iUnit = [length(eu)+1, selUnits]
         applyCustomColormap(ax(iDir, iAx), [-1, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
 
         % Movement diversity matrix
-        if p.nBoot > 0
+        if p.nBoot > 0 && xta.(dir)(iUnit).iExp > 0
             iAx = iAx + 1;
-            mdm = NaN(length(xta.(dir)(iUnit).tDip), length(p.std.features));
+            mdm = NaN(length(xta.(dir)(iUnit).t0), length(p.std.features));
             for i = 1:length(p.std.features)
                 fn = p.std.features(statFeatureOrder(i));
                 if isempty(xta.(dir)(iUnit).(fn))
