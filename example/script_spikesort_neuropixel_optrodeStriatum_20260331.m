@@ -3,14 +3,23 @@
 
 clear, clc
 folders = { ...
-    'C:\SERVER\daisy37\daisy37_20260331', ...
+    % 'C:\SERVER\daisy37\daisy37_20260331', ...
+    'C:\SERVER\daisy37\daisy37_20260401', ... Has Spikes, no AutoSortedIterative
+    'C:\SERVER\daisy37\daisy37_20260402', ... Has Spikes, no AutoSortedIterative
+    'C:\SERVER\daisy37\daisy37_20260403', ... Has Spikes, no AutoSortedIterative
+    'C:\SERVER\daisy37\daisy37_20260406', ... Not processed yet
+    'C:\SERVER\daisy37\daisy37_20260407', ... Not processed yet
     };
+
+chunkSize = 32;
+nChunks = 384/chunkSize;
+assert(mod(chunkSize, 1) == 0)
 
 for iSession = 1:length(folders)
     try
         tr = TetrodeRecording;
         tr.SelectFiles(NeuropixelPath=folders{iSession});
-        tr.ReadFiles(Duration=240, NumSigmas=4, NumSigmasReturn=1.5, NumSigmasReject=40, WaveformWindow=[-0.5, 1])
+        tr.ReadFiles(Duration=60, NumSigmas=4, NumSigmasReturn=1.5, NumSigmasReject=40, WaveformWindow=[-0.5, 1])
         tr.SaveNeuropixelIO()
 
         % Read detected spikes and NIDQ digital/analog channels
@@ -18,12 +27,16 @@ for iSession = 1:length(folders)
         tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
 
         % Spike sort
-        tr.LoadSpikes(1:384);
-
-        tr.IterativeArtifactRemoval(1:384, MinSpikeRate=0.5, KIterative=4, KFinal=2, MaxIters=5, ...
-            DimensionIterative=3, DimensionFinal=10, FeatureMethod='PCA', ClusterMethod='kmeans', ...
-            WaveformWindow=[-0.5, 0.5]);
-        tr.SaveSpikes(Path='Spikes_AutoSortedIterative');
+        for iChunk = 1:nChunks
+            tr.Spikes = [];
+            channels = (1:chunkSize) + (iChunk-1)*chunkSize;
+            tr.LoadSpikes(channels);
+    
+            tr.IterativeArtifactRemoval(channels, MinSpikeRate=0.5, KIterative=4, KFinal=2, MaxIters=5, ...
+                DimensionIterative=3, DimensionFinal=10, FeatureMethod='PCA', ClusterMethod='kmeans', ...
+                WaveformWindow=[-0.5, 0.5]);
+            tr.SaveSpikes(Channels=channels, Path='Spikes_AutoSortedIterative');
+        end
     catch ME
         warning('Could not process folder: %s', folders{iSession})
         warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
