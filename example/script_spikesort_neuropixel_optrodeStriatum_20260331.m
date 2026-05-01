@@ -19,10 +19,12 @@ for iSession = 1:length(folders)
     try
         tr = TetrodeRecording;
         tr.SelectFiles(NeuropixelPath=folders{iSession});
-        if ~isfolder(fullfile(tr.Path.imec, 'Spikes')
+        if ~isfolder(fullfile(tr.Path.imec, 'Spikes'))
+            fprintf('Reading file: %s\\%s...\n', tr.Path.imec, tr.Files.imec);
             tr.ReadFiles(Duration=60, NumSigmas=4, NumSigmasReturn=1.5, NumSigmasReject=40, WaveformWindow=[-0.5, 1])
             tr.SaveNeuropixelIO()
         else
+            fprintf('Spikes were previously detected in %s\\Spikes, not reading raw data again...\n', tr.Path.imec);
             tr.LoadNeuropixelIO();
         end
 
@@ -35,7 +37,7 @@ for iSession = 1:length(folders)
             channels = (1:chunkSize) + (iChunk-1)*chunkSize;
             tr.LoadSpikes(channels);
     
-            tr.IterativeArtifactRemoval(channels, MinSpikeRate=0.5, KIterative=4, KFinal=2, MaxIters=5, ...
+            tr.IterativeArtifactRemoval(channels, MinSpikeRate=0.05, KIterative=4, KFinal=2, MaxIters=5, ...
                 DimensionIterative=3, DimensionFinal=10, FeatureMethod='PCA', ClusterMethod='kmeans', ...
                 WaveformWindow=[-0.5, 0.5]);
             tr.SaveSpikes(Channels=channels, Path='Spikes_AutoSortedIterative');
