@@ -19,11 +19,14 @@ for iSession = 1:length(folders)
     try
         tr = TetrodeRecording;
         tr.SelectFiles(NeuropixelPath=folders{iSession});
-        tr.ReadFiles(Duration=60, NumSigmas=4, NumSigmasReturn=1.5, NumSigmasReject=40, WaveformWindow=[-0.5, 1])
-        tr.SaveNeuropixelIO()
+        if ~isfolder(fullfile(tr.Path.imec, 'Spikes')
+            tr.ReadFiles(Duration=60, NumSigmas=4, NumSigmasReturn=1.5, NumSigmasReject=40, WaveformWindow=[-0.5, 1])
+            tr.SaveNeuropixelIO()
+        else
+            tr.LoadNeuropixelIO();
+        end
 
         % Read detected spikes and NIDQ digital/analog channels
-        % tr.LoadNeuropixelIO();
         tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
 
         % Spike sort
