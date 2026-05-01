@@ -517,7 +517,10 @@ clear iUnit fn selT
 exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot\NewData", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_units%ito%i_%iboots.mat", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2), selUnits(1), selUnits(end), p.nBoot));
 save(exportPath, 'xta', 'xta', 'kinematics', 'p', '-v7.3')
 
-% Make a metaDTA/metaRTA
+%% Load data
+load('\\research.files.med.harvard.edu\neurobio\Assad Lab\Lingfeng\Data\LickVsReach_DTA_RTA_boot\NewData\LickVsReach_DLC_dta_rta_25_25_200to800ms_units1to1138_100boots');
+
+%% Make a metaDTA/metaRTA
 for fn = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"]
     X = arrayfun(@(xta) xta.(fn).X, xta.dip(selUnits), UniformOutput=false);
     X = cat(1, X{:});
@@ -532,6 +535,7 @@ xta.rise(length(eu) + 1).iExp = 0;
 xta.dip(length(eu) + 1).t0 = [xta.dip(selUnits).t0];
 xta.rise(length(eu) + 1).t0 = [xta.rise(selUnits).t0];
 
+
 %% Plot dip-triggered average kinematics (STD Version
 close all
 exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot\NewData\Figures", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2)));
@@ -543,7 +547,7 @@ featureUnits = ["a.u.", "AP pos (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "AP p
 statFeatures = ["HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
 dirs = ["dip", "rise"];
 % yl = {[-2.5, 5], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 1.1]};
-yl = {[-2.5, 5], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [0, 1]};
+yl = {[-2.5, 5], [-1, 1], [-1, 1], [-1, 1], [-1, 1], [-1, 1], [-1, 1], [0, 1]};
 fig = figure(Units='inches', InnerPosition=[2, 2, 2*(2+length(features)), 5]);
 tlp = tiledlayout(fig, 2, 1, TileSpacing='compact', Padding='compact');
 tl = gobjects(2, 1);
@@ -709,3 +713,106 @@ for iUnit = [length(eu)+1, selUnits]
 end
 clear features featureUnits fig tlp tl ax iAx iUnit fn c t mu err iDir iFeature tlp yl fnDisp
 clear prcSTD nStarsSTD i j fni fnj r selT
+
+
+
+%% Do scatter plots of dip-triggered/rise-triggered movement magnitudes
+statFeatures = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
+dipWindow = [0, 0.6];
+yRange = [-2, 2];
+% Normalize movement magnitude by boot-strapped range
+selUnits = 1:length(eu);
+clear dX YRise YDip
+dX(max(selUnits)) = struct();
+YRise(max(selUnits)) = struct();
+YDip(max(selUnits)) = struct();
+for iUnit = selUnits
+    for fn = statFeatures
+        try
+            t = xta.dip(iUnit).(fn).t;
+            selT = t>=dipWindow(1) & t<=dipWindow(2);
+            X = mean(xta.dip(iUnit).(fn).X(:, selT), 1, 'omitnan');
+            XBoot = xta.dip(iUnit).(fn).XBoot(:, selT);
+            [XAbs, I] = max(abs(X), [], 'all');
+            XSign = sign(X(I));
+            Xdip = XSign .* XAbs ./ range(XBoot, 'all');
+            YDip(iUnit).(fn) = Xdip;
+        catch
+            YDip(iUnit).(fn) = NaN;
+        end
+
+        try
+            t = xta.rise(iUnit).(fn).t;
+            selT = t>=dipWindow(1) & t<=dipWindow(2);
+            X = mean(xta.rise(iUnit).(fn).X(:, selT), 1, 'omitnan');
+            XBoot = xta.rise(iUnit).(fn).XBoot(:, selT);
+            [XAbs, I] = max(abs(X), [], 'all');
+            XSign = sign(X(I));
+            Xrise = XSign .* XAbs ./ range(XBoot, 'all');
+            YRise(iUnit).(fn) = Xrise;
+        catch
+            YRise(iUnit).(fn) = NaN;
+        end
+
+        % dX(iUnit).(fn) = Xrise - Xdip; % dX positive -> rises gives bigger forward/upwards movement
+    end
+end
+
+close all
+fig = figure(Units='inches', Position=[0.5 0.5 10 10]);
+tl = tiledlayout(fig, length(statFeatures), length(statFeatures), TileSpacing='tight', Padding='tight');
+for i = 1:length(statFeatures)
+    fni = statFeatures(i);
+    for j = 1:length(statFeatures)
+        fnj = statFeatures(j);
+        ax = nexttile(tl);
+        hold(ax, 'on')
+        x = [YRise.(fnj)];
+        y = [YRise.(fni)];
+        sel = abs(x)>0.5 & abs(y)>0.5;
+        scatter(ax, x(sel), y(sel), 2, 'black')
+        xlim(ax, yRange)
+        ylim(ax, yRange)
+        plot(ax, yRange, yRange, 'k--')
+        xline(ax, 0, 'k--')
+        yline(ax, 0, 'k--')
+        hold(ax, 'off')
+        if i == length(statFeatures)
+            xlabel(ax, fnj)
+        end
+        if j == 1
+           ylabel(ax, fni)
+        end
+        axis(ax, 'square')
+    end
+end
+title(tl, 'Rise')
+
+fig = figure(Units='inches', Position=[10.5 0.5 10 10]);
+tl = tiledlayout(fig, length(statFeatures), length(statFeatures), TileSpacing='tight', Padding='tight');
+for i = 1:length(statFeatures)
+    fni = statFeatures(i);
+    for j = 1:length(statFeatures)
+        fnj = statFeatures(j);
+        ax = nexttile(tl);
+        hold(ax, 'on')
+        x = [YDip.(fnj)];
+        y = [YDip.(fni)];
+        sel = abs(x)>0.5 & abs(y)>0.5;
+        scatter(ax, x(sel), y(sel), 2, 'black')
+        xlim(ax, yRange)
+        ylim(ax, yRange)
+        plot(ax, yRange, yRange, 'k--')
+        xline(ax, 0, 'k--')
+        yline(ax, 0, 'k--')
+        hold(ax, 'off')
+        if i == length(statFeatures)
+            xlabel(ax, fnj)
+        end
+        if j == 1
+           ylabel(ax, fni)
+        end
+        axis(ax, 'square')
+    end
+end
+title(tl, 'Dip')
