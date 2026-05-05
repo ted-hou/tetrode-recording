@@ -3548,7 +3548,7 @@ classdef TetrodeRecording < handle
 
             % Create context menu (common to all channels, mark for delete, reorder, merge)
             cm = uicontextmenu(hFigure);
-            m0_0 = uimenu(cm, 'Text', 'Quick Inspect', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'StimTwoColor'}, 'Accelerator', 'D');
+            m0_0 = uimenu(cm, 'Text', 'Quick Inspect', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'StimTwoColor'}, 'Accelerator', 'F');
             m0 = uimenu(cm, 'Text', 'Inspect');
             m0_1 = uimenu(m0, 'Text', 'Press (Spontaneous)', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press (Spontaneous)'});
             m0_2 = uimenu(m0, 'Text', 'Press/Stim', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Stim'});
@@ -3557,8 +3557,8 @@ classdef TetrodeRecording < handle
             m0_5 = uimenu(m0, 'Text', 'Press/Lick (Spontaneous)', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Lick (Spontaneous)'});
             m0_6 = uimenu(m0, 'Text', 'Stim1/Stim2', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Stim1/Stim2'});
             m0_7 = uimenu(m0, 'Text', 'StimTwoColor', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'StimTwoColor'});
-            m1 = uimenu(cm, 'Text', 'Delete Channel', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteChn, 'Separator', true, 'Accelerator', 'X');
-            m2 = uimenu(cm, 'Text', 'Delete Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteClusters, 'Separator', true, 'Accelerator', 'Z');
+            m1 = uimenu(cm, 'Text', 'Delete Channel', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteChn, 'Separator', true, 'Accelerator', 'D');
+            m2 = uimenu(cm, 'Text', 'Delete Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteClusters, 'Separator', true, 'Accelerator', 'X');
             m3 = uimenu(cm, 'Text', 'Merge Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnMergeClusters, 'Accelerator', 'C');
             m4 = uimenu(cm, 'Text', 'Reorder Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnReorderClusters, 'Accelerator', 'R');
             m5 = uimenu(cm, 'Text', 'Execute', 'MenuSelectedFcn', @obj.PlotAllChannels_OnExecute, 'Separator', true, 'Accelerator', 'E');
@@ -4691,7 +4691,7 @@ classdef TetrodeRecording < handle
 					['Permanently remove selected clusters (', mat2str(clusters), ')?'],...
 					'Remove Cluster(s)',...
 					'Remove', 'Cancel',...
-					'Cancel');
+					'Remove');
 				if strcmpi(answer, 'Remove')
 					% Remove selected clusters
 					obj.ClusterRemove(iChannel, clusters);
@@ -4790,7 +4790,7 @@ classdef TetrodeRecording < handle
 					['Recluster selected clusters (', mat2str(clusters), ')?'],...
 					'Recluster Clusters',...
 					'Recluster', 'Refeature & recluster', 'Cancel',...
-					'Cancel');
+					'Recluster');
 
 				if strcmp(answer, 'Cancel')
 					obj.GUIBusy(h.Figure, false);
