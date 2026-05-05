@@ -3,7 +3,7 @@
 
 clear, clc
 folders = { ...
-    % 'C:\SERVER\daisy37\daisy37_20260331', ...
+    % 'C:\SERVER\daisy37\daisy37_20260331', ... Done
     'C:\SERVER\daisy37\daisy37_20260401', ... Has Spikes, no AutoSortedIterative
     'C:\SERVER\daisy37\daisy37_20260402', ... Has Spikes, no AutoSortedIterative
     'C:\SERVER\daisy37\daisy37_20260403', ... Has Spikes, no AutoSortedIterative
@@ -53,13 +53,12 @@ end
 
 clear, clc
 tr = TetrodeRecording();
-tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy33\daisy33_20260226')
+tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy37\daisy37_20260331')
 tr.LoadNeuropixelIO();
 tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
 
 channels = 1:128;
 tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
-% tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative', ExpName='daisy29_20251120');
 tr.PlotAllChannels(Channels=channels, plotMethod='mean')
 
 %%
@@ -76,7 +75,21 @@ tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
 tr.PlotAllChannels(Channels=channels, plotMethod='mean')
 %%
 tr.SaveSpikes(Channels=channels, Path='Spikes_Sorted')
-% 
+
+
+%% Script to batch remove cluster 1 and recluster into 3
+channels = 1:8;
+
+for chn = channels
+    tr.ClusterRemove(chn, 1);
+    tr.FeatureExtract(chn, Method='PCA', Dimension=3, WaveformWindow=[-0.5, 0.5])
+    tr.Cluster(chn, Method='kmeans', NumClusters=2)
+end
+
+
+tr.PlotAllChannels(Channels=1:32, plotMethod='mean')
+
+%%
 % %% Convert to EphysUnits
 % folders = { ...
 %     ... 'C:\SERVER\daisy29\daisy29_20251023', ... SORTED, EU
