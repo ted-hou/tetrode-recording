@@ -19,13 +19,13 @@ folders = { ...
     % 'C:\SERVER\daisy33\daisy33_20260320', ... HIGHERPOWER
     % 'C:\SERVER\daisy34\daisy34_20260320', ... HIGHERPOWER
     % 'C:\SERVER\daisy33\daisy33_20260323', ... HIGHERPOWER
-    % 'C:\SERVER\daisy34\daisy34_20260323', ... HIGHERPOWER
+    % 'C:\SERVER\daisy34\daisy34_20260323', ... HIGHERPOWER, SORTING (OFC)
     % 'C:\SERVER\daisy33\daisy33_20260325', ... HIGHERPOWER
-    % 'C:\SERVER\daisy33\daisy33_20260326', ... HIGHERPOWER
-    % 'C:\SERVER\daisy34\daisy34_20260326', ... HIGHERPOWER
-    % 'C:\SERVER\daisy33\daisy33_20260327', ... HIGHERPOWER
-    % 'C:\SERVER\daisy34\daisy34_20260327', ... HIGHERPOWER, SORTING (HOME)
-    % 'C:\SERVER\desmond43\desmond43_20260311'... HIGHERPOWER, SORTING (OFFICE)
+    % 'C:\SERVER\daisy33\daisy33_20260326', ... HIGHERPOWER, SORTED
+    % 'C:\SERVER\daisy34\daisy34_20260326', ... HIGHERPOWER, SORTED
+    % 'C:\SERVER\daisy33\daisy33_20260327', ... HIGHERPOWER, SORTED
+    % 'C:\SERVER\daisy34\daisy34_20260327', ... HIGHERPOWER, SORTED
+    % 'C:\SERVER\desmond43\desmond43_20260311'... HIGHERPOWER, SORTED
     % 'C:\SERVER\desmond43\desmond43_20260312'... HIGHERPOWER, SORTED
     % 'C:\SERVER\desmond43\desmond43_20260313'... HIGHERPOWER, SORTED
     };
@@ -59,7 +59,7 @@ end
 
 clear, clc
 tr = TetrodeRecording();
-tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy34\daisy34_20260327')
+tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy33\daisy33_20260325')
 tr.LoadNeuropixelIO();
 tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
 
@@ -85,32 +85,6 @@ tr.SaveSpikes(Channels=channels, Path='Spikes_Sorted')
 % 
 % %% Convert to EphysUnits
 % folders = { ...
-%     ... 'C:\SERVER\daisy29\daisy29_20251023', ... SORTED, EU
-%     ... 'C:\SERVER\desmond41\desmond41_20251028', ... SORTED, EU
-%     ... 'C:\SERVER\desmond42\desmond42_20251030', ... SORTED, EU
-%     ... 'C:\SERVER\daisy29\daisy29_20251031', ... SORTED, EU
-%     ... 'C:\SERVER\desmond41\desmond41_20251104', ... SORTED, EU
-%     ... 'C:\SERVER\desmond41\desmond41_20251117', ... SORTED, EU
-%     ... 'C:\SERVER\daisy29\daisy29_20251118', ... SORTED, EU
-%     ... 'C:\SERVER\daisy30\daisy30_20251119', ... SORTED, EU
-%     ... 'C:\SERVER\daisy29\daisy29_20251024', ... SORTED, EU
-%     ... 'C:\SERVER\daisy29\daisy29_20251025', ... SORTED, EU
-%     ... 'C:\SERVER\daisy29\daisy29_20251027', ... TCE ERROR (952 pulses?)
-%     ... 'C:\SERVER\daisy29\daisy29_20251028', ... SORTED, EU
-%     ... 'C:\SERVER\desmond41\desmond41_20251029', ... SORTED, EU
-%     ... 'C:\SERVER\daisy30\daisy30_20251029', ... SORTED, EU
-%     ... 'C:\SERVER\daisy30\daisy30_20251030', ... SORTED, EU
-%     ... 'C:\SERVER\desmond42\desmond42_20251031', ... SORTED, EU
-%     ... 'C:\SERVER\daisy29\daisy29_20251103', ... SORTED, EU
-%     ... 'C:\SERVER\daisy29\daisy29_20251120', ... SORTED, EU
-%     ... 'C:\SERVER\daisy30\daisy30_20251121', ... SORTED, EU
-%     ... 'C:\SERVER\desmond42\desmond42_20251121', ... SORTED, EU
-%     ... 'C:\SERVER\desmond41\desmond41_20251124', ... SORTED, EU
-%     'C:\SERVER\daisy31\daisy31_20251208', ... This is control (ChrimsonR) striatal optrode recording
-%     'C:\SERVER\daisy31\daisy31_20251209', ... This is control (ChrimsonR) striatal optrode recording
-%     'C:\SERVER\daisy32\daisy32_20251210', ... This is control (ChrimsonR) striatal optrode recording
-%     'C:\SERVER\daisy32\daisy32_20251211', ... This is control (ChrimsonR) striatal optrode recording
-%     'C:\SERVER\daisy31\daisy31_20251211', ... This is control (ChrimsonR) striatal optrode recording    
 %     };
 % 
 % chunkSize = 32; % NumChannelsPerChunk
