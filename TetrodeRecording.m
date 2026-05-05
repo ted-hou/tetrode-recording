@@ -3548,6 +3548,7 @@ classdef TetrodeRecording < handle
 
             % Create context menu (common to all channels, mark for delete, reorder, merge)
             cm = uicontextmenu(hFigure);
+            m0_0 = uimenu(cm, 'Text', 'Quick Inspect', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'StimTwoColor'}, 'Accelerator', 'D');
             m0 = uimenu(cm, 'Text', 'Inspect');
             m0_1 = uimenu(m0, 'Text', 'Press (Spontaneous)', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press (Spontaneous)'});
             m0_2 = uimenu(m0, 'Text', 'Press/Stim', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Stim'});
@@ -3556,8 +3557,8 @@ classdef TetrodeRecording < handle
             m0_5 = uimenu(m0, 'Text', 'Press/Lick (Spontaneous)', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Lick (Spontaneous)'});
             m0_6 = uimenu(m0, 'Text', 'Stim1/Stim2', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Stim1/Stim2'});
             m0_7 = uimenu(m0, 'Text', 'StimTwoColor', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'StimTwoColor'});
-            m1 = uimenu(cm, 'Text', 'Delete Channel', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteChn, 'Separator', true, 'Accelerator', 'D');
-            m2 = uimenu(cm, 'Text', 'Delete Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteClusters, 'Separator', true, 'Accelerator', 'X');
+            m1 = uimenu(cm, 'Text', 'Delete Channel', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteChn, 'Separator', true, 'Accelerator', 'X');
+            m2 = uimenu(cm, 'Text', 'Delete Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnDeleteClusters, 'Separator', true, 'Accelerator', 'Z');
             m3 = uimenu(cm, 'Text', 'Merge Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnMergeClusters, 'Accelerator', 'C');
             m4 = uimenu(cm, 'Text', 'Reorder Clusters...', 'MenuSelectedFcn', @obj.PlotAllChannels_OnReorderClusters, 'Accelerator', 'R');
             m5 = uimenu(cm, 'Text', 'Execute', 'MenuSelectedFcn', @obj.PlotAllChannels_OnExecute, 'Separator', true, 'Accelerator', 'E');
@@ -3682,12 +3683,28 @@ classdef TetrodeRecording < handle
             end
         end
         
+        function PlotAllChannels_OnQuickInspect(obj, src, event)
+            fig = src.Parent.Parent;            
+            % Default to StimTwoColor
+            if isfield(fig.UserData, 'LastInspectMode') && ~isempty(fig.UserData.LastInspectMode)
+                mode = fig.UserData.LastInspectMode;    
+            else
+                mode = 'StimTwoColor';
+            end
+
+            obj.PlotAllChannels_OnInspect(src, event, mode)
+        end
+
         function PlotAllChannels_OnInspect(obj, src, event, mode)
             if nargin < 4
                 mode = 'Press/Stim';
             end
-            
-            ax = src.Parent.Parent.Parent.CurrentAxes;
+
+            fig = src;
+            while ~isgraphics(fig, 'Figure')
+                fig = fig.Parent;
+            end
+            ax = fig.CurrentAxes;
             channel = ax.UserData.Channel;
             
             switch mode
@@ -3706,6 +3723,7 @@ classdef TetrodeRecording < handle
                 case 'StimTwoColor'
                     obj.PlotChannel(channel, TwoColorExperiment=true, ExtendedWindow=[-0.1, 0.5])
             end
+            fig.UserData.LastInspectMode = mode;
         end
         
         function PlotAllChannels_OnDeleteChn(obj, src, event, ax)
@@ -4799,15 +4817,14 @@ classdef TetrodeRecording < handle
 					% Recluster selected clusters
 					clusterMethod = obj.Spikes(iChannel).Cluster.Method;
 					% obj.Cluster(iChannel, 'Clusters', clusters, 'Method', clusterMethod);
-					answerClusterMethod = inputdlg({'Cluster method:', 'Number of clusters:'}, 'Recluster', 1, {clusterMethod, ''});
+					answerClusterMethod = inputdlg({'Cluster method:', 'Number of clusters:'}, 'Recluster', 1, {clusterMethod, '2'});
 					if ismember(lower(answerClusterMethod{1}), {'kmeans', 'spc', 'gaussian'})
 						clusterMethod = lower(answerClusterMethod{1});
 					else
 						warning(['Unrecognized clustering method. Using ''', clusterMethod, ''' instead.']);
 					end
-					numClusters = [];
 					try
-						numClusters = str2num(answerClusterMethod{2});
+						numClusters = str2double(answerClusterMethod{2});
 					catch
 						numClusters = [];
 					end
