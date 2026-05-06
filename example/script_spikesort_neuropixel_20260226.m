@@ -285,7 +285,7 @@ layout.ax(2, 1) = nexttile(layout.tl, [layout.h(3), layout.w(1)]);
 % layout.ax(2, 2) = nexttile(layout.tl, [layout.h(2), layout.w(2)]);
 % layout.ax(3, 2) = nexttile(layout.tl, [layout.h(3), layout.w(2)]);
 
-p.path = 'C:\SERVER\TwoColor_SNr_Striatonigral\ErinsBatch';
+p.path = 'C:\SERVER\Figures\TwoColor_SNr_Striatonigral\ErinsBatch';
 
 % p.path = 'C:\SERVER\Figures\TwoColor_SNr_SCRetro\ReverseInjection\ChrimsonR';
 % selUnits = find(c.isStimRedUp);
