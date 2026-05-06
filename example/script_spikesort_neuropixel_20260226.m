@@ -18,16 +18,16 @@ folders = { ...
     % 'C:\SERVER\daisy34\daisy34_20260325_incompleteStim' ...
     % 'C:\SERVER\daisy33\daisy33_20260320', ... HIGHERPOWER
     % 'C:\SERVER\daisy34\daisy34_20260320', ... HIGHERPOWER
-    % 'C:\SERVER\daisy33\daisy33_20260323', ... HIGHERPOWER
-    % 'C:\SERVER\daisy34\daisy34_20260323', ... HIGHERPOWER, SORTED
+    % 'C:\SERVER\daisy33\daisy33_20260323', ... HIGHERPOWER, SORTING (HOME)
+    % 'C:\SERVER\daisy34\daisy34_20260323', ... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
     % 'C:\SERVER\daisy33\daisy33_20260325', ... HIGHERPOWER, SORTING (OFC)
-    % 'C:\SERVER\daisy33\daisy33_20260326', ... HIGHERPOWER, SORTED
-    % 'C:\SERVER\daisy34\daisy34_20260326', ... HIGHERPOWER, SORTED
-    % 'C:\SERVER\daisy33\daisy33_20260327', ... HIGHERPOWER, SORTED
-    % 'C:\SERVER\daisy34\daisy34_20260327', ... HIGHERPOWER, SORTED
-    % 'C:\SERVER\desmond43\desmond43_20260311'... HIGHERPOWER, SORTED
-    % 'C:\SERVER\desmond43\desmond43_20260312'... HIGHERPOWER, SORTED
-    % 'C:\SERVER\desmond43\desmond43_20260313'... HIGHERPOWER, SORTED
+    % 'C:\SERVER\daisy33\daisy33_20260326', ... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
+    % 'C:\SERVER\daisy34\daisy34_20260326', ... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
+    % 'C:\SERVER\daisy33\daisy33_20260327', ... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
+    % 'C:\SERVER\daisy34\daisy34_20260327', ... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
+    % 'C:\SERVER\desmond43\desmond43_20260311'... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
+    % 'C:\SERVER\desmond43\desmond43_20260312'... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
+    % 'C:\SERVER\desmond43\desmond43_20260313'... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
     };
 
 for iSession = 1:length(folders)
@@ -59,7 +59,7 @@ end
 
 clear, clc
 tr = TetrodeRecording();
-tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy33\daisy33_20260325')
+tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy33\daisy33_20260323')
 tr.LoadNeuropixelIO();
 tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
 
@@ -101,15 +101,15 @@ folders = { ...
     ...'C:\SERVER\daisy33\daisy33_20260320', ... HIGHERPOWER
     ...'C:\SERVER\daisy34\daisy34_20260320', ... HIGHERPOWER
     ...'C:\SERVER\daisy33\daisy33_20260323', ... HIGHERPOWER
-    'C:\SERVER\daisy34\daisy34_20260323', ... HIGHERPOWER, SORTED
+    'C:\SERVER\daisy34\daisy34_20260323', ... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
     ...'C:\SERVER\daisy33\daisy33_20260325', ... HIGHERPOWER
-    'C:\SERVER\daisy33\daisy33_20260326', ... HIGHERPOWER, SORTED
-    'C:\SERVER\daisy34\daisy34_20260326', ... HIGHERPOWER, SORTED
-    'C:\SERVER\daisy33\daisy33_20260327', ... HIGHERPOWER, SORTED
-    'C:\SERVER\daisy34\daisy34_20260327', ... HIGHERPOWER, SORTED
-    'C:\SERVER\desmond43\desmond43_20260311'... HIGHERPOWER, SORTED
-    'C:\SERVER\desmond43\desmond43_20260312'... HIGHERPOWER, SORTED
-    'C:\SERVER\desmond43\desmond43_20260313'... HIGHERPOWER, SORTED
+    'C:\SERVER\daisy33\daisy33_20260326', ... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
+    'C:\SERVER\daisy34\daisy34_20260326', ... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
+    'C:\SERVER\daisy33\daisy33_20260327', ... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
+    'C:\SERVER\daisy34\daisy34_20260327', ... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
+    'C:\SERVER\desmond43\desmond43_20260311'... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
+    'C:\SERVER\desmond43\desmond43_20260312'... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
+    'C:\SERVER\desmond43\desmond43_20260313'... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
     };
 
 chunkSize = 32; % NumChannelsPerChunk

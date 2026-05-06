@@ -3719,9 +3719,9 @@ classdef TetrodeRecording < handle
                 case 'Press/Lick (Spontaneous)'
                     obj.PlotChannel(channel, 'Reference', 'PressOff', 'Event', 'PressOn', 'Exclude', 'LickOn', 'Reference2', 'LickOff', 'Event2', 'LickOn', 'Exclude2', 'PressOn', 'RasterXLim', [-6, 1], 'ExtendedWindow', [0, 0], 'WaveformYLim', [-200, 200], 'PlotStim', false);                    
                 case 'Stim1/Stim2'
-                    obj.PlotChannel(channel, PlotStimBlue=true, PlotStimOrange=true, ExtendedWindow=[-0.25, 0.5]) % Legacy, only used for Sep2023 experiments
+                    obj.PlotChannel(channel, PlotStimBlue=true, PlotStimOrange=true, ExtendedWindow=[-0.25, 0.5]); % Legacy, only used for Sep2023 experiments
                 case 'StimTwoColor'
-                    obj.PlotChannel(channel, TwoColorExperiment=true, ExtendedWindow=[-0.1, 0.5])
+                    obj.PlotChannel(channel, TwoColorExperiment=true, ExtendedWindow=[-0.1, 0.5]);
             end
             fig.UserData.LastInspectMode = mode;
         end
@@ -4447,7 +4447,11 @@ classdef TetrodeRecording < handle
 			obj.GUIBusy(h.Figure, false);
 			set(h.Figure, 'Visible', 'on');
 
-			varargout = {h};			
+            if nargout == 0
+                varargout = {};
+            else
+			    varargout = {h};
+            end
 		end
 
 		function PlotAllClusters(obj, channel, varargin)
@@ -4817,14 +4821,14 @@ classdef TetrodeRecording < handle
 					% Recluster selected clusters
 					clusterMethod = obj.Spikes(iChannel).Cluster.Method;
 					% obj.Cluster(iChannel, 'Clusters', clusters, 'Method', clusterMethod);
-					answerClusterMethod = inputdlg({'Cluster method:', 'Number of clusters:'}, 'Recluster', 1, {clusterMethod, '2'});
-					if ismember(lower(answerClusterMethod{1}), {'kmeans', 'spc', 'gaussian'})
-						clusterMethod = lower(answerClusterMethod{1});
+					answerClusterMethod = inputdlg({'Number of clusters:', 'Cluster method:'}, 'Recluster', 1, {'2', clusterMethod});
+					if ismember(lower(answerClusterMethod{2}), {'kmeans', 'spc', 'gaussian'})
+						clusterMethod = lower(answerClusterMethod{2});
 					else
 						warning(['Unrecognized clustering method. Using ''', clusterMethod, ''' instead.']);
 					end
 					try
-						numClusters = str2double(answerClusterMethod{2});
+						numClusters = str2double(answerClusterMethod{1});
 					catch
 						numClusters = [];
 					end
