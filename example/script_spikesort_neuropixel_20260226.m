@@ -19,7 +19,7 @@ folders = { ...
     % 'C:\SERVER\daisy33\daisy33_20260320', ... HIGHERPOWER
     % 'C:\SERVER\daisy34\daisy34_20260320', ... HIGHERPOWER
     % 'C:\SERVER\daisy33\daisy33_20260323', ... HIGHERPOWER
-    % 'C:\SERVER\daisy34\daisy34_20260323', ... HIGHERPOWER, SORTING (OFC)
+    % 'C:\SERVER\daisy34\daisy34_20260323', ... HIGHERPOWER, DONE
     % 'C:\SERVER\daisy33\daisy33_20260325', ... HIGHERPOWER
     % 'C:\SERVER\daisy33\daisy33_20260326', ... HIGHERPOWER, SORTED
     % 'C:\SERVER\daisy34\daisy34_20260326', ... HIGHERPOWER, SORTED
