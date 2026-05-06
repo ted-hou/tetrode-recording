@@ -16,8 +16,8 @@ folders = { ...
     % 'C:\SERVER\desmond43\desmond43_20260309'...
     % 'C:\SERVER\desmond43\desmond43_20260310'...
     % 'C:\SERVER\daisy34\daisy34_20260325_incompleteStim' ...
-    % 'C:\SERVER\daisy33\daisy33_20260320', ... HIGHERPOWER
-    % 'C:\SERVER\daisy34\daisy34_20260320', ... HIGHERPOWER
+    % 'C:\SERVER\daisy33\daisy33_20260320', ... HIGHERPOWER, SORTING (OFC)
+    % 'C:\SERVER\daisy34\daisy34_20260320', ... HIGHERPOWER, SORTING (HOME)
     % 'C:\SERVER\daisy33\daisy33_20260323', ... HIGHERPOWER, SORTED
     % 'C:\SERVER\daisy34\daisy34_20260323', ... HIGHERPOWER, SORTED, CONVERTING TO EU (NPX)
     % 'C:\SERVER\daisy33\daisy33_20260325', ... HIGHERPOWER, SORTED
@@ -154,7 +154,7 @@ eu = eu.removeMultiUnits(cullZeros=true);
 % Remove drift, low spike rate units, fast
 clear c
 % Remove drift
-c.isDrifting = detectDriftingUnits(eu, smoothWindow=300, tolerance=0.05, spikeRateThreshold=5, includeITI=true);
+c.isDrifting = detectDriftingUnits(eu, smoothWindow=300, tolerance=0.1, spikeRateThreshold=5, includeITI=true);
 
 % Filter by spike rate
 msr = arrayfun(@(eu) eu.SpikeRateStats.median, eu);
