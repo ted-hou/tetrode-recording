@@ -98,11 +98,11 @@ folders = { ...
     ... 'C:\SERVER\desmond43\desmond43_20260309'...
     ... 'C:\SERVER\desmond43\desmond43_20260310'...
     ... 'C:\SERVER\daisy34\daisy34_20260325_incompleteStim' ...
-    'C:\SERVER\daisy33\daisy33_20260320', ... HIGHERPOWER, SORTED
-    'C:\SERVER\daisy34\daisy34_20260320', ... HIGHERPOWER, SORTED
-    'C:\SERVER\daisy33\daisy33_20260323', ... HIGHERPOWER, SORTED
+    'C:\SERVER\daisy33\daisy33_20260320', ... HIGHERPOWER, SORTED, CONVERTED TO EU (Batch2)
+    'C:\SERVER\daisy34\daisy34_20260320', ... HIGHERPOWER, SORTED, CONVERTED TO EU (Batch2)
+    'C:\SERVER\daisy33\daisy33_20260323', ... HIGHERPOWER, SORTED, CONVERTED TO EU (Batch2)
     ... 'C:\SERVER\daisy34\daisy34_20260323', ... HIGHERPOWER, SORTED, CONVERTED TO EU (Batch1)
-    'C:\SERVER\daisy33\daisy33_20260325', ... HIGHERPOWER, SORTED
+    'C:\SERVER\daisy33\daisy33_20260325', ... HIGHERPOWER, SORTED, CONVERTED TO EU (Batch2)
     ... 'C:\SERVER\daisy33\daisy33_20260326', ... HIGHERPOWER, SORTED, CONVERTED TO EU (Batch1)
     ... 'C:\SERVER\daisy34\daisy34_20260326', ... HIGHERPOWER, SORTED, CONVERTED TO EU (Batch1)
     ... 'C:\SERVER\daisy33\daisy33_20260327', ... HIGHERPOWER, SORTED, CONVERTED TO EU (Batch1)
@@ -134,7 +134,7 @@ for iSession = 1:length(folders)
 
             ar = AcuteRecording(tr, 'N/A');
             ar.binMoveResponse(tr, 'none', Window=[-1, 0], Store=true);
-            eu = EphysUnit(ar, readWaveforms=false, cullITI=false, savepath='C:\SERVER\Units\TwoColor_Striatonigral\Batch1', tr=tr);
+            eu = EphysUnit(ar, readWaveforms=false, cullITI=false, savepath='C:\SERVER\Units\TwoColor_Striatonigral\Batch2', tr=tr);
 
             tr.Spikes = [];
             clear eu
@@ -147,7 +147,7 @@ end
 
 %%
 clear
-eu = EphysUnit.load('C:\SERVER\Units\TwoColor_Striatonigral\Batch1', waveforms=false, spikecounts=false, spikerates=false);
+eu = EphysUnit.load('C:\SERVER\Units\TwoColor_Striatonigral\Batch2', waveforms=false, spikecounts=false, spikerates=false);
 % Remove multiunits, fast (ISS test)
 eu = eu.removeMultiUnits(cullZeros=true);
 
