@@ -1008,6 +1008,7 @@ classdef EphysUnit < handle
             p.addParameter('shutterDelay', 0, @isnumeric)
             p.addParameter('photoelectricBlankDuration', 0, @isnumeric); %0.5e-3
             % p.addParameter('photoelectricNumSigmasThreshold', 3, @isnumeric);
+            p.addParameter('photoelectricOffsetBlankWindow', [], @isnumeric); %[10e-3, 10.5e-3]
             p.parse(trialType, trials, varargin{:})
             trialType = p.Results.trialType;
             trials = p.Results.trials;
@@ -1016,13 +1017,14 @@ classdef EphysUnit < handle
             alignTo = p.Results.alignTo;
             shutterDelay = p.Results.shutterDelay;
             photoelectricBlankDuration = p.Results.photoelectricBlankDuration;
+            photoelectricOffsetBlankWindow = p.Results.photoelectricOffsetBlankWindow;
             % photoelectricNumSigmasThreshold = p.Results.photoelectricNumSigmasThreshold;
 
             assert(length(obj) == 1)
 
             if isempty(p.Results.rd)
                 rd = obj.getRasterData(trialType, window, trials=trials, alignTo=alignTo, shutterDelay=shutterDelay, sort=false, ...
-                    photoelectricBlankDuration=photoelectricBlankDuration);
+                    photoelectricBlankDuration=photoelectricBlankDuration, photoelectricOffsetBlankWindow=photoelectricOffsetBlankWindow);
             else
                 rd = p.Results.rd;
             end
