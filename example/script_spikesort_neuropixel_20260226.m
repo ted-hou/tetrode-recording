@@ -175,107 +175,37 @@ eu = EphysUnit.load('C:\SERVER\Units\TwoColor_Striatonigral\SingleUnit_NonDuplic
     animalNames={'daisy33', 'daisy34', 'desmond43'});
 
 % Do psth
-rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shutterDelay=0, photoelectricBlankDuration=1.5e-3, photoelectricOffsetBlankWindow=[10e-3, 10.5e-3]);
+rd.stim = eu.getRasterData('stimtwocolor', window=[-0.1, 0.4], durErr=1e-3, shutterDelay=0, photoelectricBlankDuration=0.5e-3, photoelectricOffsetBlankWindow=[10e-3, 10.5e-3]);
 
-%%
-% ETA Stim
-p.isiBaselineWindow = [-0.2, 0];
-p.stimBluePowers = [20000]*1e-6; 
-p.stimRedPowers = [20000]*1e-6;
-p.stimBlueDurations = [10]*1e-3;
-p.stimRedDurations = [10]*1e-3;
+%% ETA Stim
+close all
 
-p.isiWindow = [-0.4, 0.4];
+p.path = 'E:\DATA\Figures\TwoColor_SNr_Striatonigral\ErinsBatch\WavelengthPowerLocation\PSTH';
+
+p.isiWindow = [-0.5, 0.5];
 p.isiRes = 1e-3;
+p.isiBaselineWindow = [-0.2, 0];
 p.xlim.stim = [-0.05, 0.1];
 p.xlim.move = [-4, 2];
 p.rasterSzStim = 3;
 p.rasterSzMove = 1;
+p.mode = "psth"; % "isi", "psth"
+p.clim = [-2, 2];
+% p.mode = "isi"; % "isi", "psth"
+% p.clim= [-8, 8];
 
 p.artifacts = struct(event=[], length=[], lengthUnit=[], direction=[]);
-p.artifacts(1) = struct(event='StimOn', length=1, lengthUnit='ms', direction='right');
-p.artifacts(2) = struct(event='StimOff', length=1, lengthUnit='ms', direction='right');
-
-close all
-XBlue = cell(length(eu), 1);
-XRed = cell(length(eu), 1);
-% for iEu = 1:length(eu)
-%     groupsBlue = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimBluePowers, duration=p.stimBlueDurations, location=[], wavelength=[470, 473]));
-%     groupsRed = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimRedPowers, duration=p.stimRedDurations, location=[], wavelength=593));
-% 
-%     % rd = eu(iEu).getRasterData('stimtwocolor', p.isiWindow, trials=[groupsRed.trials], alignTo='start', shutterDelay=0, sort=false, photoelectricBlankDuration=0.5e-3);
-%     % EphysUnit.plotRaster(rd)
-% 
-%     [isi, t] = eu(iEu).getMeanPEISI('stimtwocolor', [groupsBlue.trials], window=p.isiWindow, resolution=p.isiRes, photoelectricBlankDuration=1.5e-3);
-%     selBaseline = t>p.isiBaselineWindow(1) & t<p.isiBaselineWindow(2);
-%     normSR = (1./isi - mean(1./isi(:, selBaseline), 'omitnan')) ./ std(1./isi(:, selBaseline), 0, 2, 'omitnan');
-%     XBlue{iEu} = normSR;
-% 
-%     [isi, t] = eu(iEu).getMeanPEISI('stimtwocolor', [groupsRed.trials], window=p.isiWindow, resolution=p.isiRes, ...
-%         photoelectricBlankDuration=1.5e-3);
-%     selBaseline = t>p.isiBaselineWindow(1) & t<p.isiBaselineWindow(2);
-%     normSR = (1./isi - mean(1./isi(:, selBaseline), 'omitnan')) ./ std(1./isi(:, selBaseline), 0, 2, 'omitnan');
-%     XRed{iEu} = normSR;
-% 
-%     % fprintf('nan=%i, nan=%i\n', nnz(isnan(XBlue{iEu})), nnz(isnan(XRed{iEu})))
-% end
-
-for iEu = 1:length(eu)
-    groupsBlue = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimBluePowers, duration=p.stimBlueDurations, location=[], wavelength=[470, 473]));
-    groupsRed = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'duration'}, selectBy=struct(power=p.stimRedPowers, duration=p.stimRedDurations, location=[], wavelength=593));
-
-    % rd = eu(iEu).getRasterData('stimtwocolor', p.isiWindow, trials=[groupsRed.trials], alignTo='start', shutterDelay=0, sort=false, photoelectricBlankDuration=0.5e-3);
-    % EphysUnit.plotRaster(rd)
-
-    etaTemp = eu(iEu).getETA('count', 'stimtwocolor', [-0.5, 0.5], normalize=[-0.5, -0.1], resolution=0.010, alignTo='start', ...
-        trials = [groupsBlue.trials], artifacts=p.artifacts);
-    XBlue{iEu} = etaTemp.X;
-
-    etaTemp = eu(iEu).getETA('count', 'stimtwocolor', [-0.5, 0.5], normalize=[-0.5, -0.1], resolution=0.010, alignTo='start', ...
-        trials = [groupsRed.trials], artifacts=p.artifacts);
-    XRed{iEu} = etaTemp.X;
-end
-
-eta.stimBlue = struct(X=cat(1, XBlue{:}), t=etaTemp.t, N=[], D=[], stats=[]);
-eta.stimRed = struct(X=cat(1, XRed{:}), t=etaTemp.t, N=[], D=[], stats=[]);
-
-clear XBlue XRed iEu groupsBlue groupsRed isi t selBaseline normSR etaTemp
-
-% Calculate META
-clear meta
-
-p.metaWindowStim = [0, 0.050];
-p.posRespThresholdStim = 1;
-p.negRespThresholdStim = -0.5;
-
-t = eta.stimBlue.t;
-meta.stimBlue = mean(eta.stimBlue.X(:, t>=p.metaWindowStim(1) & t<=p.metaWindowStim(2)), 2, 'omitnan');
-t = eta.stimRed.t;
-meta.stimRed = mean(eta.stimRed.X(:, t>=p.metaWindowStim(1) & t<=p.metaWindowStim(2)), 2, 'omitnan');
-clear t
-
-c.isStimBlueUp = meta.stimBlue >= p.posRespThresholdStim;
-c.isStimBlueDown = meta.stimBlue <= p.negRespThresholdStim;
-c.isStimRedUp = meta.stimRed >= p.posRespThresholdStim;
-c.isStimRedDown = meta.stimRed <= p.negRespThresholdStim;
-
-c.isStimBlueUpRedUpThereforeChrimsonMaybe = c.isStimBlueUp & c.isStimRedUp;
-c.isStimBlueUpRedNotUpThereforeCoChrMaybe = c.isStimBlueUp & ~c.isStimRedUp;
-c.isStimBlueNotUpRedUpThereforeChrimsonMaybe = ~c.isStimBlueUp & c.isStimRedUp;
-c.isStimBlueNotUpRedNotUp = ~c.isStimBlueUp & ~c.isStimRedUp;
-
-c.isStimResponsive = c.isStimBlueUp | c.isStimBlueDown | c.isStimRedUp | c.isStimRedDown;
-
-fprintf('ChrimsonR %i, CoChR %i\n', nnz(c.isStimRedUp), nnz(c.isStimBlueUpRedNotUpThereforeCoChrMaybe))
+p.artifacts(1) = struct(event='StimOn', length=0.5, lengthUnit='ms', direction='right');
+p.artifacts(2) = struct(event='StimOff', length=0.5, lengthUnit='ms', direction='right');
 
 % Combined PEISI and Stim Raster
 % Stim Rasters
 
-fig = figure(Units='inches', Position=[0, 0, 3.5, 5]);
+fig = figure(Units='inches', Position=[1, 1, 5.5, 10]);
 clear layout
 
-layout.w = [3]; % Stim, reach/lick
-layout.h = [3, 3, 4]; % Raster, peisi/peth
+layout.w = [3]; % Stim
+layout.h = [1, 3, 7]; % Raster, peth
 
 layout.tl = tiledlayout(fig, sum(layout.h), sum(layout.w), TileSpacing='tight', Padding='tight', TileIndexing='columnmajor');
 layout.ax = gobjects(length(layout.h), length(layout.w));
@@ -285,87 +215,306 @@ layout.ax(2, 1) = nexttile(layout.tl, [layout.h(3), layout.w(1)]);
 % layout.ax(2, 2) = nexttile(layout.tl, [layout.h(2), layout.w(2)]);
 % layout.ax(3, 2) = nexttile(layout.tl, [layout.h(3), layout.w(2)]);
 
-p.path = 'C:\SERVER\Figures\TwoColor_SNr_Striatonigral\ErinsBatch';
-
-% p.path = 'C:\SERVER\Figures\TwoColor_SNr_SCRetro\ReverseInjection\ChrimsonR';
-% selUnits = find(c.isStimRedUp);
-
 if ~exist(p.path, 'dir')
     mkdir(p.path)
 end
-
 for iEu = 1:length(eu)
-    % try
-        % Make Raster
-        ax = layout.ax(1, 1);
-        cla(ax)
-        EphysUnit.plotRaster(ax, rd.stim(iEu), xlim=p.xlim.stim*1e3, sz=p.rasterSzStim, timeUnit='ms');
-        delete(ax.Legend)
-        % ax.Legend.Location = 'northeast';
-        % ax.Legend.FontSize = 6;
-        title(ax, eu(iEu).getName(), Interpreter="none")
+    % Make Raster
+    ax = layout.ax(1, 1);
+    cla(ax)
+    EphysUnit.plotRaster(ax, rd.stim(iEu), xlim=p.xlim.stim*1e3, sz=p.rasterSzStim, timeUnit='ms');
+    % delete(ax.Legend)
+    % ax.Legend.Location = 'northeast';
+    % ax.Legend.FontSize = 6;
+    title(ax, eu(iEu).getName(), Interpreter="none")
 
-        % Make ETA
-        ax = layout.ax(2, 1);
-        cla(ax)
-        groups = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power'});
-        % isi = NaN(length(groups), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)));
-        % deltaSR = isi;
-        clear deltaSR
-        for iGrp = 1:length(groups)
-            % [isi(iGrp, :), t] = eu(iEu).getMeanPEISI('stimtwocolor', groups(iGrp).trials, window=p.isiWindow, resolution=p.isiRes, ...
-            %     photoelectricBlankDuration=0.5e-3);
-            % deltaSR(iGrp, :) = 1./isi(iGrp, :) - mean(1./isi(iGrp, t<0), 'omitnan');
-            % etaTemp = eu(iEu).getETA('count', 'stimtwocolor', [-0.5, 0.5], normalize=[-0.5, -0.3], resolution=0.010, alignTo='start', ...
-            %     trials = groups(iGrp).trials);
-            etaTemp = eu(iEu).getETA('count', 'stimtwocolor', [-0.5, 0.5], normalize=[-0.5, -0.1], resolution=0.010, alignTo='start', ...
-                trials = groups(iGrp).trials, artifacts=p.artifacts);
-            t = etaTemp.t;
-            deltaSR(iGrp, :) = etaTemp.X;
-        end
-        imagesc(ax, 1e3*t, [], deltaSR)
-        xline(ax, 0)
-        xlim(ax, p.xlim.stim*1e3)
-        % clim(ax, [-1.5, 1.5])
-        ax.YAxisLocation = 'right';
-        % colormap(ax, 'turbo')
-        applyCustomColormap(ax, [-1, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
-        h = colorbar(ax, 'westoutside');
-        h.Label.String = '\DeltaSR (a.u.)';
-        yticks(ax, 1:length(groups));
-        yticklabels(ax, {groups.label})
-        xlabel(ax, 'Time from opto onset (ms)')
-        title(ax, 'Stim PETH (from ISI)')
+    % Make ETA
+    ax = layout.ax(2, 1);
+    cla(ax)
+    groups = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'location'});
+    sepPower = find([groups.location] == min([groups.location]));
+    sepWavelength = find([groups.wavelength] == groups(1).wavelength, 1, 'last');
+    switch p.mode
+        case "isi"
+            isi = NaN(length(groups), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)));
+            deltaSR = isi;
+            for iGrpMin = 1:length(groups)
+                [isi(iGrpMin, :), t] = eu(iEu).getMeanPEISI('stimtwocolor', groups(iGrpMin).trials, window=p.isiWindow, resolution=p.isiRes, ...
+                    photoelectricBlankDuration=0.5e-3, photoelectricOffsetBlankWindow=[10e-3, 10.5e-3]);
+                baseline = 1./isi(iGrpMin, isin(t, p.isiBaselineWindow));
+                deltaSR(iGrpMin, :) = (1./isi(iGrpMin, :) - mean(baseline, 'all', 'omitnan')) ./ std(baseline, 0, 'all', 'omitnan');
+                clear baseline
+            end
+        case "psth"
+            clear deltaSR
+            for iGrpMin = 1:length(groups)
+                etaTemp = eu(iEu).getETA('count', 'stimtwocolor', [-0.5, 0.5], normalize=[-0.5, 0], resolution=0.010, alignTo='start', ...
+                    trials = groups(iGrpMin).trials, artifacts=p.artifacts);
+                t = etaTemp.t;
+                deltaSR(iGrpMin, :) = etaTemp.X;
+            end
+    end
+    imagesc(ax, 1e3*t, [], deltaSR)
+    xline(ax, 0)
+    yline(ax, sepPower + 0.5, 'k--', LineWidth=1)
+    yline(ax, sepWavelength + 0.5, 'k-', LineWidth=1.5)
+    xlim(ax, p.xlim.stim*1e3)
+    ax.YAxisLocation = 'right';
+    applyCustomColormap(ax, p.clim, hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+    h = colorbar(ax, 'westoutside');
+    h.Label.String = '\DeltaSR (a.u.)';
+    sepPower = [0, sepPower];
+    yticks(ax, 0.5*(sepPower(1:end-1) + sepPower(2:end)));
+    yticklabels(ax, arrayfun(@(grp) sprintf("%gmW %inm", grp.power*1e3, grp.wavelength), groups(sepPower(2:end))));
+    ax.YAxis.TickLength = [0, 0];
+    % yticks(ax, 1:length(groups));
+    % yticklabels(ax, {groups.label})
+    xlabel(ax, 'Time from opto onset (ms)')
+    switch p.mode
+        case "isi"
+            title(ax, 'PSTH (from ISI)')
+        case "psth"
+            title(ax, 'PSTH')
+    end
 
-        % % Make Raster Press
-        % trialTypes = ["press", "lick"];
-        % colors = ["red", "blue"];
-        % cla(layout.ax(1, 2))
-        % cla(layout.ax(2, 2))
-        % cla(layout.ax(3, 2))
-        % for iTrialType = 1:2
-        %     trialType = trialTypes(iTrialType);
-        %     ax = layout.ax(iTrialType, 2);
-        %     EphysUnit.plotRaster(ax, rd.(trialType)(iEu), xlim=p.xlim.move, sz=p.rasterSzMove);
-        %     title(ax, trialType, Interpreter="none")
-        %     xline(ax, 0, '--', DisplayName=trialType)
-        % 
-        %     ax = layout.ax(3, 2);
-        %     hold(ax, 'on')
-        %     fieldname = sprintf('%sRaw', trialType);
-        %     plot(ax, eta.(fieldname).t, eta.(fieldname).X(iEu, :), LineWidth=1.5, Color=colors(iTrialType), DisplayName=trialTypes(iTrialType))
-        %     xlim(ax, p.xlim.move)
-        %     title(ax, 'Move PETH')
-        %     xlabel(ax, 'Time to bar/spout contact (s)')
-        %     ylabel(ax, 'sp/s')
-        %     legend(ax, Location='northwest')
-        %     if iTrialType == 1
-        %         xline(ax, 0, '--', DisplayName='bar/spout contact')
-        %     end
-        % end
-
-        print(fig, sprintf('%s\\%s.png', p.path, eu(iEu).getName()), '-dpng', '-r0')
-    % end
+    fontsize(fig, 9, 'points');
+    print(fig, sprintf('%s\\%s.png', p.path, eu(iEu).getName()), '-dpng', '-r0')
 end
 
-clear fig layout iEu ax groups isi deltaSR iGrp h trialTypes colors iTrialType trialType
+clear fig layout iEu ax groups sepPower sepWavelength deltaSR iGrpMin etaTemp t h isi
+
+%% Calculate data for population heatmap
+switch p.mode
+    case "isi"
+        t = p.isiWindow(1):p.isiRes:p.isiWindow(2);
+    case "psth"
+        t = -0.5:0.01:0.5;
+        t = 0.5*(t(1:end-1) + t(2:end));
+end
+X = NaN(length(eu), 80, length(t));
+groupsGlobal = eu(1).groupTwoColorStimTrials({'wavelength', 'power', 'location'});
+groupsGlobal = rmfield(groupsGlobal, {'trials', 'pulseIndices'});
+assert(length(groupsGlobal) == 80)
+
+ll = 0;
+tTicTotal = tic();
+for iEu = 1:length(eu)
+    fprintf(repmat('\b', [1, ll]))
+    ll = fprintf("iEu=%i/%i...(%.1fs)\n", iEu, length(eu), toc(tTicTotal));
+    groups = eu(iEu).groupTwoColorStimTrials({'wavelength', 'power', 'location'});
+    switch p.mode
+        case "isi"
+            isi = NaN(length(groups), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)));
+            deltaSR = NaN(length(groupsGlobal), length(p.isiWindow(1):p.isiRes:p.isiWindow(2)));
+            for iGrpMin = 1:length(groups)
+                iGrpGlobal = find(string({groupsGlobal.label}) == string(groups(iGrpMin).label));
+                assert(~isempty(iGrpGlobal))
+                [isi(iGrpMin, :), t] = eu(iEu).getMeanPEISI('stimtwocolor', groups(iGrpMin).trials, window=p.isiWindow, resolution=p.isiRes, ...
+                    photoelectricBlankDuration=0.5e-3, photoelectricOffsetBlankWindow=[10e-3, 10.5e-3]);
+                baseline = 1./isi(iGrpMin, isin(t, p.isiBaselineWindow));
+                deltaSR(iGrpGlobal, :) = (1./isi(iGrpMin, :) - mean(baseline, 'all', 'omitnan')) ./ std(baseline, 0, 'all', 'omitnan');
+                clear baseline
+            end
+        case "psth"
+            deltaSR = NaN(length(groupsGlobal), size(X, 3));
+            for iGrpMin = 1:length(groups)
+                iGrpGlobal = find(string({groupsGlobal.label}) == string(groups(iGrpMin).label));
+                assert(~isempty(iGrpGlobal))
+                etaTemp = eu(iEu).getETA('count', 'stimtwocolor', [-0.5, 0.5], normalize=[-0.5, 0], resolution=0.010, alignTo='start', ...
+                    trials = groups(iGrpMin).trials, artifacts=p.artifacts);
+                t = etaTemp.t;
+                deltaSR(iGrpGlobal, :) = etaTemp.X;
+            end
+    end
+    X(iEu, :, :) = deltaSR;
+end
+
+psth = struct(X=X, t=t, groups=groupsGlobal);
+
+clear ll iEu isi deltaSR iGrpMin etaTemp tTicTotal groups iGrpGlobal X t groupsGlobal
+
+%% Plot population heatmap
+close all
+p.metaWindow = [0.01, 0.03];
+p.metaThreshold = 0.2;
+p.clim = [-1.5, 1.5];
+
+metaX = transpose(mean(psth.X(:, :, isin(psth.t, p.metaWindow)), 3, 'omitnan')); % Location x Power x Wavelength
+metaX(isnan(metaX)) = 0;
+metaXHiPower = squeeze(mean(reshape(metaX([33:40, 73:80], :, :), 8, 2, length(eu)), 1, 'omitnan'));
+B = sign(metaXHiPower) .* (abs(metaXHiPower)>p.metaThreshold);
+B(isnan(B)) = 0;
+B = B + 1;
+hash = B(1, :)*3 + B(2, :);
+
+[~, order] = sort(hash);
+
+fig = figure(Units='inches', Position=[0, 1, 14, 4]);
+ax = axes(fig);
+
+groups = psth.groups;
+sepPower = find([groups.location] == min([groups.location]));
+sepWavelength = find([groups.wavelength] == groups(1).wavelength, 1, 'last');
+sepHash = arrayfun(@(i) find(hash(order)==i, 1, 'last'), min(hash):max(hash), UniformOutput=false);
+sepHash = [sepHash{:}];
+
+imagesc(ax, metaX(:, order))
+xline(ax, sepHash + 0.5, 'k-', LineWidth=1)
+yline(ax, sepPower + 0.5, 'k--', LineWidth=1)
+yline(ax, sepWavelength + 0.5, 'k-', LineWidth=1.5)
+ax.YAxisLocation = 'right';
+applyCustomColormap(ax, p.clim, hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+h = colorbar(ax, 'westoutside');
+h.Label.String = 'normalized stim response (a.u.)';
+sepPower = [0, sepPower];
+yticks(ax, 0.5*(sepPower(1:end-1) + sepPower(2:end)));
+yticklabels(ax, arrayfun(@(grp) sprintf("%gmW %inm", grp.power*1e3, grp.wavelength), groups(sepPower(2:end))));
+ax.YAxis.TickLength = [0, 0];
+xticks(ax, sepHash+0.5)
+xticklabels(ax, sepHash);
+
+% Binary labesl
+uniqueB = B(:, order) - 1;
+uniqueB = uniqueB(:, sepHash);
+for iCat = 1:length(sepHash)
+    if iCat == 1
+        center = (sepHash(1) + 0) / 2;
+    else
+        center = mean(sepHash(iCat-1:iCat));
+    end
+    text(ax, center, 20.5, string(uniqueB(1, iCat)), HorizontalAlignment='center', VerticalAlignment='middle', FontWeight='bold', FontSize=9);
+    text(ax, center, 60.5, string(uniqueB(2, iCat)), HorizontalAlignment='center', VerticalAlignment='middle', FontWeight='bold', FontSize=9);
+end
+clear iCat center
+
+xlabel(ax, 'unit')
+ylabel(ax, 'wavelength x power x position', Rotation=-90)
+switch p.mode
+    case "isi"
+        title(ax, 'Stim Response (from ISI)')
+    case "psth"
+        title(ax, sprintf('SNr response to striatal stimulation %i-%i ms', 1e3*p.metaWindow(1), 1e3*p.metaWindow(2)))
+end
+
+fontsize(fig, 9, 'points');
+copygraphics(fig, ContentType='vector', BackgroundColor='none')
+
+B = B-1;
+meta = struct(X=metaX, XHiPower=metaXHiPower, B=B, hash=hash, order=order);
+
+clear metaX metaXHiPower B uniqueB hash order fig ax groups sepPower sepWavelength sepHash h
+
+%% Plot receptive fields (per power x wavelength, averaged across units)
+close all
+
+path = 'E:\DATA\Figures\TwoColor_SNr_Striatonigral\ErinsBatch\RF';
+if ~isfolder(path)
+    mkdir(path)
+end
+if ~isfolder(fullfile(path, 'avgAcrossPwr'))
+    mkdir(fullfile(path, 'avgAcrossPwr'))
+end
+
+selUnits = find(any(meta.B ~= 0, 1));
+xAligned = NaN(8, length(selUnits), 2, 5); % Location x unit x wavelength x power
+xRaw = xAligned;
+for iPwr = 1:5
+    for iWavelength = 1:2
+        selConds = 8*(iPwr-1) + 1 : 8*iPwr;
+        selConds = selConds + (iWavelength-1)*40;
+        x = abs(meta.X(selConds, selUnits));
+        for iUnit = 1:size(x, 2)
+            [~, iPeak] = max(x(:, iUnit));
+            xAligned(:, iUnit, iWavelength, iPwr) = circshift(x(:, iUnit), 4-iPeak, 1);
+            xRaw(:, iUnit, iWavelength, iPwr) = meta.X(selConds, iUnit);
+        end
+    end
+end
+
+% Plot one figure, average across units
+fig = figure(Units='inches', Position=[1, 1, 7, 3]);
+ax = axes(fig);
+h = gobjects(5, 2);
+hold(ax, 'on')
+hues = [0.61, 0.14];
+xMed = mean(xAligned(:, :, :, 5), 2, 'omitnan');
+for iPwr = 1:5
+    for iWavelength = 1:2
+        color = hsl2rgb([hues(iWavelength), 1, 1-(iPwr-1)/8]);
+        x = mean(xAligned(:, :, iWavelength, iPwr), 2);
+        iGrpMin = 1+8*(iPwr-1)+40*(iWavelength-1);
+        name = sprintf("%inm %gmW", psth.groups(iGrpMin).wavelength, psth.groups(iGrpMin).power*1e3);
+        h(iPwr, iWavelength) = plot(ax, 1:8, (x-min(xMed, [], 'all'))./(max(xMed, [], 'all') - min(xMed, [], 'all')), Color=color, Marker='o', MarkerSize=iPwr*1.5, DisplayName=name);
+    end
+end
+hold(ax, 'off')
+xlabel(ax, 'stim location')
+ylabel(ax, 'stim response (a.u.)')
+legend(ax, h, Location='eastoutside')
+title(ax, sprintf("%i units (average)", length(selUnits)), Interpreter='none')
+print(fig, fullfile(path, sprintf('%i units (average).png', length(selUnits))), '-dpng', '-r0')
+
+% % Plot one figure per unit
+% doNorm = false;
+% for iUnit = 1:size(xAligned, 2)
+%     cla(ax)
+%     hold(ax, 'on')
+%     xMin = min(xRaw(:, iUnit, :, :), [], 'all');
+%     xMax = max(xRaw(:, iUnit, :, :), [], 'all');
+%     for iPwr = 1:5
+%         for iWavelength = 1:2
+%             color = hsl2rgb([hues(iWavelength), 1, 1-(iPwr-1)/8]);
+%             x = xRaw(:, iUnit, iWavelength, iPwr);
+%             iGrp = 1+8*(iPwr-1)+40*(iWavelength-1);
+%             name = sprintf("%inm %gmW", psth.groups(iGrp).wavelength, psth.groups(iGrp).power*1e3);
+%             if doNorm
+%                 plot(ax, 1:4, (x(1:4)-xMin)./(xMax-xMin), Color=color, Marker='o', MarkerSize=iPwr*1.5);
+%                 plot(ax, 5:8, (x(5:8)-xMin)./(xMax-xMin), Color=color, Marker='o', MarkerSize=iPwr*1.5);
+%             else
+%                 plot(ax, 1:4, x(1:4), Color=color, Marker='o', MarkerSize=iPwr*1.5);
+%                 h(iPwr, iWavelength) = plot(ax, 5:8, x(5:8), Color=color, Marker='o', MarkerSize=iPwr*1.5, DisplayName=name);
+%             end
+%         end
+%     end
+%     yline(ax, 0, 'k--')
+%     xticks(ax, [1, 4, 5, 8])
+%     xticklabels(ax, ["DLS", "VLS", "DMS", "VMS"])
+%     xlabel(ax, 'stim location')
+%     ylabel(ax, 'stim response (a.u.)')
+%     legend(ax, h, Location='eastoutside')
+%     hold(ax, 'off')
+%     title(ax, eu(selUnits(iUnit)).getName(), Interpreter='none')
+%     ylim(ax, [-1, 1])
+%     xlim(ax, [0, 9])
+%     print(fig, fullfile(path, sprintf('%s.png', eu(selUnits(iUnit)).getName())), '-dpng', '-r0')
+% end
+
+% Plot one figure per unit, average scross powers
+h = gobjects(1, 2);
+pwrRange = [3, 5];
+for iUnit = 1:size(xAligned, 2)
+    cla(ax)
+    hold(ax, 'on')
+    for iWavelength = 1:2
+        color = hsl2rgb([hues(iWavelength), 1, 0.5]);
+        x = mean(xRaw(:, iUnit, iWavelength, pwrRange(1):pwrRange(2)), 4, 'omitnan');
+        iGrpMin = 1+8*(pwrRange(1)-1)+40*(iWavelength-1);
+        iGrpMax = 1+8*(pwrRange(2)-1)+40*(iWavelength-1);
+        name = sprintf("%inm %g-%gmW", psth.groups(iGrpMin).wavelength, psth.groups(iGrpMin).power*1e3, psth.groups(iGrpMax).power*1e3);
+        plot(ax, 1:4, x(1:4), Color=color, Marker='o', MarkerSize=iPwr*1.5);
+        h(iWavelength) = plot(ax, 5:8, x(5:8), Color=color, Marker='o', MarkerSize=5*1.5, DisplayName=name);
+    end
+    yline(ax, 0, 'k--')
+    xticks(ax, [1, 4, 5, 8])
+    xticklabels(ax, ["DLS", "VLS", "DMS", "VMS"])
+    xlabel(ax, 'stim location')
+    ylabel(ax, 'stim response (a.u.)')
+    legend(ax, h, Location='eastoutside')
+    hold(ax, 'off')
+    title(ax, eu(selUnits(iUnit)).getName(), Interpreter='none')
+    ylim(ax, [-1, 1])
+    xlim(ax, [0, 9])
+    print(fig, fullfile(path, 'avgAcrossPwr', sprintf('%s.png', eu(selUnits(iUnit)).getName())), '-dpng', '-r0')
+end
+
+clear selUnits iPwr iWavelength selConds x iUnit iPeak xMax xMin hues h name iGrpMin color xAligned xMed xRaw fig ax doNorm path iGrpMin iGrpMax
