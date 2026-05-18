@@ -543,12 +543,13 @@ if ~exist(exportPath, 'dir')
     mkdir(exportPath)
 end
 features = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
-featureUnits = ["a.u.", "AP pos (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "DV pos (a.u.)", "DV pos (a.u.)", "prob"];
+featureUnits = ["spike rate (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "DV pos (a.u.)", "DV pos (a.u.)", "prob"];
 statFeatures = ["HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
 dirs = ["dip", "rise"];
+dimensionReduction = "tsne"; % pca, tsne, umap
 % yl = {[-2.5, 5], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 1.1]};
-yl = {[-2.5, 5], [-1, 1], [-1, 1], [-1, 1], [-1, 1], [-1, 1], [-1, 1], [0, 1]};
-fig = figure(Units='inches', InnerPosition=[2, 2, 2*(2+length(features)), 5]);
+yl = {[-2.5, 5], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [0, 1]};
+fig = figure(Units='inches', InnerPosition=[2, 2, 1.5*(2+length(features)), 5]);
 tlp = tiledlayout(fig, 2, 1, TileSpacing='compact', Padding='compact');
 tl = gobjects(2, 1);
 tl(1) = tiledlayout(tlp, 1, length(features) + 2, TileSpacing='compact', Padding='compact');
@@ -562,10 +563,11 @@ for iDir = 1:2
         ax(iDir, iAx) = nexttile(tl(iDir));
     end
 end
-for iUnit = [length(eu)+1, selUnits]
+for iUnit = 680:length(eu)
+% for iUnit = [length(eu)+1, selUnits]
 % for iUnit = length(eu)+1
     for iDir = 1:2
-        for iAx = 1:length(features)
+        for iAx = 1:length(features) + 2
             cla(ax(iDir, iAx))
         end
     end
@@ -579,93 +581,66 @@ for iUnit = [length(eu)+1, selUnits]
             end
             continue
         end
-        for iAx = 1:length(features)
-            fn = features(iAx);
-            if isempty(xta.(dir)(iUnit).(fn))
-                ax(iDir, iAx).Visible = false;
-                continue
-            end
 
-            ax(iDir, iAx).Visible = true;
-
-            hold(ax(iDir, iAx), 'on')
-            c = getColor(iAx, length(features), 0.7);
-
-            t = 1e3*xta.(dir)(iUnit).(fn).t;
-            X = xta.(dir)(iUnit).(fn).X;
-            mu = mean(xta.(dir)(iUnit).(fn).X, 1, 'omitnan');
-            err = std(xta.(dir)(iUnit).(fn).X, 0, 1, 'omitnan')./sqrt(size(xta.(dir)(iUnit).(fn).X, 1));
-            if p.nBoot > 0 && isfield(xta.(dir)(iUnit).(fn), 'XBoot')
-                prc = quantile(xta.(dir)(iUnit).(fn).XBoot, [p.bootAlpha/2, 1-p.bootAlpha/2], 1);
-            end
-
-            if p.nBoot > 0 && ismember(fn, p.std.features) && isfield(xta.(dir)(iUnit).(fn), 'stats')
-                prcSTD = quantile(xta.(dir)(iUnit).(fn).stats.stdBoot, [0.95, 0.99, 0.999]);
-                nStarsSTD = sum(xta.(dir)(iUnit).(fn).stats.std > prcSTD);
+        % Movement diversity scatter plot
+        if p.nBoot > 0 && xta.(dir)(iUnit).iExp > 0
+            iAx = length(features)+1;
+            if length(xta.(dir)(iUnit).t0) <= 2
+                idx = ones(length(xta.(dir)(iUnit).t0), 1);
+                nClusters = 1;
             else
-                nStarsSTD = 0;
-            end
-
-            % plot(ax(iType, iAx), t, X, Color=[0.15, 0.15, 0.15, 0.1]);
-            plot(ax(2+1-iDir, iAx), t, mu, Color=[0.15, 0.15, 0.15, 0.1], LineWidth=1.5);
-            plot(ax(iDir, iAx), t, mu, Color=c, LineWidth=1.5);
-            if p.nBoot > 0 && isfield(xta.(dir)(iUnit).(fn), 'XBoot')
-                patch(ax(iDir, iAx), [t, flip(t)], [prc(1, :), flip(prc(2, :))], c, FaceAlpha=0.05, EdgeColor=c, EdgeAlpha=0.5);
-            else
-                patch(ax(iDir, iAx), [t, flip(t)], [mu-err, flip(mu+err)], c, FaceAlpha=0.05, EdgeColor=c, EdgeAlpha=0.5);
-            end
-            % xline(ax(iRow, iAx), 1e3*p.xta.meanWindow, 'k--', Alpha=0.1)
-            xline(ax(iDir, iAx), 1e3*p.std.window, 'k--', Alpha=0.1)
-            xline(ax(iDir, iAx), 0, 'k-', Alpha=0.1)
-            % xticks(ax(iRow, iAx), 1e3*p.xta.meanWindow)
-            xticks(ax(iDir, iAx), [-300, 0, 600])
-            xtickangle(ax(iDir, iAx), 0)
-
-            ylabel(ax(iDir, iAx), featureUnits(iAx))
-
-            fnDisp = sprintf("%s %s", fn, repmat('*', [1, nStarsSTD]));
-            title(ax(iDir, iAx), fnDisp, Interpreter='none')
-            ylim(ax(iDir, iAx), yl{iAx})
-        end
-
-        % Correlegram
-        [lia, statFeatureOrder] = ismember(statFeatures, p.std.features);
-        assert(all(lia), 'Some members of statFeatureOrder are not found.')
-
-        iAx = iAx + 1;
-        r = NaN(length(p.std.features));
-        for i = 1:length(p.std.features)
-            fni = p.std.features(statFeatureOrder(i));
-            if isempty(xta.(dir)(iUnit).(fni))
-                continue
-            end
-            for j = 1:length(p.std.features)
-                fnj = p.std.features(statFeatureOrder(j));
-                if isempty(xta.(dir)(iUnit).(fnj))
-                    continue
+                hold(ax(iDir, iAx), 'on')
+                mr = NaN(length(xta.(dir)(iUnit).t0), length(p.std.features));% movement range: nTrials x nFeatures
+                for i = 1:length(p.std.features)
+                    fn = p.std.features(statFeatureOrder(i));
+                    if isempty(xta.(dir)(iUnit).(fn))
+                        continue
+                    end
+                    t = xta.(dir)(iUnit).(fn).t;
+                    selT = t >= p.std.window(1) & t <= p.std.window(2);
+                    xx = xta.(dir)(iUnit).(fn).X(:, selT);
+                    mr(:, i) = std(xx, 0, 2, 'omitnan');
                 end
-                selT = xta.(dir)(iUnit).(fni).t >= p.std.window(1) & xta.(dir)(iUnit).(fni).t <= p.std.window(2);
-                r(i, j) = corr(std(xta.(dir)(iUnit).(fni).X(:, selT), 0, 2, 'omitnan'), std(xta.(dir)(iUnit).(fnj).X(:, selT), 0, 2, 'omitnan'), Rows='complete');
+                mr(isnan(mr)) = 0;
+                [~, pcScore, ~, ~, explained] = pca(mr);
+                switch dimensionReduction   
+                    case "pca"
+                        score = pcScore;
+                    case "umap"
+                        score = umap(mr, NumDimensions=2);
+                    case "tsne"
+                        score = tsne(mr);
+                end
+                eva = evalclusters(pcScore(:, 1:3), 'kmeans', 'CalinskiHarabasz', KList=1:3);
+                nClusters = eva.OptimalK;
+                clear eva
+                idx = kmeans(pcScore(:, 1:3), nClusters);
+                for k = 1:nClusters
+                    sel = idx==k;
+                    scatter(ax(iDir, iAx), score(sel, 1), score(sel, 2), 10, getColor(k, 2))
+                end
+                switch dimensionReduction   
+                    case "pca"
+                        xlabel(ax(iDir, iAx), sprintf("PC%i (%.1f%%)", 1, explained(1)))
+                        ylabel(ax(iDir, iAx), sprintf("PC%i (%.1f%%)", 2, explained(2)))
+                        title(ax(iDir, iAx), "PCA")
+                    case "tsne"
+                        xlabel(ax(iDir, iAx), sprintf("PC%i", 1))
+                        ylabel(ax(iDir, iAx), sprintf("PC%i", 2))
+                        title(ax(iDir, iAx), "t-SNE")
+                    case "umap"
+                        xlabel(ax(iDir, iAx), sprintf("PC%i", 1))
+                        ylabel(ax(iDir, iAx), sprintf("PC%i", 2))
+                        title(ax(iDir, iAx), "UMAP")
+                end
+                xticks(ax(iDir, iAx), [])
+                yticks(ax(iDir, iAx), [])
             end
         end
-        r(isnan(r)) = 0;
-        imagesc(ax(iDir, iAx), r);
-        xticks(ax(iDir, iAx), 1:length(p.std.features))
-        yticks(ax(iDir, iAx), 1:length(p.std.features))
-        xticklabels(ax(iDir, iAx), p.std.features(statFeatureOrder))
-        yticklabels(ax(iDir, iAx), p.std.features(statFeatureOrder))
-        xtickangle(ax(iDir, iAx), 90)
-        ax(iDir, iAx).XAxisLocation = 'top';
-        axis(ax(iDir, iAx), 'image')
-        ax(iDir, iAx).XAxis.Direction = 'normal';
-        clim(ax(iDir, iAx), [0, 1])
-        colormap(ax(iDir, iAx), 'gray')
-        colorbar(ax(iDir, iAx), 'eastoutside')
-        applyCustomColormap(ax(iDir, iAx), [-1, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
 
         % Movement diversity matrix
         if p.nBoot > 0 && xta.(dir)(iUnit).iExp > 0
-            iAx = iAx + 1;
+            iAx = length(features)+2;
             mdm = NaN(length(xta.(dir)(iUnit).t0), length(p.std.features));
             for i = 1:length(p.std.features)
                 fn = p.std.features(statFeatureOrder(i));
@@ -679,24 +654,121 @@ for iUnit = [length(eu)+1, selUnits]
             end
             mdm(isnan(mdm)) = 0;
             hash = sum((mdm > 0.95) .* 2.^(size(mdm, 2)-1:-1:0), 2);
-            [~, I] = sort(hash, 'descend');
+            hash = hash + (idx-1) .* 2.^(size(mdm, 2));
+            [~, I] = sort(hash, 'ascend');
+            idxSorted = idx(I);
+            sepHash = arrayfun(@(idx) find(idxSorted==idx, 1, 'last'), 1:max(idx)-1);
             imagesc(ax(iDir, iAx), mdm(I, :))
+            if ~isempty(sepHash)
+                yline(ax(iDir, iAx), 0.5+sepHash, 'k--')
+                yticks(ax(iDir, iAx), 0.5+unique([1, sepHash, length(idx)]))
+                yticklabels(ax(iDir, iAx), string(unique([1, sepHash, length(idx)])))
+            end
             % colormap(ax(iType, iAx), [1, 1, 1; 0, 0, 0])
             % applyCustomColormap(ax(iType, iAx), [-1, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
-            applyCustomColormap(ax(iDir, iAx), [0, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.025, h0=0.33);
+            % applyCustomColormap(ax(iDir, iAx), [0, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.025, h0=0.33);
+            applyCustomColormap(ax(iDir, iAx), [-1, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.05, h0=0.33);
             % ax(iType, iAx).ColorScale = 'log';
             xticks(ax(iDir, iAx), 1:length(p.std.features))
             xticklabels(ax(iDir, iAx), p.std.features(statFeatureOrder))
             colorbar(ax(iDir, iAx), Orientation='horizontal', Location='southoutside')
             ax(iDir, iAx).XAxisLocation = 'top';
             ylabel(ax(iDir, iAx), 'Trial')
-            clear iDir mdm i fn t selT stdObs pObs hash I
+            clear mdm i fn t selT stdObs pObs hash I
         end
+        
+        for iAx = 1:length(features)
+            fn = features(iAx);
+            if isempty(xta.(dir)(iUnit).(fn))
+                ax(iDir, iAx).Visible = false;
+                continue
+            end
+
+            if p.nBoot > 0 && ismember(fn, p.std.features) && isfield(xta.(dir)(iUnit).(fn), 'stats')
+                prcSTD = quantile(xta.(dir)(iUnit).(fn).stats.stdBoot, [0.95, 0.99, 0.999]);
+                nStarsSTD = sum(xta.(dir)(iUnit).(fn).stats.std > prcSTD);
+            else
+                nStarsSTD = 0;
+            end
+
+            ax(iDir, iAx).Visible = true;
+
+            hold(ax(iDir, iAx), 'on')
+            hold(ax(2+1-iDir, iAx), 'on')
+            t = 1e3*xta.(dir)(iUnit).(fn).t;
+            X = mean(xta.(dir)(iUnit).(fn).X, 1, 'omitnan');
+            plot(ax(iDir, iAx), t, X, Color=[0.15, 0.15, 0.15, 1], LineWidth=1.5, LineStyle=':');
+            plot(ax(2+1-iDir, iAx), t, X, Color=[0.15, 0.15, 0.15, 0.1], LineWidth=1.5, LineStyle=':');
+            for k = 1:nClusters
+                % c = getColor(iAx, length(features), 0.7);
+                c = getColor(k, nClusters, 0.7);
+                % c = [0.15, 0.15, 0.15];
+    
+                X = xta.(dir)(iUnit).(fn).X(idx==k, :);
+                mu = mean(X, 1, 'omitnan');
+                err = std(X, 0, 1, 'omitnan')./sqrt(size(xta.(dir)(iUnit).(fn).X, 1));
+    
+                plot(ax(iDir, iAx), t, mu, Color=c, LineWidth=1.5);
+            end
+            if p.nBoot > 0 && isfield(xta.(dir)(iUnit).(fn), 'XBoot')
+                prc = quantile(xta.(dir)(iUnit).(fn).XBoot, [p.bootAlpha/2, 1-p.bootAlpha/2], 1);
+                patch(ax(iDir, iAx), [t, flip(t)], [prc(1, :), flip(prc(2, :))], [0.15, 0.15, 0.15], FaceAlpha=0.05, EdgeColor=[0.15, 0.15, 0.15], EdgeAlpha=0.5);
+            end
+            % xline(ax(iRow, iAx), 1e3*p.xta.meanWindow, 'k--', Alpha=0.1)
+            xline(ax(iDir, iAx), 1e3*p.std.window, 'k--', Alpha=0.1)
+            xline(ax(iDir, iAx), 0, 'k-', Alpha=0.1)
+            % xticks(ax(iRow, iAx), 1e3*p.xta.meanWindow)
+            xticks(ax(iDir, iAx), [-300, 0, 600])
+            xtickangle(ax(iDir, iAx), 0)
+
+            xlabel(ax(iDir, iAx), 'time (ms)')
+            ylabel(ax(iDir, iAx), featureUnits(iAx))
+
+            fnDisp = sprintf("%s %s", fn, repmat('*', [1, nStarsSTD]));
+            title(ax(iDir, iAx), fnDisp, Interpreter='none')
+            ylim(ax(iDir, iAx), yl{iAx})
+            hold(ax(iDir, iAx), 'off')
+            hold(ax(2+1-iDir, iAx), 'off')
+        end
+
+        % Correlegram
+        % [lia, statFeatureOrder] = ismember(statFeatures, p.std.features);
+        % assert(all(lia), 'Some members of statFeatureOrder are not found.')
+        % 
+        % iAx = iAx + 1;
+        % r = NaN(length(p.std.features));
+        % for i = 1:length(p.std.features)
+        %     fni = p.std.features(statFeatureOrder(i));
+        %     if isempty(xta.(dir)(iUnit).(fni))
+        %         continue
+        %     end
+        %     for j = 1:length(p.std.features)
+        %         fnj = p.std.features(statFeatureOrder(j));
+        %         if isempty(xta.(dir)(iUnit).(fnj))
+        %             continue
+        %         end
+        %         selT = xta.(dir)(iUnit).(fni).t >= p.std.window(1) & xta.(dir)(iUnit).(fni).t <= p.std.window(2);
+        %         r(i, j) = corr(std(xta.(dir)(iUnit).(fni).X(:, selT), 0, 2, 'omitnan'), std(xta.(dir)(iUnit).(fnj).X(:, selT), 0, 2, 'omitnan'), Rows='complete');
+        %     end
+        % end
+        % r(isnan(r)) = 0;
+        % imagesc(ax(iDir, iAx), r);
+        % xticks(ax(iDir, iAx), 1:length(p.std.features))
+        % yticks(ax(iDir, iAx), 1:length(p.std.features))
+        % xticklabels(ax(iDir, iAx), p.std.features(statFeatureOrder))
+        % yticklabels(ax(iDir, iAx), p.std.features(statFeatureOrder))
+        % xtickangle(ax(iDir, iAx), 90)
+        % ax(iDir, iAx).XAxisLocation = 'top';
+        % axis(ax(iDir, iAx), 'image')
+        % ax(iDir, iAx).XAxis.Direction = 'normal';
+        % clim(ax(iDir, iAx), [0, 1])
+        % colormap(ax(iDir, iAx), 'gray')
+        % colorbar(ax(iDir, iAx), 'eastoutside')
+        % applyCustomColormap(ax(iDir, iAx), [-1, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
     end
     for iDir = 1:2
         dir = dirs(iDir);
         if ~isempty(xta.(dir)(iUnit).HandR)
-            xlabel(tl(iDir), sprintf('time from %s onset (ms)', dir))
             if xta.(dir)(iUnit).iExp > 0
                 title(tl(iDir), sprintf("Unit %i (n=%i %ss)", iUnit, length(xta.(dir)(iUnit).t0), dir), FontWeight='bold')
             else
