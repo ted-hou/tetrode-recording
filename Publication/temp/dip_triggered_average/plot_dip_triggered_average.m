@@ -18,6 +18,7 @@ xta.dip(length(eu) + 1).t0 = [xta.dip(selUnits).t0];
 xta.rise(length(eu) + 1).t0 = [xta.rise(selUnits).t0];
 
 %% Combine movement ranges (mr) across dips from all units, then cluster them
+statFeatures = ["HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
 
 
 %% Plot dip-triggered average kinematics (STD Version
@@ -29,27 +30,28 @@ end
 features = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
 featureUnits = ["spike rate (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "DV pos (a.u.)", "DV pos (a.u.)", "prob"];
 statFeatures = ["HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
+nAx = length(features) + 2;
 dirs = ["dip", "rise"];
 dimensionReduction = "tsne"; % pca, tsne, umap
 % yl = {[-2.5, 5], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 1.1]};
 yl = {[-2.5, 5], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [0, 1]};
-fig = figure(Units='inches', InnerPosition=[2, 2, 1.5*(2+length(features)), 5]);
+fig = figure(Units='inches', InnerPosition=[2, 2, 1.5*(2+length(features)), 4.5]);
 tlp = tiledlayout(fig, 2, 1, TileSpacing='compact', Padding='compact');
 tl = gobjects(2, 1);
-tl(1) = tiledlayout(tlp, 1, length(features) + 2, TileSpacing='compact', Padding='compact');
-tl(2) = tiledlayout(tlp, 1, length(features) + 2, TileSpacing='compact', Padding='compact');
+tl(1) = tiledlayout(tlp, 1, nAx, TileSpacing='compact', Padding='compact');
+tl(2) = tiledlayout(tlp, 1, nAx, TileSpacing='compact', Padding='compact');
 tl(1).Layout.Tile = 1;
 tl(2).Layout.Tile = 2;
 
-ax = gobjects(2, length(features) + 2);
+ax = gobjects(2, nAx);
 for iDir = 1:2
-    for iAx = 1:length(features) + 2
+    for iAx = 1:nAx
         ax(iDir, iAx) = nexttile(tl(iDir));
     end
 end
-for iUnit = 1:length(xta.dip)
+for iUnit = 1:2%length(xta.dip)
     for iDir = 1:2
-        for iAx = 1:length(features) + 2
+        for iAx = 1:nAx
             cla(ax(iDir, iAx))
         end
     end
@@ -65,8 +67,11 @@ for iUnit = 1:length(xta.dip)
         end
 
         % Movement diversity scatter plot
+        [lia, statFeatureOrder] = ismember(statFeatures, p.std.features);
+        assert(all(lia), 'Some members of statFeatureOrder are not found.')
+        
         if p.nBoot > 0 && xta.(dir)(iUnit).iExp > 0
-            iAx = length(features)+1;
+            iAx = nAx - 1;
             if length(xta.(dir)(iUnit).t0) <= 2
                 idx = ones(length(xta.(dir)(iUnit).t0), 1);
                 nClusters = 1;
@@ -122,7 +127,7 @@ for iUnit = 1:length(xta.dip)
 
         % Movement diversity matrix
         if p.nBoot > 0 && xta.(dir)(iUnit).iExp > 0
-            iAx = length(features)+2;
+            iAx = nAx;
             mdm = NaN(length(xta.(dir)(iUnit).t0), length(p.std.features));
             for i = 1:length(p.std.features)
                 fn = p.std.features(statFeatureOrder(i));
@@ -146,11 +151,7 @@ for iUnit = 1:length(xta.dip)
                 yticks(ax(iDir, iAx), 0.5+unique([1, sepHash, length(idx)]))
                 yticklabels(ax(iDir, iAx), string(unique([1, sepHash, length(idx)])))
             end
-            % colormap(ax(iType, iAx), [1, 1, 1; 0, 0, 0])
-            % applyCustomColormap(ax(iType, iAx), [-1, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
-            % applyCustomColormap(ax(iDir, iAx), [0, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.025, h0=0.33);
             applyCustomColormap(ax(iDir, iAx), [-1, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.05, h0=0.33);
-            % ax(iType, iAx).ColorScale = 'log';
             xticks(ax(iDir, iAx), 1:length(p.std.features))
             xticklabels(ax(iDir, iAx), p.std.features(statFeatureOrder))
             colorbar(ax(iDir, iAx), Orientation='horizontal', Location='southoutside')
@@ -214,8 +215,6 @@ for iUnit = 1:length(xta.dip)
         end
 
         % Correlegram
-        % [lia, statFeatureOrder] = ismember(statFeatures, p.std.features);
-        % assert(all(lia), 'Some members of statFeatureOrder are not found.')
         % 
         % iAx = iAx + 1;
         % r = NaN(length(p.std.features));
@@ -265,108 +264,8 @@ for iUnit = 1:length(xta.dip)
     fontsize(fig, 9, 'points')
     print(fig, fullfile(exportPath, sprintf("dta_rta_unit_%03i", iUnit)), '-dpng', '-r0')
 end
-clear features featureUnits fig tlp tl ax iAx iUnit fn c t mu err iDir iFeature tlp yl fnDisp
-clear prcSTD nStarsSTD i j fni fnj r selT
 
-
-
-%% Do scatter plots of dip-triggered/rise-triggered movement magnitudes
-statFeatures = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
-dipWindow = [0, 0.6];
-yRange = [-2, 2];
-% Normalize movement magnitude by boot-strapped range
-selUnits = 1:length(eu);
-clear dX YRise YDip
-dX(max(selUnits)) = struct();
-YRise(max(selUnits)) = struct();
-YDip(max(selUnits)) = struct();
-for iUnit = selUnits
-    for fn = statFeatures
-        try
-            t = xta.dip(iUnit).(fn).t;
-            selT = t>=dipWindow(1) & t<=dipWindow(2);
-            X = mean(xta.dip(iUnit).(fn).X(:, selT), 1, 'omitnan');
-            XBoot = xta.dip(iUnit).(fn).XBoot(:, selT);
-            [XAbs, I] = max(abs(X), [], 'all');
-            XSign = sign(X(I));
-            Xdip = XSign .* XAbs ./ range(XBoot, 'all');
-            YDip(iUnit).(fn) = Xdip;
-        catch
-            YDip(iUnit).(fn) = NaN;
-        end
-
-        try
-            t = xta.rise(iUnit).(fn).t;
-            selT = t>=dipWindow(1) & t<=dipWindow(2);
-            X = mean(xta.rise(iUnit).(fn).X(:, selT), 1, 'omitnan');
-            XBoot = xta.rise(iUnit).(fn).XBoot(:, selT);
-            [XAbs, I] = max(abs(X), [], 'all');
-            XSign = sign(X(I));
-            Xrise = XSign .* XAbs ./ range(XBoot, 'all');
-            YRise(iUnit).(fn) = Xrise;
-        catch
-            YRise(iUnit).(fn) = NaN;
-        end
-
-        % dX(iUnit).(fn) = Xrise - Xdip; % dX positive -> rises gives bigger forward/upwards movement
-    end
-end
-
-close all
-fig = figure(Units='inches', Position=[0.5 0.5 10 10]);
-tl = tiledlayout(fig, length(statFeatures), length(statFeatures), TileSpacing='tight', Padding='tight');
-for i = 1:length(statFeatures)
-    fni = statFeatures(i);
-    for j = 1:length(statFeatures)
-        fnj = statFeatures(j);
-        ax = nexttile(tl);
-        hold(ax, 'on')
-        x = [YRise.(fnj)];
-        y = [YRise.(fni)];
-        sel = abs(x)>0.5 & abs(y)>0.5;
-        scatter(ax, x(sel), y(sel), 2, 'black')
-        xlim(ax, yRange)
-        ylim(ax, yRange)
-        plot(ax, yRange, yRange, 'k--')
-        xline(ax, 0, 'k--')
-        yline(ax, 0, 'k--')
-        hold(ax, 'off')
-        if i == length(statFeatures)
-            xlabel(ax, fnj)
-        end
-        if j == 1
-           ylabel(ax, fni)
-        end
-        axis(ax, 'square')
-    end
-end
-title(tl, 'Rise')
-
-fig = figure(Units='inches', Position=[10.5 0.5 10 10]);
-tl = tiledlayout(fig, length(statFeatures), length(statFeatures), TileSpacing='tight', Padding='tight');
-for i = 1:length(statFeatures)
-    fni = statFeatures(i);
-    for j = 1:length(statFeatures)
-        fnj = statFeatures(j);
-        ax = nexttile(tl);
-        hold(ax, 'on')
-        x = [YDip.(fnj)];
-        y = [YDip.(fni)];
-        sel = abs(x)>0.5 & abs(y)>0.5;
-        scatter(ax, x(sel), y(sel), 2, 'black')
-        xlim(ax, yRange)
-        ylim(ax, yRange)
-        plot(ax, yRange, yRange, 'k--')
-        xline(ax, 0, 'k--')
-        yline(ax, 0, 'k--')
-        hold(ax, 'off')
-        if i == length(statFeatures)
-            xlabel(ax, fnj)
-        end
-        if j == 1
-           ylabel(ax, fni)
-        end
-        axis(ax, 'square')
-    end
-end
-title(tl, 'Dip')
+clear exportPath features featureUnits statFeatures nAx dirs dimensionReduction yl fig tlp tl ax iDir iAx iUnit dir
+clear lia statFeatureOrder idx nClusters mr i fn t selT xx pcScore explained score eva k sel
+clear mdm i fn t selT stdObs hash I idxSorted sepHash prcSTD nStarsSTD t X k c mu err prc
+clear iDir dir
