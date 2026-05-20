@@ -1,3 +1,4 @@
+clearvars -except xta p kinematics
 
 %% Load data
 load('C:\SERVER\LickVsReach_DTA_RTA_boot\NewData\LickVsReach_DLC_dta_rta_25_25_200to800ms_units1to1443_100boots.mat');
@@ -17,10 +18,114 @@ xta.rise(length(eu) + 1).iExp = 0;
 xta.dip(length(eu) + 1).t0 = [xta.dip(selUnits).t0];
 xta.rise(length(eu) + 1).t0 = [xta.rise(selUnits).t0];
 
-%% Combine movement ranges (mr) across dips from all units, then cluster them
-statFeatures = ["HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
+%% Combine movement indices (mi) across dips from all units, then cluster them
+p.mi.features = ["HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
+p.mi.windowPre = [-1, -0.3];
+p.mi.windowPost = [0, 0.6];
+p.mi.clusterMethod = "kmeans"; % "gaussian", "kmeans"
+p.mi.clusterDimensions = 4;
+p.mi.displayMethod = "umap"; % "pca", "tsne", "umap"
+p.mi.nClusters = 4;
+tTic = tic();
+clear mi
+for dir = ["dip", "rise"]
+    mi.(dir)(length(xta.(dir))) = struct(HandR=[], HandL=[], FootR=[], FootL=[], Spine=[], Jaw=[], Tongue=[]);
+end
+fprintf("Calculating movement index...")
+for iUnit = 1:length(xta.dip)
+    for dir = ["dip", "rise"]
+        for fn = p.mi.features
+            X = xta.(dir)(iUnit).(fn).X; % trials x timestamps
+            t = xta.(dir)(iUnit).(fn).t;
+            XPre = mean(X(:, isin(t, p.mi.windowPre)), 2, 'omitnan');
+            XPost = mean(X(:, isin(t, p.mi.windowPost)), 2, 'omitnan');
+            mi.(dir)(iUnit).(fn) = XPost - XPre;
+        end
+    end
+end
+fprintf("(%.1fs)\n", toc(tTic));
 
+% Cluster movements
+fprintf("Concatenating...")
+iFeat = 0;
+nTrials.dip = cellfun(@length, {mi.dip.HandR});
+nTrials.rise = cellfun(@length, {mi.rise.HandR});
+X = NaN(sum(nTrials.dip) + sum(nTrials.rise), length(p.mi.features));
+for fn = p.mi.features
+    iFeat = iFeat + 1;
+    X(:, iFeat) = vertcat(vertcat(mi.dip.(fn)), vertcat(mi.rise.(fn)));
+end
+X(isnan(X)) = 0;
+fprintf("(%.1fs)\n", toc(tTic));
+fprintf("PCA...")
+[~, pcaScoreMerge, ~, ~] = pca(X);
+fprintf("(%.1fs)\n", toc(tTic));
+switch p.mi.displayMethod
+    case "pca"
+        fprintf("PCA...")
+        dispScoreMerge = pcaScoreMerge;
+    case "tsne"
+        fprintf("t-SNE...")
+        dispScoreMerge = tsne(X);
+    case "umap"
+        fprintf("UMAP...")
+        dispScoreMerge = umap(X);
+end
+fprintf("(%.1fs)\n", toc(tTic));
 
+fprintf("Clustering ")
+switch p.mi.clusterMethod
+    case "kmeans"
+        % eva = evalclusters(pcaScore(:, 1:3), 'kmeans', 'CalinskiHarabasz', KList=2:10);
+        % nClusters = eva.OptimalK;
+        % clear eva
+        fprintf("(kmeans)...")
+        idxMerge = kmeans(pcaScoreMerge(:, 1:p.mi.clusterDimensions), p.mi.nClusters);
+    case "gaussian"
+        fprintf("(Gaussian mixture)...")
+        gm = fitgmdist(pcaScoreMerge(:, 1:p.mi.clusterDimensions), p.mi.nClusters);
+        idxMerge = cluster(gm, pcaScoreMerge(:, 1:p.mi.clusterDimensions));
+        clear gm
+end
+fprintf("(%.1fs)\n", toc(tTic));
+
+% Reassign cluster indices to units
+clear idx pcaScore dispScore
+idx.dip = idxMerge(1:sum(nTrials.dip));
+idx.rise = idxMerge(sum(nTrials.dip)+1:end);
+pcaScore.dip = pcaScoreMerge(1:sum(nTrials.dip), :);
+pcaScore.rise = pcaScoreMerge(sum(nTrials.dip)+1:end, :);
+dispScore.dip = dispScoreMerge(1:sum(nTrials.dip), :);
+dispScore.rise = dispScoreMerge(sum(nTrials.dip)+1:end, :);
+
+i0.dip = 0;
+i0.rise = 0;
+for iUnit = 1:length(xta.dip)
+    for dir = ["dip", "rise"]
+        n = nTrials.(dir)(iUnit);
+        mi.(dir)(iUnit).idx = idx.dip(i0.(dir)+1 : i0.(dir)+n);
+        mi.(dir)(iUnit).pcaScore = pcaScore.dip(i0.(dir)+1 : i0.(dir)+n, :);
+        mi.(dir)(iUnit).dispScore = dispScore.dip(i0.(dir)+1 : i0.(dir)+n, :);
+        i0.(dir) = i0.(dir) + n;
+    end
+end
+assert(i0.dip == sum(nTrials.dip))
+assert(i0.rise == sum(nTrials.rise))
+
+%
+fprintf("Plotting...")
+ax = axes(figure());
+hold(ax, 'on')
+for k = 1:p.mi.nClusters
+    sel = idxMerge==k;
+    scatter(ax, dispScoreMerge(sel, 1), dispScoreMerge(sel, 2), 4, getColor(k, p.mi.nClusters, 0.7))
+end
+hold(ax, 'off')
+fprintf("(%.1fs)\n", toc(tTic));
+
+clear tTic iUnit dir fn X t XPre XPost
+clear iFeat fn pcaScoreMerge pcaExplained dispScoreMerge nClusters idxMerge ax k sel
+clear idx pcaScore dispScore i0 iUnit dir n
 %% Plot dip-triggered average kinematics (STD Version
 close all
 exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot\NewData\Figures", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2)));
@@ -34,7 +139,7 @@ nAx = length(features) + 2;
 dirs = ["dip", "rise"];
 dimensionReduction = "tsne"; % pca, tsne, umap
 % yl = {[-2.5, 5], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 5.1], [-0.1, 1.1]};
-yl = {[-2.5, 5], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [-2, 2], [0, 1]};
+yl = {[-2.5, 5], [-4, 4], [-4, 4], [-4, 4], [-4, 4], [-4, 4], [-4, 4], [0, 1]};
 fig = figure(Units='inches', InnerPosition=[2, 2, 1.5*(2+length(features)), 4.5]);
 tlp = tiledlayout(fig, 2, 1, TileSpacing='compact', Padding='compact');
 tl = gobjects(2, 1);
@@ -49,7 +154,7 @@ for iDir = 1:2
         ax(iDir, iAx) = nexttile(tl(iDir));
     end
 end
-for iUnit = 1:2%length(xta.dip)
+for iUnit = 1:length(xta.dip)
     for iDir = 1:2
         for iAx = 1:nAx
             cla(ax(iDir, iAx))
@@ -72,93 +177,65 @@ for iUnit = 1:2%length(xta.dip)
         
         if p.nBoot > 0 && xta.(dir)(iUnit).iExp > 0
             iAx = nAx - 1;
-            if length(xta.(dir)(iUnit).t0) <= 2
-                idx = ones(length(xta.(dir)(iUnit).t0), 1);
-                nClusters = 1;
-            else
-                hold(ax(iDir, iAx), 'on')
-                mr = NaN(length(xta.(dir)(iUnit).t0), length(p.std.features));% movement range: nTrials x nFeatures
-                for i = 1:length(p.std.features)
-                    fn = p.std.features(statFeatureOrder(i));
-                    if isempty(xta.(dir)(iUnit).(fn))
-                        continue
-                    end
-                    t = xta.(dir)(iUnit).(fn).t;
-                    selT = t >= p.std.window(1) & t <= p.std.window(2);
-                    xx = xta.(dir)(iUnit).(fn).X(:, selT);
-                    mr(:, i) = std(xx, 0, 2, 'omitnan');
-                end
-                mr(isnan(mr)) = 0;
-                [~, pcScore, ~, ~, explained] = pca(mr);
-                switch dimensionReduction   
-                    case "pca"
-                        score = pcScore;
-                    case "umap"
-                        score = umap(mr, NumDimensions=2);
-                    case "tsne"
-                        score = tsne(mr);
-                end
-                eva = evalclusters(pcScore(:, 1:3), 'kmeans', 'CalinskiHarabasz', KList=1:3);
-                nClusters = eva.OptimalK;
-                clear eva
-                idx = kmeans(pcScore(:, 1:3), nClusters);
-                for k = 1:nClusters
-                    sel = idx==k;
-                    scatter(ax(iDir, iAx), score(sel, 1), score(sel, 2), 10, getColor(k, 2))
-                end
-                switch dimensionReduction   
-                    case "pca"
-                        xlabel(ax(iDir, iAx), sprintf("PC%i (%.1f%%)", 1, explained(1)))
-                        ylabel(ax(iDir, iAx), sprintf("PC%i (%.1f%%)", 2, explained(2)))
-                        title(ax(iDir, iAx), "PCA")
-                    case "tsne"
-                        xlabel(ax(iDir, iAx), sprintf("PC%i", 1))
-                        ylabel(ax(iDir, iAx), sprintf("PC%i", 2))
-                        title(ax(iDir, iAx), "t-SNE")
-                    case "umap"
-                        xlabel(ax(iDir, iAx), sprintf("PC%i", 1))
-                        ylabel(ax(iDir, iAx), sprintf("PC%i", 2))
-                        title(ax(iDir, iAx), "UMAP")
-                end
-                xticks(ax(iDir, iAx), [])
-                yticks(ax(iDir, iAx), [])
-            end
-        end
-
-        % Movement diversity matrix
-        if p.nBoot > 0 && xta.(dir)(iUnit).iExp > 0
-            iAx = nAx;
-            mdm = NaN(length(xta.(dir)(iUnit).t0), length(p.std.features));
-            for i = 1:length(p.std.features)
-                fn = p.std.features(statFeatureOrder(i));
-                if isempty(xta.(dir)(iUnit).(fn))
+            hold(ax(iDir, iAx), 'on')
+            idx = mi.(dir)(iUnit).idx;
+            score = mi.(dir)(iUnit).dispScore;
+            for k = 1:p.mi.nClusters
+                sel = idx==k;
+                if nnz(sel) == 0
                     continue
                 end
-                t = xta.(dir)(iUnit).(fn).t;
-                selT = t >= p.std.window(1) & t <= p.std.window(2);
-                stdObs = std(xta.(dir)(iUnit).(fn).X(:, selT), 0, 2, 'omitnan');
-                mdm(:, i) = arrayfun(@(data) nnz(xta.(dir)(iUnit).(fn).stats.stdBoot < data) ./ length(xta.(dir)(iUnit).(fn).stats.stdBoot), stdObs, UniformOutput=true);
+                scatter(ax(iDir, iAx), score(sel, 1), score(sel, 2), 10, getColor(k, p.mi.nClusters, 0.7))
             end
-            mdm(isnan(mdm)) = 0;
-            hash = sum((mdm > 0.95) .* 2.^(size(mdm, 2)-1:-1:0), 2);
-            hash = hash + (idx-1) .* 2.^(size(mdm, 2));
-            [~, I] = sort(hash, 'ascend');
-            idxSorted = idx(I);
-            sepHash = arrayfun(@(idx) find(idxSorted==idx, 1, 'last'), 1:max(idx)-1);
-            imagesc(ax(iDir, iAx), mdm(I, :))
-            if ~isempty(sepHash)
-                yline(ax(iDir, iAx), 0.5+sepHash, 'k--')
-                yticks(ax(iDir, iAx), 0.5+unique([1, sepHash, length(idx)]))
-                yticklabels(ax(iDir, iAx), string(unique([1, sepHash, length(idx)])))
+            xlabel(ax(iDir, iAx), sprintf("PC%i", 1))
+            ylabel(ax(iDir, iAx), sprintf("PC%i", 2))
+            switch p.mi.displayMethod   
+                case "pca"
+                    title(ax(iDir, iAx), "PCA")
+                case "tsne"
+                    title(ax(iDir, iAx), "t-SNE")
+                case "umap"
+                    title(ax(iDir, iAx), "UMAP")
             end
-            applyCustomColormap(ax(iDir, iAx), [-1, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.05, h0=0.33);
-            xticks(ax(iDir, iAx), 1:length(p.std.features))
-            xticklabels(ax(iDir, iAx), p.std.features(statFeatureOrder))
-            colorbar(ax(iDir, iAx), Orientation='horizontal', Location='southoutside')
-            ax(iDir, iAx).XAxisLocation = 'top';
-            ylabel(ax(iDir, iAx), 'Trial')
-            clear mdm i fn t selT stdObs pObs hash I
+            xticks(ax(iDir, iAx), [])
+            yticks(ax(iDir, iAx), [])
+            hold(ax(iDir, iAx), 'off')
         end
+
+        % % Movement diversity matrix
+        % if p.nBoot > 0 && xta.(dir)(iUnit).iExp > 0
+        %     iAx = nAx;
+        %     mdm = NaN(length(xta.(dir)(iUnit).t0), length(p.std.features));
+        %     for i = 1:length(p.std.features)
+        %         fn = p.std.features(statFeatureOrder(i));
+        %         if isempty(xta.(dir)(iUnit).(fn))
+        %             continue
+        %         end
+        %         t = xta.(dir)(iUnit).(fn).t;
+        %         selT = t >= p.std.window(1) & t <= p.std.window(2);
+        %         stdObs = std(xta.(dir)(iUnit).(fn).X(:, selT), 0, 2, 'omitnan');
+        %         mdm(:, i) = arrayfun(@(data) nnz(xta.(dir)(iUnit).(fn).stats.stdBoot < data) ./ length(xta.(dir)(iUnit).(fn).stats.stdBoot), stdObs, UniformOutput=true);
+        %     end
+        %     mdm(isnan(mdm)) = 0;
+        %     hash = sum((mdm > 0.95) .* 2.^(size(mdm, 2)-1:-1:0), 2);
+        %     hash = hash + (idx-1) .* 2.^(size(mdm, 2));
+        %     [~, I] = sort(hash, 'ascend');
+        %     idxSorted = idx(I);
+        %     sepHash = arrayfun(@(idx) find(idxSorted==idx, 1, 'last'), 1:max(idx)-1);
+        %     imagesc(ax(iDir, iAx), mdm(I, :))
+        %     if ~isempty(sepHash)
+        %         yline(ax(iDir, iAx), 0.5+sepHash, 'k--')
+        %         yticks(ax(iDir, iAx), 0.5+unique([1, sepHash, length(idx)]))
+        %         yticklabels(ax(iDir, iAx), string(unique([1, sepHash, length(idx)])))
+        %     end
+        %     applyCustomColormap(ax(iDir, iAx), [-1, 1], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.05, h0=0.33);
+        %     xticks(ax(iDir, iAx), 1:length(p.std.features))
+        %     xticklabels(ax(iDir, iAx), p.std.features(statFeatureOrder))
+        %     colorbar(ax(iDir, iAx), Orientation='horizontal', Location='southoutside')
+        %     ax(iDir, iAx).XAxisLocation = 'top';
+        %     ylabel(ax(iDir, iAx), 'Trial')
+        %     clear mdm i fn t selT stdObs pObs hash I
+        % end
         
         for iAx = 1:length(features)
             fn = features(iAx);
@@ -182,12 +259,13 @@ for iUnit = 1:2%length(xta.dip)
             X = mean(xta.(dir)(iUnit).(fn).X, 1, 'omitnan');
             plot(ax(iDir, iAx), t, X, Color=[0.15, 0.15, 0.15, 1], LineWidth=1.5, LineStyle=':');
             plot(ax(2+1-iDir, iAx), t, X, Color=[0.15, 0.15, 0.15, 0.1], LineWidth=1.5, LineStyle=':');
-            for k = 1:nClusters
-                % c = getColor(iAx, length(features), 0.7);
-                c = getColor(k, nClusters, 0.7);
-                % c = [0.15, 0.15, 0.15];
-    
-                X = xta.(dir)(iUnit).(fn).X(idx==k, :);
+            for k = 1:p.mi.nClusters
+                sel = idx==k;
+                if nnz(sel) == 0
+                    continue
+                end
+                c = getColor(k, p.mi.nClusters, 0.7);
+                X = xta.(dir)(iUnit).(fn).X(sel, :);
                 mu = mean(X, 1, 'omitnan');
                 err = std(X, 0, 1, 'omitnan')./sqrt(size(xta.(dir)(iUnit).(fn).X, 1));
     
