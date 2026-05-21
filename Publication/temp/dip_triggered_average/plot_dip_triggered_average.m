@@ -1,6 +1,6 @@
 %% Set root
-ROOTPATH = "E:\DATA";
-% ROOTPATH = 'C:\SERVER';
+% ROOTPATH = "E:\DATA";
+ROOTPATH = 'C:\SERVER';
 
 %% Clear temp vars
 clearvars -except xta p kinematics ROOTPATH
@@ -196,7 +196,7 @@ end
 clear dir fn XCell X k t
 
 
-% Scatter plot of all movement profiles
+%% Scatter plot of all movement profiles
 close all
 layout.h = [4, 1, 1];
 fig = figure(Units='normalized', Position=[0.05, 0.05, 0.9, 0.9]);
@@ -258,7 +258,7 @@ legend(h, Location='northeast')
 title(ax, p.mi.displayMethodName)
 
 % Plot grand average movement trajectories by cluster
-lineStyles = ["-", "-", "-", "-", "--", "-", "--", "-"];
+lineStyles = ["-", "-", "--", "--", "-", "--", "-", "--"];
 tl = gobjects(2, 1);
 for iDir = 1:2
     tl(iDir) = tiledlayout(tlp, 1, length(features));
@@ -276,7 +276,7 @@ for iFeat = 1:length(features)
         ax = nexttile(tl(iDir));
         hold(ax, 'on')
         for k = 1:p.mi.nClusters
-            h(iDir, iAx, k) = plot(ax, mpMean.(dir).(fn).t, featureSign(iFeat)*mpMean.(dir).(fn).X(k, :), Color=[getColor(k, p.mi.nClusters, 0.7)], LineStyle=lineStyles(k), LineWidth=1.5, DisplayName=sprintf('Clu%i (n=%i)', k, mpMean.(dir).(fn).N(k)));
+            h(iDir, iAx, k) = plot(ax, mpMean.(dir).(fn).t, featureSign(iFeat)*mpMean.(dir).(fn).X(k, :), Color=[getColor(k, p.mi.nClusters, 0.7)], LineStyle=lineStyles(k), LineWidth=1.5, DisplayName=sprintf('Clu%i (%s, n=%i)', k, p.mi.semanticClusterLabels(k), mpMean.(dir).(fn).N(k)));
         end
         hold(ax, 'off')
         title(ax, fn);
@@ -297,7 +297,7 @@ clear tTic iUnit dir fn X t XPre XPost
 clear iFeat fn pcaScoreMerge pcaExplained nClusters ax k sel
 clear i0 iUnit dir n h
 clear fig ax tl tlp layout iAx fn k faceColor dir iDir xl yl zl
-%% Plot dip-triggered average kinematics (STD Version
+%% Plot individual units
 close all
 exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\NewData\Figures", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2)));
 if ~exist(exportPath, 'dir')
