@@ -8,36 +8,23 @@ clearvars -except xta p kinematics ROOTPATH
 %% Load data
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\NewData\LickVsReach_DLC_dta_rta_25_25_200to800ms_units1to1443_100boots.mat"));
 
-%% Make a metaDTA/metaRTA
-for fn = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"]
-    X = arrayfun(@(xta) xta.(fn).X, xta.dip(selUnits), UniformOutput=false);
-    X = cat(1, X{:});
-    xta.dip(length(eu) + 1).(fn) = struct(X=mean(X, 1, 'omitnan'), t=xta.dip(1).(fn).t);
-    X = arrayfun(@(xta) xta.(fn).X, xta.rise(selUnits), UniformOutput=false);
-    X = cat(1, X{:});
-    xta.rise(length(eu) + 1).(fn) = struct(X=mean(X, 1, 'omitnan'), t=xta.rise(1).(fn).t);
-    clear X
-end
-xta.dip(length(eu) + 1).iExp = 0;
-xta.rise(length(eu) + 1).iExp = 0;
-xta.dip(length(eu) + 1).t0 = [xta.dip(selUnits).t0];
-xta.rise(length(eu) + 1).t0 = [xta.rise(selUnits).t0];
-
 %% Combine movement indices (mi) across dips from all units, then cluster them
-features = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
-featureUnits = ["spike rate (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "DV pos (a.u.)", "DV pos (a.u.)", "prob"];
-featureSign = [1, 1, 1, 1, 1, -1, -1, 1];
-featureAxisDir = ["normal", "normal", "normal", "normal", "normal", "normal", "reverse", "normal"];
+features = ["spikerate", "HandR", "HandL", "Spine", "Jaw", "Tongue"];
+featureUnits = ["spike rate (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "DV pos (a.u.)", "DV pos (a.u.)", "prob"];
+featureSign = [1, 1, 1, -1, -1, 1];
+featureAxisDir = ["normal", "normal", "normal", "normal", "reverse", "normal"];
 ylims = {5, 3, 3, 3, 3, 3, 3, 1};
 ylims = cellfun(@(y) y*[-2/3, 1], ylims, UniformOutput=false);
 ylims{featureAxisDir=="reverse"} = [-1, 2/3]*3;
-p.mi.features = ["HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
+p.mi.features = ["HandR", "HandL", "Spine", "Jaw", "Tongue"];
 p.mi.windowPre = [-1, -0.3];
 p.mi.windowPost = [0, 0.6];
-p.mi.nClusters = 8;
+p.mi.nClusters = 7;
 p.mi.clusterMethod = "kmeans"; % "gaussian", "kmeans"
-p.mi.clusterDimensions = 7;
-p.mi.dimensionReductionMethod = "umap"; % "pca", "tsne", "umap", "manual", "manual+umap"... manual: avg(4 limbs) vs. avg(tongue/jaw) vs. spine
+p.mi.clusterDimensions = 4;
+p.mi.clusterSeed = 2;
+p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach", "left foot retract"];
+p.mi.dimensionReductionMethod = "manual+umap"; % "pca", "tsne", "umap", "manual", "manual+umap"... manual: avg(4 limbs) vs. avg(tongue/jaw) vs. spine
 p.mi.displayDimensions = 2;
 switch p.mi.dimensionReductionMethod
     case "pca"
@@ -48,17 +35,17 @@ switch p.mi.dimensionReductionMethod
         p.mi.displayMethodName = "Movement Profile (UMAP)";
     case "manual"
         p.mi.displayMethodName = "Movement Profile (Manual)";
-        assert(p.mi.clusterDimensions == 3)
+        assert(p.mi.clusterDimensions == 4)
     case "manual+umap"
         p.mi.displayMethodName = "Movement Profile (Manual + UMAP)";
-        assert(p.mi.clusterDimensions == 3)
+        assert(p.mi.clusterDimensions == 4)
     otherwise
         error("unknown method %s", p.mi.dimensionReductionMethod)
 end
 tTic = tic();
 clear mi
 for dir = ["dip", "rise"]
-    mi.(dir)(length(xta.(dir))) = struct(HandR=[], HandL=[], FootR=[], FootL=[], Spine=[], Jaw=[], Tongue=[]);
+    mi.(dir)(length(xta.(dir))) = struct(HandR=[], HandL=[], Spine=[], Jaw=[], Tongue=[]);
 end
 fprintf("Calculating movement index...")
 for iUnit = 1:length(xta.dip)
@@ -85,10 +72,11 @@ for fn = p.mi.features
     X(:, iFeat) = vertcat(vertcat(mi.dip.(fn)), vertcat(mi.rise.(fn)));
 end
 if ismember(p.mi.dimensionReductionMethod, ["manual", "manual+umap"])
-    Y = NaN(size(X, 1), 3);
-    Y(:, 1) = mean(X(:, ismember(p.mi.features, ["HandL", "HandR", "FootL", "FootR"])), 2, 'omitnan');
-    Y(:, 2) = mean(X(:, ismember(p.mi.features, ["Spine"])), 2, 'omitnan');
-    Y(:, 3) = mean(X(:, ismember(p.mi.features, ["Tongue", "Jaw"])), 2, 'omitnan');
+    Y = NaN(size(X, 1), 4);
+    Y(:, 1) = mean(X(:, ismember(p.mi.features, ["HandL"])), 2, 'omitnan');
+    Y(:, 2) = mean(X(:, ismember(p.mi.features, ["Tongue", "Jaw"])), 2, 'omitnan');
+    Y(:, 3) = mean(X(:, ismember(p.mi.features, ["HandR"])), 2, 'omitnan');
+    Y(:, 4) = mean(X(:, ismember(p.mi.features, ["Spine"])), 2, 'omitnan');
     X = Y;
     clear Y
 end
@@ -121,11 +109,11 @@ switch p.mi.clusterMethod
     case "kmeans"
         fprintf("(kmeans)...")
         % Fix the seed so we don't have to manually assign semantic cluster labels repeatedly
-        rng(1); p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach", "left foot retract"];
+        rng(p.mi.clusterSeed);
         idxMerge = kmeans(pcaScoreMerge(:, 1:p.mi.clusterDimensions), p.mi.nClusters);
     case "gaussian"
         fprintf("(Gaussian mixture)...")
-        rng(1);
+        rng(p.mi.clusterSeed);
         gm = fitgmdist(pcaScoreMerge(:, 1:p.mi.clusterDimensions), p.mi.nClusters);
         idxMerge = cluster(gm, pcaScoreMerge(:, 1:p.mi.clusterDimensions));
         clear gm
@@ -165,13 +153,13 @@ assert(i0.rise == sum(nTrials.rise))
 
 % Average movement profiles by cluster
 clear mp0 mp
-mp0(length(xta.dip), 1) = struct(spikerate=[], HandR=[], HandL=[], FootR=[], FootL=[], Spine=[], Jaw=[], Tongue=[]);
+mp0(length(xta.dip), 1) = struct(spikerate=[], HandR=[], HandL=[], Spine=[], Jaw=[], Tongue=[]);
 mp = struct(dip=mp0, rise=mp0);
 for iUnit = 1:length(xta.dip)
     for dir = ["dip", "rise"]
         for k = 1:p.mi.nClusters
             sel = mi.(dir)(iUnit).idx==k;
-            for fn = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"]
+            for fn = features
                 mp.(dir)(iUnit, k).(fn) = xta.(dir)(iUnit).(fn).X(sel, :);
             end
         end
@@ -181,7 +169,7 @@ clear mp0 iUnit dir k sel fn
 
 mpMean = struct(dip=[], rise=[]);
 for dir = ["dip", "rise"]
-    for fn = ["spikerate", "HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"]
+    for fn = features
         XCell = arrayfun(@(mp) mp.(fn), mp.(dir), UniformOutput=false);
         t = xta.(dir)(1).(fn).t;
         X = NaN(p.mi.nClusters, length(t));
@@ -196,7 +184,7 @@ end
 clear dir fn XCell X k t
 
 
-%% Scatter plot of all movement profiles
+% Scatter plot of all movement profiles
 close all
 layout.h = [4, 1, 1];
 fig = figure(Units='normalized', Position=[0.05, 0.05, 0.9, 0.9]);
@@ -241,10 +229,10 @@ if p.mi.displayDimensions == 3
 end
 switch p.mi.dimensionReductionMethod
     case "manual"
-        xlabel(ax, 'Hands/Feet')
+        xlabel(ax, 'HandL')
         ylabel(ax, 'Tongue/Jaw')
         if p.mi.displayDimensions == 3
-            zlabel(ax, 'Spine')
+            zlabel(ax, 'HandR')
         end
     otherwise
         xlabel(ax, 'PC1')
@@ -303,7 +291,7 @@ exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\NewData\Figures", spri
 if ~exist(exportPath, 'dir')
     mkdir(exportPath)
 end
-statFeatures = ["HandR", "HandL", "FootR", "FootL", "Spine", "Jaw", "Tongue"];
+statFeatures = ["HandR", "HandL", "Spine", "Jaw", "Tongue"];
 nAx = length(features);
 dirs = ["dip", "rise"];
 fig = figure(Units='inches', InnerPosition=[2, 2, 1.5*(2+length(features)), 4.5]);
