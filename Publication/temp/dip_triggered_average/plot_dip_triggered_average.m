@@ -328,16 +328,20 @@ cns.none = ["no move"];
 cns.all = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
 cns.any = ["lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
 cns.hand = ["left hand retract", "left hand reach", "right hand retract", "right hand reach"];
+cns.lhand = ["left hand retract", "left hand reach"];
+cns.rhand = ["right hand retract", "right hand reach"];
+cns.reach = ["left hand reach", "right hand reach"];
+cns.retract = ["left hand retract", "right hand retract"];
 cns.lick = ["lick start", "lick stop"];
 
-for fn = ["none", "all", "any", "hand", "lick"]
+for fn = ["none", "all", "any", "hand", "lick", "lhand", "rhand", "reach", "retract"]
     cn.(fn) = ismember(p.mi.semanticClusterLabels, cns.(fn));
     cn.(fn) = p.mi.semanticClusterOrder(cn.(fn));
 end
 
 clear semanticClusterSize
 for dir = ["dip", "rise"]
-    for selType = ["none", "all", "any", "hand", "lick"]
+    for selType = ["none", "all", "any", "hand", "lick", "lhand", "rhand", "reach", "retract"]
         n = arrayfun(@(cx) cx.(dir).n(cn.(selType)), clusterSize, UniformOutput=false);
         n = cat(1, n{:});
         semanticClusterSize.(dir).(selType) = array2table(n, VariableNames=cns.(selType));
@@ -346,7 +350,7 @@ end
 
 clear nExistingProfiles
 for dir = ["dip", "rise"]
-    for selType = ["none", "all", "any", "hand", "lick"]
+    for selType = ["none", "all", "any", "hand", "lick", "lhand", "rhand", "reach", "retract"]
         nExistingProfiles.(dir).(selType) = sum(~isnan(table2array(semanticClusterSize.(dir).(selType))), 2);
     end
 end
@@ -354,12 +358,12 @@ clear dir selType cn cns k
 
 close all
 fig = figure();
-tl = tiledlayout(fig, 2, 3);
+tl = tiledlayout(fig, 2, 7);
 iDir = 0;
 for dir = ["dip", "rise"]
     iDir = iDir + 1;
     iType = 0;
-    for selType = ["any", "hand", "lick"]
+    for selType = ["any", "lick", "hand", "lhand", "rhand", "reach", "retract"]
         iType = iType + 1;
         ax = nexttile(tl);
         histogram(ax, nExistingProfiles.(dir).(selType))

@@ -154,7 +154,7 @@ p.xta.rise.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.rise.p
 p.blank(1).event = "StimOn";
 p.blank(1).window = [-1, 1];
 
-p.nBoot = 0;
+p.nBoot = 100;
 if p.nBoot < 1000
     warning("Running bootstrap with nBoot=%i<1000 is only recommended for testing purposes. Run a real bootstrap pls you lazy bum.", p.nBoot)
 end
