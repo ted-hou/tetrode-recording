@@ -6,17 +6,18 @@ ROOTPATH = 'C:\SERVER';
 clearvars -except xta p kinematics ROOTPATH
 
 %% Load data
-load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\NewData\LickVsReach_DLC_dta_rta_25_25_200to800ms_units1to1443_100boots.mat"));
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_25_200to800ms_units1to1443_100boots.mat"));
 
 %% Combine movement indices (mi) across dips from all units, then cluster them
-features = ["spikerate", "HandR", "HandL", "Spine", "Jaw", "Tongue"];
-featureUnits = ["spike rate (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "DV pos (a.u.)", "DV pos (a.u.)", "prob"];
-featureSign = [1, 1, 1, -1, -1, 1];
-featureAxisDir = ["normal", "normal", "normal", "normal", "reverse", "normal"];
-ylims = {5, 3, 3, 3, 3, 3, 3, 1};
+features = ["spikerate", "Jaw", "Tongue", "HandL", "HandR", "Spine"];
+featureDispName = ["spike rate", "jaw", "tongue", "left paw", "right paw", "spine"];
+featureUnits = ["spike rate (a.u.)", "DV pos (a.u.)", "protrusion prob", "AP pos (a.u.)", "AP pos (a.u.)", "DV pos (a.u.)"];
+featureSign = [1, -1, 1, 1, 1, -1];
+featureAxisDir = ["normal", "reverse", "normal", "normal", "normal", "normal"];
+ylims = {5, 3, 1, 3, 3, 3};
 ylims = cellfun(@(y) y*[-2/3, 1], ylims, UniformOutput=false);
 ylims{featureAxisDir=="reverse"} = [-1, 2/3]*3;
-p.mi.features = ["HandR", "HandL", "Spine", "Jaw", "Tongue"];
+p.mi.features = ["Jaw", "Tongue", "HandL", "HandR", "Spine"];
 p.mi.windowPre = [-1, -0.3];
 p.mi.windowPost = [0, 0.6];
 p.mi.nClusters = 7;
@@ -267,7 +268,7 @@ for iFeat = 1:length(features)
             h(iDir, iAx, k) = plot(ax, mpMean.(dir).(fn).t, featureSign(iFeat)*mpMean.(dir).(fn).X(k, :), Color=[getColor(k, p.mi.nClusters, 0.7)], LineStyle=lineStyles(k), LineWidth=1.5, DisplayName=sprintf('Clu%i (%s, n=%i)', k, p.mi.semanticClusterLabels(k), mpMean.(dir).(fn).N(k)));
         end
         hold(ax, 'off')
-        title(ax, fn);
+        title(ax, featureDispName(iFeat));
         xlabel(ax, 'time (ms)')
         ylabel(ax, featureUnits(iAx))
         yline(ax, 0, Color=[0.15, 0.15, 0.15, 0.5], LineStyle=':')
@@ -286,12 +287,16 @@ clear iFeat fn pcaScoreMerge pcaExplained nClusters ax k sel
 clear i0 iUnit dir n h
 clear fig ax tl tlp layout iAx fn k faceColor dir iDir xl yl zl
 %% Plot individual units
+
+p.mi.minNumTrialsPerCluster = 3;
+p.mi.minNumTrialsPerClusterQuantile = 0.05;
+
 close all
-exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\NewData\Figures", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2)));
+exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\Figures", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2)));
 if ~exist(exportPath, 'dir')
     mkdir(exportPath)
 end
-statFeatures = ["HandR", "HandL", "Spine", "Jaw", "Tongue"];
+statFeatures = ["Jaw", "Tongue", "HandL", "HandR", "Spine"];
 nAx = length(features);
 dirs = ["dip", "rise"];
 fig = figure(Units='inches', InnerPosition=[2, 2, 1.5*(2+length(features)), 4.5]);
@@ -416,7 +421,7 @@ for iUnit = 1:length(xta.dip)
             isClusterEmpty = false(1, p.mi.nClusters);
             for k = 1:p.mi.nClusters
                 sel = idx==k;
-                if nnz(sel) == 0
+                if nnz(sel) < p.mi.minNumTrialsPerCluster || nnz(sel) < length(idx)*p.mi.minNumTrialsPerClusterQuantile
                     isClusterEmpty(k) = true;
                     continue
                 end
@@ -441,9 +446,9 @@ for iUnit = 1:length(xta.dip)
             xlabel(ax(iDir, iAx), 'time (ms)')
             ylabel(ax(iDir, iAx), featureUnits(iAx))
 
-            fnDisp = sprintf("%s %s", fn, repmat('*', [1, nStarsSTD]));
+            fnDisp = sprintf("%s %s", featureDispName(iAx), repmat('*', [1, nStarsSTD]));
             title(ax(iDir, iAx), fnDisp, Interpreter='none')
-            ylim(ax(iDir, iAx), 3*ylims{iAx})
+            ylim(ax(iDir, iAx), ylims{iAx})
             hold(ax(iDir, iAx), 'off')
             ax(iDir, iAx).YAxis.Direction = featureAxisDir(iAx);
             % hold(ax(2+1-iDir, iAx), 'off')
