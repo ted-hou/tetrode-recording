@@ -140,7 +140,7 @@ p.xta.meanWindow = [-0.3, 0.3];
 
 p.xta.dip.samples = [2, 8];
 p.xta.dip.thresholdQuantile = 0.25;
-p.xta.dip.thresholdSubQuantile = 0.25;
+p.xta.dip.thresholdSubQuantile = 1;
 p.xta.dip.pattern = arrayfun(@(n) [0, 0, 0, ones(1, n), 0, 0, 0] , p.xta.dip.samples(1):p.xta.dip.samples(2), UniformOutput=false); % 100-300ms dips
 p.xta.dip.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.dip.pattern); % finds the onset
 
@@ -154,7 +154,7 @@ p.xta.rise.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.rise.p
 p.blank(1).event = "StimOn";
 p.blank(1).window = [-1, 1];
 
-p.nBoot = 100;
+p.nBoot = 0;
 if p.nBoot < 1000
     warning("Running bootstrap with nBoot=%i<1000 is only recommended for testing purposes. Run a real bootstrap pls you lazy bum.", p.nBoot)
 end
@@ -311,6 +311,7 @@ tLocal = p.xta.window(1):p.xta.res:p.xta.window(2);
 clear xta
 xta.dip(length(eu)) = struct(iExp=[], params=[], t0=[], spikerate=[]);
 xta.rise(length(eu)) = struct(iExp=[], params=[], t0=[], spikerate=[]);
+%%
 lineLength = 0;
 tTicTotal = tic();
 rng(42)
@@ -376,9 +377,9 @@ for iEu = selUnits
                 magnitude = mean(xta.(dir)(iEu).spikerate.X(:, xta.(dir)(iEu).spikerate.t > p.xta.meanWindow(1) & xta.(dir)(iEu).spikerate.t < p.xta.meanWindow(2)), 2, 'omitnan');
                 switch dir
                     case "dip"
-                        sel = magnitude < quantile(magnitude, p.xta.(dir).thresholdSubQuantile);
+                        sel = magnitude <= quantile(magnitude, p.xta.(dir).thresholdSubQuantile);
                     case "rise"
-                        sel = magnitude > quantile(magnitude, p.xta.(dir).thresholdSubQuantile);
+                        sel = magnitude >= quantile(magnitude, p.xta.(dir).thresholdSubQuantile);
                 end
                 t0Temp = t0Temp(sel);
                 T = T(sel, :);

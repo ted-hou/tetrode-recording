@@ -7,6 +7,7 @@ clearvars -except xta p kinematics ROOTPATH
 
 %% Load data
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_25_200to800ms_units1to1443_100boots.mat"));
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to800ms_units1to1443_0boots.mat"));
 
 %% Combine movement indices (mi) across dips from all units, then cluster them
 features = ["spikerate", "Jaw", "Tongue", "HandL", "HandR", "Spine"];
@@ -23,8 +24,10 @@ p.mi.windowPost = [0, 0.6];
 p.mi.nClusters = 7;
 p.mi.clusterMethod = "kmeans"; % "gaussian", "kmeans"
 p.mi.clusterDimensions = 4;
-p.mi.clusterSeed = 2;
-p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach", "left foot retract"];
+p.mi.clusterSeed = 42; % 2 is also good
+p.mi.semanticClusterOrder = [1, 2, 3, 4, 7, 5, 6];
+% p.mi.semanticClusterOrder = 1:7;
+p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
 p.mi.dimensionReductionMethod = "manual+umap"; % "pca", "tsne", "umap", "manual", "manual+umap"... manual: avg(4 limbs) vs. avg(tongue/jaw) vs. spine
 p.mi.displayDimensions = 2;
 switch p.mi.dimensionReductionMethod
@@ -197,7 +200,7 @@ iDir = 0;
 for dir = ["dip", "rise"]
     iDir = iDir + 1;
     for k = 1:p.mi.nClusters
-        sel = idx.(dir)==k;
+        sel = idx.(dir)==p.mi.semanticClusterOrder(k);
         switch dir
             case "dip"
                 faceColor = "none";
@@ -208,10 +211,9 @@ for dir = ["dip", "rise"]
         end
 
         if p.mi.displayDimensions==2
-            h(iDir, k) = scatter(ax, dispScore.(dir)(sel, 1), dispScore.(dir)(sel, 2), 3, Marker=style, MarkerEdgeColor=[getColor(k, p.mi.nClusters, 0.7)], MarkerFaceColor=faceColor, DisplayName=sprintf('Clu%i (n=%i %ss)', k, nnz(sel), dir));
-            % scatter(ax, mean(dispScore.(dir)(sel, 1), 1, 'omitnan'), mean(dispScore.(dir)(sel, 2), 1, 'omitnan'), 300, Marker=style, MarkerEdgeColor=[getColor(k, p.mi.nClusters, 0.7)], MarkerFaceColor=faceColor, LineWidth=3);
+            h(iDir, k) = scatter(ax, dispScore.(dir)(sel, 1), dispScore.(dir)(sel, 2), 1, Marker=style, MarkerEdgeColor=[getColor(k, p.mi.nClusters, 0.7)], MarkerFaceColor=faceColor, DisplayName=sprintf('Clu%i (n=%i %ss)', k, nnz(sel), dir));
         else
-            h(iDir, k) = scatter3(ax, dispScore.(dir)(sel, 1), dispScore.(dir)(sel, 2), dispScore.(dir)(sel, 3), 3, Marker=style, MarkerEdgeColor=[getColor(k, p.mi.nClusters, 0.7)], MarkerFaceColor=faceColor, DisplayName=sprintf('Clu%i (n=%i %ss)', k, nnz(sel), dir));
+            h(iDir, k) = scatter3(ax, dispScore.(dir)(sel, 1), dispScore.(dir)(sel, 2), dispScore.(dir)(sel, 3), 1, Marker=style, MarkerEdgeColor=[getColor(k, p.mi.nClusters, 0.7)], MarkerFaceColor=faceColor, DisplayName=sprintf('Clu%i (n=%i %ss)', k, nnz(sel), dir));
         end
         clear faceColor style
     end
@@ -265,7 +267,8 @@ for iFeat = 1:length(features)
         ax = nexttile(tl(iDir));
         hold(ax, 'on')
         for k = 1:p.mi.nClusters
-            h(iDir, iAx, k) = plot(ax, mpMean.(dir).(fn).t, featureSign(iFeat)*mpMean.(dir).(fn).X(k, :), Color=[getColor(k, p.mi.nClusters, 0.7)], LineStyle=lineStyles(k), LineWidth=1.5, DisplayName=sprintf('Clu%i (%s, n=%i)', k, p.mi.semanticClusterLabels(k), mpMean.(dir).(fn).N(k)));
+            k0 = p.mi.semanticClusterOrder(k);
+            h(iDir, iAx, k) = plot(ax, mpMean.(dir).(fn).t, featureSign(iFeat)*mpMean.(dir).(fn).X(k0, :), Color=[getColor(k, p.mi.nClusters, 0.7)], LineStyle=lineStyles(k), LineWidth=1.5, DisplayName=sprintf('Clu%i (%s, n=%i)', k, p.mi.semanticClusterLabels(k), mpMean.(dir).(fn).N(k0)));
         end
         hold(ax, 'off')
         title(ax, featureDispName(iFeat));
@@ -286,11 +289,104 @@ clear tTic iUnit dir fn X t XPre XPost
 clear iFeat fn pcaScoreMerge pcaExplained nClusters ax k sel
 clear i0 iUnit dir n h
 clear fig ax tl tlp layout iAx fn k faceColor dir iDir xl yl zl
+
+%% Count number of movement profiles by unit
+p.mi.minNumTrialsPerCluster = 5;
+% p.mi.minNumTrialsPerClusterQuantile = 0.05;
+
+clear clusterSize
+clusterSize(length(xta.dip)) = struct(dip=[], rise=[]);
+for iUnit = 1:length(xta.dip)
+    for dir = ["dip", "rise"]
+        idx = mi.(dir)(iUnit).idx;
+        clusterSize(iUnit).(dir).n = zeros(1, p.mi.nClusters);
+        clusterSize(iUnit).(dir).nRaw = zeros(1, p.mi.nClusters);
+        clusterSize(iUnit).(dir).nTotal = length(idx);
+        % clusterSize(iUnit).(dir).threshold = max(p.mi.minNumTrialsPerCluster, length(idx)*p.mi.minNumTrialsPerClusterQuantile);
+        clusterSize(iUnit).(dir).threshold = p.mi.minNumTrialsPerCluster;
+        for k = 1:p.mi.nClusters
+            n = nnz(idx==k);
+            clusterSize(iUnit).(dir).nRaw(k) = n;
+            if n < clusterSize(iUnit).(dir).threshold
+                clusterSize(iUnit).(dir).n(k) = NaN;
+            else
+                clusterSize(iUnit).(dir).n(k) = n;
+            end
+        end
+    end
+end
+clear iUnit dir idx k n
+
+% p.mi.semanticClusterOrder = [1, 2, 3, 4, 7, 5, 6];
+% p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
+
+clear cns cn
+for k = 1:p.mi.nClusters
+    p.mi.semanticClusterOrderReversed(k) = find(p.mi.semanticClusterOrder == k);
+end
+cns.none = ["no move"];
+cns.all = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
+cns.any = ["lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
+cns.hand = ["left hand retract", "left hand reach", "right hand retract", "right hand reach"];
+cns.lick = ["lick start", "lick stop"];
+
+for fn = ["none", "all", "any", "hand", "lick"]
+    cn.(fn) = ismember(p.mi.semanticClusterLabels, cns.(fn));
+    cn.(fn) = p.mi.semanticClusterOrder(cn.(fn));
+end
+
+clear semanticClusterSize
+for dir = ["dip", "rise"]
+    for selType = ["none", "all", "any", "hand", "lick"]
+        n = arrayfun(@(cx) cx.(dir).n(cn.(selType)), clusterSize, UniformOutput=false);
+        n = cat(1, n{:});
+        semanticClusterSize.(dir).(selType) = array2table(n, VariableNames=cns.(selType));
+    end
+end
+
+clear nExistingProfiles
+for dir = ["dip", "rise"]
+    for selType = ["none", "all", "any", "hand", "lick"]
+        nExistingProfiles.(dir).(selType) = sum(~isnan(table2array(semanticClusterSize.(dir).(selType))), 2);
+    end
+end
+clear dir selType cn cns k
+
+close all
+fig = figure();
+tl = tiledlayout(fig, 2, 3);
+iDir = 0;
+for dir = ["dip", "rise"]
+    iDir = iDir + 1;
+    iType = 0;
+    for selType = ["any", "hand", "lick"]
+        iType = iType + 1;
+        ax = nexttile(tl);
+        histogram(ax, nExistingProfiles.(dir).(selType))
+        title(ax, sprintf("%s %s", dir, selType))
+        xlabel(ax, "no. movement types")
+        ylabel(ax, "no. SNr units")
+    end
+end
+clear fig tl iDir iType dir selType ax
+
+nTotal = length(xta.dip);
+for dir = ["dip", "rise"]
+    fprintf("%i SNr units:\n", nTotal)
+
+    n = nnz(nExistingProfiles.(dir).none > 0);
+    fprintf("\t%i (%.1f%%) units had at least %i %ss each where no consistent movements were observed:\n", n, 100*n/nTotal, p.mi.minNumTrialsPerCluster, dir);
+
+    n = nnz(nExistingProfiles.(dir).any >= 2);
+    fprintf("\t%i (%.1f%%) units had at least %i %ss each where 2 or more non-overlapping movements were observed:\n", n, 100*n/nTotal, p.mi.minNumTrialsPerCluster, dir);
+
+    n = nnz(nExistingProfiles.(dir).hand >= 2);
+    fprintf("\t%i (%.1f%%) units had at least %i %ss each where 2 or more non-overlapping hand movements were observed:\n", n, 100*n/nTotal, p.mi.minNumTrialsPerCluster, dir);
+
+    n = nnz(nExistingProfiles.(dir).lick >= 2);
+    fprintf("\t%i (%.1f%%) units had at least %i %ss each where 2 or more non-overlapping lick movements were observed:\n", n, 100*n/nTotal, p.mi.minNumTrialsPerCluster, dir);
+end
 %% Plot individual units
-
-p.mi.minNumTrialsPerCluster = 3;
-p.mi.minNumTrialsPerClusterQuantile = 0.05;
-
 close all
 exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\Figures", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2)));
 if ~exist(exportPath, 'dir')
