@@ -311,7 +311,7 @@ tLocal = p.xta.window(1):p.xta.res:p.xta.window(2);
 clear xta
 xta.dip(length(eu)) = struct(iExp=[], params=[], t0=[], spikerate=[]);
 xta.rise(length(eu)) = struct(iExp=[], params=[], t0=[], spikerate=[]);
-%%
+
 lineLength = 0;
 tTicTotal = tic();
 rng(42)

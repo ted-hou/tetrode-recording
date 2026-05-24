@@ -8,6 +8,7 @@ clearvars -except xta p kinematics ROOTPATH
 %% Load data
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_25_200to800ms_units1to1443_100boots.mat"));
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to800ms_units1to1443_0boots.mat"));
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to800ms_units1to1443_100boots.mat"));
 
 %% Combine movement indices (mi) across dips from all units, then cluster them
 features = ["spikerate", "Jaw", "Tongue", "HandL", "HandR", "Spine"];
@@ -520,8 +521,9 @@ for iUnit = 1:length(xta.dip)
             h = gobjects(p.mi.nClusters, 1);
             isClusterEmpty = false(1, p.mi.nClusters);
             for k = 1:p.mi.nClusters
-                sel = idx==k;
-                if nnz(sel) < p.mi.minNumTrialsPerCluster || nnz(sel) < length(idx)*p.mi.minNumTrialsPerClusterQuantile
+                k0 = p.mi.semanticClusterOrder(k);
+                sel = idx==k0;
+                if nnz(sel) < p.mi.minNumTrialsPerCluster
                     isClusterEmpty(k) = true;
                     continue
                 end
@@ -611,3 +613,11 @@ clear exportPath statFeatures nAx dirs dimensionReduction fig tlp tl ax iDir iAx
 clear lia statFeatureOrder idx nClusters mr i fn t selT xx pcScore explained score eva k sel
 clear mdm i fn t selT stdObs hash I idxSorted sepHash prcSTD nStarsSTD t X k c mu err prc
 clear iDir dir fnDisp
+
+%% TODO:
+% Individual units do not really always fit the grand cluster labels
+% Try doing actual categorization, trial by trial, look for trials containing exactly ONE of the following:
+% lick start, lick stop, lhand reach, lhand retract, rhand reach, rhand retract
+
+% We'd probably need to do some sort of test to see if significant (maybe
+% nSigmas>2.5 to start?)
