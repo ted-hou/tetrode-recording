@@ -391,6 +391,8 @@ for dir = ["dip", "rise"]
     n = nnz(nExistingProfiles.(dir).lick >= 2);
     fprintf("\t%i (%.1f%%) units had at least %i %ss each where 2 or more non-overlapping lick movements were observed:\n", n, 100*n/nTotal, p.mi.minNumTrialsPerCluster, dir);
 end
+clear nTotal dir n
+
 %% Plot individual units
 close all
 exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\Figures", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2)));
@@ -613,11 +615,5 @@ clear exportPath statFeatures nAx dirs dimensionReduction fig tlp tl ax iDir iAx
 clear lia statFeatureOrder idx nClusters mr i fn t selT xx pcScore explained score eva k sel
 clear mdm i fn t selT stdObs hash I idxSorted sepHash prcSTD nStarsSTD t X k c mu err prc
 clear iDir dir fnDisp
+clear isClusterEmpty t h k k0 sel c X mu prc lgd ylims sn t0 tt s lineStyles
 
-%% TODO:
-% Individual units do not really always fit the grand cluster labels
-% Try doing actual categorization, trial by trial, look for trials containing exactly ONE of the following:
-% lick start, lick stop, lhand reach, lhand retract, rhand reach, rhand retract
-
-% We'd probably need to do some sort of test to see if significant (maybe
-% nSigmas>2.5 to start?)
