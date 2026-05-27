@@ -7,6 +7,10 @@
 % We'd probably need to do some sort of test to see if significant (do a
 % bootstrap for each subcluster for each unit, only keep subcluster if it's a single movement)
 
+if ~exist('expIndices', 'var')
+    expIndices = [xta.dip.iExp];
+end
+
 p.mi.boot.features = ["Jaw", "HandL", "HandR", "Spine"];
 p.mi.boot.clusters = 1:7;
 p.mi.boot.alpha = 0.05;
@@ -83,9 +87,10 @@ for iUnit = 1:nUnits
 end
 clear iUnit dir iFeat fn idx iClu
 
-% Save data
+%% Save data
 exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_miBoot_%iunits_%iboots.mat", nUnits, p.mi.boot.nBoot));
 save(exportPath, 'clusterSize', 'mi', 'miBoot', 'miObs', 'mp', 'mpMean', 'nExistingProfiles', 'pcaScore', 'semanticClusterSize', 'p', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
 
 clear features clusters alpha nBoot windowPre windowPost
+
