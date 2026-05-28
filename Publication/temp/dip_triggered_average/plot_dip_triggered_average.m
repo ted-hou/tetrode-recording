@@ -1,6 +1,6 @@
 %% Set root
-% ROOTPATH = "E:\DATA";
-ROOTPATH = 'C:\SERVER';
+ROOTPATH = "E:\DATA";
+% ROOTPATH = 'C:\SERVER';
 
 %% Clear temp vars
 clearvars -except xta p kinematics ROOTPATH
@@ -28,6 +28,7 @@ p.mi.clusterSeed = 42; % 2 is also good
 p.mi.semanticClusterOrder = [1, 2, 3, 4, 7, 5, 6];
 % p.mi.semanticClusterOrder = 1:7;
 p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
+p.mi.semanticClusterSign = [0, 1, -1, -1, 1, -1, 1]; % 0: two-tailed, 1: right, 2: left
 p.mi.dimensionReductionMethod = "manual+umap"; % "pca", "tsne", "umap", "manual", "manual+umap"... manual: avg(4 limbs) vs. avg(tongue/jaw) vs. spine
 p.mi.displayDimensions = 2;
 switch p.mi.dimensionReductionMethod
@@ -187,6 +188,29 @@ for dir = ["dip", "rise"]
 end
 clear dir fn XCell X k t
 
+p.mi.minNumTrialsPerCluster = 5;
+clear clusterSize
+clusterSize(length(xta.dip)) = struct(dip=[], rise=[]);
+for iUnit = 1:length(xta.dip)
+    for dir = ["dip", "rise"]
+        idx = mi.(dir)(iUnit).idx;
+        clusterSize(iUnit).(dir).n = zeros(1, p.mi.nClusters);
+        clusterSize(iUnit).(dir).nRaw = zeros(1, p.mi.nClusters);
+        clusterSize(iUnit).(dir).nTotal = length(idx);
+        clusterSize(iUnit).(dir).threshold = p.mi.minNumTrialsPerCluster;
+        for k = 1:p.mi.nClusters
+            n = nnz(idx==k);
+            clusterSize(iUnit).(dir).nRaw(k) = n;
+            if n < clusterSize(iUnit).(dir).threshold
+                clusterSize(iUnit).(dir).n(k) = NaN;
+            else
+                clusterSize(iUnit).(dir).n(k) = n;
+            end
+        end
+    end
+end
+clear iUnit dir idx k n
+
 
 % Scatter plot of all movement profiles
 close all
@@ -290,111 +314,97 @@ clear iFeat fn pcaScoreMerge pcaExplained nClusters ax k sel
 clear i0 iUnit dir n h
 clear fig ax tl tlp layout iAx fn k faceColor dir iDir xl yl zl
 
-%% Count number of movement profiles by unit
-p.mi.minNumTrialsPerCluster = 5;
-% p.mi.minNumTrialsPerClusterQuantile = 0.05;
+%% Boot
+% boot_dta_clustered_movement_index;
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_1443units_1000boots.mat"));
 
-clear clusterSize
-clusterSize(length(xta.dip)) = struct(dip=[], rise=[]);
-for iUnit = 1:length(xta.dip)
-    for dir = ["dip", "rise"]
-        idx = mi.(dir)(iUnit).idx;
-        clusterSize(iUnit).(dir).n = zeros(1, p.mi.nClusters);
-        clusterSize(iUnit).(dir).nRaw = zeros(1, p.mi.nClusters);
-        clusterSize(iUnit).(dir).nTotal = length(idx);
-        % clusterSize(iUnit).(dir).threshold = max(p.mi.minNumTrialsPerCluster, length(idx)*p.mi.minNumTrialsPerClusterQuantile);
-        clusterSize(iUnit).(dir).threshold = p.mi.minNumTrialsPerCluster;
-        for k = 1:p.mi.nClusters
-            n = nnz(idx==k);
-            clusterSize(iUnit).(dir).nRaw(k) = n;
-            if n < clusterSize(iUnit).(dir).threshold
-                clusterSize(iUnit).(dir).n(k) = NaN;
-            else
-                clusterSize(iUnit).(dir).n(k) = n;
-            end
-        end
-    end
-end
-clear iUnit dir idx k n
+%% Count number of "clean clusters" by unit
+% A clean cluster is a cluster of dips/rises where one bodypart moved but
+% nothing else (e.g. for right-hand-reach cluster, tongue/left-hand/spine
+% must be stationary)
 
 % p.mi.semanticClusterOrder = [1, 2, 3, 4, 7, 5, 6];
 % p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
 
-clear cns cn
-for k = 1:p.mi.nClusters
-    p.mi.semanticClusterOrderReversed(k) = find(p.mi.semanticClusterOrder == k);
+clear cc
+alpha = 0.01;
+semanticLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
+assert(isequal(semanticLabels, p.mi.semanticClusterLabels), "these must match or we could not use semanticClusterOrder below.")
+mustMove = {"", "Jaw", "Jaw", "HandL", "HandL", "HandR", "HandR"};
+mustNotMove = {["Jaw", "HandL", "HandR", "Spine"], ["HandL", "HandR", "Spine"], ["HandL", "HandR", "Spine"], ["Tongue", "HandR", "Spine"], ["Tongue", "HandR", "Spine"], ["Tongue", "HandL", "Spine"], ["Tongue", "HandL", "Spine"]};
+% k: cluster displayOrder
+% k0: real cluster id
+nUnits = length(xta.dip);
+for i = 1:length(semanticLabels)
+    cc(i) = struct(idx=p.mi.semanticClusterOrder(i), label=semanticLabels(i), expectedSign=p.mi.semanticClusterSign(i), mustMove=mustMove{i}, mustNotMove=mustNotMove{i}, n=struct(dip=zeros(nUnits, 1, 'uint8'), rise=zeros(nUnits, 1, 'uint8')));
 end
-cns.none = ["no move"];
-cns.all = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
-cns.any = ["lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
-cns.hand = ["left hand retract", "left hand reach", "right hand retract", "right hand reach"];
-cns.lhand = ["left hand retract", "left hand reach"];
-cns.rhand = ["right hand retract", "right hand reach"];
-cns.reach = ["left hand reach", "right hand reach"];
-cns.retract = ["left hand retract", "right hand retract"];
-cns.lick = ["lick start", "lick stop"];
+clear semanticLabels mustMove mustNotMove i
 
-for fn = ["none", "all", "any", "hand", "lick", "lhand", "rhand", "reach", "retract"]
-    cn.(fn) = ismember(p.mi.semanticClusterLabels, cns.(fn));
-    cn.(fn) = p.mi.semanticClusterOrder(cn.(fn));
-end
+% For each unit, count number of dips/rises that belong to each clean cluster
+for i = 1:length(cc)
+    k = cc(i).idx;
+    iMustMove = find(ismember(p.mi.boot.features, cc(i).mustMove)); % this is one index, sometimes empty
+    iMustNotMove = find(ismember(p.mi.boot.features, cc(i).mustNotMove)); % this is often an array
+    assert(length(iMustMove) <= 1)
+    assert(length(iMustNotMove) >= 1)
+    for iUnit = 1:nUnits
+        for dir = ["dip", "rise"]
+            n = clusterSize(iUnit).(dir).n(i);
+            if isnan(n) || n == 0
+                continue
+            end
+            % For mustMove: do one-tailed test depending on expectedSign.
+            if isempty(iMustMove)
+                mustMoveSatisfied = true;
+            else
+                iFeat = iMustMove;
+                xObs = miObs(iUnit).(dir)(k, iFeat);
+                xBoot = miBoot(iUnit).(dir)(:, k, iFeat);
+                assert(all(~isnan(xBoot)) && ~isnan(xObs), "iUnit=%i", iUnit)
+                switch cc(i).expectedSign
+                    case 1 % "right-sided test, expect increase"
+                        pVal = sum(xBoot > xObs) / p.mi.boot.nBoot;
+                    case -1 % "left-sided test, expect decrease"
+                        pVal = sum(xBoot < xObs) / p.mi.boot.nBoot;
+                    case 0
+                        error("Never should have come here!")
+                end
+                mustMoveSatisfied = pVal < alpha;
+            end
 
-clear semanticClusterSize
-for dir = ["dip", "rise"]
-    for selType = ["none", "all", "any", "hand", "lick", "lhand", "rhand", "reach", "retract"]
-        n = arrayfun(@(cx) cx.(dir).n(cn.(selType)), clusterSize, UniformOutput=false);
-        n = cat(1, n{:});
-        semanticClusterSize.(dir).(selType) = array2table(n, VariableNames=cns.(selType));
+            % For mustNotMove: do two-tailed test (any is bad)
+            mustNotMoveSatisfied = true;
+            for iFeat = iMustNotMove(:)'
+                xObs = miObs(iUnit).(dir)(k, iFeat);
+                xBoot = miBoot(iUnit).(dir)(:, k, iFeat);
+                switch cc(i).expectedSign
+                    case 1 % "right-sided test, expect increase"
+                        pVal = sum(xBoot > xObs) / p.mi.boot.nBoot;
+                        moveDetected = pVal < alpha;
+                    case -1 % "left-sided test, expect decrease"
+                        pVal = sum(xBoot < xObs) / p.mi.boot.nBoot;
+                        moveDetected = pVal < alpha;
+                    case 0
+                        pValRight = sum(xBoot > xObs) / p.mi.boot.nBoot;
+                        pValLeft = sum(xBoot < xObs) / p.mi.boot.nBoot;
+                        moveDetected = pValRight < alpha/2 || pValLeft < alpha/2;
+                end
+                if moveDetected
+                    mustNotMoveSatisfied = false;
+                    break
+                end
+            end
+
+            if mustMoveSatisfied && mustNotMoveSatisfied
+                cc(i).n.(dir)(iUnit) = n;
+            else
+                cc(i).n.(dir)(iUnit) = 0;
+            end
+        end
     end
 end
+clear nUnits i k iMustMove iMustNotMove iUnit dir n mustMoveSatisfied mustNotMoveSatisfied iFeat xObs xBoot pVal pValLeft pValRight moveDetected
 
-clear nExistingProfiles
-for dir = ["dip", "rise"]
-    for selType = ["none", "all", "any", "hand", "lick", "lhand", "rhand", "reach", "retract"]
-        nExistingProfiles.(dir).(selType) = sum(~isnan(table2array(semanticClusterSize.(dir).(selType))), 2);
-    end
-end
-clear dir selType cn cns k
-
-close all
-fig = figure();
-tl = tiledlayout(fig, 2, 7);
-iDir = 0;
-for dir = ["dip", "rise"]
-    iDir = iDir + 1;
-    iType = 0;
-    for selType = ["any", "lick", "hand", "lhand", "rhand", "reach", "retract"]
-        iType = iType + 1;
-        ax = nexttile(tl);
-        histogram(ax, nExistingProfiles.(dir).(selType))
-        title(ax, sprintf("%s %s", dir, selType))
-        xlabel(ax, "no. movement types")
-        ylabel(ax, "no. SNr units")
-    end
-end
-clear fig tl iDir iType dir selType ax
-
-nTotal = length(xta.dip);
-for dir = ["dip", "rise"]
-    fprintf("%i SNr units:\n", nTotal)
-
-    n = nnz(nExistingProfiles.(dir).none > 0);
-    fprintf("\t%i (%.1f%%) units had at least %i %ss each where no consistent movements were observed:\n", n, 100*n/nTotal, p.mi.minNumTrialsPerCluster, dir);
-
-    n = nnz(nExistingProfiles.(dir).any >= 2);
-    fprintf("\t%i (%.1f%%) units had at least %i %ss each where 2 or more non-overlapping movements were observed:\n", n, 100*n/nTotal, p.mi.minNumTrialsPerCluster, dir);
-
-    n = nnz(nExistingProfiles.(dir).hand >= 2);
-    fprintf("\t%i (%.1f%%) units had at least %i %ss each where 2 or more non-overlapping hand movements were observed:\n", n, 100*n/nTotal, p.mi.minNumTrialsPerCluster, dir);
-
-    n = nnz(nExistingProfiles.(dir).lick >= 2);
-    fprintf("\t%i (%.1f%%) units had at least %i %ss each where 2 or more non-overlapping lick movements were observed:\n", n, 100*n/nTotal, p.mi.minNumTrialsPerCluster, dir);
-end
-clear nTotal dir n
-
-%% Boot
-% boot_dta_clustered_movement_index;
-load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_1443units_1000boots.mat"));
 
 %% Plot individual units
 close all

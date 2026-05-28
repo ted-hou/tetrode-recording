@@ -80,7 +80,7 @@ for iUnit = 1:nUnits
             end
             for iFeat = 1:length(features)
                 fn = features(iFeat);
-                miObs(iUnit).(dir)(iClu, iFeat) = mean(mi.(dir)(iUnit).(fn)(idx==iClu));
+                miObs(iUnit).(dir)(iClu, iFeat) = mean(mi.(dir)(iUnit).(fn)(idx==iClu), 'all', 'omitnan');
             end
         end
     end
