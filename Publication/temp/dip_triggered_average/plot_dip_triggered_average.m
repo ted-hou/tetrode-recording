@@ -331,24 +331,31 @@ alpha = 0.01;
 semanticLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
 assert(isequal(semanticLabels, p.mi.semanticClusterLabels), "these must match or we could not use semanticClusterOrder below.")
 mustMove = {"", "Jaw", "Jaw", "HandL", "HandL", "HandR", "HandR"};
-mustNotMove = {["Jaw", "HandL", "HandR", "Spine"], ["HandL", "HandR", "Spine"], ["HandL", "HandR", "Spine"], ["Tongue", "HandR", "Spine"], ["Tongue", "HandR", "Spine"], ["Tongue", "HandL", "Spine"], ["Tongue", "HandL", "Spine"]};
+mustNotMove = {["Jaw", "HandL", "HandR", "Spine"], ["HandL", "HandR", "Spine"], ["HandL", "HandR", "Spine"], ["Jaw", "HandR", "Spine"], ["Jaw", "HandR", "Spine"], ["Jaw", "HandL", "Spine"], ["Jaw", "HandL", "Spine"]};
 % k: cluster displayOrder
 % k0: real cluster id
 nUnits = length(xta.dip);
 for i = 1:length(semanticLabels)
-    cc(i) = struct(idx=p.mi.semanticClusterOrder(i), label=semanticLabels(i), expectedSign=p.mi.semanticClusterSign(i), mustMove=mustMove{i}, mustNotMove=mustNotMove{i}, n=struct(dip=zeros(nUnits, 1, 'uint8'), rise=zeros(nUnits, 1, 'uint8')));
+    cc(i) = struct(idx=p.mi.semanticClusterOrder(i), label=semanticLabels(i), expectedSign=p.mi.semanticClusterSign(i), mustMove=mustMove{i}, mustNotMove=mustNotMove{i}, n=struct(dip=NaN(nUnits, 1), rise=NaN(nUnits, 1)));
 end
 clear semanticLabels mustMove mustNotMove i
-
+fprintf('start\n')
 % For each unit, count number of dips/rises that belong to each clean cluster
+isMissingData = struct(dip=false(nUnits, length(cc)), rise=false(nUnits, length(cc)));
 for i = 1:length(cc)
     k = cc(i).idx;
     iMustMove = find(ismember(p.mi.boot.features, cc(i).mustMove)); % this is one index, sometimes empty
     iMustNotMove = find(ismember(p.mi.boot.features, cc(i).mustNotMove)); % this is often an array
     assert(length(iMustMove) <= 1)
     assert(length(iMustNotMove) >= 1)
+    nAborts = 0;
     for iUnit = 1:nUnits
+        abortThisDir = false;
         for dir = ["dip", "rise"]
+            if abortThisDir
+                nAborts = nAborts + 1;
+                break
+            end
             n = clusterSize(iUnit).(dir).n(i);
             if isnan(n) || n == 0
                 continue
@@ -360,7 +367,13 @@ for i = 1:length(cc)
                 iFeat = iMustMove;
                 xObs = miObs(iUnit).(dir)(k, iFeat);
                 xBoot = miBoot(iUnit).(dir)(:, k, iFeat);
-                assert(all(~isnan(xBoot)) && ~isnan(xObs), "iUnit=%i", iUnit)
+                if sum(isnan(xBoot))/length(xBoot)>0.5 || isnan(xObs)
+                    warning('\tcc(%i)-"%s", mustMove: Unit %i had all NaNs for feature %i-"%s"', i, cc(i).label, iUnit, iFeat, p.mi.boot.features(iFeat))
+                    abortThisDir = true;
+                    cc(i).n.(dir)(iUnit) = NaN;
+                    isMissingData.(dir)(iUnit, i) = true;
+                    continue
+                end
                 switch cc(i).expectedSign
                     case 1 % "right-sided test, expect increase"
                         pVal = sum(xBoot > xObs) / p.mi.boot.nBoot;
@@ -377,6 +390,13 @@ for i = 1:length(cc)
             for iFeat = iMustNotMove(:)'
                 xObs = miObs(iUnit).(dir)(k, iFeat);
                 xBoot = miBoot(iUnit).(dir)(:, k, iFeat);
+                if sum(isnan(xBoot))/length(xBoot)>0.5 || isnan(xObs)
+                    warning('\tcc(%i)-"%s", mustNotMove: Unit %i had all NaNs for feature %i-"%s"', i, cc(i).label, iUnit, iFeat, p.mi.boot.features(iFeat))
+                    abortThisDir = true;
+                    cc(i).n.(dir)(iUnit) = NaN;
+                    isMissingData.(dir)(iUnit, i) = true;
+                    break
+                end
                 switch cc(i).expectedSign
                     case 1 % "right-sided test, expect increase"
                         pVal = sum(xBoot > xObs) / p.mi.boot.nBoot;
@@ -402,9 +422,111 @@ for i = 1:length(cc)
             end
         end
     end
-end
-clear nUnits i k iMustMove iMustNotMove iUnit dir n mustMoveSatisfied mustNotMoveSatisfied iFeat xObs xBoot pVal pValLeft pValRight moveDetected
 
+    if nAborts > 0
+        warning("Cluster %i has %i unitsxdirs aborted", i, nAborts)
+    end
+end
+
+% Units with missing data for certain clusters can be skipped over, optionally
+% Because we do not know what happens.
+isGoodUnit = struct(dip=[], rise=[], both=[]);
+for dir = ["dip", "rise"]
+    isGoodUnit.(dir) = all(~isMissingData.(dir), 2);
+end
+isGoodUnit.both = isGoodUnit.dip & isGoodUnit.rise;
+isMissingData.both = isMissingData.dip | isMissingData.rise; % missing either rise or dip
+
+close all
+fig = figure;
+tl = tiledlayout(fig, 1, 3);
+for dir = ["dip", "rise", "both"]
+    ax = nexttile(tl); 
+    [~, I] = sort(isGoodUnit.(dir));
+    imagesc(ax, ~isMissingData.(dir)(I, :))
+    colormap(ax, 'gray')
+    xticks(ax, 1:7)
+    xticklabels(ax, [cc.label])
+    title(ax, dir)
+end
+title(tl, "black bars are missing data, unit x cluster")
+clear fig tl dir ax I
+
+clear i k iMustMove iMustNotMove iUnit dir n mustMoveSatisfied mustNotMoveSatisfied iFeat xObs xBoot pVal pValLeft pValRight moveDetected
+clear nBoot nAborts abort abortThisDir
+
+% Count units
+% To say: this unit moved one body part and nothing else, for that
+% cluster, we must not miss any data for any bodypart.
+
+% But: a unit need not contain all syllables! We're probably conservative
+% about the number of units with >=2 clean clusters.
+
+% For each unit, we ask:
+% 1) how many clean clusters do you contain (except cluster 1)?
+% 2) bodypart specificity: does it have clean clusters belonging to more than one of the following categories?
+%   - ["lick start", "lick stop"]
+%   - ["left hand reach", "left hand retract"]
+%   - ["right hand reach", "right hand retract"]
+% 3) start vs. stop specificity: does it have clean clusters belonging to more than one of the following categories?
+%   - ["lick start", "left hand reach", "right hand reach"]
+%   - ["lick stop", "left hand retract", "right hand retract"]
+% 4) locomotion vs. consumption specificity: does it have clean clusters belonging to more than one of the following categories?
+%   - ["lick start", "left hand retract", "right hand retract"]
+%   - ["lick stop", "left hand reach", "right hand reach"]
+
+testNames = ["clean clusters", "bodypart+movement specificity", "bodypart specificity", "start vs. stop specificity", "locomotion vs. consumption specificity"];
+testGroups = { ... 
+    {"no move", "lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"}, ...
+    {"lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"}, ...
+    {["lick start", "lick stop"], ["left hand reach", "left hand retract"], ["right hand reach", "right hand retract"]}, ...
+    {["lick start", "left hand reach", "right hand reach"], ["lick stop", "left hand retract", "right hand retract"]}, ...
+    {["lick start", "left hand retract", "right hand retract"], ["lick stop", "left hand reach", "right hand reach"]}, ...
+    };
+clear tests
+tests(length(testGroups)) = struct(labels=[]);
+for iTest = 1:length(tests)
+    tests(iTest).name = testNames(iTest);
+    tests(iTest).labels = testGroups{iTest};
+    for dir = ["dip", "rise"]
+        for iGrp = 1:length(tests(iTest).labels)
+            selCC = ismember([cc.label], tests(iTest).labels{iGrp});
+            hasData = any(~isMissingData.(dir)(:, selCC), 2);
+            found = arrayfun(@(c) c.n.(dir)>=p.mi.minNumTrialsPerCluster, cc(selCC), UniformOutput=false); % if cc.n.(dir) is nan (missing video data for unit-cluster), will return false, so that works out
+            found = any(cat(2, found{:}), 2); % nUnits x nCategories -> nUnitsx1, any categories
+            tests(iTest).(dir).found(:, iGrp) = found;
+            tests(iTest).(dir).hasData(:, iGrp) = hasData;
+        end
+        tests(iTest).(dir).nCleanClustersFound = sum(tests(iTest).(dir).found, 2);
+        tests(iTest).(dir).nCleanClustersHasData = sum(tests(iTest).(dir).hasData, 2);
+        tests(iTest).(dir).prcCleanClustersFound = tests(iTest).(dir).nCleanClustersFound ./ tests(iTest).(dir).nCleanClustersHasData;
+        for n = 2:length(tests(iTest).labels)
+            tests(iTest).(dir).nUnitsWithNPlusCleanClusters(n) = sum(tests(iTest).(dir).nCleanClustersFound>=n); % Of all units, how many has at least 2 clean clusters?
+            tests(iTest).(dir).nUnitsWithNPlusNonMissingClusters(n) = sum(tests(iTest).(dir).nCleanClustersHasData>=n); % Of all units, how many has at least 2 clusters not missing data?
+            tests(iTest).(dir).prcUnitsWithNPlusCleanClusters(n) = tests(iTest).(dir).nUnitsWithNPlusCleanClusters(n) ./ nUnits;
+            tests(iTest).(dir).prcUnitsWithNPlusCleanClustersNonMissing(n) = tests(iTest).(dir).nUnitsWithNPlusCleanClusters(n) ./ tests(iTest).(dir).nUnitsWithNPlusNonMissingClusters(n);
+        end
+    end
+end
+clear iTest dir iGrp testNames testGroups selCC hasData found
+
+clc
+for iTest = 1:length(tests)
+    fprintf("Test %i (%s): %s:\n", ...
+        iTest, tests(iTest).name, ...
+        strjoin(cellfun(@(labels) sprintf("[%s]", strjoin(labels, ", ")), tests(iTest).labels), " vs. ") ...
+        )
+    for n = 2:length(tests(iTest).labels)
+        for dir = ["dip", "rise"]
+            fprintf("\t %i/%i total (%.1f%%) %i/%i valid (%.1f%%) units has %i+ clean clusters.\n", ...
+                tests(iTest).(dir).nUnitsWithNPlusCleanClusters(n), nUnits, ...
+                100*tests(iTest).(dir).prcUnitsWithNPlusCleanClusters(n), ...
+                tests(iTest).(dir).nUnitsWithNPlusCleanClusters(n), tests(iTest).(dir).nUnitsWithNPlusNonMissingClusters(n), ...
+                100*tests(iTest).(dir).prcUnitsWithNPlusCleanClustersNonMissing(n), ...
+                n);
+        end
+    end
+end
 
 %% Plot individual units
 close all
