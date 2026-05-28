@@ -394,7 +394,7 @@ clear nTotal dir n
 
 %% Boot
 % boot_dta_clustered_movement_index;
-load(fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_miBoot_%iunits_%iboots.mat", 1443, 1000)))
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_1443units_1000boots.mat"));
 
 %% Plot individual units
 close all
