@@ -89,7 +89,7 @@ clear iUnit dir iFeat fn idx iClu
 
 %% Save data
 exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_miBoot_%iunits_%iboots.mat", nUnits, p.mi.boot.nBoot));
-save(exportPath, 'clusterSize', 'mi', 'miBoot', 'miObs', 'mp', 'mpMean', 'nExistingProfiles', 'pcaScore', 'semanticClusterSize', 'p', '-v7.3')
+save(exportPath, 'clusterSize', 'mi', 'miBoot', 'miObs', 'p', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
 
 clear features clusters alpha nBoot windowPre windowPost
