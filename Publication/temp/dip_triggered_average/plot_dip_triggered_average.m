@@ -1,6 +1,6 @@
 %% Set root
-ROOTPATH = "E:\DATA";
-% ROOTPATH = 'C:\SERVER';
+% ROOTPATH = "E:\DATA";
+ROOTPATH = 'C:\SERVER';
 
 %% Clear temp vars
 clearvars -except xta p kinematics ROOTPATH
@@ -29,7 +29,7 @@ p.mi.semanticClusterOrder = [1, 2, 3, 4, 7, 5, 6];
 % p.mi.semanticClusterOrder = 1:7;
 p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
 p.mi.semanticClusterSign = [0, 1, -1, -1, 1, -1, 1]; % 0: two-tailed, 1: right, 2: left
-p.mi.dimensionReductionMethod = "manual+umap"; % "pca", "tsne", "umap", "manual", "manual+umap"... manual: avg(4 limbs) vs. avg(tongue/jaw) vs. spine
+p.mi.dimensionReductionMethod = "manual"; % "pca", "tsne", "umap", "manual", "manual+umap"... manual: avg(4 limbs) vs. avg(tongue/jaw) vs. spine
 p.mi.displayDimensions = 2;
 switch p.mi.dimensionReductionMethod
     case "pca"
@@ -325,9 +325,6 @@ load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_1443uni
 % A clean cluster is a cluster of dips/rises where one bodypart moved but
 % nothing else (e.g. for right-hand-reach cluster, tongue/left-hand/spine
 % must be stationary)
-
-% p.mi.semanticClusterOrder = [1, 2, 3, 4, 7, 5, 6];
-% p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
 
 clear cc
 alpha = 0.01;
