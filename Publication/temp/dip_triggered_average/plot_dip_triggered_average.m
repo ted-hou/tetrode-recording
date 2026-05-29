@@ -922,10 +922,10 @@ for nCleanClusters = [5, 4, 3, 2, 1]
     if ~exist(exportPath, 'dir')
         mkdir(exportPath)
     end
-    selUnits = reshape(find(tests(iTest).dip.nCleanClustersFound == nCleanClusters), 1, []);
     
-    for iUnit = selUnits
-        for dir = ["dip", "rise"]
+    for dir = ["dip", "rise"]
+        selUnits = reshape(find(tests(iTest).(dir).nCleanClustersFound == nCleanClusters), 1, []);
+        for iUnit = selUnits
             for iClu = 1:nClusters
                 for iFeat = 1:nFeatures
                     cla(ax(iFeat, iClu))
@@ -1020,7 +1020,7 @@ for nCleanClusters = [5, 4, 3, 2, 1]
             xlabel(tl, "time since spike rate change (ms)")
             title(tl, sprintf("Unit %i (n=%i %ss)", iUnit, length(xta.(dir)(iUnit).t0), dir), FontWeight='bold')
             fontsize(fig, 9, 'points')
-            print(fig, fullfile(exportPath, sprintf("featxclus_unit_%03i_%s", iUnit, dir)), '-dpng', '-r0')
+            print(fig, fullfile(exportPath, sprintf("%s_featxclus_unit_%03i", dir, iUnit)), '-dpng', '-r0')
         end
     end
 end
