@@ -560,178 +560,178 @@ for iTest = 1:length(tests)
 end
 clear iTest n dir
 
-%% Plot individual units (each axis is a bodypart, traces for clusters)
-close all
-
-features = ["spikerate", "Jaw", "HandL", "HandR", "Spine"];
-featureDispName = ["spike rate", "jaw", "left paw", "right paw", "spine"];
-featureUnits = ["spike rate (a.u.)", "DV pos (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "DV pos (a.u.)"];
-featureSign = [1, -1, 1, 1, -1];
-featureAxisDir = ["normal", "reverse", "normal", "normal", "normal"];
-% p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
-% semanticClusterSign = [0, 1, -1, -1, 1, -1, 1]; % 0: two-tailed, 1: right, 2: left
-semanticClusterSign = [0, 0, 0, 0, 0, 0, 0]; % 0: two-tailed, 1: right, 2: left
-ylims = {5, 3, 3, 3, 3};
-ylims = cellfun(@(y) y*[-2/3, 1], ylims, UniformOutput=false);
-ylims{featureAxisDir=="reverse"} = [-1, 2/3]*3;
-lineStyles = ["-", "-", "--", "--", "-", "--", "-", "--"];
-
-nAx = length(features);
-dirs = ["dip", "rise"];
-fig = figure(Units='inches', InnerPosition=[2, 2, 2*(2+length(features)), 7]);
-tlp = tiledlayout(fig, 2, 1, TileSpacing='compact', Padding='compact');
-tl = gobjects(2, 1);
-tl(1) = tiledlayout(tlp, 1, nAx, TileSpacing='compact', Padding='compact');
-tl(2) = tiledlayout(tlp, 1, nAx, TileSpacing='compact', Padding='compact');
-tl(1).Layout.Tile = 1;
-tl(2).Layout.Tile = 2;
-
-ax = gobjects(2, nAx);
-for iDir = 1:2
-    for iClu = 1:nAx
-        ax(iDir, iClu) = nexttile(tl(iDir));
-    end
-end
-
-iTest = 3;
-for nCleanClusters = [5, 4, 3, 2]
-    exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\Figures", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2)), sprintf("Test%i - %s", iTest, tests(iTest).name), sprintf('%i clean clusters', nCleanClusters));
-    if ~exist(exportPath, 'dir')
-        mkdir(exportPath)
-    end
-    selUnits = reshape(find(tests(iTest).dip.nCleanClustersFound == nCleanClusters), 1, []);
-    
-    for iUnit = selUnits
-        for iDir = 1:2
-            for iClu = 1:nAx
-                cla(ax(iDir, iClu))
-            end
-        end
-        for iDir = 1:2
-            dir = dirs(iDir);
-            % Check existence
-            if isempty(xta.(dir)(iUnit).t0) && xta.(dir)(iUnit).iExp > 0
-                for iClu = 1:length(features)
-                    cla(ax(iDir, iClu))
-                    ax(iDir, iClu).Visible = false;
-                end
-                continue
-            end
-    
-            idx = mi.(dir)(iUnit).idx;
-            
-            for iClu = 1:length(features)
-                fn = features(iClu);
-                if isempty(xta.(dir)(iUnit).(fn))
-                    ax(iDir, iClu).Visible = false;
-                    continue
-                end
-    
-                % if p.nBoot > 0 && ismember(fn, p.std.features) && isfield(xta.(dir)(iUnit).(fn), 'stats')
-                %     prcSTD = quantile(xta.(dir)(iUnit).(fn).stats.stdBoot, [0.95, 0.99, 0.999]);
-                %     nStarsSTD = sum(xta.(dir)(iUnit).(fn).stats.std > prcSTD);
-                % else
-                %     nStarsSTD = 0;
-                % end
-    
-                ax(iDir, iClu).Visible = true;
-    
-                hold(ax(iDir, iClu), 'on')
-                t = 1e3*xta.(dir)(iUnit).(fn).t;
-                plot(ax(iDir, iClu), t, featureSign(iClu)*mean(xta.(dir)(iUnit).(fn).X, 1, 'omitnan'), Color=[0.15, 0.15, 0.15, 1], LineWidth=1.5, LineStyle=':');
-                h = gobjects(p.mi.nClusters, 1);
-                isClusterEmpty = false(1, p.mi.nClusters);
-                for k = 1:p.mi.nClusters % k: semantic cluster index
-                    k0 = p.mi.semanticClusterOrder(k); % Raw cluster index
-                    sel = idx==k0;
-                    if nnz(sel) < p.mi.minNumTrialsPerCluster
-                        isClusterEmpty(k) = true;
-                        continue
-                    end
-                    c = getColor(k, p.mi.nClusters, 0.7);
-                    X = xta.(dir)(iUnit).(fn).X(sel, :);
-                    mu = featureSign(iClu)*mean(X, 1, 'omitnan');
-                    
-                    % Check significance of cluster movement index against boostrap
-                    if iClu > 1 % Skip spikerate
-                        iFeat = iClu - 1;
-                        xObs = miObs(iUnit).(dir)(k0, iFeat); % nClusters x nFeatures
-                        xBoot = miBoot(iUnit).(dir)(:, k0, iFeat); % nBoot x nClusters x nFeatures
-                        switch semanticClusterSign(k)
-                            case 1
-                                pVal = nnz(xBoot > xObs) ./ length(xBoot);
-                                nStars = sum(xObs > quantile(xBoot, 1 - [0.05, 0.01, 0.001]));
-                            case -1
-                                pVal = nnz(xBoot < xObs) ./ length(xBoot);
-                                nStars = sum(xObs < quantile(xBoot, [0.05, 0.01, 0.001]));
-                            case 0
-                                pVal = nnz(xBoot > xObs) ./ length(xBoot);
-                                if pVal < 0.5 % obs on right tail
-                                    nStars = sum(xObs > quantile(xBoot, 1 - 0.5*[0.05, 0.01, 0.001]));
-                                else % obs on left tail
-                                    pVal = 1 - pVal;
-                                    nStars = sum(xObs < quantile(xBoot, 0.5*[0.05, 0.01, 0.001]));
-                                end
-                                pVal = pVal * 2;
-                        end
-                        dispName = sprintf("%s%s (n=%i, p<%g)", repmat('*', [1, nStars]), p.mi.semanticClusterLabels(k), nnz(sel), pVal);
-                        clear iFeat xObs xBoot pVal nStars
-                    else
-                        dispName = sprintf("%s (n=%i)", p.mi.semanticClusterLabels(k), nnz(sel));
-                    end
-    
-                    h(k) = plot(ax(iDir, iClu), t, mu, Color=c, LineStyle=lineStyles(k), LineWidth=1.5, DisplayName=dispName);
-                    clear dispName
-                end
-                if p.nBoot > 0 && isfield(xta.(dir)(iUnit).(fn), 'XBoot')
-                    prc = quantile(xta.(dir)(iUnit).(fn).XBoot, [p.bootAlpha/2, 1-p.bootAlpha/2], 1);
-                    patch(ax(iDir, iClu), [t, flip(t)], featureSign(iClu)*[prc(1, :), flip(prc(2, :))], [0.15, 0.15, 0.15], FaceAlpha=0.05, EdgeColor=[0.15, 0.15, 0.15], EdgeAlpha=0.5);
-                end
-                xline(ax(iDir, iClu), 1e3*p.std.window, 'k--', Alpha=0.1)
-                xline(ax(iDir, iClu), 0, 'k-', Alpha=0.1)
-                xticks(ax(iDir, iClu), [-300, 0, 600])
-                xtickangle(ax(iDir, iClu), 0)
-    
-                xlabel(ax(iDir, iClu), 'time (ms)')
-                ylabel(ax(iDir, iClu), featureUnits(iClu))
-    
-                % fnDisp = sprintf("%s %s", featureDispName(iAx), repmat('*', [1, nStarsSTD]));
-                fnDisp = sprintf("%s", featureDispName(iClu));
-                title(ax(iDir, iClu), fnDisp, Interpreter='none')
-                ylim(ax(iDir, iClu), ylims{iClu})
-                hold(ax(iDir, iClu), 'off')
-                ax(iDir, iClu).YAxis.Direction = featureAxisDir(iClu);
-                legend(ax(iDir, iClu), h(~isClusterEmpty), Location='southoutside', AutoUpdate=false);
-            end
-            % lgd = legend(ax(iDir, iAx), h(~isClusterEmpty), AutoUpdate=false);
-            % lgd.Layout.Tile = 'east';
-        end
-        for iDir = 1:2
-            dir = dirs(iDir);
-            if ~isempty(xta.(dir)(iUnit).HandR)
-                if xta.(dir)(iUnit).iExp > 0
-                    title(tl(iDir), sprintf("Unit %i (n=%i %ss)", iUnit, length(xta.(dir)(iUnit).t0), dir), FontWeight='bold')
-                else
-                    title(tl(iDir), sprintf("%i units (n=%i %ss)", length(xta)-1, length(xta.(dir)(iUnit).t0), dir), FontWeight='bold')
-                end
-            else
-                xlabel(tl(iDir), '')
-                title(tl(iDir), '')
-            end
-        end
-        xlim(ax(:, 1:end-2), 1e3*[-0.5, 1])
-        fontsize(fig, 9, 'points')
-        print(fig, fullfile(exportPath, sprintf("dta_rta_unit_%03i", iUnit)), '-dpng', '-r0')
-    end
-end
-clear exportPath features nAx dirs dimensionReduction fig tlp tl ax iDir iClu iUnit dir
-clear idx nClusters mr i fn t selT xx pcScore explained score eva k sel
-clear mdm i fn t selT stdObs hash I idxSorted sepHash prcSTD nStarsSTD t X k c mu err prc
-clear iDir dir fnDisp
-clear isClusterEmpty t h k k0 sel c X mu prc lgd ylims sn t0 tt s lineStyles
-
-
-
+% %% Plot individual units (each axis is a bodypart, traces for clusters)
+% close all
+% 
+% features = ["spikerate", "Jaw", "HandL", "HandR", "Spine"];
+% featureDispName = ["spike rate", "jaw", "left paw", "right paw", "spine"];
+% featureUnits = ["spike rate (a.u.)", "DV pos (a.u.)", "AP pos (a.u.)", "AP pos (a.u.)", "DV pos (a.u.)"];
+% featureSign = [1, -1, 1, 1, -1];
+% featureAxisDir = ["normal", "reverse", "normal", "normal", "normal"];
+% % p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
+% % semanticClusterSign = [0, 1, -1, -1, 1, -1, 1]; % 0: two-tailed, 1: right, 2: left
+% semanticClusterSign = [0, 0, 0, 0, 0, 0, 0]; % 0: two-tailed, 1: right, 2: left
+% ylims = {5, 3, 3, 3, 3};
+% ylims = cellfun(@(y) y*[-2/3, 1], ylims, UniformOutput=false);
+% ylims{featureAxisDir=="reverse"} = [-1, 2/3]*3;
+% lineStyles = ["-", "-", "--", "--", "-", "--", "-", "--"];
+% 
+% nAx = length(features);
+% dirs = ["dip", "rise"];
+% fig = figure(Units='inches', InnerPosition=[2, 2, 2*(2+length(features)), 7]);
+% tlp = tiledlayout(fig, 2, 1, TileSpacing='compact', Padding='compact');
+% tl = gobjects(2, 1);
+% tl(1) = tiledlayout(tlp, 1, nAx, TileSpacing='compact', Padding='compact');
+% tl(2) = tiledlayout(tlp, 1, nAx, TileSpacing='compact', Padding='compact');
+% tl(1).Layout.Tile = 1;
+% tl(2).Layout.Tile = 2;
+% 
+% ax = gobjects(2, nAx);
+% for iDir = 1:2
+%     for iClu = 1:nAx
+%         ax(iDir, iClu) = nexttile(tl(iDir));
+%     end
+% end
+% 
+% iTest = 3;
+% for nCleanClusters = [5, 4, 3, 2]
+%     exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\Figures", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2)), sprintf("Test%i - %s", iTest, tests(iTest).name), sprintf('%i clean clusters', nCleanClusters));
+%     if ~exist(exportPath, 'dir')
+%         mkdir(exportPath)
+%     end
+%     selUnits = reshape(find(tests(iTest).dip.nCleanClustersFound == nCleanClusters), 1, []);
+% 
+%     for iUnit = selUnits
+%         for iDir = 1:2
+%             for iClu = 1:nAx
+%                 cla(ax(iDir, iClu))
+%             end
+%         end
+%         for iDir = 1:2
+%             dir = dirs(iDir);
+%             % Check existence
+%             if isempty(xta.(dir)(iUnit).t0) && xta.(dir)(iUnit).iExp > 0
+%                 for iClu = 1:length(features)
+%                     cla(ax(iDir, iClu))
+%                     ax(iDir, iClu).Visible = false;
+%                 end
+%                 continue
+%             end
+% 
+%             idx = mi.(dir)(iUnit).idx;
+% 
+%             for iClu = 1:length(features)
+%                 fn = features(iClu);
+%                 if isempty(xta.(dir)(iUnit).(fn))
+%                     ax(iDir, iClu).Visible = false;
+%                     continue
+%                 end
+% 
+%                 % if p.nBoot > 0 && ismember(fn, p.std.features) && isfield(xta.(dir)(iUnit).(fn), 'stats')
+%                 %     prcSTD = quantile(xta.(dir)(iUnit).(fn).stats.stdBoot, [0.95, 0.99, 0.999]);
+%                 %     nStarsSTD = sum(xta.(dir)(iUnit).(fn).stats.std > prcSTD);
+%                 % else
+%                 %     nStarsSTD = 0;
+%                 % end
+% 
+%                 ax(iDir, iClu).Visible = true;
+% 
+%                 hold(ax(iDir, iClu), 'on')
+%                 t = 1e3*xta.(dir)(iUnit).(fn).t;
+%                 plot(ax(iDir, iClu), t, featureSign(iClu)*mean(xta.(dir)(iUnit).(fn).X, 1, 'omitnan'), Color=[0.15, 0.15, 0.15, 1], LineWidth=1.5, LineStyle=':');
+%                 h = gobjects(p.mi.nClusters, 1);
+%                 isClusterEmpty = false(1, p.mi.nClusters);
+%                 for k = 1:p.mi.nClusters % k: semantic cluster index
+%                     k0 = p.mi.semanticClusterOrder(k); % Raw cluster index
+%                     sel = idx==k0;
+%                     if nnz(sel) < p.mi.minNumTrialsPerCluster
+%                         isClusterEmpty(k) = true;
+%                         continue
+%                     end
+%                     c = getColor(k, p.mi.nClusters, 0.7);
+%                     X = xta.(dir)(iUnit).(fn).X(sel, :);
+%                     mu = featureSign(iClu)*mean(X, 1, 'omitnan');
+% 
+%                     % Check significance of cluster movement index against boostrap
+%                     if iClu > 1 % Skip spikerate
+%                         iFeat = iClu - 1;
+%                         xObs = miObs(iUnit).(dir)(k0, iFeat); % nClusters x nFeatures
+%                         xBoot = miBoot(iUnit).(dir)(:, k0, iFeat); % nBoot x nClusters x nFeatures
+%                         switch semanticClusterSign(k)
+%                             case 1
+%                                 pVal = nnz(xBoot > xObs) ./ length(xBoot);
+%                                 nStars = sum(xObs > quantile(xBoot, 1 - [0.05, 0.01, 0.001]));
+%                             case -1
+%                                 pVal = nnz(xBoot < xObs) ./ length(xBoot);
+%                                 nStars = sum(xObs < quantile(xBoot, [0.05, 0.01, 0.001]));
+%                             case 0
+%                                 pVal = nnz(xBoot > xObs) ./ length(xBoot);
+%                                 if pVal < 0.5 % obs on right tail
+%                                     nStars = sum(xObs > quantile(xBoot, 1 - 0.5*[0.05, 0.01, 0.001]));
+%                                 else % obs on left tail
+%                                     pVal = 1 - pVal;
+%                                     nStars = sum(xObs < quantile(xBoot, 0.5*[0.05, 0.01, 0.001]));
+%                                 end
+%                                 pVal = pVal * 2;
+%                         end
+%                         dispName = sprintf("%s%s (n=%i, p<%g)", repmat('*', [1, nStars]), p.mi.semanticClusterLabels(k), nnz(sel), pVal);
+%                         clear iFeat xObs xBoot pVal nStars
+%                     else
+%                         dispName = sprintf("%s (n=%i)", p.mi.semanticClusterLabels(k), nnz(sel));
+%                     end
+% 
+%                     h(k) = plot(ax(iDir, iClu), t, mu, Color=c, LineStyle=lineStyles(k), LineWidth=1.5, DisplayName=dispName);
+%                     clear dispName
+%                 end
+%                 if p.nBoot > 0 && isfield(xta.(dir)(iUnit).(fn), 'XBoot')
+%                     prc = quantile(xta.(dir)(iUnit).(fn).XBoot, [p.bootAlpha/2, 1-p.bootAlpha/2], 1);
+%                     patch(ax(iDir, iClu), [t, flip(t)], featureSign(iClu)*[prc(1, :), flip(prc(2, :))], [0.15, 0.15, 0.15], FaceAlpha=0.05, EdgeColor=[0.15, 0.15, 0.15], EdgeAlpha=0.5);
+%                 end
+%                 xline(ax(iDir, iClu), 1e3*p.std.window, 'k--', Alpha=0.1)
+%                 xline(ax(iDir, iClu), 0, 'k-', Alpha=0.1)
+%                 xticks(ax(iDir, iClu), [-300, 0, 600])
+%                 xtickangle(ax(iDir, iClu), 0)
+% 
+%                 xlabel(ax(iDir, iClu), 'time (ms)')
+%                 ylabel(ax(iDir, iClu), featureUnits(iClu))
+% 
+%                 % fnDisp = sprintf("%s %s", featureDispName(iAx), repmat('*', [1, nStarsSTD]));
+%                 fnDisp = sprintf("%s", featureDispName(iClu));
+%                 title(ax(iDir, iClu), fnDisp, Interpreter='none')
+%                 ylim(ax(iDir, iClu), ylims{iClu})
+%                 hold(ax(iDir, iClu), 'off')
+%                 ax(iDir, iClu).YAxis.Direction = featureAxisDir(iClu);
+%                 legend(ax(iDir, iClu), h(~isClusterEmpty), Location='southoutside', AutoUpdate=false);
+%             end
+%             % lgd = legend(ax(iDir, iAx), h(~isClusterEmpty), AutoUpdate=false);
+%             % lgd.Layout.Tile = 'east';
+%         end
+%         for iDir = 1:2
+%             dir = dirs(iDir);
+%             if ~isempty(xta.(dir)(iUnit).HandR)
+%                 if xta.(dir)(iUnit).iExp > 0
+%                     title(tl(iDir), sprintf("Unit %i (n=%i %ss)", iUnit, length(xta.(dir)(iUnit).t0), dir), FontWeight='bold')
+%                 else
+%                     title(tl(iDir), sprintf("%i units (n=%i %ss)", length(xta)-1, length(xta.(dir)(iUnit).t0), dir), FontWeight='bold')
+%                 end
+%             else
+%                 xlabel(tl(iDir), '')
+%                 title(tl(iDir), '')
+%             end
+%         end
+%         xlim(ax(:, 1:end-2), 1e3*[-0.5, 1])
+%         fontsize(fig, 9, 'points')
+%         print(fig, fullfile(exportPath, sprintf("dta_rta_unit_%03i", iUnit)), '-dpng', '-r0')
+%     end
+% end
+% clear exportPath features nAx dirs dimensionReduction fig tlp tl ax iDir iClu iUnit dir
+% clear idx nClusters mr i fn t selT xx pcScore explained score eva k sel
+% clear mdm i fn t selT stdObs hash I idxSorted sepHash prcSTD nStarsSTD t X k c mu err prc
+% clear iDir dir fnDisp
+% clear isClusterEmpty t h k k0 sel c X mu prc lgd ylims sn t0 tt s lineStyles
+% 
+% 
+% 
 % %% Plot individual units (each axis is a cluster, traces for bodyparts)
 % close all
 % 
