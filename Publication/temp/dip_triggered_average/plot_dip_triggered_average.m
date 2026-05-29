@@ -898,15 +898,16 @@ features = ["spikerate"; "Jaw"; "HandL"; "HandR"; "Spine"];
 featureDispName = ["spike rate"; "jaw"; "left hand"; "right hand"; "spine"];
 featureUnits = ["(a.u.)"; "(DV a.u.)"; "(AP a.u.)"; "(AP a.u.)"; "(DV a.u.)"];
 featureSign = [1; -1; 1; 1; -1];
-featureAxisDir = ["normal"; "normal"; "normal"; "normal"; "normal"];
+featureAxisDir = ["normal"; "reverse"; "normal"; "normal"; "normal"];
 % p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
 % semanticClusterSign = [0, 1, -1, -1, 1, -1, 1]; % 0: two-tailed, 1: right, 2: left
 semanticClusterSign = [0, 1, -1, -1, 1, -1, 0]; % 0: two-tailed, 1: right, 2: left
 clusterDispOrder = [1, 2, 3, 5, 4, 7, 6];
 ylims = {4; 4; 4; 4; 4};
 ylims = cellfun(@(y) y*[-2/3, 1], ylims, UniformOutput=false);
-% ylims{featureAxisDir=="reverse"} = [-1, 2/3]*3;
-xt = 1e3*unique([p.mi.windowPost]);
+ylims{featureAxisDir=="reverse"} = [-1, 2/3]*4;
+% xt = 1e3*unique([p.mi.windowPost, p.mi.windowPre]);
+xt = [0, 1000];
 
 nClusters = length(p.mi.semanticClusterOrder);
 nFeatures = length(features);
@@ -927,6 +928,9 @@ for nCleanClusters = [5, 4, 3, 2, 1]
     exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\Figures", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2)), "By Feature x Cluster", sprintf("Test%i - %s", iTest, tests(iTest).name), sprintf('%i clean clusters', nCleanClusters));
     if ~exist(exportPath, 'dir')
         mkdir(exportPath)
+    else
+        rmdir(exportPath, 's')
+        mkdir(exportPath)   
     end
     
     for dir = ["dip", "rise"]
@@ -987,13 +991,18 @@ for nCleanClusters = [5, 4, 3, 2, 1]
                                 end
                                 pVal = pVal * 2;
                         end
-                        text(ax(iFeat, iClu), 1e3*mean(p.mi.windowPost), ylims{iFeat}(2), repmat('*', [1, nStars]), ...
+                        if featureAxisDir(iFeat) == "reverse"
+                            yPos = ylims{iFeat}(1);
+                        else
+                            yPos = ylims{iFeat}(2);
+                        end
+                        text(ax(iFeat, iClu), 1e3*mean(p.mi.windowPost), yPos, repmat('*', [1, nStars]), ...
                             HorizontalAlignment='center', VerticalAlignment='top', FontSize=12, FontWeight='bold');
-                        clear xObs xBoot pVal nStars
+                        clear xObs xBoot pVal nStars yPos
                     end
     
                     plot(ax(iFeat, iClu), t, mu, Color=c, LineStyle='-', LineWidth=1.5);
-                    xline(ax(iFeat, iClu), xt, 'k--', Alpha=0.1)
+                    % xline(ax(iFeat, iClu), xt, 'k--', Alpha=0.1)
                     xline(ax(iFeat, iClu), 0, 'k-', Alpha=0.1)
                     yline(ax(iFeat, iClu), 0, 'k-', Alpha=0.1)
                     if iFeat == nFeatures
@@ -1003,7 +1012,11 @@ for nCleanClusters = [5, 4, 3, 2, 1]
                         xticks(ax(iFeat, iClu), [])
                     end
                     if iClu == 1
-                        yticks(ax(iFeat, iClu), [0, ylims{iFeat}(2)])
+                        if featureAxisDir(iFeat) == "reverse"
+                            yticks(ax(iFeat, iClu), [ylims{iFeat}(1), 0])
+                        else
+                            yticks(ax(iFeat, iClu), [0, ylims{iFeat}(2)])
+                        end
                     else
                         yticks(ax(iFeat, iClu), [])
                     end
@@ -1019,10 +1032,10 @@ for nCleanClusters = [5, 4, 3, 2, 1]
                     end
                     ylim(ax(iFeat, iClu), ylims{iFeat})
                     hold(ax(iFeat, iClu), 'off')
-                    ax(iFeat, iAx).YAxis.Direction = featureAxisDir(iFeat);
+                    ax(iFeat, iClu).YAxis.Direction = featureAxisDir(iFeat);
                 end
             end
-            xlim(ax, 1e3*[-0.5, 1])
+            xlim(ax, 1e3*[-1, 1])
             xlabel(tl, "time since spike rate change (ms)")
             title(tl, sprintf("Unit %i (n=%i %ss)", iUnit, length(xta.(dir)(iUnit).t0), dir), FontWeight='bold')
             fontsize(fig, 9, 'points')
