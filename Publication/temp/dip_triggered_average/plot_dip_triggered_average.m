@@ -8,6 +8,7 @@ clearvars -except xta p kinematics ROOTPATH
 %% Load data
 % load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_25_200to800ms_units1to1443_100boots.mat"));
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to800ms_units1to1443_100boots.mat"));
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_1443units_1000boots.mat"));
 
 %% Combine movement indices (mi) across dips from all units, then cluster them
 features = ["spikerate", "Jaw", "Tongue", "HandL", "HandR", "Spine"];
@@ -29,7 +30,13 @@ p.mi.semanticClusterOrder = [1, 2, 3, 4, 7, 5, 6];
 % p.mi.semanticClusterOrder = 1:7;
 p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
 p.mi.semanticClusterSign = [0, 1, -1, -1, 1, -1, 1]; % 0: two-tailed, 1: right, 2: left
-p.mi.dimensionReductionMethod = "manual"; % "pca", "tsne", "umap", "manual", "manual+umap"... manual: avg(4 limbs) vs. avg(tongue/jaw) vs. spine
+v = matlabRelease();
+if v.Date >= datetime(2026, 5, 5) % umap was added in 2026a
+    p.mi.dimensionReductionMethod = "manual+umap"; % "pca", "tsne", "umap", "manual", "manual+umap"... manual: avg(4 limbs) vs. avg(tongue/jaw) vs. spine
+else
+    p.mi.dimensionReductionMethod = "manual"; % "pca", "tsne", "umap", "manual", "manual+umap"... manual: avg(4 limbs) vs. avg(tongue/jaw) vs. spine
+end
+clear v
 p.mi.displayDimensions = 2;
 switch p.mi.dimensionReductionMethod
     case "pca"
@@ -218,6 +225,38 @@ hold(ax, 'off')
 legend(h, Location='northeast')
 title(ax, p.mi.displayMethodName)
 
+% Average movement profiles by cluster
+clear mp0 mp
+mp0(length(xta.dip), 1) = struct(spikerate=[], HandR=[], HandL=[], Spine=[], Jaw=[], Tongue=[]);
+mp = struct(dip=mp0, rise=mp0);
+for iUnit = 1:length(xta.dip)
+    for dir = ["dip", "rise"]
+        for k = 1:p.mi.nClusters
+            sel = mi.(dir)(iUnit).idx==k;
+            for fn = features
+                mp.(dir)(iUnit, k).(fn) = xta.(dir)(iUnit).(fn).X(sel, :);
+            end
+        end
+    end
+end
+clear mp0 iUnit dir k sel fn
+
+mpMean = struct(dip=[], rise=[]);
+for dir = ["dip", "rise"]
+    for fn = features
+        XCell = arrayfun(@(mp) mp.(fn), mp.(dir), UniformOutput=false);
+        t = xta.(dir)(1).(fn).t;
+        X = NaN(p.mi.nClusters, length(t));
+        for k = 1:p.mi.nClusters
+            X(k, :) = mean(cat(1, XCell{:, k}), 1, 'omitnan');
+        end
+        mpMean.(dir).(fn).X = X;
+        mpMean.(dir).(fn).t = t;
+        mpMean.(dir).(fn).N = sum(cellfun(@(x) size(x, 1), XCell), 1);
+    end
+end
+clear dir fn XCell X k t
+
 % Plot grand average movement trajectories by cluster
 lineStyles = ["-", "-", "--", "--", "-", "--", "-", "--"];
 tl = gobjects(2, 1);
@@ -256,38 +295,6 @@ legend(h(2, length(features), :), Location='eastoutside')
 fontsize(fig, 9, 'points')
 
 
-% Average movement profiles by cluster
-clear mp0 mp
-mp0(length(xta.dip), 1) = struct(spikerate=[], HandR=[], HandL=[], Spine=[], Jaw=[], Tongue=[]);
-mp = struct(dip=mp0, rise=mp0);
-for iUnit = 1:length(xta.dip)
-    for dir = ["dip", "rise"]
-        for k = 1:p.mi.nClusters
-            sel = mi.(dir)(iUnit).idx==k;
-            for fn = features
-                mp.(dir)(iUnit, k).(fn) = xta.(dir)(iUnit).(fn).X(sel, :);
-            end
-        end
-    end
-end
-clear mp0 iUnit dir k sel fn
-
-mpMean = struct(dip=[], rise=[]);
-for dir = ["dip", "rise"]
-    for fn = features
-        XCell = arrayfun(@(mp) mp.(fn), mp.(dir), UniformOutput=false);
-        t = xta.(dir)(1).(fn).t;
-        X = NaN(p.mi.nClusters, length(t));
-        for k = 1:p.mi.nClusters
-            X(k, :) = mean(cat(1, XCell{:, k}), 1, 'omitnan');
-        end
-        mpMean.(dir).(fn).X = X;
-        mpMean.(dir).(fn).t = t;
-        mpMean.(dir).(fn).N = sum(cellfun(@(x) size(x, 1), XCell), 1);
-    end
-end
-clear dir fn XCell X k t
-
 p.mi.minNumTrialsPerCluster = 5;
 clear clusterSize
 clusterSize(length(xta.dip)) = struct(dip=[], rise=[]);
@@ -316,10 +323,9 @@ clear tTic iUnit dir fn X t XPre XPost
 clear iFeat fn pcaScoreMerge pcaExplained nClusters ax k sel
 clear i0 iUnit dir n h
 clear fig ax tl tlp layout iAx fn k faceColor dir iDir xl yl zl
-
+clear dispScore dispScoreMerge featureAxisDir featureDispName features featureSign featureUnits idxMerge k0 nTrials pcaScore ylims
 %% Boot
 % boot_dta_clustered_movement_index;
-load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_1443units_1000boots.mat"));
 
 %% Count number of "clean clusters" by unit
 % A clean cluster is a cluster of dips/rises where one bodypart moved but
