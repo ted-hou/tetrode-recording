@@ -508,16 +508,17 @@ for iTest = 1:length(tests)
         tests(iTest).(dir).nCleanClustersHasData = sum(tests(iTest).(dir).hasData, 2);
         tests(iTest).(dir).prcCleanClustersFound = tests(iTest).(dir).nCleanClustersFound ./ tests(iTest).(dir).nCleanClustersHasData;
         for n = 1:length(tests(iTest).labels)
-            tests(iTest).(dir).nUnitsWithNCleanClusters(n) = sum(tests(iTest).(dir).nCleanClustersFound==n);
-            tests(iTest).(dir).nUnitsWithNNonMissingClusters(n) = sum(tests(iTest).(dir).nCleanClustersHasData==n);
-            tests(iTest).(dir).prcUnitsWithNCleanClusters(n) = tests(iTest).(dir).nUnitsWithNCleanClusters(n) ./ nUnits;
-            tests(iTest).(dir).prcUnitsWithNCleanClustersNonMissing(n) = tests(iTest).(dir).nUnitsWithNCleanClusters(n) ./ tests(iTest).(dir).nUnitsWithNNonMissingClusters(n);
-        end
-        for n = 1:length(tests(iTest).labels)
             tests(iTest).(dir).nUnitsWithNPlusCleanClusters(n) = sum(tests(iTest).(dir).nCleanClustersFound>=n); % Of all units, how many has at least 2 clean clusters?
             tests(iTest).(dir).nUnitsWithNPlusNonMissingClusters(n) = sum(tests(iTest).(dir).nCleanClustersHasData>=n); % Of all units, how many has at least 2 clusters not missing data?
             tests(iTest).(dir).prcUnitsWithNPlusCleanClusters(n) = tests(iTest).(dir).nUnitsWithNPlusCleanClusters(n) ./ nUnits;
             tests(iTest).(dir).prcUnitsWithNPlusCleanClustersNonMissing(n) = tests(iTest).(dir).nUnitsWithNPlusCleanClusters(n) ./ tests(iTest).(dir).nUnitsWithNPlusNonMissingClusters(n);
+        end
+        for n = 1:length(tests(iTest).labels)-1
+            tests(iTest).(dir).nUnitsWithNCleanClusters(n) = sum(tests(iTest).(dir).nCleanClustersFound==n);
+            tests(iTest).(dir).nUnitsWithNCleanClustersNonMissing(n) = sum(tests(iTest).(dir).nCleanClustersFound==n & tests(iTest).(dir).nCleanClustersHasData>n);
+            tests(iTest).(dir).nUnitsWithMoreThanNNonMissingClusters(n) = sum(tests(iTest).(dir).nCleanClustersHasData>n);
+            tests(iTest).(dir).prcUnitsWithNCleanClusters(n) = tests(iTest).(dir).nUnitsWithNCleanClusters(n) ./ nUnits;
+            tests(iTest).(dir).prcUnitsWithNCleanClustersNonMissing(n) = tests(iTest).(dir).nUnitsWithNCleanClustersNonMissing(n) ./ tests(iTest).(dir).nUnitsWithMoreThanNNonMissingClusters(n);
         end
     end
 end
@@ -529,19 +530,24 @@ for iTest = 1:length(tests)
         iTest, tests(iTest).name, ...
         strjoin(cellfun(@(labels) sprintf("[%s]", strjoin(labels, ", ")), tests(iTest).labels), " vs. ") ...
         )
-    for n = 1
-        for dir = ["dip", "rise"]
-            fprintf("\t%s\t%2i%% (%4i/%i total units)\t%2i%% (%4i/%i valid units)\thas exactly\t%i clean cluster(s).\n", ...
+    for dir = ["dip", "rise"]
+        for n = 1:length(tests(iTest).labels)-1
+            if n > 1
+                plural = "s";
+            else
+                plural = "";
+            end
+            fprintf("\t%s\t%2i%% (%4i/%i total units)\t%2i%% (%4i/%i valid units)\thas\t%i clean cluster%s.\n", ...
                 dir, ...
-                round(100*tests(iTest).(dir).prcUnitsWithNPlusCleanClusters(n)), ...
-                tests(iTest).(dir).nUnitsWithNPlusCleanClusters(n), nUnits, ...
-                round(100*tests(iTest).(dir).prcUnitsWithNPlusCleanClustersNonMissing(n)), ...
-                tests(iTest).(dir).nUnitsWithNPlusCleanClusters(n), tests(iTest).(dir).nUnitsWithNPlusNonMissingClusters(n), ...
-                n);
+                round(100*tests(iTest).(dir).prcUnitsWithNCleanClusters(n)), ...
+                tests(iTest).(dir).nUnitsWithNCleanClusters(n), nUnits, ...
+                round(100*tests(iTest).(dir).prcUnitsWithNCleanClustersNonMissing(n)), ...
+                tests(iTest).(dir).nUnitsWithNCleanClustersNonMissing(n), tests(iTest).(dir).nUnitsWithMoreThanNNonMissingClusters(n), ...
+                n, plural);
         end
     end
-    for n = 2:length(tests(iTest).labels)
-        for dir = ["dip", "rise"]
+    for dir = ["dip", "rise"]
+        for n = 2:length(tests(iTest).labels)
             fprintf("\t%s\t%2i%% (%4i/%i total units)\t%2i%% (%4i/%i valid units)\thas\t%i+ clean clusters.\n", ...
                 dir, ...
                 round(100*tests(iTest).(dir).prcUnitsWithNPlusCleanClusters(n)), ...
