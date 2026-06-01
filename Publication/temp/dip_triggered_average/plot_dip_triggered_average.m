@@ -20,13 +20,13 @@ ylims = {5, 3, 1, 3, 3, 3};
 ylims = cellfun(@(y) y*[-2/3, 1], ylims, UniformOutput=false);
 ylims{featureAxisDir=="reverse"} = [-1, 2/3]*3;
 p.mi.features = ["Jaw", "Tongue", "HandL", "HandR", "Spine"];
-p.mi.windowPre = [-0.6, 0];
-p.mi.windowPost = [0, 0.6];
+p.mi.windowPre = [-0.3, 0];
+p.mi.windowPost = [0, 0.3];
 p.mi.nClusters = 7;
 p.mi.clusterMethod = "kmeans"; % "gaussian", "kmeans"
 p.mi.clusterDimensions = 4;
-p.mi.clusterSeed = 42; % [-0.6, -0] vs [0, 0.6]: 42; [-1, -0.3] vs [0, 0.6]: 42, 2
-p.mi.semanticClusterOrder = [1, 3, 2, 7, 4, 6, 5];
+p.mi.clusterSeed = 1; % [-0.3, -0] vs [0, 0.3]: 42; [-0.6, -0] vs [0, 0.6]: 42; [-1, -0.3] vs [0, 0.6]: 42, 2
+p.mi.semanticClusterOrder = [1, 3, 2, 6, 4, 7, 5];
 % p.mi.semanticClusterOrder = 1:7;
 p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"];
 p.mi.semanticClusterSign = [0, 1, -1, 1, -1, 1, -1]; % 0: two-tailed, 1: right, 2: left
@@ -325,7 +325,7 @@ clear i0 iUnit dir n h
 clear fig ax tl tlp layout iClu fn k faceColor dir iDir xl yl zl
 clear dispScore dispScoreMerge featureAxisDir featureDispName features featureSign featureUnits idxMerge k0 nTrials pcaScore ylims
 %% Boot
-% boot_dta_clustered_movement_index;
+boot_dta_clustered_movement_index;
 
 %% Count number of "clean clusters" by unit
 % A clean cluster is a cluster of dips/rises where one bodypart moved but
