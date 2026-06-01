@@ -20,16 +20,16 @@ ylims = {5, 3, 1, 3, 3, 3};
 ylims = cellfun(@(y) y*[-2/3, 1], ylims, UniformOutput=false);
 ylims{featureAxisDir=="reverse"} = [-1, 2/3]*3;
 p.mi.features = ["Jaw", "Tongue", "HandL", "HandR", "Spine"];
-p.mi.windowPre = [-1, -0.3];
+p.mi.windowPre = [-0.6, 0];
 p.mi.windowPost = [0, 0.6];
 p.mi.nClusters = 7;
 p.mi.clusterMethod = "kmeans"; % "gaussian", "kmeans"
 p.mi.clusterDimensions = 4;
-p.mi.clusterSeed = 42; % 2 is also good
-p.mi.semanticClusterOrder = [1, 2, 3, 4, 7, 5, 6];
+p.mi.clusterSeed = 42; % [-0.6, -0] vs [0, 0.6]: 42; [-1, -0.3] vs [0, 0.6]: 42, 2
+p.mi.semanticClusterOrder = [1, 3, 2, 7, 4, 6, 5];
 % p.mi.semanticClusterOrder = 1:7;
-p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand retract", "left hand reach", "right hand retract", "right hand reach"];
-p.mi.semanticClusterSign = [0, 1, -1, -1, 1, -1, 1]; % 0: two-tailed, 1: right, 2: left
+p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"];
+p.mi.semanticClusterSign = [0, 1, -1, 1, -1, 1, -1]; % 0: two-tailed, 1: right, 2: left
 v = matlabRelease();
 if v.Date >= datetime(2026, 5, 5) % umap was added in 2026a
     p.mi.dimensionReductionMethod = "manual+umap"; % "pca", "tsne", "umap", "manual", "manual+umap"... manual: avg(4 limbs) vs. avg(tongue/jaw) vs. spine
@@ -166,7 +166,7 @@ assert(i0.rise == sum(nTrials.rise))
 
 
 % Scatter plot of all movement profiles
-close all
+% close all
 layout.h = [4, 1, 1];
 fig = figure(Units='normalized', Position=[0.05, 0.05, 0.9, 0.9]);
 tlp = tiledlayout(fig, sum(layout.h), 1);
@@ -258,7 +258,7 @@ end
 clear dir fn XCell X k t
 
 % Plot grand average movement trajectories by cluster
-lineStyles = ["-", "-", "--", "--", "-", "--", "-", "--"];
+lineStyles = ["-", "-", "--", "-", "--", "-", "--"];
 tl = gobjects(2, 1);
 for iDir = 1:2
     tl(iDir) = tiledlayout(tlp, 1, length(features));

@@ -1,4 +1,3 @@
-
 %% TODO:
 % Individual units do not really always fit the grand cluster labels
 % Try doing actual categorization, trial by trial, look for trials containing exactly ONE of the following:
@@ -88,7 +87,7 @@ end
 clear iUnit dir iFeat fn idx iClu
 
 %% Save data
-exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_miBoot_%iunits_%iboots.mat", nUnits, p.mi.boot.nBoot));
+exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_miBoot_%iunits_%iboots_%s.mat", nUnits, p.mi.boot.nBoot, datetime("now", Format="yyyyMMdd")));
 save(exportPath, 'clusterSize', 'mi', 'miBoot', 'miObs', 'p', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
 
