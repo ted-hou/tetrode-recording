@@ -1,6 +1,6 @@
 %% Set root
-ROOTPATH = "E:\DATA";
-% ROOTPATH = 'C:\SERVER';
+% ROOTPATH = "E:\DATA";
+ROOTPATH = 'C:\SERVER';
 
 %% Clear temp vars
 clearvars -except xta p kinematics ROOTPATH
@@ -574,7 +574,7 @@ clear iTest dir iGrp testNames testGroups selClusters hasData found n
 
 close all
 for iTest = 1:length(tests)
-    fig = figure(Name=tests(iTest).name);
+    fig = figure(Name=tests(iTest).name, Units='inches', Position=[1, 1, 5, 7]);
     tl = tiledlayout(fig, 4, 2, TileIndexing='columnmajor');
     title(tl, sprintf("%s\n[%s]", tests(iTest).name, strjoin(cellfun(@(labels) strjoin(labels, "/"), tests(iTest).labels), "] vs. [")))
     ax = gobjects(4, 2);
@@ -619,9 +619,11 @@ for iTest = 1:length(tests)
         yticks(ax(iRow, iCol), yEdges+0.5)
         grid(ax(iRow, iCol), 'off');
     end
+    fontsize(fig, 9, 'points')
 end
 clear iTest fig tl ax iCol dir iRow fn centers edges n xEdges yEdges
 
+%%
 clc
 for iTest = 1:length(tests)
     fprintf("Test %i (%s):\n%s:\n", ...
