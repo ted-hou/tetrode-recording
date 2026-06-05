@@ -13,7 +13,7 @@ end
 p.mi.boot.features = ["Jaw", "HandL", "HandR", "Spine"];
 p.mi.boot.clusters = 1:7;
 p.mi.boot.alpha = 0.05;
-p.mi.boot.nBoot = 1000;
+p.mi.boot.nBoot = 10000;
 
 features = p.mi.boot.features;
 clusters = p.mi.boot.clusters;
@@ -46,14 +46,17 @@ for iUnit = 1:nUnits
                 continue
             end
             parfor iBoot = 1:nBoot
+            % for iBoot = 1:nBoot
                 xDiff = NaN(nTrials, length(features));
                 for iFeat = 1:length(features)
                     fn = features(iFeat);
                     t = kine.(fn).t;
                     t0Boot = rand([nTrials, 1]) * maxT;
                     for iTrial = 1:nTrials
-                        xPre = mean(kine.(fn).X(isin(t, t0Boot(iTrial) + windowPre)), 'all', 'omitnan');
-                        xPost = mean(kine.(fn).X(isin(t, t0Boot(iTrial) + windowPost)), 'all', 'omitnan');
+                        [iStartPre, iStopPre] = isin(t, t0Boot(iTrial) + windowPre, true, true);
+                        [iStartPost, iStopPost] = isin(t, t0Boot(iTrial) + windowPost, true, true);
+                        xPre = mean(kine.(fn).X(iStartPre:iStopPre), 'all', 'omitnan');
+                        xPost = mean(kine.(fn).X(iStartPost:iStopPost), 'all', 'omitnan');
                         xDiff(iTrial, iFeat) = xPost - xPre;
                     end
                 end
@@ -92,4 +95,5 @@ save(exportPath, 'clusterSize', 'mi', 'miBoot', 'miObs', 'p', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
 
 clear features clusters alpha nBoot windowPre windowPost
+
 

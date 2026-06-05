@@ -11,7 +11,7 @@ load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100
 
 % Load bootstrapped per-cluster averages. Can skip next step unless you
 % want to recluster/rebootstrap
-load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_1443units_1000boots_20260602.mat")); % contains updated `p`
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_1443units_10000boots_20260605.mat")); % contains updated `p`
 
 %% Combine movement indices (mi) across dips from all units, then cluster them. 
 % Do this before bootstrapping per-cluster averages.
@@ -589,7 +589,8 @@ for iTest = 1:length(tests)
             if fn == "prcGroupsClean"
                 edges = edges./edges(end);
             end
-            n = histcounts(tests(iTest).(dir).(fn)(tests(iTest).(dir).valid), edges);
+            n = histcounts(tests(iTest).(dir).(fn), edges);
+            % n = histcounts(tests(iTest).(dir).(fn)(tests(iTest).(dir).valid), edges);
             if fn ~= "prcGroupsClean"
                 bar(ax(iRow, iCol), edges(1:end-1), n, 1, EdgeColor='black', FaceColor='black', FaceAlpha=0.5)
                 xlim(ax(iRow, iCol), [edges(1), edges(end)]-0.5)
