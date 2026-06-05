@@ -7,7 +7,8 @@ clearvars -except xta p kinematics ROOTPATH
 
 %% Load data
 % Load dip/rise triggered averages, the bootstraps contained within are kind of useless.
-load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to800ms_units1to1443_100boots.mat"));
+% load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to800ms_units1to1443_100boots.mat"));
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to2000ms_units1to1443_0boots_20260605.mat"));
 
 % Load bootstrapped per-cluster averages. Can skip next step unless you
 % want to recluster/rebootstrap
@@ -16,9 +17,13 @@ load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_1443uni
 %% Combine movement indices (mi) across dips from all units, then cluster them. 
 % Do this before bootstrapping per-cluster averages.
 requiredFields = ["features", "windowPre", "windowPost", "nClusters", "clusterMethod", "clusterDimensions", "clusterSeed", "semanticClusterOrder", "semanticClusterLabels", "semanticClusterSign", "dimensionReductionMethod"];
-if any(~isfield(p.mi, requiredFields))
-    msg = sprintf("The following required p.mi fields are missing:\n%s\n\nOverwrite p.mi?", strjoin(requiredFields(~isfield(p.mi, requiredFields)), ", "));
-    choice = questdlg(msg, "Missing p.mi fields", "Overwrite", "Cancel", "Cancel");
+if ~isfield(p, 'mi') || any(~isfield(p.mi, requiredFields))
+    if isfield(p, 'mi')
+        msg = sprintf("The following required p.mi fields are missing:\n%s\n\nOverwrite p.mi?", strjoin(requiredFields(~isfield(p.mi, requiredFields)), ", "));
+        choice = questdlg(msg, "Missing p.mi fields", "Overwrite", "Cancel", "Cancel");
+    else
+        choice = 'Overwrite';
+    end
     if strcmp(choice, "Overwrite")
         p.mi.features = ["Jaw", "Tongue", "HandL", "HandR", "Spine"];
         p.mi.windowPre = [-0.3, 0];
@@ -66,120 +71,124 @@ tTic = tic();
 if exist('mi', 'var')
     choice = questdlg('Variable "mi" already exists in workspace. Recalculate and overwrite?', ...
         'Overwrite mi?', 'Yes', 'No', 'No');
-    switch choice
-        case 'Yes'
-            clear mi
-            for dir = ["dip", "rise"]
-                mi.(dir)(length(xta.(dir))) = struct(HandR=[], HandL=[], Spine=[], Jaw=[], Tongue=[]);
-            end
-            for iUnit = 1:length(xta.dip)
-                for dir = ["dip", "rise"]
-                    for fn = p.mi.features
-                        X = xta.(dir)(iUnit).(fn).X; % trials x timestamps
-                        t = xta.(dir)(iUnit).(fn).t;
-                        XPre = mean(X(:, isin(t, p.mi.windowPre)), 2, 'omitnan');
-                        XPost = mean(X(:, isin(t, p.mi.windowPost)), 2, 'omitnan');
-                        mi.(dir)(iUnit).(fn) = XPost - XPre;
-                    end
-                end
-            end
-
-            % Cluster movements
-            fprintf("Concatenating...")
-            iFeat = 0;
-            nTrials.dip = cellfun(@length, {mi.dip.HandR});
-            nTrials.rise = cellfun(@length, {mi.rise.HandR});
-            X = NaN(sum(nTrials.dip) + sum(nTrials.rise), length(p.mi.features));
-            for fn = p.mi.features
-                iFeat = iFeat + 1;
-                X(:, iFeat) = vertcat(vertcat(mi.dip.(fn)), vertcat(mi.rise.(fn)));
-            end
-            if ismember(p.mi.dimensionReductionMethod, ["manual", "manual+umap"])
-                Y = NaN(size(X, 1), 4);
-                Y(:, 1) = mean(X(:, ismember(p.mi.features, ["HandL"])), 2, 'omitnan');
-                Y(:, 2) = mean(X(:, ismember(p.mi.features, ["Tongue", "Jaw"])), 2, 'omitnan');
-                Y(:, 3) = mean(X(:, ismember(p.mi.features, ["HandR"])), 2, 'omitnan');
-                Y(:, 4) = mean(X(:, ismember(p.mi.features, ["Spine"])), 2, 'omitnan');
-                X = Y;
-                clear Y
-            end
-            X(isnan(X)) = 0;
-            fprintf("(%.1fs)\n", toc(tTic));
-            fprintf("%s...", p.mi.displayMethodName)
-            switch p.mi.dimensionReductionMethod
-                case "pca"
-                    [~, pcaScoreMerge, ~, ~] = pca(X);
-                    dispScoreMerge = pcaScoreMerge(:, 1:p.mi.displayDimensions);
-                case "tsne"
-                    [~, pcaScoreMerge, ~, ~] = pca(X);
-                    dispScoreMerge = tsne(X, NumDimensions=p.mi.displayDimensions);
-                case "umap"
-                    [~, pcaScoreMerge, ~, ~] = pca(X);
-                    dispScoreMerge = umap(X, NumDimensions=p.mi.displayDimensions);
-                case "manual"
-                    pcaScoreMerge = X;
-                    dispScoreMerge = X;
-                case "manual+umap"
-                    pcaScoreMerge = X;
-                    dispScoreMerge = umap(X, NumDimensions=p.mi.displayDimensions);
-                otherwise
-                    error("unknown method %s", p.mi.dimensionReductionMethod)
-            end
-            fprintf("(%.1fs)\n", toc(tTic));
-
-            fprintf("Clustering ")
-            switch p.mi.clusterMethod
-                case "kmeans"
-                    fprintf("(kmeans)...")
-                    % Fix the seed so we don't have to manually assign semantic cluster labels repeatedly
-                    rng(p.mi.clusterSeed);
-                    idxMerge = kmeans(pcaScoreMerge(:, 1:p.mi.clusterDimensions), p.mi.nClusters);
-                case "gaussian"
-                    fprintf("(Gaussian mixture)...")
-                    rng(p.mi.clusterSeed);
-                    gm = fitgmdist(pcaScoreMerge(:, 1:p.mi.clusterDimensions), p.mi.nClusters);
-                    idxMerge = cluster(gm, pcaScoreMerge(:, 1:p.mi.clusterDimensions));
-                    clear gm
-                otherwise
-                    error("unknown method %s", p.mi.clusterMethod)
-            end
-            % Cluster indices should reflect cluster size
-            n = arrayfun(@(k) nnz(idxMerge==k), 1:max(idxMerge));
-            [~, clusterOrder] = sort(n, 'descend');
-            idxMerge = changem(idxMerge, 1:max(idxMerge), clusterOrder);
-            clear n clusterOrder
-
-            fprintf("(%.1fs)\n", toc(tTic));
-
-            % Reassign cluster indices to units
-            clear idx pcaScore dispScore
-            idx.dip = idxMerge(1:sum(nTrials.dip));
-            idx.rise = idxMerge(sum(nTrials.dip)+1:end);
-            pcaScore.dip = pcaScoreMerge(1:sum(nTrials.dip), :);
-            pcaScore.rise = pcaScoreMerge(sum(nTrials.dip)+1:end, :);
-            dispScore.dip = dispScoreMerge(1:sum(nTrials.dip), :);
-            dispScore.rise = dispScoreMerge(sum(nTrials.dip)+1:end, :);
-
-            i0.dip = 0;
-            i0.rise = 0;
-            for iUnit = 1:length(xta.dip)
-                for dir = ["dip", "rise"]
-                    n = nTrials.(dir)(iUnit);
-                    mi.(dir)(iUnit).idx = idx.(dir)(i0.(dir)+1 : i0.(dir)+n);
-                    mi.(dir)(iUnit).pcaScore = pcaScore.(dir)(i0.(dir)+1 : i0.(dir)+n, :);
-                    mi.(dir)(iUnit).dispScore = dispScore.(dir)(i0.(dir)+1 : i0.(dir)+n, :);
-                    i0.(dir) = i0.(dir) + n;
-                end
-            end
-            assert(i0.dip == sum(nTrials.dip))
-            assert(i0.rise == sum(nTrials.rise))
-
-        case {'No', ''}
-            fprintf('Using existing variable "mi" which contains calculated movement indices, dimensionality reduction results, and clustering results.\n');
+else
+    choice = 'Yes';
+end
+if strcmpi(choice, 'Yes')
+    clear mi
+    for dir = ["dip", "rise"]
+        mi.(dir)(length(xta.(dir))) = struct(HandR=[], HandL=[], Spine=[], Jaw=[], Tongue=[]);
     end
+    for iUnit = 1:length(xta.dip)
+        for dir = ["dip", "rise"]
+            for fn = p.mi.features
+                X = xta.(dir)(iUnit).(fn).X; % trials x timestamps
+                t = xta.(dir)(iUnit).(fn).t;
+                XPre = mean(X(:, isin(t, p.mi.windowPre)), 2, 'omitnan');
+                XPost = mean(X(:, isin(t, p.mi.windowPost)), 2, 'omitnan');
+                mi.(dir)(iUnit).(fn) = XPost - XPre;
+            end
+        end
+    end
+
+    % Cluster movements
+    fprintf("Concatenating...")
+    iFeat = 0;
+    nTrials.dip = cellfun(@length, {mi.dip.HandR});
+    nTrials.rise = cellfun(@length, {mi.rise.HandR});
+    X = NaN(sum(nTrials.dip) + sum(nTrials.rise), length(p.mi.features));
+    for fn = p.mi.features
+        iFeat = iFeat + 1;
+        X(:, iFeat) = vertcat(vertcat(mi.dip.(fn)), vertcat(mi.rise.(fn)));
+    end
+    if ismember(p.mi.dimensionReductionMethod, ["manual", "manual+umap"])
+        Y = NaN(size(X, 1), 4);
+        Y(:, 1) = mean(X(:, ismember(p.mi.features, ["HandL"])), 2, 'omitnan');
+        Y(:, 2) = mean(X(:, ismember(p.mi.features, ["Tongue", "Jaw"])), 2, 'omitnan');
+        Y(:, 3) = mean(X(:, ismember(p.mi.features, ["HandR"])), 2, 'omitnan');
+        Y(:, 4) = mean(X(:, ismember(p.mi.features, ["Spine"])), 2, 'omitnan');
+        X = Y;
+        clear Y
+    end
+    X(isnan(X)) = 0;
+    fprintf("(%.1fs)\n", toc(tTic));
+    fprintf("%s...", p.mi.displayMethodName)
+    switch p.mi.dimensionReductionMethod
+        case "pca"
+            [~, pcaScoreMerge, ~, ~] = pca(X);
+            dispScoreMerge = pcaScoreMerge(:, 1:p.mi.displayDimensions);
+        case "tsne"
+            [~, pcaScoreMerge, ~, ~] = pca(X);
+            dispScoreMerge = tsne(X, NumDimensions=p.mi.displayDimensions);
+        case "umap"
+            [~, pcaScoreMerge, ~, ~] = pca(X);
+            dispScoreMerge = umap(X, NumDimensions=p.mi.displayDimensions);
+        case "manual"
+            pcaScoreMerge = X;
+            dispScoreMerge = X;
+        case "manual+umap"
+            pcaScoreMerge = X;
+            dispScoreMerge = umap(X, NumDimensions=p.mi.displayDimensions);
+        otherwise
+            error("unknown method %s", p.mi.dimensionReductionMethod)
+    end
+    fprintf("(%.1fs)\n", toc(tTic));
+
+    fprintf("Clustering ")
+    switch p.mi.clusterMethod
+        case "kmeans"
+            fprintf("(kmeans)...")
+            % Fix the seed so we don't have to manually assign semantic cluster labels repeatedly
+            rng(p.mi.clusterSeed);
+            idxMerge = kmeans(pcaScoreMerge(:, 1:p.mi.clusterDimensions), p.mi.nClusters);
+        case "gaussian"
+            fprintf("(Gaussian mixture)...")
+            rng(p.mi.clusterSeed);
+            gm = fitgmdist(pcaScoreMerge(:, 1:p.mi.clusterDimensions), p.mi.nClusters);
+            idxMerge = cluster(gm, pcaScoreMerge(:, 1:p.mi.clusterDimensions));
+            clear gm
+        otherwise
+            error("unknown method %s", p.mi.clusterMethod)
+    end
+    % Cluster indices should reflect cluster size
+    n = arrayfun(@(k) nnz(idxMerge==k), 1:max(idxMerge));
+    [~, clusterOrder] = sort(n, 'descend');
+    idxMerge = changem(idxMerge, 1:max(idxMerge), clusterOrder);
+    clear n clusterOrder
+
+    fprintf("(%.1fs)\n", toc(tTic));
+
+    % Reassign cluster indices to units
+    clear idx pcaScore dispScore
+    idx.dip = idxMerge(1:sum(nTrials.dip));
+    idx.rise = idxMerge(sum(nTrials.dip)+1:end);
+    pcaScore.dip = pcaScoreMerge(1:sum(nTrials.dip), :);
+    pcaScore.rise = pcaScoreMerge(sum(nTrials.dip)+1:end, :);
+    dispScore.dip = dispScoreMerge(1:sum(nTrials.dip), :);
+    dispScore.rise = dispScoreMerge(sum(nTrials.dip)+1:end, :);
+
+    i0.dip = 0;
+    i0.rise = 0;
+    for iUnit = 1:length(xta.dip)
+        for dir = ["dip", "rise"]
+            n = nTrials.(dir)(iUnit);
+            mi.(dir)(iUnit).idx = idx.(dir)(i0.(dir)+1 : i0.(dir)+n);
+            mi.(dir)(iUnit).pcaScore = pcaScore.(dir)(i0.(dir)+1 : i0.(dir)+n, :);
+            mi.(dir)(iUnit).dispScore = dispScore.(dir)(i0.(dir)+1 : i0.(dir)+n, :);
+            i0.(dir) = i0.(dir) + n;
+        end
+    end
+    assert(i0.dip == sum(nTrials.dip))
+    assert(i0.rise == sum(nTrials.rise))
+else
+    fprintf('Using existing variable "mi" which contains calculated movement indices, dimensionality reduction results, and clustering results.\n');
 end
 
-choice = questdlg('Recalculate existing variable "clusterSize"?', 'Recalculate clusterSize', 'Yes', 'No', 'No');
+if exist('clusterSize', 'var')
+    choice = questdlg('Recalculate existing variable "clusterSize"?', 'Recalculate clusterSize', 'Yes', 'No', 'No');
+else
+    choice = 'Yes';
+end
 if strcmpi(choice, 'Yes')
     if ~isfield(p.mi, 'minNumTrialsPerCluster')
         warning('Field p.mi.minNumTrialsPerCluster not found, setting it to 5.')
@@ -370,7 +379,7 @@ clear fig ax tl tlp layout iClu fn k faceColor dir iDir xl yl zl
 clear dispScore dispScoreMerge featureAxisDir featureDispName features featureSign featureUnits idxMerge k0 nTrials pcaScore ylims
 clear mpMean mp
 %% Recalculate bootstrap (takes about 24hrs)
-% boot_dta_clustered_movement_index;
+boot_dta_clustered_movement_index;
 
 %% Count number of "clean clusters" by unit
 % A clean cluster is a cluster of dips/rises where one bodypart moved but
