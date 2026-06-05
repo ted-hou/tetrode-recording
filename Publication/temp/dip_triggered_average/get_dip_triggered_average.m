@@ -138,14 +138,16 @@ p.xta.res = 1/30;
 p.xta.window = [-1, 1];
 p.xta.meanWindow = [-0.3, 0.3];
 
-p.xta.dip.samples = [2, 8];
+% p.xta.dip.samples = [2, 8]; % check p.spikeRes to convert to dip duration 200-800ms
+p.xta.dip.samples = [2, 20]; % 200ms -> 2000ms
 p.xta.dip.thresholdQuantile = 0.25;
 p.xta.dip.thresholdSubQuantile = 1;
 p.xta.dip.pattern = arrayfun(@(n) [0, 0, 0, ones(1, n), 0, 0, 0] , p.xta.dip.samples(1):p.xta.dip.samples(2), UniformOutput=false); % 100-300ms dips
 p.xta.dip.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.dip.pattern); % finds the onset
 
 
-p.xta.rise.samples = [2, 8];
+% p.xta.rise.samples = [2, 8];
+p.xta.rise.samples = [2, 20];
 p.xta.rise.thresholdQuantile = 1 - p.xta.dip.thresholdQuantile;
 p.xta.rise.thresholdSubQuantile = 1 - p.xta.dip.thresholdSubQuantile;
 p.xta.rise.pattern = arrayfun(@(n) [0, 0, 0, ones(1, n), 0, 0, 0] , p.xta.rise.samples(1):p.xta.rise.samples(2), UniformOutput=false);
@@ -154,7 +156,7 @@ p.xta.rise.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.rise.p
 p.blank(1).event = "StimOn";
 p.blank(1).window = [-1, 1];
 
-p.nBoot = 100;
+p.nBoot = 0;
 if p.nBoot < 1000
     warning("Running bootstrap with nBoot=%i<1000 is only recommended for testing purposes. Run a real bootstrap pls you lazy bum.", p.nBoot)
 end
@@ -194,7 +196,7 @@ for iExp = 1:length(exp)
             L = single(L > 0);
             clear iSide side l
             L = smoothdata(L, 'gaussian', p.smoothWindow(iFeature));
-            kinematics(iExp).(fn) = struct(X=L, t=t);
+            kinematics(iExp).(fn) = struct(X=single(L), t=single(t));
             clear t
         % Licks from digital events
         elseif fn == "Lick"
@@ -204,7 +206,7 @@ for iExp = 1:length(exp)
             edges = [t - p.xta.res/2, t(end) + p.xta.res/2];
             L = histcounts(L, edges);
             L = smoothdata(L, 'gaussian', p.smoothWindow(iFeature));
-            kinematics(iExp).(fn) = struct(X=L, t=t);
+            kinematics(iExp).(fn) = struct(X=single(L), t=single(t));
             clear edges t
         % Average displacement from both sides
         elseif vn == "both"
@@ -257,7 +259,7 @@ for iExp = 1:length(exp)
             if ~ismember(sn, ["xVel", "yVel", "speed"])
                 S = smoothdata(S, 'gaussian', p.smoothWindow(iFeature));
             end
-            kinematics(iExp).(fn) = struct(X=S, t=t);
+            kinematics(iExp).(fn) = struct(X=single(S), t=single(t));
             clear t
         % Other tracking points use position or speed
         elseif ismember(sprintf("%s_X", fn), vtd.Properties.VariableNames)
@@ -300,17 +302,17 @@ for iExp = 1:length(exp)
             if ~ismember(sn, ["xVel", "yVel", "speed"])
                 s = smoothdata(s, 'gaussian', p.smoothWindow(iFeature));
             end
-            kinematics(iExp).(fn) = struct(X=s, t=vtd.Timestamp);
+            kinematics(iExp).(fn) = struct(X=single(s), t=single(vtd.Timestamp));
         end
     end
 end
 clear iExp iFeature vn fn vtd L X Y S selnan
 
 % Process dip/rise-triggered kinematics
-tLocal = p.xta.window(1):p.xta.res:p.xta.window(2);
+tLocal = single(p.xta.window(1):p.xta.res:p.xta.window(2));
 clear xta
-xta.dip(length(eu)) = struct(iExp=[], params=[], t0=[], spikerate=[]);
-xta.rise(length(eu)) = struct(iExp=[], params=[], t0=[], spikerate=[]);
+xta.dip(length(eu)) = struct(iExp=[], params=[], t0=[], duration=[], spikerate=[]);
+xta.rise(length(eu)) = struct(iExp=[], params=[], t0=[], duration=[], spikerate=[]);
 
 lineLength = 0;
 tTicTotal = tic();
@@ -329,6 +331,7 @@ for iEu = selUnits
     x = (x-mu)/sd;
 
     t0 = struct(dip=[], rise=[]);
+    duration = struct(dip=[], rise=[]);
     nTotal = struct(dip=[], rise=[]);
     threshold = struct(dip=[], rise=[]);
     % Find onset of dips and rises
@@ -341,9 +344,14 @@ for iEu = selUnits
                 threshold.(dir) = quantile(x(x>0), p.xta.(dir).thresholdQuantile);
                 i0 = arrayfun(@(i) strfind(x>=threshold.(dir), p.xta.(dir).pattern{i}) + p.xta.(dir).patternOnset(i), 1:length(p.xta.(dir).pattern), UniformOutput=false);
         end
+        d = cell(size(i0));
+        for iPat = 1:length(p.xta.(dir).pattern)
+            d{iPat} = repmat(uint8(nnz(p.xta.(dir).pattern{iPat})), size(i0{iPat}));
+        end
         i0 = cat(2, i0{:});
         t0.(dir) = t(i0);
         nTotal.(dir) = length(t0.(dir));
+        duration.(dir) = cat(2, d{:}); % Multiply by p.spikeRes to get dip duration in seconds
 
         % Blank out dips around certain behavioral/stim events (opto, etc.)
         for iEvent = 1:length(p.blank)
@@ -363,6 +371,7 @@ for iEu = selUnits
         xta.(dir)(iEu).iExp = iExp;
         xta.(dir)(iEu).params = p;
         xta.(dir)(iEu).t0 = t0.(dir);
+        xta.(dir)(iEu).duration = duration.(dir);
 
         t0Temp = t0.(dir);
         if ~isempty(t0Temp)
@@ -390,7 +399,7 @@ for iEu = selUnits
 
             % dip/rise-triggered kinematics
             for fn = p.features
-                xta.(dir)(iEu).(fn) = struct(t=tLocal, X=NaN(length(t0Temp), length(tLocal)));
+                xta.(dir)(iEu).(fn) = struct(t=tLocal, X=NaN(length(t0Temp), length(tLocal), 'single'));
             end
             for fn = p.features
                 if isempty(kinematics(iExp).(fn))
@@ -515,6 +524,6 @@ end
 clear iUnit fn selT
 
 % Save results
-exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_units%ito%i_%iboots.mat", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2), selUnits(1), selUnits(end), p.nBoot));
+exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_units%ito%i_%iboots_%s.mat", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2), selUnits(1), selUnits(end), p.nBoot, datetime("now", Format="yyyyMMdd")));
 save(exportPath, 'xta', 'kinematics', 'p', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
