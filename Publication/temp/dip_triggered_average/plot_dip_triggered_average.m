@@ -536,7 +536,7 @@ clear nUnits nFeatures nClusters
 %   - ["lick stop", "left hand reach", "right hand reach"]
 
 nUnits = length(xta.dip);
-testNames = ["clean clusters", "bodypart+movement specificity", "lick vs. reach vs. retract", "bodypart specificity", "start vs. stop specificity", "locomotion vs. consumption specificity"];
+testNames = ["all clusters", "bodypart+movement specificity", "lick vs. reach vs. retract", "bodypart specificity", "start vs. stop specificity", "locomotion vs. consumption specificity"];
 testGroups = { ... 
     {"no move", "lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"}, ...
     {"lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"}, ...
@@ -552,20 +552,20 @@ for iTest = 1:length(tests)
     tests(iTest).labels = testGroups{iTest};
     nGroups = length(testGroups{iTest});
     for dir = ["dip", "rise"]
-        tests(iTest).(dir).found = false(nUnits, nGroups); % nUnits x nGroups
-        tests(iTest).(dir).hasData = false(nUnits, nGroups); % nUnits x nGroups
+        tests(iTest).(dir).groupContainsCleanClusters = false(nUnits, nGroups); % nUnits x nGroups
+        tests(iTest).(dir).groupContainsClusters = false(nUnits, nGroups); % nUnits x nGroups
         for iGrp = 1:length(tests(iTest).labels)
             selClusters = ismember([cc.params.label], tests(iTest).labels{iGrp});
             
             found = arrayfun(@(d) d.clean(selClusters), vertcat(cc.data.(dir)), UniformOutput=false);
             found = any(cat(2, found{:}), 1); % nClustersInGroup x nUnits -> 1 x nUnits          
-            tests(iTest).(dir).found(:, iGrp) = found';
+            tests(iTest).(dir).groupContainsCleanClusters(:, iGrp) = found';
 
             hasData = arrayfun(@(d) any(max(d.n(selClusters, :), [], 2) > 0), vertcat(cc.data.(dir)), UniformOutput=true);
-            tests(iTest).(dir).hasData(:, iGrp) = hasData;
+            tests(iTest).(dir).groupContainsClusters(:, iGrp) = hasData;
         end
-        tests(iTest).(dir).numGroupsClean = sum(tests(iTest).(dir).found, 2);
-        tests(iTest).(dir).numGroupsPresent = sum(tests(iTest).(dir).hasData, 2);
+        tests(iTest).(dir).numGroupsClean = sum(tests(iTest).(dir).groupContainsCleanClusters, 2);
+        tests(iTest).(dir).numGroupsPresent = sum(tests(iTest).(dir).groupContainsClusters, 2);
         tests(iTest).(dir).prcGroupsClean = tests(iTest).(dir).numGroupsClean ./ tests(iTest).(dir).numGroupsPresent;
         tests(iTest).(dir).valid = tests(iTest).(dir).numGroupsPresent >= 2;
     end
@@ -624,6 +624,36 @@ for iTest = 1:length(tests)
 end
 clear iTest fig tl ax iCol dir iRow fn centers edges n xEdges yEdges
 
+% Do rises contain more movement types than dips?
+fig = figure(Units='inches', Position=[1 1 4 8]);
+tl = tiledlayout(fig, 3, 2);
+maxC = [0.10, 0.10, 0.15, 0.2, 0.3, 0.3];
+for iTest = 1:length(tests)
+    ax = nexttile(tl);
+    [n, xEdges, yEdges] = histcounts2(tests(iTest).dip.numGroupsClean, tests(iTest).rise.numGroupsClean);
+    n = n./nUnits;
+    histogram2(ax, XBinEdges=xEdges, YBinEdges=yEdges, BinCounts=n, ...
+        DisplayStyle='tile', ShowEmptyBins=true)
+    applyCustomColormap(ax, [0, maxC(iTest)], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.5, h0=0.33);
+    axis(ax, 'equal')
+    title(ax, tests(iTest).name)
+    xlabel(ax, 'dip')
+    ylabel(ax, 'rise')
+
+    xticks(ax, 0:max(xEdges))
+    yticks(ax, 0:max(yEdges))
+
+    cb = colorbar(ax, Location='southoutside');
+    % cb.Layout.Tile = 'south';
+    cb.Label.String = sprintf("%% of %i units", nUnits);
+    cb.Ticks = [0, maxC(iTest)];
+    cb.TickLabels = ["0", sprintf("%g%%", maxC(iTest)*100)];
+
+end
+
+fontsize(fig, 9, 'points')
+clear fig tl iTest ax n xEdges yEdges cb maxC
+
 %%
 clc
 for iTest = 1:length(tests)
@@ -661,6 +691,7 @@ for iTest = 1:length(tests)
 end
 clear iTest n dir
 
+
 %% Plot individual units just-dip matrix (rows are features, columns are clusters)
 close all
 
@@ -697,115 +728,124 @@ end
 
 for iTest = [3, 2, 4]
     for nCleanGroups = [5, 4, 3, 2, 1]
-        exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\Figures", sprintf("%s_LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", datetime("now", Format="uuuuMMdd"), 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2)), "By Feature x Cluster", sprintf("Test%i - %s", iTest, tests(iTest).name), sprintf('%i clean clusters', nCleanGroups));
-        if ~exist(exportPath, 'dir')
-            mkdir(exportPath)
-        else
-            rmdir(exportPath, 's')
-            mkdir(exportPath)   
-        end
-        
-        for dir = ["dip", "rise"]
-            selUnits = reshape(find(tests(iTest).(dir).numGroupsClean == nCleanGroups), 1, []);
-            for iUnit = selUnits
-                for iClu = 1:nClusters
-                    for iFeat = 1:nFeatures
-                        cla(ax(iFeat, iClu))
+        for requirement = ["dip or rise", "both"]
+            exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\Figures", sprintf("%s_LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", datetime("now", Format="uuuuMMdd"), 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2)), "By Feature x Cluster", sprintf("Test%i - %s", iTest, tests(iTest).name), sprintf('%i clean clusters for %s', nCleanGroups, requirement));
+            if ~exist(exportPath, 'dir')
+                mkdir(exportPath)
+            else
+                rmdir(exportPath, 's')
+                mkdir(exportPath)   
+            end
+            
+            for dir = ["dip", "rise"]
+                switch requirement
+                    case "dip or rise"
+                        selUnits = reshape(find(tests(iTest).(dir).numGroupsClean == nCleanGroups), 1, []);
+                    case "both"
+                        selUnits = reshape(find(tests(iTest).dip.numGroupsClean == nCleanGroups & tests(iTest).rise.numGroupsClean == nCleanGroups), 1, []);
+                    otherwise
+                        error("unknown requirement=%s", requirment)
+                end
+                for iUnit = selUnits
+                    for iClu = 1:nClusters
+                        for iFeat = 1:nFeatures
+                            cla(ax(iFeat, iClu))
+                        end
                     end
-                end
-        
-                % Check existence of dips/rises
-                if isempty(xta.(dir)(iUnit).t0)
-                    continue
-                end
-        
-                idx = mi.(dir)(iUnit).idx;
-                
-                for iClu = 1:length(p.mi.semanticClusterOrder)
-                    k = p.mi.semanticClusterOrder(iClu); % raw cluster index
-                    nTrials = clusterSize(iUnit).(dir).n(k);
-                    if isnan(nTrials) || nTrials < p.mi.minNumTrialsPerCluster
-                        set(ax(:, iClu), Visible=false);
+            
+                    % Check existence of dips/rises
+                    if isempty(xta.(dir)(iUnit).t0)
                         continue
                     end
-        
-                    set(ax(:, iClu), Visible=true);
-        
-                    for iFeat = 1:length(features) % k: semantic cluster index
-                        hold(ax(iFeat, iClu), 'on')
-                        fn = features(iFeat);
-                        sel = idx==k;
-                        % c = getColor(iFeat, length(features), 0.7);
-                        c = 'k';
-                        X = xta.(dir)(iUnit).(fn).X(sel, :);
-                        t = xta.(dir)(iUnit).(fn).t;
-                        mu = featureSign(iFeat)*mean(X, 1, 'omitnan');
-                        
-                        % Draw n trials
-                        if iFeat == 1
-                            text(ax(iFeat, iClu), -0.9, 4, sprintf("n=%i", nTrials), HorizontalAlignment='left', ...
-                                VerticalAlignment='top', FontSize=8, FontWeight='normal')
-                        % Check significance of cluster movement index against bootstrap
-                        else
-                            hVal = cc.data(iUnit).(dir).h(iClu, iFeat-1);
-                            nStars = nnz(hVal);
-                            if featureAxisDir(iFeat) == "reverse"
-                                yPos = ylims{iFeat}(1)+0.5;
+            
+                    idx = mi.(dir)(iUnit).idx;
+                    
+                    for iClu = 1:length(p.mi.semanticClusterOrder)
+                        k = p.mi.semanticClusterOrder(iClu); % raw cluster index
+                        nTrials = clusterSize(iUnit).(dir).n(k);
+                        if isnan(nTrials) || nTrials < p.mi.minNumTrialsPerCluster
+                            set(ax(:, iClu), Visible=false);
+                            continue
+                        end
+            
+                        set(ax(:, iClu), Visible=true);
+            
+                        for iFeat = 1:length(features) % k: semantic cluster index
+                            hold(ax(iFeat, iClu), 'on')
+                            fn = features(iFeat);
+                            sel = idx==k;
+                            % c = getColor(iFeat, length(features), 0.7);
+                            c = 'k';
+                            X = xta.(dir)(iUnit).(fn).X(sel, :);
+                            t = xta.(dir)(iUnit).(fn).t;
+                            mu = featureSign(iFeat)*mean(X, 1, 'omitnan');
+                            
+                            % Draw n trials
+                            if iFeat == 1
+                                text(ax(iFeat, iClu), -0.9, 4, sprintf("n=%i", nTrials), HorizontalAlignment='left', ...
+                                    VerticalAlignment='top', FontSize=8, FontWeight='normal')
+                            % Check significance of cluster movement index against bootstrap
                             else
-                                yPos = ylims{iFeat}(2)-0.5;
+                                hVal = cc.data(iUnit).(dir).h(iClu, iFeat-1);
+                                nStars = nnz(hVal);
+                                if featureAxisDir(iFeat) == "reverse"
+                                    yPos = ylims{iFeat}(1)+0.5;
+                                else
+                                    yPos = ylims{iFeat}(2)-0.5;
+                                end
+                                text(ax(iFeat, iClu), mean(p.mi.windowPost), yPos, repmat('*', [1, nStars]), ...
+                                    HorizontalAlignment='center', VerticalAlignment='top', FontSize=12, FontWeight='bold', Color='red');
                             end
-                            text(ax(iFeat, iClu), mean(p.mi.windowPost), yPos, repmat('*', [1, nStars]), ...
-                                HorizontalAlignment='center', VerticalAlignment='top', FontSize=12, FontWeight='bold', Color='red');
-                        end
-        
-                        plot(ax(iFeat, iClu), t, mu, Color=c, LineStyle='-', LineWidth=1.5);
-                        if iFeat > 1 && nStars >= 1
-                            selT = isin(t, p.mi.windowPre) | isin(t, p.mi.windowPost);
-                            plot(ax(iFeat, iClu), t(selT), mu(selT), Color='red', LineStyle='-', LineWidth=1.5);
-                            clear selT
-                        end
-                        clear pVal nStars yPos
-                        % xline(ax(iFeat, iClu), xt, 'k--', Alpha=0.1)
-                        xline(ax(iFeat, iClu), 0, 'k-', Alpha=0.1)
-                        yline(ax(iFeat, iClu), 0, 'k-', Alpha=0.1)
-                        if iFeat == nFeatures
-                            xticks(ax(iFeat, iClu), xt)
-                            xtickangle(ax(iFeat, iClu), 0)
-                        else
-                            xticks(ax(iFeat, iClu), [])
-                        end
-                        if iClu == 1
-                            if featureAxisDir(iFeat) == "reverse"
-                                yticks(ax(iFeat, iClu), [ylims{iFeat}(1), 0])
-                                yticklabels(ax(iFeat, iClu), [-ylims{iFeat}(1), 0])
+            
+                            plot(ax(iFeat, iClu), t, mu, Color=c, LineStyle='-', LineWidth=1.5);
+                            if iFeat > 1 && nStars >= 1
+                                selT = isin(t, p.mi.windowPre) | isin(t, p.mi.windowPost);
+                                plot(ax(iFeat, iClu), t(selT), mu(selT), Color='red', LineStyle='-', LineWidth=1.5);
+                                clear selT
+                            end
+                            clear pVal nStars yPos
+                            % xline(ax(iFeat, iClu), xt, 'k--', Alpha=0.1)
+                            xline(ax(iFeat, iClu), 0, 'k-', Alpha=0.1)
+                            yline(ax(iFeat, iClu), 0, 'k-', Alpha=0.1)
+                            if iFeat == nFeatures
+                                xticks(ax(iFeat, iClu), xt)
+                                xtickangle(ax(iFeat, iClu), 0)
                             else
-                                yticks(ax(iFeat, iClu), [0, ylims{iFeat}(2)])
+                                xticks(ax(iFeat, iClu), [])
                             end
-                        else
-                            yticks(ax(iFeat, iClu), [])
+                            if iClu == 1
+                                if featureAxisDir(iFeat) == "reverse"
+                                    yticks(ax(iFeat, iClu), [ylims{iFeat}(1), 0])
+                                    yticklabels(ax(iFeat, iClu), [-ylims{iFeat}(1), 0])
+                                else
+                                    yticks(ax(iFeat, iClu), [0, ylims{iFeat}(2)])
+                                end
+                            else
+                                yticks(ax(iFeat, iClu), [])
+                            end
+            
+                            % if iFeat == nFeatures
+                            %     xlabel(ax(iFeat, iClu), 'time (ms)')
+                            % end
+                            if iClu == 1
+                                % ylabel(ax(iFeat, iClu), sprintf("%s\n%s", featureDispName(iFeat), featureUnits(iFeat)))
+                                ylabel(ax(iFeat, iClu), sprintf("%s", featureDispName(iFeat)))
+                            end
+                            if iFeat == 1
+                                % title(ax(iFeat, iClu), sprintf("%s\n(n=%i %ss)", p.mi.semanticClusterLabels(iClu), nTrials, dir), Interpreter='none', FontWeight='bold', Color='black')
+                                title(ax(iFeat, iClu), strsplit(clusterDispName(iClu), "\\n"), Interpreter='none', FontWeight='normal', Color='black')
+                            end
+                            ylim(ax(iFeat, iClu), ylims{iFeat})
+                            hold(ax(iFeat, iClu), 'off')
+                            ax(iFeat, iClu).YAxis.Direction = featureAxisDir(iFeat);
                         end
-        
-                        % if iFeat == nFeatures
-                        %     xlabel(ax(iFeat, iClu), 'time (ms)')
-                        % end
-                        if iClu == 1
-                            % ylabel(ax(iFeat, iClu), sprintf("%s\n%s", featureDispName(iFeat), featureUnits(iFeat)))
-                            ylabel(ax(iFeat, iClu), sprintf("%s", featureDispName(iFeat)))
-                        end
-                        if iFeat == 1
-                            % title(ax(iFeat, iClu), sprintf("%s\n(n=%i %ss)", p.mi.semanticClusterLabels(iClu), nTrials, dir), Interpreter='none', FontWeight='bold', Color='black')
-                            title(ax(iFeat, iClu), strsplit(clusterDispName(iClu), "\\n"), Interpreter='none', FontWeight='normal', Color='black')
-                        end
-                        ylim(ax(iFeat, iClu), ylims{iFeat})
-                        hold(ax(iFeat, iClu), 'off')
-                        ax(iFeat, iClu).YAxis.Direction = featureAxisDir(iFeat);
                     end
+                    xlim(ax, [-1, 1])
+                    xlabel(tl, sprintf("time since %s (s)", dir))
+                    title(tl, sprintf("Unit %i (n=%i %ss)", iUnit, length(xta.(dir)(iUnit).t0), dir), FontWeight='bold')
+                    fontsize(fig, 8, 'points')
+                    print(fig, fullfile(exportPath, sprintf("featxclus_unit_%03i_%s", iUnit, dir)), '-dpng', '-r0')
                 end
-                xlim(ax, [-1, 1])
-                xlabel(tl, sprintf("time since %s (s)", dir))
-                title(tl, sprintf("Unit %i (n=%i %ss)", iUnit, length(xta.(dir)(iUnit).t0), dir), FontWeight='bold')
-                fontsize(fig, 8, 'points')
-                print(fig, fullfile(exportPath, sprintf("%s_featxclus_unit_%03i", dir, iUnit)), '-dpng', '-r0')
             end
         end
     end
