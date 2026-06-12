@@ -146,7 +146,7 @@ p.xta.dip.nullSamplesPre = 0.2/p.spikeRes; % 200 ms below threshold pre dip
 p.xta.dip.nullSamplesPost = 0.2/p.spikeRes; % 200 ms below threshold post dip
 p.xta.dip.thresholdQuantile = 0.25; % 0.25
 p.xta.dip.thresholdSubQuantile = 1;
-p.xta.dip.pattern = arrayfun(@(n) [ones(1, p.xta.dip.nullSamplesPre), ones(1, n), ones(1, p.xta.dip.nullSamplesPost)] , p.xta.dip.samples(1):p.xta.dip.samples(2), UniformOutput=false);
+p.xta.dip.pattern = arrayfun(@(n) [zeros(1, p.xta.dip.nullSamplesPre), ones(1, n), zeros(1, p.xta.dip.nullSamplesPost)] , p.xta.dip.samples(1):p.xta.dip.samples(2), UniformOutput=false);
 p.xta.dip.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.dip.pattern); % finds the onset
 
 p.xta.rise.samples = [0.2, 0.8]./p.spikeRes;
@@ -154,7 +154,7 @@ p.xta.rise.nullSamplesPre = 0.2/p.spikeRes; % 200 ms below threshold pre dip
 p.xta.rise.nullSamplesPost = 0.2/p.spikeRes; % 200 ms below threshold post dip
 p.xta.rise.thresholdQuantile = 1 - p.xta.dip.thresholdQuantile;
 p.xta.rise.thresholdSubQuantile = 1 - p.xta.dip.thresholdSubQuantile;
-p.xta.rise.pattern = arrayfun(@(n) [ones(1, p.xta.rise.nullSamplesPre), ones(1, n), ones(1, p.xta.rise.nullSamplesPost)] , p.xta.rise.samples(1):p.xta.rise.samples(2), UniformOutput=false);
+p.xta.rise.pattern = arrayfun(@(n) [zeros(1, p.xta.rise.nullSamplesPre), ones(1, n), zeros(1, p.xta.rise.nullSamplesPost)] , p.xta.rise.samples(1):p.xta.rise.samples(2), UniformOutput=false);
 p.xta.rise.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.rise.pattern);
 
 p.blank(1).event = "StimOn";
@@ -163,8 +163,7 @@ p.blank(1).window = [-1, 1];
 p.nBoot = 0;
 p.bootAlpha = 0.05;
 
-% selUnits = 1:length(eu);
-selUnits = 1:10;
+selUnits = 1:length(eu);
 
 % Process vtdFeatues
 clear kinematics
@@ -329,14 +328,14 @@ for iEu = selUnits
         case "count"
             [x, t] = eu(iEu).getSpikeCounts(p.spikeRes);
             x = double(x)./p.spikeRes;
-            mu = mean(x);
-            sd = std(x, 0);
-            x = (x-mu)/sd;
         case "rate"
             [x, t] = eu(iEu).getSpikeRates('gaussian', 0.1, p.spikeRes, kernelWidth=1);
         otherwise
             error("Unknown p.spikeDataSource=%s", p.spikeDataSource)
     end
+    mu = mean(x);
+    sd = std(x, 0);
+    x = (x-mu)/sd;
 
     t0 = struct(dip=[], rise=[]);
     duration = struct(dip=[], rise=[]);
@@ -535,20 +534,8 @@ end
 
 clear iUnit fn selT
 
-nDips = arrayfun(@(xta) length(xta.t0), xta.dip(selUnits))
-nRises = arrayfun(@(xta) length(xta.t0), xta.rise(selUnits))
-
-%% Save results
+% Save results
 exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_units%ito%i_%iboots_%s.mat", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, p.spikeRes*1000*p.xta.dip.samples(1), p.spikeRes*1000*p.xta.rise.samples(2), selUnits(1), selUnits(end), p.nBoot, datetime("now", Format="yyyyMMdd")));
 save(exportPath, 'xta', 'kinematics', 'p', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
 
-
-%%
-fig = figure();
-tl = tiledlayout(fig, 2, 1);
-ax = gobjects(2, 1);
-ax(1) = nexttile(tl);
-ax(2) = nexttile(tl);
-title(ax(1), 'Dips')
-title(ax(2), 'Rises')
