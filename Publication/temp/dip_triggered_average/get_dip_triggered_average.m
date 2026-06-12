@@ -1,12 +1,13 @@
+
 folders = [ ...
-    % "C:\SERVER\daisy26\daisy26_20250424", ...
-    % "C:\SERVER\daisy26\daisy26_20250425", ...
-    % "C:\SERVER\desmond38\desmond38_20250401", ...
-    % "C:\SERVER\desmond38\desmond38_20250402", ...
-    % "C:\SERVER\desmond38\desmond38_20250407", ...
-    % "C:\SERVER\desmond38\desmond38_20250417", ...
-    % "C:\SERVER\desmond39\desmond39_20250416", ...
-    % "C:\SERVER\desmond39\desmond39_20250423", ...
+    ... "C:\SERVER\daisy26\daisy26_20250424", ...
+    ... "C:\SERVER\daisy26\daisy26_20250425", ...
+    ... "C:\SERVER\desmond38\desmond38_20250401", ...
+    ... "C:\SERVER\desmond38\desmond38_20250402", ...
+    ... "C:\SERVER\desmond38\desmond38_20250407", ...
+    ... "C:\SERVER\desmond38\desmond38_20250417", ...
+    ... "C:\SERVER\desmond39\desmond39_20250416", ...
+    ... "C:\SERVER\desmond39\desmond39_20250423", ...
     "C:\SERVER\daisy27\daisy27_20250624", ...
     "C:\SERVER\daisy27\daisy27_20250626", ...
     "C:\SERVER\daisy27\daisy27_20250707", ...
@@ -134,23 +135,26 @@ p.featureStats = ["xPos", "xPos", "xPos", "xPos", "likelihood", "yPos", "yPos"];
 p.vtdNames = ["vtdR", "vtdL", "vtdR", "vtdL", "both", "both", "both"];
 p.smoothWindow = [20, 20, 20, 20, 5, 20, 20];
 p.minL = [0.5, 0.5, 0.5, 0.5, 0.2, 0.5, 0.5];
-p.spikeRes = 0.1;
-p.spikeResHi = 0.025; % Used to detect potential onsets of dips, then we look in the vicinity at lower resolutions to see if dips are clean
-p.spikeResMult = p.spikeRes / p.spikeResHi; assert(mod(p.spikeResMult, 1) == 0, 'p.spikeRes (%g) must be an integer multiple of p.spikeResHi (%g)', p.spikeRes, p.spikeResHi)
+p.spikeDataSource = "rate"; % rate, count
+p.spikeRes = 0.01;
 p.xta.res = 1/30;
 p.xta.window = [-1, 1];
 p.xta.meanWindow = [-0.3, 0.3];
 
-p.xta.dip.samples = [2, 8]*0.1/p.spikeRes; % check p.spikeRes to convert to dip duration 200-800ms
+p.xta.dip.samples = [0.2, 0.8]./p.spikeRes; % check p.spikeRes to convert to dip duration 200-800ms
+p.xta.dip.nullSamplesPre = 0.2/p.spikeRes; % 200 ms below threshold pre dip
+p.xta.dip.nullSamplesPost = 0.2/p.spikeRes; % 200 ms below threshold post dip
 p.xta.dip.thresholdQuantile = 0.25; % 0.25
 p.xta.dip.thresholdSubQuantile = 1;
-p.xta.dip.pattern = arrayfun(@(n) [0, 0, 0, ones(1, n), 0, 0, 0] , p.xta.dip.samples(1):p.xta.dip.samples(2), UniformOutput=false);
+p.xta.dip.pattern = arrayfun(@(n) [ones(1, p.xta.dip.nullSamplesPre), ones(1, n), ones(1, p.xta.dip.nullSamplesPost)] , p.xta.dip.samples(1):p.xta.dip.samples(2), UniformOutput=false);
 p.xta.dip.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.dip.pattern); % finds the onset
 
-p.xta.rise.samples = [2, 8]*0.1/p.spikeRes;
+p.xta.rise.samples = [0.2, 0.8]./p.spikeRes;
+p.xta.rise.nullSamplesPre = 0.2/p.spikeRes; % 200 ms below threshold pre dip
+p.xta.rise.nullSamplesPost = 0.2/p.spikeRes; % 200 ms below threshold post dip
 p.xta.rise.thresholdQuantile = 1 - p.xta.dip.thresholdQuantile;
 p.xta.rise.thresholdSubQuantile = 1 - p.xta.dip.thresholdSubQuantile;
-p.xta.rise.pattern = arrayfun(@(n) [0, 0, 0, ones(1, n), 0, 0, 0] , p.xta.rise.samples(1):p.xta.rise.samples(2), UniformOutput=false);
+p.xta.rise.pattern = arrayfun(@(n) [ones(1, p.xta.rise.nullSamplesPre), ones(1, n), ones(1, p.xta.rise.nullSamplesPost)] , p.xta.rise.samples(1):p.xta.rise.samples(2), UniformOutput=false);
 p.xta.rise.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.rise.pattern);
 
 p.blank(1).event = "StimOn";
@@ -321,15 +325,18 @@ end
 for iEu = selUnits
     iExp = expIndices(iEu);
 
-    % Get z-scored whole-session spike rates at p.spikeResHi resolution,
-    % then we shift 0:p.spikeResMult-1 fineBins, and detect dips at
-    % p.spikeRes each time, finally we remove duplicate dips
-    [xHi, tHi] = eu(iEu).getSpikeCounts(p.spikeResHi);
-    xHi = double(xHi)./p.spikeRes;
-    mu = mean(xHi);
-    sd = std(xHi, 0);
-    xHi = (xHi-mu)/sd;
-    for 
+    switch p.spikeDataSource
+        case "count"
+            [x, t] = eu(iEu).getSpikeCounts(p.spikeRes);
+            x = double(x)./p.spikeRes;
+            mu = mean(x);
+            sd = std(x, 0);
+            x = (x-mu)/sd;
+        case "rate"
+            [x, t] = eu(iEu).getSpikeRates('gaussian', 0.1, p.spikeRes, kernelWidth=1);
+        otherwise
+            error("Unknown p.spikeDataSource=%s", p.spikeDataSource)
+    end
 
     t0 = struct(dip=[], rise=[]);
     duration = struct(dip=[], rise=[]);
