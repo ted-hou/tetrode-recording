@@ -2794,7 +2794,6 @@ classdef EphysUnit < handle
                 sc = uint16(sc);
                 t = single(t);
             else
-                % DO_TESTS1 = false;
                 % When artifacts are present (with a blankout duration
                 % surrounding them), we need to carve these blankout
                 % periods from 'edges', do spike counts, and then scale up
@@ -2818,46 +2817,6 @@ classdef EphysUnit < handle
                         artifactIntervals = intervalUnion(artifactIntervals, theseArtifactIntervals);
                     end
                 end
-                % if DO_TESTS1
-                %     artifactIntervalsAll = [];
-                %     for iArtifact = 1:length(artifacts)
-                %         if artifacts(iArtifact).length > 0
-                %             tArtifact = reshape(artifacts(iArtifact).t, 1, []);
-                %             switch lower(artifacts(iArtifact).direction)
-                %                 case 'right'
-                %                     theseArtifactIntervals = tArtifact + [0; artifacts(iArtifact).length*1e-3];
-                %                 case 'both'
-                %                     theseArtifactIntervals = tArtifact + [-artifacts(iArtifact).length*1e-3; artifacts(iArtifact).length*1e-3];
-                %             end
-                %             artifactIntervalsAll = intervalUnion(artifactIntervalsAll, theseArtifactIntervals);
-                %         end
-                %     end
-                %     selIntervals = artifactIntervalsAll(2, :) >= edges(1) & artifactIntervalsAll(1, :) <= edges(end);
-                %     try
-                %         assert(isequal(artifactIntervals, artifactIntervalsAll(:, selIntervals)));
-                %     catch
-                %         warning('Test failed');
-                %         fprintf('\nedges=[%g:%g]\n', edges(1), edges(end))
-                %         fprintf('artifactIntervals = \n')
-                %         fprintf('\t%g', artifactIntervals(1, :))
-                %         fprintf('\n')
-                %         fprintf('\t%g', artifactIntervals(2, :))
-                %         fprintf('\n')
-                %         fprintf('artifactIntervalsAll(:, selIntervals) = \n')
-                %         fprintf('\t%g', artifactIntervalsAll(1, selIntervals))
-                %         fprintf(2, '\t%g', artifactIntervalsAll(1, find(selIntervals, 1, 'last') + 1))
-                %         fprintf('\n')
-                %         fprintf('\t%g', artifactIntervalsAll(2, selIntervals))
-                %         fprintf(2, '\t%g', artifactIntervalsAll(2, find(selIntervals, 1, 'last') + 1))
-                %         fprintf('\n')
-                %         ax = axes(figure());
-                %         hold(ax, 'on')
-                %         plotIntervals(ax, [edges(1:end-1); edges(2:end)], 'black', [-0.5, 0.5])
-                %         plotIntervals(ax, artifactIntervals, 'red', [-1, 2])
-                %         plotIntervals(ax, artifactIntervalsAll(:, selIntervals), 'blue', [-2, 1])
-                %         hold(ax, 'off')
-                %     end
-                % end
 
                 if isempty(artifactIntervals)
                     sc = histcounts(spikes, edges);
@@ -2972,22 +2931,6 @@ classdef EphysUnit < handle
                     else
                         sc(iBin) = sum(scTemp(~isBadSubBin)) ./ scalingFactor;
                     end
-
-                    % DO_TESTS2 = false;
-                    % if DO_TESTS2 && ~isempty(badIntervals)
-                    %     ax = axes(figure);
-                    %     % plotIntervals(ax, 1e3*([edges(iBin); edges(iBin+1)] - edges(iBin)), 'black', [-0.5, 0.5])
-                    %     plotIntervals(ax, 1e3*(badIntervals - edges(iBin)), 'red', [2, 3]);
-                    %     subEdgesAsIntervals = [subEdges(1:end-1); subEdges(2:end)];
-                    %     plotIntervals(ax, 1e3*(subEdgesAsIntervals(:, isBadSubBin) - edges(iBin)), 'red', [0, 1])
-                    %     plotIntervals(ax, 1e3*(subEdgesAsIntervals(:, ~isBadSubBin) - edges(iBin)), 'black', [0, 1])
-                    %     hold(ax, 'on')
-                    %     scatter(ax, 1e3*(spikesInBin - edges(iBin)), 0, 25, 'k', 'filled', 'o')
-                    %     xlim(ax, 1e3*[0, 0.1])
-                    %     hold(ax, 'off')
-                    %     xlabel(ax, sprintf('%g / %g = %g', sum(scTemp(~isBadSubBin)), scalingFactor, sc(iBin)))
-                    %     close all
-                    % end
                 end
                 sc(isWholeBinGood) = scVanilla(isWholeBinGood);
                 sc(isWholeBinBad) = NaN;

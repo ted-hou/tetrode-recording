@@ -135,6 +135,8 @@ p.vtdNames = ["vtdR", "vtdL", "vtdR", "vtdL", "both", "both", "both"];
 p.smoothWindow = [20, 20, 20, 20, 5, 20, 20];
 p.minL = [0.5, 0.5, 0.5, 0.5, 0.2, 0.5, 0.5];
 p.spikeRes = 0.1;
+p.spikeResHi = 0.025; % Used to detect potential onsets of dips, then we look in the vicinity at lower resolutions to see if dips are clean
+p.spikeResMult = p.spikeRes / p.spikeResHi; assert(mod(p.spikeResMult, 1) == 0, 'p.spikeRes (%g) must be an integer multiple of p.spikeResHi (%g)', p.spikeRes, p.spikeResHi)
 p.xta.res = 1/30;
 p.xta.window = [-1, 1];
 p.xta.meanWindow = [-0.3, 0.3];
@@ -142,7 +144,7 @@ p.xta.meanWindow = [-0.3, 0.3];
 p.xta.dip.samples = [2, 8]*0.1/p.spikeRes; % check p.spikeRes to convert to dip duration 200-800ms
 p.xta.dip.thresholdQuantile = 0.25; % 0.25
 p.xta.dip.thresholdSubQuantile = 1;
-p.xta.dip.pattern = arrayfun(@(n) [0, 0, 0, ones(1, n), 0, 0, 0] , p.xta.dip.samples(1):p.xta.dip.samples(2), UniformOutput=false); % 100-300ms dips
+p.xta.dip.pattern = arrayfun(@(n) [0, 0, 0, ones(1, n), 0, 0, 0] , p.xta.dip.samples(1):p.xta.dip.samples(2), UniformOutput=false);
 p.xta.dip.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.dip.pattern); % finds the onset
 
 p.xta.rise.samples = [2, 8]*0.1/p.spikeRes;
@@ -319,12 +321,15 @@ end
 for iEu = selUnits
     iExp = expIndices(iEu);
 
-    % Get z-scored whole-session spike rates
-    [x, t] = eu(iEu).getSpikeCounts(p.spikeRes);
-    x = double(x)./p.spikeRes;
-    mu = mean(x);
-    sd = std(x, 0);
-    x = (x-mu)/sd;
+    % Get z-scored whole-session spike rates at p.spikeResHi resolution,
+    % then we shift 0:p.spikeResMult-1 fineBins, and detect dips at
+    % p.spikeRes each time, finally we remove duplicate dips
+    [xHi, tHi] = eu(iEu).getSpikeCounts(p.spikeResHi);
+    xHi = double(xHi)./p.spikeRes;
+    mu = mean(xHi);
+    sd = std(xHi, 0);
+    xHi = (xHi-mu)/sd;
+    for 
 
     t0 = struct(dip=[], rise=[]);
     duration = struct(dip=[], rise=[]);
@@ -362,6 +367,7 @@ for iEu = selUnits
         end
         clear iEvent tEvent windows i i0
     end
+
 
     fprintf(repmat('\b', [1, lineLength]))
     lineLength = fprintf('Unit %i/%i; %i(-%i) dips (x<%.2f), %i(-%i) rises (x>%.2f)... %.1fs elapsed...', iEu, length(eu), length(t0.dip), nTotal.dip-length(t0.dip), threshold.dip, length(t0.rise), nTotal.rise-length(t0.rise), threshold.rise, toc(tTicTotal));
