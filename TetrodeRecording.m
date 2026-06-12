@@ -246,7 +246,7 @@ classdef TetrodeRecording < handle
 						    obj.ClearCache();
                         end     
 					end
-					obj.GetDigitalEvents(true);
+					% obj.GetDigitalEvents(true);
 				case 'blackrock'
 					if ~detectEvents
 						digitalChannels = {};
@@ -339,7 +339,13 @@ classdef TetrodeRecording < handle
             chunkIndex = p.Results.ChunkIndex;
 
             expName = obj.GetExpName(includeSuffix=false);
-            pathName = fullfile(obj.Path.nidq, p.Results.Path);
+            if isstruct(obj.Path) && isfield(obj.Path, 'nidq')
+                pathName = fullfile(obj.Path.nidq, p.Results.Path);
+            elseif ischar(obj.Path)
+                pathName = fullfile(obj.Path, p.Results.Path);
+            else
+                error();
+            end
             if ~exist(pathName, 'dir')
                 mkdir(pathName);
             end
@@ -359,7 +365,9 @@ classdef TetrodeRecording < handle
                 end
                 save(fullfile(pathName, fileName), 'spikes', '-mat')
             end
-            obj.Path.SavedSpikes = pathName;
+            if isstruct(obj.Path) && isfield(obj.Path, 'nidq')
+                obj.Path.SavedSpikes = pathName;
+            end
         end
 
         function LoadSpikes(obj, channels, varargin)
@@ -373,7 +381,14 @@ classdef TetrodeRecording < handle
             expName = p.Results.ExpName;
 
             if ~exist(path, 'dir')
-                path = fullfile(obj.Path.nidq, path);
+                switch lower(obj.System)
+                    case 'intan'
+                        path = fullfile(obj.Path, path);
+                    case 'neuropixel'
+                        path = fullfile(obj.Path.nidq, path);
+                    otherwise
+                        error()
+                end
                 if ~exist(path, 'dir')
                     error('Cannot locate folder: %s', path);
                 end
@@ -1970,7 +1985,11 @@ classdef TetrodeRecording < handle
                     culledClusters{iChn} = [];
                     continue
                 end
-                sessionLength = obj.AnalogIn.Timestamps(end); %obj.Spikes(iChn).Timestamps(end);
+                try
+                    sessionLength = obj.AnalogIn.Timestamps(end); %obj.Spikes(iChn).Timestamps(end);
+                catch
+                    sessionLength = obj.DigitalEvents.Timestamps(end);
+                end
                 clusters = unique(obj.Spikes(iChn).Cluster.Classes);
                 clustersToCull = [];
                 for iCluster = clusters(:)'
@@ -3548,7 +3567,7 @@ classdef TetrodeRecording < handle
 
             % Create context menu (common to all channels, mark for delete, reorder, merge)
             cm = uicontextmenu(hFigure);
-            m0_0 = uimenu(cm, 'Text', 'Quick Inspect', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'StimTwoColor'}, 'Accelerator', 'F');
+            m0_0 = uimenu(cm, 'Text', 'Quick Inspect', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'JustSpikes'}, 'Accelerator', 'F');
             m0 = uimenu(cm, 'Text', 'Inspect');
             m0_1 = uimenu(m0, 'Text', 'Press (Spontaneous)', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press (Spontaneous)'});
             m0_2 = uimenu(m0, 'Text', 'Press/Stim', 'MenuSelectedFcn', {@obj.PlotAllChannels_OnInspect, 'Press/Stim'});
@@ -3722,6 +3741,8 @@ classdef TetrodeRecording < handle
                     obj.PlotChannel(channel, PlotStimBlue=true, PlotStimOrange=true, ExtendedWindow=[-0.25, 0.5]); % Legacy, only used for Sep2023 experiments
                 case 'StimTwoColor'
                     obj.PlotChannel(channel, TwoColorExperiment=true, ExtendedWindow=[-0.1, 0.5]);
+                case 'JustSpikes'
+                    obj.PlotChannel(channel, JustSpikes=true);                    
             end
             fig.UserData.LastInspectMode = mode;
         end
@@ -4069,6 +4090,7 @@ classdef TetrodeRecording < handle
             addParameter(p, 'PlotStimBlue', false, @islogical);
             addParameter(p, 'PlotStimOrange', false, @islogical);
             addParameter(p, 'TwoColorExperiment', false, @islogical)
+            addParameter(p, 'JustSpikes', false, @islogical);
 			addParameter(p, 'Fig', []);
 			parse(p, channel, varargin{:});
 			iChannel 			= p.Results.Channel;
@@ -4535,6 +4557,7 @@ classdef TetrodeRecording < handle
 			plotStimOrange 	= p.Results.PlotStimOrange;
             plotPETH        = p.Results.PlotPETH;
             isTCE           = p.Results.TwoColorExperiment;
+            justSpikes      = p.Results.JustSpikes;
 
             if isempty(reference2)
                 reference2 = reference;
@@ -4566,65 +4589,67 @@ classdef TetrodeRecording < handle
 			end
 
 			% Replot newly selected clusters
-            if isTCE
-			    if isgraphics(h.Raster, 'Axes')
-				    obj.RasterStim(iChannel, TwoColorExperiment=true, Clusters=clusters, ...
-					    ExtendedWindow=extendedWindow, SelectedSampleIndex=selectedSampleIndex, ...
-					    Ax=h.Raster);
-                end
-            elseif plotStimBlue && plotStimOrange
-			    if isgraphics(h.Raster, 'Axes')
-				    obj.RasterStim(iChannel, 'TrialEvent', 'StimBlueOn', 'StimOnEvent', 'StimBlueOn', 'StimOffEvent', 'StimBlueOff', ...
-                        'Clusters', clusters,...
-					    'ExtendedWindow', extendedWindow, 'XLim', [-0.1, 0.5],...
-					    'SelectedSampleIndex', selectedSampleIndex,...
-					    'Ax', h.Raster);
-                end
-			    if isgraphics(h.Raster2, 'Axes')
-				    obj.RasterStim(iChannel, 'TrialEvent', 'StimOrangeOn', 'StimOnEvent', 'StimOrangeOn', 'StimOffEvent', 'StimOrangeOff', ...
-                        'Clusters', clusters,...
-					    'ExtendedWindow', extendedWindow, 'XLim', [-0.1, 0.5],...
-					    'SelectedSampleIndex', selectedSampleIndex,...
-					    'Ax', h.Raster2);
-                end
-            else
-			    if isgraphics(h.Raster, 'Axes')
-				    obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
-					    'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
-					    'SelectedSampleIndex', selectedSampleIndex, 'Sort', true,...
-					    'Ax', h.Raster);
-                    if plotPETH
-				        obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
-					        'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
-					        'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
-					        'SelectedSampleIndex', selectedSampleIndex,...
-                            'XLim', rasterXLim, ...
-					        'Ax', h.PETH);
+            if ~justSpikes
+                if isTCE
+			        if isgraphics(h.Raster, 'Axes')
+				        obj.RasterStim(iChannel, TwoColorExperiment=true, Clusters=clusters, ...
+					        ExtendedWindow=extendedWindow, SelectedSampleIndex=selectedSampleIndex, ...
+					        Ax=h.Raster);
                     end
-			    end
-    
-			    if isgraphics(h.Raster2, 'Axes')
-				    if ~plotStim
-					    obj.Raster(iChannel, reference2, event2, exclude2, 'Clusters', clusters,...
-						    'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
-						    'SelectedSampleIndex', selectedSampleIndex, 'Sort', true,...
-						    'Ax', h.Raster2);		
-                	    if plotPETH
-					        obj.PETH(iChannel, reference2, event2, exclude2, 'Clusters', clusters,...
-						        'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
-						        'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
-						        'SelectedSampleIndex', selectedSampleIndex,...
-						        'LineStyle', '--',...
+                elseif plotStimBlue && plotStimOrange
+			        if isgraphics(h.Raster, 'Axes')
+				        obj.RasterStim(iChannel, 'TrialEvent', 'StimBlueOn', 'StimOnEvent', 'StimBlueOn', 'StimOffEvent', 'StimBlueOff', ...
+                            'Clusters', clusters,...
+					        'ExtendedWindow', extendedWindow, 'XLim', [-0.1, 0.5],...
+					        'SelectedSampleIndex', selectedSampleIndex,...
+					        'Ax', h.Raster);
+                    end
+			        if isgraphics(h.Raster2, 'Axes')
+				        obj.RasterStim(iChannel, 'TrialEvent', 'StimOrangeOn', 'StimOnEvent', 'StimOrangeOn', 'StimOffEvent', 'StimOrangeOff', ...
+                            'Clusters', clusters,...
+					        'ExtendedWindow', extendedWindow, 'XLim', [-0.1, 0.5],...
+					        'SelectedSampleIndex', selectedSampleIndex,...
+					        'Ax', h.Raster2);
+                    end
+                else
+			        if isgraphics(h.Raster, 'Axes')
+				        obj.Raster(iChannel, reference, event, exclude, 'Clusters', clusters,...
+					        'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
+					        'SelectedSampleIndex', selectedSampleIndex, 'Sort', true,...
+					        'Ax', h.Raster);
+                        if plotPETH
+				            obj.PETH(iChannel, reference, event, exclude, 'Clusters', clusters,...
+					            'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
+					            'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
+					            'SelectedSampleIndex', selectedSampleIndex,...
                                 'XLim', rasterXLim, ...
-						        'Ax', h.PETH);
+					            'Ax', h.PETH);
                         end
-				    else
-					    obj.RasterStim(iChannel, 'Clusters', clusters,...
-						    'ExtendedWindow', extendedWindow, 'XLim', [0, 2],...
-						    'SelectedSampleIndex', selectedSampleIndex,...
-						    'Ax', h.Raster2);
-				    end
-                end                
+			        end
+        
+			        if isgraphics(h.Raster2, 'Axes')
+				        if ~plotStim
+					        obj.Raster(iChannel, reference2, event2, exclude2, 'Clusters', clusters,...
+						        'AlignTo', 'Event', 'ExtendedWindow', extendedWindow, 'XLim', rasterXLim,...
+						        'SelectedSampleIndex', selectedSampleIndex, 'Sort', true,...
+						        'Ax', h.Raster2);		
+                	        if plotPETH
+					            obj.PETH(iChannel, reference2, event2, exclude2, 'Clusters', clusters,...
+						            'MinTrialLength', minTrialLength, 'Bins', bins, 'BinMethod', binMethod,...
+						            'SpikeRateWindow', spikeRateWindow, 'ExtendedWindow', extendedWindow,...
+						            'SelectedSampleIndex', selectedSampleIndex,...
+						            'LineStyle', '--',...
+                                    'XLim', rasterXLim, ...
+						            'Ax', h.PETH);
+                            end
+				        else
+					        obj.RasterStim(iChannel, 'Clusters', clusters,...
+						        'ExtendedWindow', extendedWindow, 'XLim', [0, 2],...
+						        'SelectedSampleIndex', selectedSampleIndex,...
+						        'Ax', h.Raster2);
+				        end
+                    end
+                end
             end
     
 
