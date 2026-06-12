@@ -821,6 +821,7 @@ classdef EphysUnit < handle
             % p.addParameter('photoelectricNumSigmasThreshold', 3, @isnumeric);
             p.addParameter('photoelectricOffsetBlankWindow', [], @isnumeric); %[10e-3, 10.5e-3]
             % p.addParameter('photoelectricOffsetNumSigmasThreshold', 3, @isnumeric);
+            p.addParameter('spikeTimes', [], @isnumeric)
             p.parse(trialType, varargin{:})
             trialType = p.Results.trialType;
             window = p.Results.window;
@@ -833,6 +834,10 @@ classdef EphysUnit < handle
             % photoelectricNumSigmasThreshold = p.Results.photoelectricNumSigmasThreshold;
             photoelectricOffsetBlankWindow = p.Results.photoelectricOffsetBlankWindow;
             % photoelectricOffsetNumSigmasThreshold = p.Results.photoelectricOffsetNumSigmasThreshold;
+            spikeTimes = p.Results.spikeTimes;
+            if ~isempty(spikeTimes) && ~isscalar(obj)
+                error('Custom spike times only works for single eu objects, not arrays.')
+            end
 
             if strcmp(alignTo, 'default')
                 switch lower(trialType)
@@ -843,7 +848,10 @@ classdef EphysUnit < handle
                 end
             end
 
-            if length(obj) == 1
+            if isscalar(obj)
+                if isempty(spikeTimes)
+                    spikeTimes = obj.SpikeTimes;
+                end
                 if isempty(p.Results.trials)
                     trials = obj.getTrials(trialType, sorted=true);
                 else
@@ -856,7 +864,7 @@ classdef EphysUnit < handle
                     selTrials = selTrials & reshape(~isnan(correction), size(selTrials));
                 end
                 trials = trials(selTrials);
-                [~, t, I] = trials.inTrial(obj.SpikeTimes, window, windowMode=alignTo);
+                [~, t, I] = trials.inTrial(spikeTimes, window, windowMode=alignTo);
                 switch alignTo
                     case 'start'
                         tRef = [trials.Start];
@@ -868,6 +876,8 @@ classdef EphysUnit < handle
                     assert(length(tRef) == length(correction))
                     tRef = tRef + reshape(correction, size(tRef));
                 end
+                [lia, spikeIndex] = ismember(t, spikeTimes);
+                assert(all(lia), 'rd.spikeIndex might be calculated wrong, this is rarely used, so consider turning into a warning.')
                 t = t - tRef(I);
                 dur = round(trials.duration ./ durErr) * durErr;
 
@@ -905,12 +915,13 @@ classdef EphysUnit < handle
                         [~, pulseOrder] = sort(pulseHash, 'ascend');
                         assert(length(pulseOrder) == max(pulseOrder) && min(pulseOrder) == 1)
 
-                        trialIndices = NaN(size(obj.SpikeTimes));
-                        spikesRelative = NaN(size(obj.SpikeTimes));
+                        trialIndices = NaN(size(spikeTimes));
+                        spikesRelative = NaN(size(spikeTimes));
+                        spikeIndex = 1:length(spikeTimes);
                         for iPulse = 1:nPulses
-                            sel = obj.SpikeTimes >= stimOn(iPulse) + window(1) & obj.SpikeTimes <= stimOn(iPulse) + window(2);
+                            sel = spikeTimes >= stimOn(iPulse) + window(1) & spikeTimes <= stimOn(iPulse) + window(2);
                             trialIndices(sel) = iPulse;
-                            spikesRelative(sel) = obj.SpikeTimes(sel) - stimOn(iPulse);
+                            spikesRelative(sel) = spikeTimes(sel) - stimOn(iPulse);
                         end
                         trialIndicesSorted = changem(trialIndices, 1:length(pulseOrder), pulseOrder);
                         
@@ -919,6 +930,7 @@ classdef EphysUnit < handle
                         sel = ~isnan(I);
                         I = I(sel);
                         t = t(sel);
+                        spikeIndex = spikeIndex(sel);
                         dur = dur(pulseOrder);
                         iti = iti(pulseOrder);
 
@@ -947,6 +959,7 @@ classdef EphysUnit < handle
                         sel = t >= 0 & t < photoelectricBlankDuration;
                         t(sel) = [];
                         I(sel) = [];
+                        spikeIndex(sel) = [];
                         fprintf('Removed %i onset spike photoelectric artifacts.\n', nnz(sel));
                     % end
                 end
@@ -963,6 +976,7 @@ classdef EphysUnit < handle
                         sel = t >= photoelectricOffsetBlankWindow(1) & t < photoelectricOffsetBlankWindow(2);
                         t(sel) = [];
                         I(sel) = [];
+                        spikeIndex(sel) = [];
                         fprintf('Removed %i offset spike photoelectric artifacts.\n', nnz(sel));
                     % end
                 end
@@ -972,14 +986,15 @@ classdef EphysUnit < handle
                 rd.alignTo = alignTo;
                 rd.t = t;
                 rd.I = I;
+                rd.spikeIndex = spikeIndex;
                 rd.duration = dur;
                 rd.iti = iti;
             else
                 tTic = tic();
                 if strcmpi(trialType, 'stimtwocolor')
-                    rd(length(obj)) = struct('name', '', 'trialType', '', 'alignTo', '', 't', [], 'I', [], 'duration', [], 'iti', [], 'tce', []);
+                    rd(length(obj)) = struct(name='', trialType='', alignTo='', t=[], I=[], spikeIndex=[], duration=[], iti=[], tce=[]);
                 else
-                    rd(length(obj)) = struct('name', '', 'trialType', '', 'alignTo', '', 't', [], 'I', [], 'duration', [], 'iti', []);
+                    rd(length(obj)) = struct(name='', trialType='', alignTo='', t=[], I=[], spikeIndex=[], duration=[], iti=[]);                    
                 end
                 fprintf(1, 'Calculating raster data for %g units...\n', length(obj));
                 for i = 1:length(obj)
@@ -1474,7 +1489,7 @@ classdef EphysUnit < handle
             end
 
             for iExp = 1:length(uniqueExpNames)
-                % try
+                try
                     acTemp = ac(euIndicesFirstInSession(iExp));
                     euTemp = obj(euIndicesFirstInSession(iExp));
     
@@ -1534,9 +1549,9 @@ classdef EphysUnit < handle
                             obj(iEu).EventTimes.(event) = tEUTemp;
                         end
                     end
-                % catch
-                %     warning('Error when aligning timestamps for session %s', euTemp.ExpName)
-                % end
+                catch
+                    warning('Error when aligning timestamps for session %s', euTemp.ExpName)
+                end
             end
         end
 

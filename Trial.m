@@ -121,7 +121,7 @@ classdef Trial
             t = t(:)';
             window = p.Results.window;
             windowMode = p.Results.windowMode;
-            
+
             if isempty(obj)
                 B = false(size(t));
                 t = [];
@@ -130,7 +130,7 @@ classdef Trial
             end
 
             obj = obj.sortby('start', 'ascend');
-            
+
             start = horzcat(obj.Start);
             stop = horzcat(obj.Stop);
             edges = reshape([start; stop], [], 1);
@@ -139,7 +139,7 @@ classdef Trial
             [~, ~, bins] = histcounts(t, edges);
             B = rem(bins, 2) ~= 0;
             I = (bins(B) + 1) / 2;
-            
+
             if window(1) == 0 && window(2) == 0
                 t = t(B);
                 [t, Isort] = sort(t);

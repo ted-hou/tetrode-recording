@@ -1,12 +1,12 @@
 folders = [ ...
-    "C:\SERVER\daisy26\daisy26_20250424", ...
-    "C:\SERVER\daisy26\daisy26_20250425", ...
-    "C:\SERVER\desmond38\desmond38_20250401", ...
-    "C:\SERVER\desmond38\desmond38_20250402", ...
-    "C:\SERVER\desmond38\desmond38_20250407", ...
-    "C:\SERVER\desmond38\desmond38_20250417", ...
-    "C:\SERVER\desmond39\desmond39_20250416", ...
-    "C:\SERVER\desmond39\desmond39_20250423", ...
+    % "C:\SERVER\daisy26\daisy26_20250424", ...
+    % "C:\SERVER\daisy26\daisy26_20250425", ...
+    % "C:\SERVER\desmond38\desmond38_20250401", ...
+    % "C:\SERVER\desmond38\desmond38_20250402", ...
+    % "C:\SERVER\desmond38\desmond38_20250407", ...
+    % "C:\SERVER\desmond38\desmond38_20250417", ...
+    % "C:\SERVER\desmond39\desmond39_20250416", ...
+    % "C:\SERVER\desmond39\desmond39_20250423", ...
     "C:\SERVER\daisy27\daisy27_20250624", ...
     "C:\SERVER\daisy27\daisy27_20250626", ...
     "C:\SERVER\daisy27\daisy27_20250707", ...
@@ -46,12 +46,14 @@ folders = [ ...
     ];
 
 euFolders = [ ...
-    "C:\SERVER\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr", ... daisy26, desmond38, desmond39
+    % "C:\SERVER\Units\TwoColor_SNr_SCRetro\SingleUnit_NonDuplicate_NonDrift_SNr", ... daisy26, desmond38, desmond39
     "C:\SERVER\Units\TwoColor_SNr_SCRetro\ReverseInjection\SingleUnit_NonDuplicate_NonDrift_SNr_withTrials", ... daisy27, 28
     "C:\SERVER\Units\TwoColor_Striatonigral\SingleUnit_NonDuplicate_NonDrift_SNr", ... daisy29, 30, desmond41, 42
 ];
 
 dlcResultsPath = 'C:\SERVER\DeepLabCut\Results\FourPawsTongueJawSpine';
+
+excludeAnimals = {'daisy26', 'desmond38', 'desmond39'}; % Lick artifacts, this is pre-accelerometer, we should remove anything before 20250530 (first lick/reach accelerometer test)
 
 %% Load ephysunits
 eu = cell(length(euFolders), 1);
@@ -130,7 +132,6 @@ expIndices = cellfun(@(name) find(strcmpi(name, {exp.name}), 1, 'first'), {eu.Ex
 p.features = ["HandR", "HandL", "FootR", "FootL", "Tongue", "Jaw", "Spine"];
 p.featureStats = ["xPos", "xPos", "xPos", "xPos", "likelihood", "yPos", "yPos"]; % xPos, yPos, xVel, yVel, likelihood, displacement, speed
 p.vtdNames = ["vtdR", "vtdL", "vtdR", "vtdL", "both", "both", "both"];
-% p.smoothWindow = [10, 10, 10, 10, 5, 10, 10];
 p.smoothWindow = [20, 20, 20, 20, 5, 20, 20];
 p.minL = [0.5, 0.5, 0.5, 0.5, 0.2, 0.5, 0.5];
 p.spikeRes = 0.1;
@@ -138,16 +139,13 @@ p.xta.res = 1/30;
 p.xta.window = [-1, 1];
 p.xta.meanWindow = [-0.3, 0.3];
 
-% p.xta.dip.samples = [2, 8]; % check p.spikeRes to convert to dip duration 200-800ms
-p.xta.dip.samples = [2, 20]; % 200ms -> 2000ms
-p.xta.dip.thresholdQuantile = 0.25;
+p.xta.dip.samples = [2, 8]*0.1/p.spikeRes; % check p.spikeRes to convert to dip duration 200-800ms
+p.xta.dip.thresholdQuantile = 0.25; % 0.25
 p.xta.dip.thresholdSubQuantile = 1;
 p.xta.dip.pattern = arrayfun(@(n) [0, 0, 0, ones(1, n), 0, 0, 0] , p.xta.dip.samples(1):p.xta.dip.samples(2), UniformOutput=false); % 100-300ms dips
 p.xta.dip.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.dip.pattern); % finds the onset
 
-
-% p.xta.rise.samples = [2, 8];
-p.xta.rise.samples = [2, 20];
+p.xta.rise.samples = [2, 8]*0.1/p.spikeRes;
 p.xta.rise.thresholdQuantile = 1 - p.xta.dip.thresholdQuantile;
 p.xta.rise.thresholdSubQuantile = 1 - p.xta.dip.thresholdSubQuantile;
 p.xta.rise.pattern = arrayfun(@(n) [0, 0, 0, ones(1, n), 0, 0, 0] , p.xta.rise.samples(1):p.xta.rise.samples(2), UniformOutput=false);
@@ -157,12 +155,10 @@ p.blank(1).event = "StimOn";
 p.blank(1).window = [-1, 1];
 
 p.nBoot = 0;
-if p.nBoot < 1000
-    warning("Running bootstrap with nBoot=%i<1000 is only recommended for testing purposes. Run a real bootstrap pls you lazy bum.", p.nBoot)
-end
 p.bootAlpha = 0.05;
 
-selUnits = 1:length(eu);
+% selUnits = 1:length(eu);
+selUnits = 1:10;
 
 % Process vtdFeatues
 clear kinematics
@@ -358,7 +354,10 @@ for iEu = selUnits
             tEvent = eu(iEu).EventTimes.(p.blank(iEvent).event);
             windows = tEvent(:) + p.blank(iEvent).window;
             for i = 1:length(tEvent)
-                t0.(dir)(t0.(dir)>=windows(i, 1) & t0.(dir)<=windows(i, 2)) = [];
+                sel = t0.(dir)>=windows(i, 1) & t0.(dir)<=windows(i, 2);
+                t0.(dir)(sel) = [];
+                duration.(dir)(sel) = [];
+                clear sel
             end
         end
         clear iEvent tEvent windows i i0
@@ -523,7 +522,20 @@ end
 
 clear iUnit fn selT
 
-% Save results
-exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_units%ito%i_%iboots_%s.mat", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2), selUnits(1), selUnits(end), p.nBoot, datetime("now", Format="yyyyMMdd")));
+nDips = arrayfun(@(xta) length(xta.t0), xta.dip(selUnits))
+nRises = arrayfun(@(xta) length(xta.t0), xta.rise(selUnits))
+
+%% Save results
+exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_units%ito%i_%iboots_%s.mat", 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, p.spikeRes*1000*p.xta.dip.samples(1), p.spikeRes*1000*p.xta.rise.samples(2), selUnits(1), selUnits(end), p.nBoot, datetime("now", Format="yyyyMMdd")));
 save(exportPath, 'xta', 'kinematics', 'p', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
+
+
+%%
+fig = figure();
+tl = tiledlayout(fig, 2, 1);
+ax = gobjects(2, 1);
+ax(1) = nexttile(tl);
+ax(2) = nexttile(tl);
+title(ax(1), 'Dips')
+title(ax(2), 'Rises')
