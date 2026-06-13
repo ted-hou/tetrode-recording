@@ -204,9 +204,14 @@ for iEu = 1:length(eu)
     end
     % try
         iAx = 0;
+        colors = 'kbr';
         for dir = ["spike", "dip", "rise"]
             iAx = iAx + 1;
             cla(ax(iAx));
+
+            if isempty(rd.(dir)(iEu).t)
+                continue
+            end
 
             % Raster
             EphysUnit.plotRaster(ax(iAx), rd.(dir)(iEu), xlim=[-4, 4], iti=true, onlyPlotSpikes=true, sz=1);
@@ -216,17 +221,24 @@ for iEu = 1:length(eu)
             % Dip-triggered movement trace
             if ismember(dir, ["dip", "rise"])
                 h = gobjects(3, 1);
-                for iRiseOrDip = 1:length(rd.(dir)(iEu).t)
+                for iDip = 1:length(rd.(dir)(iEu).t)
                     iFeat = 0;
-                    t0 = rd.(dir)(iEu).t(iRiseOrDip);
-                    I = rd.(dir)(iEu).I(iRiseOrDip);
+                    t0 = rd.(dir)(iEu).t(iDip);
+                    I = rd.(dir)(iEu).I(iDip);
+                    dur = p.spikeRes*single(xta.(dir)(iEu).duration(iDip));
                     plot(ax(iAx), [t0, t0], [I-0.5, I+0.5], 'k-')
+                    c = colors(iAx);
+                    plot(ax(1), t0, I, Color=c, Marker='o', MarkerSize=7.5)
+                    plot(ax(1), [t0, t0+dur], [I, I], Color=c, Marker='o', MarkerSize=3.75, LineStyle='none')
+                    % if dur > 0.201
+                    %     text(ax(1), t0 + 0.5*dur, I-0.5, sprintf("%i", 1000*dur), Color=c, FontSize=6, HorizontalAlignment='center', VerticalAlignment='middle')
+                    % end
                     for fn = features
                         iFeat = iFeat + 1;
                         c = getColor(iFeat, length(features), 0.7);
                         selT = isin(xta.(dir)(iEu).(fn).t, xtaWindow);
                         t = t0 + tLocal;
-                        x = xta.(dir)(iEu).(fn).X(rd.(dir)(iEu).spikeIndex(iRiseOrDip), selT);
+                        x = xta.(dir)(iEu).(fn).X(rd.(dir)(iEu).spikeIndex(iDip), selT);
                         h(iFeat) = plot(ax(iAx), t, x.*scale + I,  LineWidth=1, Color=c, DisplayName=fn);
                     end
                 end
@@ -236,7 +248,7 @@ for iEu = 1:length(eu)
             % Axes
             xline(ax(iAx), 0, ':', Color=[0.15, 0.15, 0.15, 0.5])
 
-            hold(ax(iAx), 'off')
+            % hold(ax(iAx), 'off')
             title(ax(iAx), sprintf("%ss aligned to reach", dir))
         end
 

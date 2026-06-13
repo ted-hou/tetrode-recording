@@ -137,21 +137,48 @@ p.smoothWindow = [20, 20, 20, 20, 5, 20, 20];
 p.minL = [0.5, 0.5, 0.5, 0.5, 0.2, 0.5, 0.5];
 p.spikeDataSource = "rate"; % rate, count
 p.spikeRes = 0.01;
+p.spikeKernelType = 'gaussian';
+switch p.spikeKernelType
+    case 'gaussian'
+        p.spikeKernelSigma = 0.075;
+        p.spikeKernelWidth = 0.5;
+        [~, ~, p.spikeKernel] = eu(1).getSpikeRates('gaussian', p.spikeKernelSigma, p.spikeRes, kernelWidth=p.spikeKernelWidth);
+    case 'exponential'
+        p.spikeKernelLambda1 = 10;
+        p.spikeKernelLambda2 = 100;
+        p.spikeKernelWidth = 0.5;
+        [~, ~, p.spikeKernel] = eu(1).getSpikeRates('exponential', p.spikeKernelLambda1, p.spikeKernelLambda2, p.spikeRes, kernelWidth=p.spikeKernelWidth);
+end
+
+ax = axes(figure());
+title(ax, 'Spike rate kernel')
+xlabel(ax, 'time (s)')
+hold(ax, 'on')
+
+switch p.spikeKernelType
+    case 'gaussian'
+        plot(ax, p.spikeKernel.t, p.spikeKernel.y, DisplayName=sprintf('\\sigma=%g', p.spikeKernelSigma));
+    case 'exponential'
+        plot(ax, p.spikeKernel.t, p.spikeKernel.y, DisplayName=sprintf('\\lambda_1=%g, \\lambda_2=%g', p.spikeKernelLambda1, p.spikeKernelLambda2));
+end
+legend(ax, Interpreter='tex')
+drawnow
+
 p.xta.res = 1/30;
 p.xta.window = [-1, 1];
 p.xta.meanWindow = [-0.3, 0.3];
 
-p.xta.dip.samples = [0.2, 0.8]./p.spikeRes; % check p.spikeRes to convert to dip duration 200-800ms
-p.xta.dip.nullSamplesPre = 0.2/p.spikeRes; % 200 ms below threshold pre dip
-p.xta.dip.nullSamplesPost = 0.2/p.spikeRes; % 200 ms below threshold post dip
+p.xta.dip.samples = [0.2, 0.8]./p.spikeRes; % exceed threshold for 200-800ms
+p.xta.dip.nullSamplesPre = 0.1/p.spikeRes; % 200 ms below threshold pre dip
+p.xta.dip.nullSamplesPost = 0.1/p.spikeRes; % 200 ms below threshold post dip
 p.xta.dip.thresholdQuantile = 0.25; % 0.25
 p.xta.dip.thresholdSubQuantile = 1;
 p.xta.dip.pattern = arrayfun(@(n) [zeros(1, p.xta.dip.nullSamplesPre), ones(1, n), zeros(1, p.xta.dip.nullSamplesPost)] , p.xta.dip.samples(1):p.xta.dip.samples(2), UniformOutput=false);
 p.xta.dip.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.dip.pattern); % finds the onset
 
-p.xta.rise.samples = [0.2, 0.8]./p.spikeRes;
-p.xta.rise.nullSamplesPre = 0.2/p.spikeRes; % 200 ms below threshold pre dip
-p.xta.rise.nullSamplesPost = 0.2/p.spikeRes; % 200 ms below threshold post dip
+p.xta.rise.samples = [0.2, 0.8]./p.spikeRes; % exceed threshold for 200-800ms
+p.xta.rise.nullSamplesPre = 0.1/p.spikeRes; % 200 ms below threshold pre dip
+p.xta.rise.nullSamplesPost = 0.1/p.spikeRes; % 200 ms below threshold post dip
 p.xta.rise.thresholdQuantile = 1 - p.xta.dip.thresholdQuantile;
 p.xta.rise.thresholdSubQuantile = 1 - p.xta.dip.thresholdSubQuantile;
 p.xta.rise.pattern = arrayfun(@(n) [zeros(1, p.xta.rise.nullSamplesPre), ones(1, n), zeros(1, p.xta.rise.nullSamplesPost)] , p.xta.rise.samples(1):p.xta.rise.samples(2), UniformOutput=false);
@@ -329,7 +356,12 @@ for iEu = selUnits
             [x, t] = eu(iEu).getSpikeCounts(p.spikeRes);
             x = double(x)./p.spikeRes;
         case "rate"
-            [x, t] = eu(iEu).getSpikeRates('gaussian', 0.1, p.spikeRes, kernelWidth=1);
+            switch p.spikeKernelType
+                case 'gaussian'
+                    [x, t] = eu(iEu).getSpikeRates('gaussian', p.spikeKernelSigma, p.spikeRes, kernelWidth=p.spikeKernelWidth);
+                case 'exponential'
+                    [x, t] = eu(iEu).getSpikeRates('exponential', p.spikeKernelLambda1, p.spikeKernelLambda2, p.spikeRes, kernelWidth=p.spikeKernelWidth);
+            end
         otherwise
             error("Unknown p.spikeDataSource=%s", p.spikeDataSource)
     end
@@ -376,7 +408,7 @@ for iEu = selUnits
 
 
     fprintf(repmat('\b', [1, lineLength]))
-    lineLength = fprintf('Unit %i/%i; %i(-%i) dips (x<%.2f), %i(-%i) rises (x>%.2f)... %.1fs elapsed...', iEu, length(eu), length(t0.dip), nTotal.dip-length(t0.dip), threshold.dip, length(t0.rise), nTotal.rise-length(t0.rise), threshold.rise, toc(tTicTotal));
+    lineLength = fprintf('Unit %i/%i; %i(-%i) dips (x<%.2f), %i(-%i) rises (x>%.2f)... %.1fs elapsed...', iEu, length(selUnits), length(t0.dip), nTotal.dip-length(t0.dip), threshold.dip, length(t0.rise), nTotal.rise-length(t0.rise), threshold.rise, toc(tTicTotal));
 
     for dir = ["dip", "rise"]
         xta.(dir)(iEu).iExp = iExp;
@@ -539,3 +571,5 @@ exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach
 save(exportPath, 'xta', 'kinematics', 'p', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
 
+
+clear d dir duration iPat nTotal s selUnits sn t0 tt
