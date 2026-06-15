@@ -3,22 +3,23 @@
 ROOTPATH = 'C:\SERVER';
 
 %% Clear temp vars
-clearvars -except xta p kinematics ROOTPATH
+clearvars -except xta p kinematics ROOTPATH eu exp expIndices
 
 %% Load data
 % Load dip/rise triggered averages, the bootstraps contained within are kind of useless.
 % load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to800ms_units1to1443_100boots.mat"));
-load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to2000ms_units1to1443_0boots_20260605.mat"));
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to800ms_units1to1225_0boots_20260613.mat"));
 
 % Load bootstrapped per-cluster averages. Can skip next step unless you
 % want to recluster/rebootstrap
-load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_1443units_10000boots_20260605.mat")); % contains updated `p`
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\PLACEHOLDERNAME.mat")); % contains updated `p`
 
 %% Combine movement indices (mi) across dips from all units, then cluster them. 
 % Do this before bootstrapping per-cluster averages.
+OVERWRITE_ALL = false;
 requiredFields = ["features", "windowPre", "windowPost", "nClusters", "clusterMethod", "clusterDimensions", "clusterSeed", "semanticClusterOrder", "semanticClusterLabels", "semanticClusterSign", "dimensionReductionMethod"];
-if ~isfield(p, 'mi') || any(~isfield(p.mi, requiredFields))
-    if isfield(p, 'mi')
+if ~isfield(p, 'mi') || any(~isfield(p.mi, requiredFields)) || OVERWRITE_ALL
+    if isfield(p, 'mi') && ~OVERWRITE_ALL
         msg = sprintf("The following required p.mi fields are missing:\n%s\n\nOverwrite p.mi?", strjoin(requiredFields(~isfield(p.mi, requiredFields)), ", "));
         choice = questdlg(msg, "Missing p.mi fields", "Overwrite", "Cancel", "Cancel");
     else
@@ -31,8 +32,8 @@ if ~isfield(p, 'mi') || any(~isfield(p.mi, requiredFields))
         p.mi.nClusters = 7;
         p.mi.clusterMethod = "kmeans"; % "gaussian", "kmeans"
         p.mi.clusterDimensions = 4;
-        p.mi.clusterSeed = 1; % [-0.3, -0] vs [0, 0.3]: 1; [-0.6, -0] vs [0, 0.6]: 42; [-1, -0.3] vs [0, 0.6]: 42, 2
-        p.mi.semanticClusterOrder = [1, 3, 2, 6, 4, 7, 5];
+        p.mi.clusterSeed = 42; % [-0.3, -0] vs [0, 0.3]: 43,47,42(hands are correlated a bit); [-0.6, -0] vs [0, 0.6]: 42; [-1, -0.3] vs [0, 0.6]: 42, 2
+        p.mi.semanticClusterOrder = [1, 3, 2, 6, 7, 5, 4];
         % p.mi.semanticClusterOrder = 1:7;
         p.mi.semanticClusterLabels = ["no move", "lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"];
         p.mi.semanticClusterSign = [0, 1, -1, 1, -1, 1, -1]; % 0: two-tailed, 1: right, 2: left
@@ -68,7 +69,7 @@ else
 end
 tTic = tic();
 
-if exist('mi', 'var')
+if exist('mi', 'var') && ~OVERWRITE_ALL
     choice = questdlg('Variable "mi" already exists in workspace. Recalculate and overwrite?', ...
         'Overwrite mi?', 'Yes', 'No', 'No');
 else
@@ -184,7 +185,7 @@ else
     fprintf('Using existing variable "mi" which contains calculated movement indices, dimensionality reduction results, and clustering results.\n');
 end
 
-if exist('clusterSize', 'var')
+if exist('clusterSize', 'var') && ~OVERWRITE_ALL
     choice = questdlg('Recalculate existing variable "clusterSize"?', 'Recalculate clusterSize', 'Yes', 'No', 'No');
 else
     choice = 'Yes';
@@ -222,7 +223,7 @@ end
 clear requiredFields msg choice
 
 
-%% Scatter plot of all movement profiles
+% Scatter plot of all movement profiles
 features = ["spikerate", "Jaw", "Tongue", "HandL", "HandR", "Spine"];
 featureDispName = ["spike rate", "jaw", "tongue", "left paw", "right paw", "spine"];
 featureUnits = ["spike rate (a.u.)", "DV pos (a.u.)", "protrusion prob", "AP pos (a.u.)", "AP pos (a.u.)", "DV pos (a.u.)"];
@@ -738,7 +739,7 @@ end
 for iTest = [3, 2, 4]
     for nCleanGroups = [5, 4, 3, 2, 1]
         for requirement = ["dip or rise", "both"]
-            exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\Figures", sprintf("%s_LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", datetime("now", Format="uuuuMMdd"), 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2)), "By Feature x Cluster", sprintf("Test%i - %s", iTest, tests(iTest).name), sprintf('%i clean clusters for %s', nCleanGroups, requirement));
+            exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\Figures", sprintf("%s_LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", datetime("now", Format="uuuuMMdd"), 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, p.spikeRes*1000*p.xta.dip.samples(1), p.spikeRes*1000*p.xta.dip.samples(2)), "By Feature x Cluster", sprintf("Test%i - %s", iTest, tests(iTest).name), sprintf('%i clean clusters for %s', nCleanGroups, requirement));
             if ~exist(exportPath, 'dir')
                 mkdir(exportPath)
             else

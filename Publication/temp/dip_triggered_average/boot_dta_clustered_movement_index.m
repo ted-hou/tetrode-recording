@@ -92,7 +92,7 @@ clear iUnit dir iFeat fn idx iClu
 %% Save data
 
 
-exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_miBoot_%ito%ims_%iunits_%iboots_%s.mat", 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2), nUnits, p.mi.boot.nBoot, datetime("now", Format="yyyyMMdd")));
+exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_miBoot_%ito%ims_%iunits_%iboots_%s.mat", p.spikeRes*1000*p.xta.dip.samples(1), p.spikeRes*1000*p.xta.dip.samples(2), nUnits, p.mi.boot.nBoot, datetime("now", Format="yyyyMMdd")));
 save(exportPath, 'clusterSize', 'mi', 'miBoot', 'miObs', 'p', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
 
