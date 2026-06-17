@@ -12,7 +12,7 @@ load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100
 
 % Load bootstrapped per-cluster averages. Can skip next step unless you
 % want to recluster/rebootstrap
-load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\PLACEHOLDERNAME.mat")); % contains updated `p`
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_200to800ms_1225units_10000boots_20260614.mat")); % contains updated `p`
 
 %% Combine movement indices (mi) across dips from all units, then cluster them. 
 % Do this before bootstrapping per-cluster averages.
@@ -736,8 +736,10 @@ for iClu = 1:nClusters
     end
 end
 
-for iTest = [3, 2, 4]
-    for nCleanGroups = [5, 4, 3, 2, 1]
+% for iTest = [3, 2, 4]
+for iTest = 2
+    % for nCleanGroups = [5, 4, 3, 2, 1]
+    for nCleanGroups = 6
         for requirement = ["dip or rise", "both"]
             exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\Figures", sprintf("%s_LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", datetime("now", Format="uuuuMMdd"), 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, p.spikeRes*1000*p.xta.dip.samples(1), p.spikeRes*1000*p.xta.dip.samples(2)), "By Feature x Cluster", sprintf("Test%i - %s", iTest, tests(iTest).name), sprintf('%i clean clusters for %s', nCleanGroups, requirement));
             if ~exist(exportPath, 'dir')

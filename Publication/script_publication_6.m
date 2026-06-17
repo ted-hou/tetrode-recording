@@ -82,6 +82,11 @@ end
 % %%
 % metaArtiFree.eta = etaArtiFree;
 % save('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat', 'metaArtiFree')
+%%
+clearvars -except etaArtiFree euArtiFree metaArtiFree
+if ~exist('p', 'var') || ~isfield(p, 'fontSize')
+    p.fontSize = 9;
+end
 
 %% Calculate peri-lick lick frequency histograms for any first lick in trial
 [~, expEuIndices] = unique({euArtiFree.ExpName});
@@ -163,10 +168,12 @@ W = cellfun(@(xl) diff(xl*10), XLIM, UniformOutput=true);
 CW = cumsum([0, W]);
 SORTWINDOW = {[-0.3, 0.3], [-0.3, 0.3], [-0.1, 0.3], [-0.1, 0.3], [-0.1, 0.3]};
 DATAWINDOW = {[-2, 0.5], [-2, 0.5], [-0.5, 0.5], [-0.5, 0.5], [-0.5, 0.5]};
-NAME = ["Reach", "Lick", "First lick", "Last lick", "Bar release"];
+NAME = ["reach", "lick", "lick\nstart", "lick\nend", "retract"];
 TRIALTYPE = {'press', 'lick', 'CorrectPressToFirstRewardLick', 'CueToLastLickOffCorrect', 'CueToLeverReleaseCorrect'};
-XTICKS = {[-1, 0], [-1, 0], [0, 0.3], [0, 0.3], [0, 0.3]};
-XTICKLABELS = {["-1", "touch"], ["-1", "lick"], ["lick", "0.3"], ["lick", "0.3"], ["release    ", "0.3"]};
+% XTICKS = {[-1, 0], [-1, 0], [0, 0.3], [0, 0.3], [0, 0.3]};
+% XTICKLABELS = {["-1", "touch"], ["-1", "lick"], ["lick", "0.3"], ["lick", "0.3"], ["release", "0.3"]};
+XTICKS = {[-1, 0], [-1, 0], [0], [0], [0]};
+XTICKLABELS = {["-1", "0"], ["-1", "0"], ["0"], ["0"], ["0"]};
 nEgUnits = 2;
 close all
 
@@ -174,24 +181,24 @@ close all
 fig = figure(Units='inches', Position=[1, 1, 7, 8]);
 
 clear layout
-layout.w = 1;
+layout.w = [5, 5];
 layout.h = [4, 8, 7];
-layout.ch = cumsum([0, layout.h]);
+layout.ch = cumsum([0, layout.h]).*sum(layout.w);
 layout.tl = tiledlayout(fig, sum(layout.h), sum(layout.w), TileSpacing='tight', Padding='loose');
 
-% 1st row (examples)
+% 1st row (left) (examples)
 layout.child(1).h = nEgUnits;
 layout.child(1).w = W;
 layout.child(1).cw = cumsum([0, W]);
-layout.child(1).tl = tiledlayout(layout.tl, sum(layout.child(1).h), sum(layout.child(1).w), TileSpacing='compact', Padding='compact');
-l = layout.child(1).tl; l.Layout.Tile = 1 + layout.ch(1); l.Layout.TileSpan = [layout.h(1), layout.w];
+layout.child(1).tl = tiledlayout(layout.tl, sum(layout.child(1).h), sum(layout.child(1).w), TileSpacing='tight', Padding='tight');
+l = layout.child(1).tl; l.Layout.Tile = 1 + layout.ch(1); l.Layout.TileSpan = [layout.h(1), layout.w(1)];
 
-% 2nd row (heatmap)
+% 2nd row (left) (heatmap)
 layout.child(2).h = 1;
 layout.child(2).w = W;
 layout.child(2).cw = cumsum([0, W]);
-layout.child(2).tl = tiledlayout(layout.tl, sum(layout.child(2).h), sum(layout.child(2).w), TileSpacing='compact', Padding='compact');
-l = layout.child(2).tl; l.Layout.Tile = 1 + layout.ch(2); l.Layout.TileSpan = [layout.h(2), layout.w];
+layout.child(2).tl = tiledlayout(layout.tl, sum(layout.child(2).h), sum(layout.child(2).w), TileSpacing='tight', Padding='tight');
+l = layout.child(2).tl; l.Layout.Tile = 1 + layout.ch(2); l.Layout.TileSpan = [layout.h(2), layout.w(1)];
 
 % 3rd row (osci)
 layout.child(3).h = [9, 20];
@@ -199,7 +206,7 @@ layout.child(3).w = [3, 3, 3];
 layout.child(3).cw = cumsum([0, layout.child(3).w]);
 layout.child(3).ch = cumsum([0, layout.child(3).h]);
 layout.child(3).tl = tiledlayout(layout.tl, sum(layout.child(3).h), sum(layout.child(3).w), TileSpacing='loose', Padding='compact');
-l = layout.child(3).tl; l.Layout.Tile = 1 + layout.ch(3); l.Layout.TileSpan = [layout.h(3), layout.w];
+l = layout.child(3).tl; l.Layout.Tile = 1 + layout.ch(3); l.Layout.TileSpan = [layout.h(3), sum(layout.w)];
 
 
 % 6a. Raster/PETH examples, 5 phases of movement
@@ -255,7 +262,7 @@ for iEu = 1:nEgUnits
         xticklabels(ax, XTICKLABELS{iAx})
         xtickangle(ax, 0)
         if iEu == 1
-            title(ax, NAME(iAx))
+            title(ax, strsplit(NAME(iAx), '\\n'))
             xticks(ax, [])
         else
             title(ax, '')
@@ -347,6 +354,7 @@ for iAx = 1:length(ETA)
     applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);    
     if ~hidecb
         ax(iAx).Colorbar.Layout.Tile = 'east';
+        % ax(iAx).Colorbar.Location = 'eastoutside';
         ax(iAx).Colorbar.Label.String = 'Normalized spike rate (a.u.)';
         axc2 = ax(iAx);
     end
@@ -718,6 +726,7 @@ hCb = axc2.Colorbar;
 hCb.Label.String = 'Norm spike rate (a.u.)';
 hCb.Label.Position(1) = 0;
 hCb.Label.VerticalAlignment = 'bottom';
+delete(hCb)
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
