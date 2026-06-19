@@ -390,7 +390,7 @@ for iAx = 1:length(ETA)
     EphysUnit.plotETA(ax(iAx), ETA{iAx}, selUnits, xlim=XLIM{iAx}, clim=[-1.5, 1.5], order=sortOrder, hidecolorbar=hidecb);
     applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);    
     if ~hidecb
-        ax(iAx).Colorbar.Layout.Tile = 'east';
+        ax(iAx).Colorbar.Layout.Tile = 'north';
         ax(iAx).Colorbar.Label.String = 'Normalized spike rate (a.u.)';
         axc2 = ax(iAx);
     end
@@ -1016,8 +1016,8 @@ hCb.Label.VerticalAlignment = 'bottom';
 
 hCb = axc2.Colorbar;
 hCb.Label.String = 'Norm spike rate (a.u.)';
-hCb.Label.Position(1) = 0;
+hCb.Label.Position(2) = 0;
 hCb.Label.VerticalAlignment = 'bottom';
-delete(hCb)
+error("Please fix color bar for Fig.6b, 'axc2.Colorbar'")
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
