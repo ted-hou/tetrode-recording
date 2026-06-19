@@ -1,6 +1,6 @@
 %% Set root
-% ROOTPATH = "E:\DATA";
-ROOTPATH = 'C:\SERVER';
+ROOTPATH = "C:\SERVER";
+% ROOTPATH = 'E:\DATA';
 
 %% Load eu, exp
 folders = [ ...
@@ -133,11 +133,11 @@ expIndices = cellfun(@(name) find(strcmpi(name, {exp.name}), 1, 'first'), {eu.Ex
 
 %% Load data
 % Load dip/rise triggered averages, the bootstraps contained within are kind of useless.
-load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to800ms_units1to1225_0boots_20260611.mat"));
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to800ms_units1to1225_0boots_20260613.mat"));
 
 % Load bootstrapped per-cluster averages. Can skip next step unless you
 % want to recluster/rebootstrap
-% load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_1443units_10000boots_20260605.mat")); % contains updated `p`
+% load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_200to800ms_1225units_10000boots_20260614.mat")); % contains updated `p`
 
 %% Make Press/Lick trials if they don't exist
 clear hasTrials;
@@ -150,6 +150,7 @@ euSub = eu(~hasTrials.Press);
 tEu = euSub.alignTimestamps(["TIMEOUT_START", "WAITFORTOUCH", "LEVER_PRESSED", "LEVER_RELEASED", "LEVER_HELD", "LICK", "LICK_OFF", "REWARD_ON", "REWARD_OFF"], ...
     acRefEventName=["REWARD_ON"], euRefEventName=["RewardOn"], ...
     trialDurationTolerance=1);
+
 %% Make trials
 for iSession = 1:length(tEu)
     if isempty(tEu(iSession).TIMEOUT_START)
@@ -166,19 +167,29 @@ end
 
 
 %% Get trial aligned rasters
+trialTypes = ["press", "lick"];
+trialTypeDisplayNames = ["reach", "lick"];
+trialTypeRefEventDisplayNames = ["bar-contact", "spout-contact"];
 clear rd
-rd.dip(length(eu)) = struct(name='', trialType='', alignTo='', t=[], I=[], spikeIndex=[], duration=[], iti=[]);
-rd.rise(length(eu)) = struct(name='', trialType='', alignTo='', t=[], I=[], spikeIndex=[], duration=[], iti=[]);
-for iEu = 1:length(eu)
-    for dir = ["dip", "rise"]
-        rd.(dir)(iEu) = eu(iEu).getRasterData('press', window=[-4, 4], minTrialDuration=2, alignTo='stop', spikeTimes=xta.(dir)(iEu).t0);
+for trialType = trialTypes
+    rd.(trialType).dip(length(eu)) = struct(name='', trialType='', alignTo='', t=[], I=[], spikeIndex=[], duration=[], iti=[]);
+    rd.(trialType).rise(length(eu)) = struct(name='', trialType='', alignTo='', t=[], I=[], spikeIndex=[], duration=[], iti=[]);
+    for iEu = 1:length(eu)
+        for dir = ["dip", "rise"]
+            rd.(trialType).(dir)(iEu) = eu(iEu).getRasterData(char(trialType), window=[-4, 1], minTrialDuration=1, alignTo='stop', spikeTimes=xta.(dir)(iEu).t0);
+        end
     end
+    rd.(trialType).spike = eu.getRasterData(char(trialType), window=[-4, 1], minTrialDuration=2, alignTo='stop');
 end
-rd.spike = eu.getRasterData('press', window=[-4, 4], minTrialDuration=2, alignTo='stop');
+
+%% Save rasterdata (rd)
+metaRasterData = rd;
+save(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot", sprintf("%s_metaRasterData.mat", datetime("now", Format="uuuuMMdd"))), 'metaRasterData');
+
 
 %% Plot them
 close all
-exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\Figures", sprintf("%s_LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", datetime("now", Format="uuuuMMdd"), 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, 100*p.xta.dip.samples(1), 100*p.xta.rise.samples(2)), "Reach aligned dip raster");
+exportPath = fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\Figures", sprintf("%s_LickVsReach_DLC_dta_rta_%i_%i_%ito%ims_std", datetime("now", Format="uuuuMMdd"), 100*p.xta.dip.thresholdQuantile, 100*p.xta.dip.thresholdSubQuantile, p.spikeRes*1000*p.xta.dip.samples(1), p.spikeRes*1000*p.xta.rise.samples(2)), "Reach aligned dip raster");
 if ~exist(exportPath, 'dir')
     mkdir(exportPath)
 else
@@ -192,70 +203,78 @@ tLocal = xtaWindow(1):p.xta.res:xtaWindow(2);
 scale = 1;
 
 fig = figure(Units='inches', Position=[1, 1, 10, 6]);
-tl = tiledlayout(fig, 3, 1, TileSpacing='compact');
-ax = gobjects(3, 1);
-for iAx = 1:3
-    ax(iAx) = nexttile(tl);
+tlp = tiledlayout(fig, 1, length(trialTypes), TileSpacing='compact', Padding='compact');
+tl = gobjects(1, length(trialTypes));
+ax = gobjects(3, length(trialTypes));
+for iTrialType = 1:length(trialTypes)
+    tl(iTrialType) = tiledlayout(tlp, 3, 1, TileSpacing='compact', Padding='compact');
+    tl(iTrialType).Layout.Tile = iTrialType;
+    for iAx = 1:3
+        ax(iAx, iTrialType) = nexttile(tl(iTrialType));
+    end
 end
 
 for iEu = 1:length(eu)
-    if ismember(eu(iEu).getAnimalName, {'daisy26', 'desmond38', 'desmond39'})
-        continue
-    end
     % try
-        iAx = 0;
         colors = 'kbr';
-        for dir = ["spike", "dip", "rise"]
-            iAx = iAx + 1;
-            cla(ax(iAx));
-
-            if isempty(rd.(dir)(iEu).t)
-                continue
-            end
-
-            % Raster
-            EphysUnit.plotRaster(ax(iAx), rd.(dir)(iEu), xlim=[-4, 4], iti=true, onlyPlotSpikes=true, sz=1);
-            legend(ax(iAx), 'off')
-            hold(ax(iAx), 'on')
-
-            % Dip-triggered movement trace
-            if ismember(dir, ["dip", "rise"])
-                h = gobjects(3, 1);
-                for iDip = 1:length(rd.(dir)(iEu).t)
-                    iFeat = 0;
-                    t0 = rd.(dir)(iEu).t(iDip);
-                    I = rd.(dir)(iEu).I(iDip);
-                    dur = p.spikeRes*single(xta.(dir)(iEu).duration(iDip));
-                    plot(ax(iAx), [t0, t0], [I-0.5, I+0.5], 'k-')
-                    c = colors(iAx);
-                    plot(ax(1), t0, I, Color=c, Marker='o', MarkerSize=7.5)
-                    plot(ax(1), [t0, t0+dur], [I, I], Color=c, Marker='o', MarkerSize=3.75, LineStyle='none')
-                    % if dur > 0.201
-                    %     text(ax(1), t0 + 0.5*dur, I-0.5, sprintf("%i", 1000*dur), Color=c, FontSize=6, HorizontalAlignment='center', VerticalAlignment='middle')
-                    % end
-                    for fn = features
-                        iFeat = iFeat + 1;
-                        c = getColor(iFeat, length(features), 0.7);
-                        selT = isin(xta.(dir)(iEu).(fn).t, xtaWindow);
-                        t = t0 + tLocal;
-                        x = xta.(dir)(iEu).(fn).X(rd.(dir)(iEu).spikeIndex(iDip), selT);
-                        h(iFeat) = plot(ax(iAx), t, x.*scale + I,  LineWidth=1, Color=c, DisplayName=fn);
-                    end
+        for iTrialType = 1:length(trialTypes)
+            trialType = trialTypes(iTrialType);
+            % title(tl(iTrialType), trialTypeDisplayNames(iTrialType), FontSize=10, FontWeight='bold');
+            iAx = 0;
+            for dir = ["spike", "dip", "rise"]
+                iAx = iAx + 1;
+                cla(ax(iAx, iTrialType));
+    
+                if isempty(rd.(trialType).(dir)(iEu).t)
+                    continue
                 end
-                legend(h, Location='east', AutoUpdate=false);
+    
+                % Raster
+                EphysUnit.plotRaster(ax(iAx, iTrialType), rd.(trialType).(dir)(iEu), xlim=[-4, 1], iti=true, onlyPlotSpikes=true, sz=1);
+                legend(ax(iAx, iTrialType), 'off')
+                hold(ax(iAx, iTrialType), 'on')
+    
+                % Dip-triggered movement trace
+                if ismember(dir, ["dip", "rise"])
+                    h = gobjects(3, 1);
+                    for iDip = 1:length(rd.(trialType).(dir)(iEu).t)
+                        iFeat = 0;
+                        t0 = rd.(trialType).(dir)(iEu).t(iDip);
+                        I = rd.(trialType).(dir)(iEu).I(iDip);
+                        dur = p.spikeRes*single(xta.(dir)(iEu).duration(iDip));
+                        plot(ax(iAx, iTrialType), [t0, t0], [I-0.5, I+0.5], 'k-')
+                        c = colors(iAx);
+                        plot(ax(1, iTrialType), t0, I, Color=c, Marker='o', MarkerSize=7.5)
+                        plot(ax(1, iTrialType), [t0, t0+dur], [I, I], Color=c, Marker='o', MarkerSize=3.75, LineStyle='none')
+                        % if dur > 0.201
+                        %     text(ax(1), t0 + 0.5*dur, I-0.5, sprintf("%i", 1000*dur), Color=c, FontSize=6, HorizontalAlignment='center', VerticalAlignment='middle')
+                        % end
+                        for fn = features
+                            iFeat = iFeat + 1;
+                            c = getColor(iFeat, length(features), 0.7);
+                            selT = isin(xta.(dir)(iEu).(fn).t, xtaWindow);
+                            t = t0 + tLocal;
+                            x = xta.(dir)(iEu).(fn).X(rd.(trialType).(dir)(iEu).spikeIndex(iDip), selT);
+                            h(iFeat) = plot(ax(iAx, iTrialType), t, x.*scale + I,  LineWidth=1, Color=c, DisplayName=fn);
+                        end
+                    end
+                    legend(h, Location='east', AutoUpdate=false);
+                    yticks(ax(iAx, iTrialType), ax(1, iTrialType).YTick)
+                end
+    
+                % Axes
+                xline(ax(iAx, iTrialType), 0, '--', Color=[0.15, 0.15, 0.15, 0.5])
+    
+                % hold(ax(iAx), 'off')
+                title(ax(iAx, iTrialType), sprintf("%ss aligned to %s", dir, trialTypeDisplayNames(iTrialType)))
             end
-
-            % Axes
-            xline(ax(iAx), 0, ':', Color=[0.15, 0.15, 0.15, 0.5])
-
-            % hold(ax(iAx), 'off')
-            title(ax(iAx), sprintf("%ss aligned to reach", dir))
+    
+            xlabel(tl(iTrialType), sprintf("time from %s (s)", trialTypeRefEventDisplayNames(iTrialType)), FontSize=9)
+            xlabel(ax, '')
         end
 
-        xlabel(tl, ax(1).XAxis.Label.String)
-        xlabel(ax, '')
-
-        title(tl, sprintf("unit %i - %s", iEu, eu(iEu).getName()), Interpreter='none');
+        title(tlp, sprintf("unit %i - %s", iEu, eu(iEu).getName()), Interpreter='none', FontWeight='bold');
+        fontsize(fig, 9, 'points')
         print(fig, fullfile(exportPath, sprintf("reachAlignedDipRaster_unit_%03i", iEu)), '-dpng', '-r0')
     % catch
     %     warning("Could not plot unit %i", iEu)
