@@ -164,17 +164,22 @@ if isempty(gcp('nocreate'))
 else
     pool = gcp('nocreate');
 end
-rng(42)
+% rng(42) % This does nothing in parfor, need to do something kind of streaming
 assert(isequal(p.mi.features, ["Jaw", "Tongue", "HandL", "HandR", "Spine"]))
 pcFeatures = cellfun(@(f) ismember(p.mi.features, f), {"HandL", ["Tongue", "Jaw"], "HandR", "Spine"}, UniformOutput=false);
 miBootFeatures = ismember(p.mi.features, p.mi.boot.features);
 clear sdBoot
 sdBoot(nUnits) = struct(dip=struct(h=[], n=[]), rise=struct(h=[], n=[]));
 parfevalOnAll(pool, @warning, 0, 'off', 'stats:kmeans:FailedToConverge');
+%%
 tTic = tic();
 ll = 0;
+hasWarning = false;
 for iUnit = 1:nUnits
-    fprintf(repmat('\b', [1, ll]));
+    if ~hasWarning
+        fprintf(repmat('\b', [1, ll]));
+    end
+    hasWarning = false;
     ll = fprintf("Unit %i/%i, time elapsed: %.1f seconds; estimated remaining: %.1f seconds...\n", iUnit, nUnits, toc(tTic), toc(tTic)/iUnit*(nUnits-iUnit));
     iExp = expIndices(iUnit);
     kine = kinematics(iExp);
@@ -183,8 +188,13 @@ for iUnit = 1:nUnits
         nBootTemp = zeros(p.sd.nBoot, nClusters, 'uint16');
         hBootTemp = zeros(p.sd.nBoot, nClusters, nFeatures, 'int8');
         nTrials = length(mi.(dir)(iUnit).idx);
+        if nTrials < p.mi.minNumTrialsPerCluster || nTrials < nClusters
+            sdBoot(iUnit).(dir) = struct(h=hBootTemp, n=nBootTemp);
+            warning("Unit %i has too few (%i) %ss, we cannot do kmeans so this unit/dir is skipped.", iUnit, nTrials, dir)
+            hasWarning = true;
+            continue
+        end
         parfor iBoot = 1:p.sd.nBoot
-        % for iBoot = 1
             pcaScore = zeros(nTrials, 4, 'single');
             T0 = -p.mi.windowPre(1) + rand([1, nTrials])*(tMax - p.mi.windowPost(2) + p.mi.windowPre(1));
             miTemp = NaN(nTrials, length(p.mi.features), 'single');
@@ -210,7 +220,7 @@ for iUnit = 1:nUnits
             % We need:
             %   convert miTemp from magnitude to significance (3SD)
             %   h (nClusters x nFeatures, 7x4) -1, 0, 1 for dec, flat, inc
-            %   cs (nClusters): numTrialsPerCluster
+            %   n (nClusters): numTrialsPerCluster
             mu = mean(miTemp, 1, 'omitnan');
             sd = std(miTemp, 0, 1, 'omitnan');
             hTemp = zeros(nClusters, nFeatures, 'int8');
@@ -236,7 +246,15 @@ for iUnit = 1:nUnits
         ll = ll + fprintf('%i positives.\n', nnz(hBootTemp~=0));
     end
 end
+
+
 parfevalOnAll(pool, @warning, 0, 'on', 'stats:kmeans:FailedToConverge');
 clear pool
 clear nUnits nFeatures nClusters idx pcaScore centroids k dir
 clear pcFeatures miBootFeatures tTic ll iExp kine tMax dir nBootTemp hBootTemp nTrials iBoot pcaScore T0 miTemp iTrial iFeat fn iStartPre iStopPre iStartPost iStopPost idx mu sd hTemp k inCluster nTrialsInCluster miCluster ifn
+
+
+exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_sdBoot_%iunits_%iboots_%s.mat", length(xta.dip), p.sd.nBoot, datetime("now", Format="yyyyMMdd")));
+save(exportPath, 'sdBoot', 'p', '-v7.3')
+fprintf("Saved to %s\n", exportPath);
+
