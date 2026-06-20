@@ -15,9 +15,9 @@ end
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot", "20260617_metaRasterData.mat"));
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to800ms_units1to1225_0boots_20260613.mat"));
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_200to800ms_1225units_10000boots_20260614.mat")); % contains updated `p`
-
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_sdBoot_1225units_1000boots_20260620.mat")); % Load bootstrapped statistics for fig6 panels
 %%
-clearvars -except etaArtiFree euArtiFree metaArtiFree clusterSize kinematics metaRasterData mi miBoot miObs p ROOTPATH xta
+clearvars -except etaArtiFree euArtiFree metaArtiFree clusterSize kinematics metaRasterData mi miBoot miObs sdBoot p ROOTPATH xta
 if ~exist('p', 'var') || ~isfield(p, 'fontSize')
     p.fontSize = 8;
 end
@@ -193,7 +193,7 @@ fig = figure(Units='inches', Position=[1, 1, 7.5, 8]);
 clear layout
 layout.w = [5, 6];
 % layout.h = [4, 8, 7];
-layout.h = [8, 16, 12];
+layout.h = [7, 17, 12];
 layout.ch = cumsum([0, layout.h]).*sum(layout.w);
 layout.tl = tiledlayout(fig, sum(layout.h), sum(layout.w), TileSpacing='loose', Padding='loose');
 
@@ -205,11 +205,13 @@ layout.child(1).tl = tiledlayout(layout.tl, sum(layout.child(1).h), sum(layout.c
 l = layout.child(1).tl; l.Layout.Tile = 1 + layout.ch(1); l.Layout.TileSpan = [layout.h(1), layout.w(1)];
 
 % 2nd row (left) (heatmap)
-layout.child(2).h = 1;
+layout.child(2).h = [2, 9];
 layout.child(2).w = W;
 layout.child(2).cw = cumsum([0, W]);
-layout.child(2).tl = tiledlayout(layout.tl, sum(layout.child(2).h), sum(layout.child(2).w), TileSpacing='tight', Padding='compact');
-l = layout.child(2).tl; l.Layout.Tile = 1 + layout.ch(2); l.Layout.TileSpan = [layout.h(2), layout.w(1)];
+layout.child(2).tlp = tiledlayout(layout.tl, sum(layout.child(2).h), 1, TileSpacing='loose', Padding='compact');
+l = layout.child(2).tlp; l.Layout.Tile = 1 + layout.ch(2); l.Layout.TileSpan = [layout.h(2), layout.w(1)];
+layout.child(2).tl = tiledlayout(layout.child(2).tlp, 1, sum(layout.child(2).w), TileSpacing='tight', Padding='compact');
+l = layout.child(2).tl; l.Layout.Tile = 1 + layout.child(2).h(1); l.Layout.TileSpan = [layout.child(2).h(2), 1];
 
 % 3rd row (osci)
 layout.child(3).h = [9, 20];
@@ -386,12 +388,10 @@ for i = 1:length(XLIM)
     ax(i) = nexttile(layout.child(2).tl, CW(i)+1, [1, W(i)]);
 end
 for iAx = 1:length(ETA)
-    hidecb = iAx < length(ETA);
+    hidecb = iAx > 1;
     EphysUnit.plotETA(ax(iAx), ETA{iAx}, selUnits, xlim=XLIM{iAx}, clim=[-1.5, 1.5], order=sortOrder, hidecolorbar=hidecb);
     applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);    
     if ~hidecb
-        ax(iAx).Colorbar.Layout.Tile = 'north';
-        ax(iAx).Colorbar.Label.String = 'Normalized spike rate (a.u.)';
         axc2 = ax(iAx);
     end
     if iAx > 1
@@ -1015,9 +1015,16 @@ hCb.Label.VerticalAlignment = 'bottom';
 % hCb.Layout.Tile = 'east';
 
 hCb = axc2.Colorbar;
+hCb.Orientation = 'horizontal';
+hCb.Layout.Tile = 'north';
 hCb.Label.String = 'Norm spike rate (a.u.)';
+% hCb.Label.FontSize = 7;
+fontsize(hCb, 7, 'points')
 hCb.Label.Position(2) = 0;
-hCb.Label.VerticalAlignment = 'bottom';
-error("Please fix color bar for Fig.6b, 'axc2.Colorbar'")
+hCb.Label.VerticalAlignment = 'top';
+% hCb.YAxisLocation = 'bottom';
+hCb.AxisLocation = 'in';
+hCb.Ticks = [-1.5, 0, 1.5];
+% hCb.Location = 'manual';
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
