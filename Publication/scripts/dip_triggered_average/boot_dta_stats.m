@@ -258,3 +258,4 @@ exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach
 save(exportPath, 'sdBoot', 'p', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
 
+warning('sdBoot clusters are in native order, not semantic order')

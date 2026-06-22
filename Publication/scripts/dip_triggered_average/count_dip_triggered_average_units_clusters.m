@@ -136,12 +136,48 @@ fclose(fid);
 if isErrorLogEmpty
     delete(fpath);
 end
+
 clear iUnit fid isErrorLogEmpty fpath
-
-
-
-
 clear nUnits nFeatures nClusters
+
+%% Do the same for sdBoot, these clusters are in native order, not semantic
+nUnits = length(xta.dip);
+nClusters = length(p.mi.semanticClusterLabels);
+nFeatures = length(p.mi.boot.features);
+
+for iUnit = 1:nUnits
+    for dir = ["dip", "rise"]
+        n = sdBoot(iUnit).(dir).n;
+        n(n < p.mi.minNumTrialsPerCluster) = 0;
+        sdBoot(iUnit).(dir).n = n;
+        clean = true(p.sd.nBoot, nClusters);
+        for iClu = 1:nClusters
+            k = cc.params(iClu).idx;
+            iMustMove = find(ismember(cc.featureNames, cc.params(iClu).mustMove));
+            iMustNotMove = find(ismember(cc.featureNames, cc.params(iClu).mustNotMove));
+            expectedSign = cc.params(iClu).expectedSign;
+            for iBoot = 1:p.sd.nBoot % THERE'S NO TIME TO OPTIMIZE THIS!
+                % Cluster of interest must move
+                if ~isempty(iMustMove) && sdBoot(iUnit).(dir).h(iBoot, k, iMustMove)~=expectedSign
+                    assert(isscalar(iMustMove))
+                    clean(iBoot, k) = false;
+                    continue
+                end
+                % Other clusters must not move
+                if any(sdBoot(iUnit).(dir).h(iBoot, k, iMustNotMove) ~= 0)
+                    clean(iBoot, k) = false;
+                end
+            end
+        end
+        sdBoot(iUnit).(dir).clean = clean;
+        clear iClu clean iMustMove iMustNotMove n
+    end
+    clear dir
+end
+clear iUnit nUnits nFeatures nClusters
+
+
+
 %% Count units
 % To say: this unit moved one body part and nothing else, for that
 % cluster, we must not miss any data for any bodypart.
