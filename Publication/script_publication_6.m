@@ -191,7 +191,7 @@ close all
 fig = figure(Units='inches', Position=[1, 1, 7.5, 8]);
 
 clear layout
-layout.w = [5, 6];
+layout.w = [10, 13];
 % layout.h = [4, 8, 7];
 layout.h = [7, 17, 12];
 layout.ch = cumsum([0, layout.h]).*sum(layout.w);
@@ -201,17 +201,15 @@ layout.tl = tiledlayout(fig, sum(layout.h), sum(layout.w), TileSpacing='loose', 
 layout.child(1).h = nEgUnits;
 layout.child(1).w = W;
 layout.child(1).cw = cumsum([0, W]);
-layout.child(1).tl = tiledlayout(layout.tl, sum(layout.child(1).h), sum(layout.child(1).w), TileSpacing='tight', Padding='compact');
+layout.child(1).tl = tiledlayout(layout.tl, sum(layout.child(1).h), sum(layout.child(1).w), TileSpacing='tight', Padding='tight');
 l = layout.child(1).tl; l.Layout.Tile = 1 + layout.ch(1); l.Layout.TileSpan = [layout.h(1), layout.w(1)];
 
 % 2nd row (left) (heatmap)
-layout.child(2).h = [2, 9];
+layout.child(2).h = 1;
 layout.child(2).w = W;
 layout.child(2).cw = cumsum([0, W]);
-layout.child(2).tlp = tiledlayout(layout.tl, sum(layout.child(2).h), 1, TileSpacing='loose', Padding='compact');
-l = layout.child(2).tlp; l.Layout.Tile = 1 + layout.ch(2); l.Layout.TileSpan = [layout.h(2), layout.w(1)];
-layout.child(2).tl = tiledlayout(layout.child(2).tlp, 1, sum(layout.child(2).w), TileSpacing='tight', Padding='compact');
-l = layout.child(2).tl; l.Layout.Tile = 1 + layout.child(2).h(1); l.Layout.TileSpan = [layout.child(2).h(2), 1];
+layout.child(2).tl = tiledlayout(layout.tl, sum(layout.child(2).h), sum(layout.child(2).w), TileSpacing='tight', Padding='tight');
+l = layout.child(2).tl; l.Layout.Tile = 1 + layout.ch(2); l.Layout.TileSpan = [layout.h(2), layout.w(1)];
 
 % 3rd row (osci)
 layout.child(3).h = [9, 20];
@@ -420,7 +418,7 @@ hLetter = text(ax, 0, 0, 'b', FontSize=16, FontName='Arial', FontWeight='bold', 
 ax.Units = 'inches';
 hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
-hLetter.Position = [-0.25, ax.Position(4) + 0.25, 0];
+hLetter.Position = [-0.25, ax.Position(4) + 0.75, 0];
 
 % 6c. Where do dips occur in reach/lick trials
 tl = layout.child(4).child(1).tl;
@@ -1014,17 +1012,24 @@ hCb.Label.Position(1) = 0;
 hCb.Label.VerticalAlignment = 'bottom';
 % hCb.Layout.Tile = 'east';
 
+% hCb = axc2.Colorbar;
+% hCb.Orientation = 'horizontal';
+% hCb.Layout.Tile = 'north';
+% hCb.Label.String = 'Norm spike rate (a.u.)';
+% fontsize(hCb, 7, 'points')
+% hCb.Label.Position(2) = 0;
+% hCb.Label.VerticalAlignment = 'top';
+% hCb.AxisLocation = 'in';
+% hCb.Ticks = [-1.5, 0, 1.5];
+
 hCb = axc2.Colorbar;
-hCb.Orientation = 'horizontal';
-hCb.Layout.Tile = 'north';
+% hCb.Orientation = 'horizontal';
+hCb.Layout.Tile = 'east';
 hCb.Label.String = 'Norm spike rate (a.u.)';
-% hCb.Label.FontSize = 7;
 fontsize(hCb, 7, 'points')
-hCb.Label.Position(2) = 0;
-hCb.Label.VerticalAlignment = 'top';
-% hCb.YAxisLocation = 'bottom';
+hCb.Label.Position(1) = 0;
+hCb.Label.VerticalAlignment = 'bottom';
 hCb.AxisLocation = 'in';
-hCb.Ticks = [-1.5, 0, 1.5];
-% hCb.Location = 'manual';
+hCb.Ticks = [-1, 0, 1];
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
