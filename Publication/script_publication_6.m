@@ -1,6 +1,6 @@
 %% Set root
-ROOTPATH = "C:\SERVER";
-% ROOTPATH = 'E:\DATA';
+% ROOTPATH = "C:\SERVER";
+ROOTPATH = 'E:\DATA';
 
 %%
 if exist('E:\Data\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials', 'dir')
@@ -205,11 +205,13 @@ layout.child(1).tl = tiledlayout(layout.tl, sum(layout.child(1).h), sum(layout.c
 l = layout.child(1).tl; l.Layout.Tile = 1 + layout.ch(1); l.Layout.TileSpan = [layout.h(1), layout.w(1)];
 
 % 2nd row (left) (heatmap)
-layout.child(2).h = 1;
+layout.child(2).h = [4, 21];
 layout.child(2).w = W;
 layout.child(2).cw = cumsum([0, W]);
-layout.child(2).tl = tiledlayout(layout.tl, sum(layout.child(2).h), sum(layout.child(2).w), TileSpacing='tight', Padding='tight');
-l = layout.child(2).tl; l.Layout.Tile = 1 + layout.ch(2); l.Layout.TileSpan = [layout.h(2), layout.w(1)];
+layout.child(2).tlp = tiledlayout(layout.tl, sum(layout.child(2).h), 1, TileSpacing='tight', Padding='tight');
+l = layout.child(2).tlp; l.Layout.Tile = 1 + layout.ch(2); l.Layout.TileSpan = [layout.h(2), layout.w(1)];
+layout.child(2).tl = tiledlayout(layout.child(2).tlp, 1, sum(layout.child(2).w), TileSpacing='tight', Padding='tight');
+l = layout.child(2).tl; l.Layout.Tile = 1 + layout.child(2).h(1); l.Layout.TileSpan = [layout.child(2).h(2), 1];
 
 % 3rd row (osci)
 layout.child(3).h = [9, 20];
@@ -381,12 +383,23 @@ sortVal = groupVar*10 - score(:, 1)./max(abs(score(:, 1)));
 % sortVal(selMultiNeg) = max(uniqueGroupVars)*10 + (score(selMultiNeg, :)./max(abs(score(:)))*[-2; -1; 0; 1; 2]);
 [~, sortOrder] = sort(sortVal, 'ascend');
 
+% Plot color bar on top (using patch instead of colorbar so we can make it skinny)
+axc2 = nexttile(layout.child(2).tlp, 1, [layout.child(2).h(1), 1]);
+patch(axc2, [-1.5, 1.5, 1.5, -1.5], [0, 0, 1, 1], [-1.5, 1.5, 1.5, -1.5], EdgeColor='k');
+applyCustomColormap(axc2, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);  
+xlim(axc2, [-1.5, 1.5])
+ylim(axc2, [0, 1])
+xticks(axc2, [-1.5, 0, 1.5])
+yticks(axc2, [])
+title(axc2, 'norm spike rate (a.u.)', FontWeight='normal')
+fontsize(axc2, 7, 'points')
+
 ax = gobjects(1, length(XLIM));
 for i = 1:length(XLIM)
     ax(i) = nexttile(layout.child(2).tl, CW(i)+1, [1, W(i)]);
 end
 for iAx = 1:length(ETA)
-    hidecb = iAx > 1;
+    hidecb = true;
     EphysUnit.plotETA(ax(iAx), ETA{iAx}, selUnits, xlim=XLIM{iAx}, clim=[-1.5, 1.5], order=sortOrder, hidecolorbar=hidecb);
     applyCustomColormap(ax(iAx), [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);    
     if ~hidecb
@@ -536,8 +549,14 @@ for iTl = 1:2
                 nStars = nnz(hVal);
             else
                 fprintf("%s=%i;", clusterDispName(iClu), nnz(sel))
-                text(ax(iFeat, iClu), 0, ylims{iFeat}(2)+1, string(nnz(sel)), FontSize=6, ...
-                    HorizontalAlignment='center')
+                switch dir
+                    case "dip"
+                        text(ax(iFeat, iClu), 0.3, 1, string(nnz(sel)), FontSize=5, ...
+                            HorizontalAlignment='center', VerticalAlignment='bottom')                        
+                    case "rise"
+                        text(ax(iFeat, iClu), 0.3, ylims{iFeat}(2)/2, string(nnz(sel)), FontSize=5, ...
+                            HorizontalAlignment='center', VerticalAlignment='bottom')
+                end
             end
 
             plot(ax(iFeat, iClu), t, mu, Color=c, LineStyle='-', LineWidth=1);
@@ -1007,7 +1026,7 @@ hLetter.Position = [-0.25, ax.Position(4) + 0.25, 0];
 
 % Colorbars need to be done at the end to avoid tiledlayout recursion nonsense
 hCb = colorbar(axc);
-hCb.Label.String = 'Norm spike rate (a.u.)';
+hCb.Label.String = 'norm spike rate (a.u.)';
 hCb.Label.Position(1) = 0;
 hCb.Label.VerticalAlignment = 'bottom';
 % hCb.Layout.Tile = 'east';
@@ -1021,15 +1040,15 @@ hCb.Label.VerticalAlignment = 'bottom';
 % hCb.Label.VerticalAlignment = 'top';
 % hCb.AxisLocation = 'in';
 % hCb.Ticks = [-1.5, 0, 1.5];
-
-hCb = axc2.Colorbar;
-% hCb.Orientation = 'horizontal';
-hCb.Layout.Tile = 'east';
-hCb.Label.String = 'Norm spike rate (a.u.)';
-fontsize(hCb, 7, 'points')
-hCb.Label.Position(1) = 0;
-hCb.Label.VerticalAlignment = 'bottom';
-hCb.AxisLocation = 'in';
-hCb.Ticks = [-1, 0, 1];
+% 
+% hCb = axc2.Colorbar;
+% % hCb.Orientation = 'horizontal';
+% hCb.Layout.Tile = 'east';
+% hCb.Label.String = 'Norm spike rate (a.u.)';
+% fontsize(hCb, 7, 'points')
+% hCb.Label.Position(1) = 0;
+% hCb.Label.VerticalAlignment = 'bottom';
+% hCb.AxisLocation = 'in';
+% hCb.Ticks = [-1, 0, 1];
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
