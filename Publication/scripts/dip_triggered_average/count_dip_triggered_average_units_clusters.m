@@ -176,8 +176,6 @@ for iUnit = 1:nUnits
 end
 clear iUnit nUnits nFeatures nClusters
 
-
-
 %% Count units
 % To say: this unit moved one body part and nothing else, for that
 % cluster, we must not miss any data for any bodypart.

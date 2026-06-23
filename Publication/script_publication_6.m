@@ -170,6 +170,7 @@ clear sel trials expEuIndices FsLick lickHistEdges lickHistCenters lickHistNLick
 % save('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat', 'metaArtiFree')
 
 %% Count number of "clean clusters" by unit
+p.minNumTrialsPerCluster = 10;
 count_dip_triggered_average_units_clusters
 
 %% Fig 6
@@ -499,6 +500,8 @@ nFeatures = length(features);
 
 tlp = layout.child(4).child(2).tl;
 tl = gobjects(1, 2);
+hXLabel = gobjects(1, 2);
+hYLabel = gobjects(1, 2);
 fprintf("Fig6d:")
 for iTl = 1:2
     iUnit = egUnitIndices(iTl);
@@ -594,7 +597,11 @@ for iTl = 1:2
     ax.Color = 'none';
     xlabel(ax, "1 s", FontSize=8)
     ylabel(ax, sprintf("%i sd", diff(ylims{1})), FontSize=8)
+
+    hXLabel(iTl) = xlabel(tl(iTl), 'cluster', FontSize=8);
+    hYLabel(iTl) = ylabel(tl(iTl), 'bodypart', FontSize=8);
 end
+
 fprintf('\n')
 % fontsize(tlp, p.fontSize, 'points')
 
@@ -609,8 +616,8 @@ tl = layout.child(4).child(3).tl;
 tl.TileSpacing = 'tight';
 ax = gobjects(2, 2);
 dirs = ["dip", "rise"];
-colors = [1, 0, 0; 0, 0, 1];
-yl = [0, 60];
+colors = [0, 0, 1; 1, 0, 0];
+yl = [0, 50];
 iRow = 1;
 for iCol = 1:2
     dir = dirs(iCol);
@@ -618,40 +625,53 @@ for iCol = 1:2
     hold(ax(iRow, iCol), 'on')
 
     % Cluster size
-    cs = arrayfun(@(ccData) ccData.(dir).n(:, 1).*uint16(ccData.(dir).clean), cc.data, UniformOutput=false);
+    % cs = NaN(nUnits, nClusters);
+    % for iUnit = 1:nUnits
+    %     nTrials = single(cc.data(iUnit).(dir).n(:, 1));
+    %     hasTrials = nTrials >= p.minNumTrialsPerCluster;
+    %     nTrials(~hasTrials) = NaN;
+    %     nTrials(~cc.data(iUnit).(dir).clean) = NaN;
+    %     cs(iUnit, :) = nTrials;
+    % end
+    cs = arrayfun(@(ccData) ccData.(dir).n(:, 1) .* uint16(ccData.(dir).clean), cc.data, UniformOutput=false);
     cs = double(cat(2, cs{:})');
+    cs(cs<p.minNumTrialsPerCluster) = NaN;
+
     x = 1:length(clusterDispName);
     mu = mean(cs, 1, 'omitnan');
     err = std(cs, 0, 1, 'omitnan');
 
     % Bootstrapped cluster size (null)
-    csBoot = arrayfun(@(ccData) ccData.(dir).n.*uint16(ccData.(dir).clean), sdBoot, UniformOutput=false);
+    csBoot = arrayfun(@(ccData) ccData.(dir).n .* uint16(ccData.(dir).clean), sdBoot, UniformOutput=false);
     csBoot = double(cat(3, csBoot{:}));
     csBoot = permute(csBoot, [3, 2, 1]); % nUnits x nClusters x nBoot
+    csBoot(csBoot<p.minNumTrialsPerCluster) = NaN;
     muBoot = mean(csBoot, [1, 3], 'omitnan');
     ciBoot = quantile(squeeze(mean(csBoot, 1, 'omitnan')), [0.05/7/2, 1-0.05/7/2], 2);
     muBoot = muBoot(p.mi.semanticClusterOrder);
     ciBoot = ciBoot(p.mi.semanticClusterOrder, :)';
 
     % The first cluster is too tall to draw, we do with clipping and write n+-sd on top.
-    hBar = bar(ax(iRow, iCol), x(1), [mu(1), muBoot(1)], FaceColor='flat', FaceAlpha=0.5, Clipping='on');
-    hBar(1).CData = colors(iCol, :);
-    hBar(2).CData = [0.15, 0.15, 0.15];
-    % errorbar(ax(iRow, iCol), x(1), mu(1), err(1), 'k', LineStyle='none', Clipping='on');
-    % text(ax(iRow, iCol), x(1), yl(2)+5, ...
-    %     sprintf("%.0f\\pm%.0f", mu(1), err(1)), Interpreter='tex', ...
-    %     HorizontalAlignment='center', VerticalAlignment='bottom', ...
-    %     FontSize=7, Color=[0.15, 0.15, 0.15])
+    hBar = bar(ax(iRow, iCol), x(1), [mu(1), muBoot(1)], FaceAlpha=0.5, Clipping='on');
+    hBar(1).FaceColor = colors(iCol, :);
+    hBar(1).EdgeColor = colors(iCol, :);
+    hBar(2).FaceColor = 'none';
+    hBar(2).EdgeColor = [0.15, 0.15, 0.15];
+    hBar(2).EdgeAlpha = 0.8;
     text(ax(iRow, iCol), x(1), yl(2)+5, ...
         sprintf("%.0f, %.0f", mu(1), muBoot(1)), Interpreter='tex', ...
         HorizontalAlignment='center', VerticalAlignment='bottom', ...
         FontSize=7, Color=[0.15, 0.15, 0.15])
     % Draw clusters 2:7 without clipping so errorbars display correctly
     hBar = bar(ax(iRow, iCol), x(2:end), [mu(2:end); muBoot(2:end)], FaceColor='flat', FaceAlpha=0.5, Clipping='off');
-    hBar(1).CData = colors(iCol, :);
-    hBar(2).CData = [0.15, 0.15, 0.15];    
-    % errorbar(ax(iRow, iCol), x(2:end), mu(2:end), err(2:end), 'k', LineStyle='none', Clipping='off');
-    % errorbar(ax(iRow, iCol), x(2:end), muBoot(2:end), muBoot(2:end)-ciBoot(1, 2:end), ciBoot(2, 2:end)-muBoot(2:end), 'k', LineStyle='none', Clipping='off');
+    hBar(1).FaceColor = colors(iCol, :);
+    hBar(1).EdgeColor = colors(iCol, :);
+    hBar(2).FaceColor = 'none';
+    hBar(2).EdgeColor = [0.15, 0.15, 0.15];
+    hBar(2).EdgeAlpha = 0.8;
+    % errorbar(ax(iRow, iCol), x(2:end)+0.15, mu(2:end), err(2:end), LineStyle='none', Color=[0.15, 0.15, 0.15, 0.8], CapSize=3, Clipping='off');
+    errorbar(ax(iRow, iCol), x(2:end)+0.15, muBoot(2:end), muBoot(2:end)-ciBoot(1, 2:end), ciBoot(2, 2:end)-muBoot(2:end), LineStyle='none', Color=[0.15, 0.15, 0.15, 0.8], CapSize=3, Clipping='off');
+
     % sig = mu <= ciBoot(1, :) | mu >= ciBoot(2, :);
     % for i = find(sig)
     %     text(ax(iRow, iCol), x(i), yl(2), '*', FontSize=12, FontWeight='bold')
@@ -670,24 +690,28 @@ for iCol = 1:2
     ax(iRow, iCol) = nexttile(tl);
     hold(ax(iRow, iCol), 'on')
     % nUnits with clean cluster
-    nuwcc = arrayfun(@(ccData) ccData.(dir).n(:, 1).*uint16(ccData.(dir).clean), cc.data, UniformOutput=false);
+    nuwcc = arrayfun(@(ccData) ccData.(dir).n(:, 1) .* uint16(ccData.(dir).clean), cc.data, UniformOutput=false);
     nuwcc = cat(2, nuwcc{:})';
-    y = sum(nuwcc>0, 1)./length(xta.dip)*100; % percentUnits
+    y = sum(nuwcc>=p.minNumTrialsPerCluster, 1)./length(xta.dip)*100; % percentUnits
     x = 1:length(clusterDispName);
 
     % nUnits with clean cluster, bootstrapped
     nuwccBoot = arrayfun(@(ccData) ccData.(dir).n.*uint16(ccData.(dir).clean), sdBoot, UniformOutput=false);
     nuwccBoot = cat(3, nuwccBoot{:});
     nuwccBoot = permute(nuwccBoot, [3, 2, 1]); % nUnits x nClusters x nBoot
-    yBoot = squeeze(sum(nuwccBoot>0, 1)); % nUnits x nBoot
-    yBoot = yBoot(p.mi.semanticClusterOrder, :)./nUnits*100;
+    nuwccBoot = nuwccBoot(:, p.mi.semanticClusterOrder, :); % nUnits x nClusters x nBoot, clusters in semantic order
+    yBoot = squeeze(sum(nuwccBoot>=p.minNumTrialsPerCluster, 1)); % nUnits x nBoot
+    yBoot = yBoot./nUnits*100;
     muBoot = mean(yBoot, 2, 'omitnan')';
     ciBoot = quantile(yBoot, [0.05/7/2, 1-0.05/7/2], 2)';
 
-    hBar = bar(ax(iRow, iCol), x, [y; muBoot], FaceColor='flat', FaceAlpha=0.5, Clipping='off');
-    hBar(1).CData = colors(iCol, :);
-    hBar(2).CData = [0.15, 0.15, 0.15];
-    % errorbar(ax(iRow, iCol), x, muBoot, muBoot-ciBoot(1, :), ciBoot(2, :)-muBoot, 'k', LineStyle='none', Clipping='off');
+    hBar = bar(ax(iRow, iCol), x, [y; muBoot], FaceAlpha=0.5, Clipping='off');
+    hBar(1).FaceColor = colors(iCol, :);
+    hBar(1).EdgeColor = colors(iCol, :);
+    hBar(2).FaceColor = 'none';
+    hBar(2).EdgeColor = [0.15, 0.15, 0.15];
+    hBar(2).EdgeAlpha = 0.8;
+    errorbar(ax(iRow, iCol), x+0.15, muBoot, muBoot-ciBoot(1, :), ciBoot(2, :)-muBoot, 'k', LineStyle='none', Color=[0.15, 0.15, 0.15, 0.8], CapSize=3, Clipping='off');
     % sig = y <= ciBoot(1, :) | y >= ciBoot(2, :);
     % for i = find(sig)
     %     text(ax(iRow, iCol), x(i), yl(2), '*', FontSize=12, FontWeight='bold')
@@ -724,17 +748,17 @@ for iAx = 1:5
     ax(iAx) = nexttile(tl, 1 + layout.child(4).child(4).cw(iAx), [1, layout.child(4).child(4).w(iAx)]);
 end
 dirs = ["dip", "rise"];
-colors = [1, 0, 0; 0, 0, 1];
+colors = [0, 0, 1; 1, 0, 0];
 nUnits = length(xta.dip);
 ncc = struct(dip=[], rise=[]);
 for dir = dirs
-    ncc.(dir) = arrayfun(@(ccData) ccData.(dir).clean, cc.data, UniformOutput=false);
+    ncc.(dir) = arrayfun(@(ccData) ccData.(dir).clean & ccData.(dir).n(:, 1)>=p.minNumTrialsPerCluster, cc.data, UniformOutput=false);
     ncc.(dir) = cat(2, ncc.(dir){:})';
     ncc.(dir) = sum(ncc.(dir)(:, 2:end), 2);
 end
 nccBoot = struct(dip=[], rise=[]);
 for dir = dirs
-    nccBoot.(dir) = arrayfun(@(ccData) ccData.(dir).clean, sdBoot, UniformOutput=false);
+    nccBoot.(dir) = arrayfun(@(ccData) ccData.(dir).n>=p.minNumTrialsPerCluster & ccData.(dir).clean, sdBoot, UniformOutput=false);
     nccBoot.(dir) = permute(cat(3, nccBoot.(dir){:}), [3, 2, 1]);
     nccBoot.(dir) = squeeze(sum(nccBoot.(dir)(:, 2:end, :), 2));
 end
@@ -746,11 +770,9 @@ for iAx = 1:2
     nBoot = cat(1, nBoot{:});
     ciBoot = quantile(nBoot, [0.05/2, 1-0.05/2], 1);
     nBoot = mean(nBoot, 1);
-    % histogram(ax(iAx), BinCounts=n./nUnits*100, BinEdges=-0.5:1:6.5, FaceColor=colors(iAx, :), FaceAlpha=0.5);
-    % histogram(ax(iAx), BinCounts=nBoot./nUnits*100, BinEdges=-0.5:1:6.5, FaceColor=[0.15, 0.15, 0.15], FaceAlpha=0.5);
-    histogram(ax(iAx), BinCounts=n./nUnits*100, BinEdges=-0.5:1:6.5, EdgeColor=colors(iAx, :), EdgeAlpha=0.5, LineWidth=1.5, DisplayStyle='stairs');
-    histogram(ax(iAx), BinCounts=nBoot./nUnits*100, BinEdges=-0.5:1:6.5, EdgeColor=[0.15, 0.15, 0.15], EdgeAlpha=0.5, LineWidth=1, DisplayStyle='stairs');
-    errorbar(ax(iAx), 0:6, nBoot./nUnits*100, (nBoot-ciBoot(1, :))./nUnits*100, (ciBoot(2, :)-nBoot)./nUnits*100, LineStyle='none', Color='k', CapSize=2)
+    histogram(ax(iAx), BinCounts=n./nUnits*100, BinEdges=-0.5:1:6.5, FaceColor=colors(iAx, :), FaceAlpha=0.5, EdgeColor=colors(iAx, :));
+    histogram(ax(iAx), BinCounts=nBoot./nUnits*100, BinEdges=-0.5:1:6.5, EdgeColor=[0.15, 0.15, 0.15], EdgeAlpha=0.8, LineWidth=1, DisplayStyle='stairs');
+    errorbar(ax(iAx), 0:6, nBoot./nUnits*100, (nBoot-ciBoot(1, :))./nUnits*100, (ciBoot(2, :)-nBoot)./nUnits*100, LineStyle='none', Color=[0.15, 0.15, 0.15, 0.8], CapSize=2)
 
     ylabel(ax(iAx), "% units")
     xticks(ax(iAx), 0:6)
@@ -775,7 +797,7 @@ n = n./nUnits;
 histogram2(ax(iAx), XBinEdges=xEdges, YBinEdges=yEdges, BinCounts=n, ...
     DisplayStyle='tile', ShowEmptyBins=true);
 applyCustomColormap(ax(iAx), [0, maxC], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.5, h0=0.33);
-title(ax(iAx), 'obs')
+title(ax(iAx), 'observed')
 
 axis(ax(3:4), 'equal')
 xlabel(ax(3:4), 'dip')
@@ -1123,26 +1145,19 @@ hCb = colorbar(axc);
 hCb.Label.String = 'norm spike rate (a.u.)';
 hCb.Label.Position(1) = 0;
 hCb.Label.VerticalAlignment = 'bottom';
-% hCb.Layout.Tile = 'east';
 
-% hCb = axc2.Colorbar;
-% hCb.Orientation = 'horizontal';
-% hCb.Layout.Tile = 'north';
-% hCb.Label.String = 'Norm spike rate (a.u.)';
-% fontsize(hCb, 7, 'points')
-% hCb.Label.Position(2) = 0;
-% hCb.Label.VerticalAlignment = 'top';
-% hCb.AxisLocation = 'in';
-% hCb.Ticks = [-1.5, 0, 1.5];
-% 
-% hCb = axc2.Colorbar;
-% % hCb.Orientation = 'horizontal';
-% hCb.Layout.Tile = 'east';
-% hCb.Label.String = 'Norm spike rate (a.u.)';
-% fontsize(hCb, 7, 'points')
-% hCb.Label.Position(1) = 0;
-% hCb.Label.VerticalAlignment = 'bottom';
-% hCb.AxisLocation = 'in';
-% hCb.Ticks = [-1, 0, 1];
+fontname(fig, 'Arial')
+
+drawnow()
+
+
+% Adjust locations of some tiledlayout x/y labels at the end
+for iTl = 1:2
+    hXLabel(iTl).Text.Position = hXLabel(iTl).Text.Position + [-0.025, 0.4, 0];
+end
+for iTl = 1:2
+    hYLabel(iTl).Text.Position = hYLabel(iTl).Text.Position + [0.02, -0.025, 0];
+end
+
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
