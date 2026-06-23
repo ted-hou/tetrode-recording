@@ -617,7 +617,7 @@ tl.TileSpacing = 'tight';
 ax = gobjects(2, 2);
 dirs = ["dip", "rise"];
 colors = [0, 0, 1; 1, 0, 0];
-yl = [0, 50];
+yl = [0, 100];
 iRow = 1;
 for iCol = 1:2
     dir = dirs(iCol);
@@ -639,45 +639,24 @@ for iCol = 1:2
 
     x = 1:length(clusterDispName);
     mu = mean(cs, 1, 'omitnan');
-    err = std(cs, 0, 1, 'omitnan');
 
     % Bootstrapped cluster size (null)
     csBoot = arrayfun(@(ccData) ccData.(dir).n .* uint16(ccData.(dir).clean), sdBoot, UniformOutput=false);
     csBoot = double(cat(3, csBoot{:}));
-    csBoot = permute(csBoot, [3, 2, 1]); % nUnits x nClusters x nBoot
+    csBoot = permute(csBoot, [1, 3, 2]); % nBoot x nUnits x nClusters
     csBoot(csBoot<p.minNumTrialsPerCluster) = NaN;
-    muBoot = mean(csBoot, [1, 3], 'omitnan');
-    ciBoot = quantile(squeeze(mean(csBoot, 1, 'omitnan')), [0.05/7/2, 1-0.05/7/2], 2);
-    muBoot = muBoot(p.mi.semanticClusterOrder);
-    ciBoot = ciBoot(p.mi.semanticClusterOrder, :)';
+    csBoot = csBoot(:, :, p.mi.semanticClusterOrder); % put clusters in semantic order
+    muBoot = reshape(mean(csBoot, [1, 2], 'omitnan'), 1, nClusters);
+    ciBoot = quantile(squeeze(mean(csBoot, 2, 'omitnan')), [0.05/7/2, 1-0.05/7/2], 1);
 
     % The first cluster is too tall to draw, we do with clipping and write n+-sd on top.
-    hBar = bar(ax(iRow, iCol), x(1), [mu(1), muBoot(1)], FaceAlpha=0.5, Clipping='on');
-    hBar(1).FaceColor = colors(iCol, :);
-    hBar(1).EdgeColor = colors(iCol, :);
-    hBar(2).FaceColor = 'none';
-    hBar(2).EdgeColor = [0.15, 0.15, 0.15];
-    hBar(2).EdgeAlpha = 0.8;
-    text(ax(iRow, iCol), x(1), yl(2)+5, ...
-        sprintf("%.0f, %.0f", mu(1), muBoot(1)), Interpreter='tex', ...
-        HorizontalAlignment='center', VerticalAlignment='bottom', ...
-        FontSize=7, Color=[0.15, 0.15, 0.15])
+    violinplot(ax(iRow, iCol), x(1), cs(:, 1), DensityDirection='positive', FaceColor=colors(iCol, :), EdgeColor=colors(iCol, :), FaceAlpha=0.5, Clipping='on')
+    violinplot(ax(iRow, iCol), x(1), reshape(csBoot(:, :, 1), [], 1), DensityDirection='negative', FaceColor='none', EdgeColor=[0.15, 0.15, 0.15], Clipping='on')
     % Draw clusters 2:7 without clipping so errorbars display correctly
-    hBar = bar(ax(iRow, iCol), x(2:end), [mu(2:end); muBoot(2:end)], FaceColor='flat', FaceAlpha=0.5, Clipping='off');
-    hBar(1).FaceColor = colors(iCol, :);
-    hBar(1).EdgeColor = colors(iCol, :);
-    hBar(2).FaceColor = 'none';
-    hBar(2).EdgeColor = [0.15, 0.15, 0.15];
-    hBar(2).EdgeAlpha = 0.8;
-    % errorbar(ax(iRow, iCol), x(2:end)+0.15, mu(2:end), err(2:end), LineStyle='none', Color=[0.15, 0.15, 0.15, 0.8], CapSize=3, Clipping='off');
-    errorbar(ax(iRow, iCol), x(2:end)+0.15, muBoot(2:end), muBoot(2:end)-ciBoot(1, 2:end), ciBoot(2, 2:end)-muBoot(2:end), LineStyle='none', Color=[0.15, 0.15, 0.15, 0.8], CapSize=3, Clipping='off');
-
-    % sig = mu <= ciBoot(1, :) | mu >= ciBoot(2, :);
-    % for i = find(sig)
-    %     text(ax(iRow, iCol), x(i), yl(2), '*', FontSize=12, FontWeight='bold')
-    % end
-
-    ylabel(ax(iRow, iCol), sprintf("average\nno. %ss", dir))
+    violinplot(ax(iRow, iCol), x(2:end), cs(:, 2:end), DensityDirection='positive', FaceColor=colors(iCol, :), EdgeColor=colors(iCol, :), FaceAlpha=0.5, Clipping='on')
+    violinplot(ax(iRow, iCol), x(2:end), reshape(csBoot(:, :, 2:end), [], nClusters-1), DensityDirection='negative', FaceColor='none', EdgeColor=[0.15, 0.15, 0.15], Clipping='on')
+    
+    ylabel(ax(iRow, iCol), sprintf("no. %ss", dir))
     xlim(ax(iRow, iCol), [0.3, length(clusterDispName)+0.7])
     ylim(ax(iRow, iCol), yl)
     hold(ax(iRow, iCol), 'off')
