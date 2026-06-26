@@ -130,6 +130,31 @@ copygraphics(fig, BackgroundColor='none', ContentType='vector')
 % so the SD should be smaller, and we'd get fewer false negatives.
 clearvars -except xta p kinematics ROOTPATH eu exp expIndices mi miBoot miObs
 
+%% Notes:
+% Question: We know that dip-triggered average kinematics appear flat (i.e.
+% mean movement index across dips, mi=0). Is that because it is flat on all
+% dips, or because positive and negative movements cancel out?
+% In other words, do dips tend to indicate "any movement" better than
+% chance?
+
+%% For each dip, rectify the movement index, then take the max among all
+% body parts
+nUnits = length(xta.dip);
+nClusters = length(p.mi.semanticClusterOrder);
+nFeatures = length(p.mi.boot.features);
+clear miMaxRectified, miMaxRectified(nUnits) = struct(dip=[], rise=[]);
+for iUnit = 1:length(xta.dip)
+    for dir = ["dip", "rise"]
+        X = arrayfun(@(fn) mi.(dir)(iUnit).(fn), p.mi.boot.features, UniformOutput=false);
+        X = cat(2, X{:});
+        X = max(abs(X), [], 2);
+        miMaxRectified(iUnit).(dir).X = X;
+        miMaxRectified(iUnit).(dir).idx = mi.(dir)(iUnit).idx;
+    end
+end
+clear iUnit dir X
+
+
 %% b) calculate kmeans cluster centroids
 p.sd.nBoot = 1000;
 nUnits = length(xta.dip);
@@ -175,6 +200,7 @@ parfevalOnAll(pool, @warning, 0, 'off', 'stats:kmeans:FailedToConverge');
 tTic = tic();
 ll = 0;
 hasWarning = false;
+nUnits = 5;
 for iUnit = 1:nUnits
     if ~hasWarning
         fprintf(repmat('\b', [1, ll]));
@@ -188,6 +214,8 @@ for iUnit = 1:nUnits
         nBootTemp = zeros(p.sd.nBoot, nClusters, 'uint16');
         hBootTemp = zeros(p.sd.nBoot, nClusters, nFeatures, 'int8');
         nTrials = length(mi.(dir)(iUnit).idx);
+        miMaxRectifiedTemp = zeros(nTrials, p.sd.nBoot, 'single');
+        idxTemp = zeros(nTrials, p.sd.nBoot, 'uint16');
         if nTrials < p.mi.minNumTrialsPerCluster || nTrials < nClusters
             sdBoot(iUnit).(dir) = struct(h=hBootTemp, n=nBootTemp);
             warning("Unit %i has too few (%i) %ss, we cannot do kmeans so this unit/dir is skipped.", iUnit, nTrials, dir)
@@ -221,6 +249,8 @@ for iUnit = 1:nUnits
             %   convert miTemp from magnitude to significance (3SD)
             %   h (nClusters x nFeatures, 7x4) -1, 0, 1 for dec, flat, inc
             %   n (nClusters): numTrialsPerCluster
+            %   miMaxRectifiedTemp
+            %   idx
             mu = mean(miTemp, 1, 'omitnan');
             sd = std(miTemp, 0, 1, 'omitnan');
             hTemp = zeros(nClusters, nFeatures, 'int8');
@@ -241,8 +271,12 @@ for iUnit = 1:nUnits
                 end
             end
             hBootTemp(iBoot, :, :) = hTemp;
+
+            % Tack on the miMaxRectified stuff
+            miMaxRectifiedTemp(:, iBoot) = max(abs(miTemp), [], 2);
+            idxTemp(:, iBoot) = idx;
         end
-        sdBoot(iUnit).(dir) = struct(h=hBootTemp, n=nBootTemp);
+        sdBoot(iUnit).(dir) = struct(h=hBootTemp, n=nBootTemp, miMaxRectified=miMaxRectifiedTemp, idx=idxTemp);
         ll = ll + fprintf('%i positives.\n', nnz(hBootTemp~=0));
     end
 end
@@ -255,7 +289,42 @@ clear pcFeatures miBootFeatures tTic ll iExp kine tMax dir nBootTemp hBootTemp n
 
 
 exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_sdBoot_%iunits_%iboots_%s.mat", length(xta.dip), p.sd.nBoot, datetime("now", Format="yyyyMMdd")));
-save(exportPath, 'sdBoot', 'p', '-v7.3')
+save(exportPath, 'sdBoot', 'p', 'miMaxRectified', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
 
 warning('sdBoot clusters are in native order, not semantic order')
+
+
+%% Some plotting heh
+close all
+for iUnit = 1:5
+    fig = figure(Units='inches', Position=[1, 1, 10, 6]);
+    tl = tiledlayout(fig, 2, 2, TileIndexing='columnmajor');
+    
+    for dir = ["dip", "rise"]
+        ax = nexttile(tl);
+        hold(ax, 'on')
+        for iClu = 1:length(p.mi.semanticClusterOrder)
+            k = p.mi.semanticClusterOrder(iClu);
+            sel = sdBoot(iUnit).(dir).idx==k;
+            histogram(ax, sdBoot(iUnit).(dir).miMaxRectified(sel), [0:0.1:5, Inf], Normalization='pdf', EdgeColor=getColor(iClu, 7, 0.7), DisplayName=p.mi.semanticClusterLabels(iClu), DisplayStyle='stairs');
+        end
+        histogram(ax, sdBoot(iUnit).(dir).miMaxRectified, [0:0.1:5, Inf], Normalization='pdf', EdgeColor='k', DisplayName='all', DisplayStyle='stairs', LineWidth=2)
+        title(ax, sprintf('Bootstrap (fake %ss)', dir))
+        
+        
+        ax = nexttile(tl);
+        hold(ax, 'on')
+        for iClu = 1:length(p.mi.semanticClusterOrder)
+            k = p.mi.semanticClusterOrder(iClu);
+            sel = miMaxRectified(iUnit).(dir).idx==k;
+            histogram(ax, miMaxRectified(iUnit).(dir).X(sel), [0:0.1:5, Inf], Normalization='pdf', EdgeColor=getColor(iClu, 7, 0.7), DisplayName=p.mi.semanticClusterLabels(iClu), DisplayStyle='stairs');
+        end
+        histogram(ax, miMaxRectified(iUnit).(dir).X, [0:0.1:5, Inf], Normalization='pdf', EdgeColor='k', DisplayName='all', DisplayStyle='stairs', LineWidth=2)
+        title(ax, sprintf('Observed (real %ss)', dir))
+    end
+    lgd = legend(ax);
+    lgd.Layout.Tile = 'east';
+    xlabel(tl, 'max rectified movement index')
+    ylabel(tl, 'pdf')
+end
