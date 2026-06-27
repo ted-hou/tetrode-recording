@@ -296,34 +296,85 @@ warning('sdBoot clusters are in native order, not semantic order')
 
 %% Some plotting heh
 close all
-for iUnit = 1:5
-    fig = figure(Units='inches', Position=[1, 1, 10, 6]);
-    tl = tiledlayout(fig, 2, 2, TileIndexing='columnmajor');
-    
-    for dir = ["dip", "rise"]
-        ax = nexttile(tl);
-        hold(ax, 'on')
-        for iClu = 1:length(p.mi.semanticClusterOrder)
-            k = p.mi.semanticClusterOrder(iClu);
-            sel = sdBoot(iUnit).(dir).idx==k;
-            histogram(ax, sdBoot(iUnit).(dir).miMaxRectified(sel), [0:0.1:5, Inf], Normalization='pdf', EdgeColor=getColor(iClu, 7, 0.7), DisplayName=p.mi.semanticClusterLabels(iClu), DisplayStyle='stairs');
-        end
-        histogram(ax, sdBoot(iUnit).(dir).miMaxRectified, [0:0.1:5, Inf], Normalization='pdf', EdgeColor='k', DisplayName='all', DisplayStyle='stairs', LineWidth=2)
-        title(ax, sprintf('Bootstrap (fake %ss)', dir))
-        
-        
-        ax = nexttile(tl);
-        hold(ax, 'on')
-        for iClu = 1:length(p.mi.semanticClusterOrder)
-            k = p.mi.semanticClusterOrder(iClu);
-            sel = miMaxRectified(iUnit).(dir).idx==k;
-            histogram(ax, miMaxRectified(iUnit).(dir).X(sel), [0:0.1:5, Inf], Normalization='pdf', EdgeColor=getColor(iClu, 7, 0.7), DisplayName=p.mi.semanticClusterLabels(iClu), DisplayStyle='stairs');
-        end
-        histogram(ax, miMaxRectified(iUnit).(dir).X, [0:0.1:5, Inf], Normalization='pdf', EdgeColor='k', DisplayName='all', DisplayStyle='stairs', LineWidth=2)
-        title(ax, sprintf('Observed (real %ss)', dir))
+fig = figure(Units='inches', Position=[3, 3, 10, 6]);
+tl = tiledlayout(fig, 2, 2, TileIndexing='columnmajor');
+ax = gobjects(2, 2);
+for i = 1:2
+    for j = 1:2
+        ax(i, j) = nexttile(tl);
+        hold(ax(i, j), 'on')
     end
-    lgd = legend(ax);
-    lgd.Layout.Tile = 'east';
-    xlabel(tl, 'max rectified movement index')
-    ylabel(tl, 'pdf')
 end
+
+for iUnit = 1:nUnits
+    for dir = ["dip", "rise"]
+        if isfield(sdBoot(iUnit).(dir), 'miMaxRectified')
+            miMaxRectified(iUnit).(dir).XBoot = sdBoot(iUnit).(dir).miMaxRectified;
+            miMaxRectified(iUnit).(dir).idxBoot = sdBoot(iUnit).(dir).idx;
+        else
+            miMaxRectified(iUnit).(dir).XBoot = [];
+            miMaxRectified(iUnit).(dir).idxBoot = [];
+        end
+    end
+end
+
+iCol = 0;
+for dir = ["dip", "rise"]
+    iCol = iCol + 1;
+    X = arrayfun(@(data) data.(dir).X, miMaxRectified, UniformOutput=false);
+    X = cat(1, X{:});
+    XBoot = arrayfun(@(data) data.(dir).XBoot, miMaxRectified, UniformOutput=false);
+    XBoot = cat(1, XBoot{:});
+    idx = arrayfun(@(data) data.(dir).idx, miMaxRectified, UniformOutput=false);
+    idx = cat(1, idx{:});
+    idxBoot = arrayfun(@(data) data.(dir).idxBoot, miMaxRectified, UniformOutput=false);
+    idxBoot = cat(1, idxBoot{:});
+
+    iRow = 1;
+    for iClu = 1:length(p.mi.semanticClusterOrder)
+        k = p.mi.semanticClusterOrder(iClu);
+        sel = idxBoot==k;
+        histogram(ax(iRow, iCol), XBoot(sel), [0:0.1:5, Inf], Normalization='pdf', EdgeColor=getColor(iClu, 7, 0.7), DisplayName=p.mi.semanticClusterLabels(iClu), DisplayStyle='stairs');
+    end
+    histogram(ax(iRow, iCol), XBoot(:), [0:0.1:5, Inf], Normalization='pdf', EdgeColor='k', DisplayName='all', DisplayStyle='stairs', LineWidth=2)
+    title(ax(iRow, iCol), sprintf('Bootstrap (fake %ss)', dir))
+
+    iRow = 2;
+    for iClu = 1:length(p.mi.semanticClusterOrder)
+        k = p.mi.semanticClusterOrder(iClu);
+        sel = idx==k;
+        histogram(ax(iRow, iCol), X(sel), [0:0.1:5, Inf], Normalization='pdf', EdgeColor=getColor(iClu, 7, 0.7), DisplayName=p.mi.semanticClusterLabels(iClu), DisplayStyle='stairs');
+    end
+    histogram(ax(iRow, iCol), X, [0:0.1:5, Inf], Normalization='pdf', EdgeColor='k', DisplayName='all', DisplayStyle='stairs', LineWidth=2)
+    title(ax(iRow, iCol), sprintf('Observed (real %ss)', dir))
+end
+
+lgd = legend(ax(2, 2));
+lgd.Layout.Tile = 'east';
+xlabel(tl, 'max rectified movement index')
+ylabel(tl, 'pdf')
+
+% for iUnit = 1:nUnits
+%     for dir = ["dip", "rise"]
+%         for iClu = 1:length(p.mi.semanticClusterOrder)
+%             k = p.mi.semanticClusterOrder(iClu);
+%             sel = sdBoot(iUnit).(dir).idx==k;
+%             histogram(ax, sdBoot(iUnit).(dir).miMaxRectified(sel), [0:0.1:5, Inf], Normalization='pdf', EdgeColor=getColor(iClu, 7, 0.7), DisplayName=p.mi.semanticClusterLabels(iClu), DisplayStyle='stairs');
+%         end
+%         histogram(ax, sdBoot(iUnit).(dir).miMaxRectified, [0:0.1:5, Inf], Normalization='pdf', EdgeColor='k', DisplayName='all', DisplayStyle='stairs', LineWidth=2)
+%         title(ax, sprintf('Bootstrap (fake %ss)', dir))
+% 
+% 
+%         for iClu = 1:length(p.mi.semanticClusterOrder)
+%             k = p.mi.semanticClusterOrder(iClu);
+%             sel = miMaxRectified(iUnit).(dir).idx==k;
+%             histogram(ax, miMaxRectified(iUnit).(dir).X(sel), [0:0.1:5, Inf], Normalization='pdf', EdgeColor=getColor(iClu, 7, 0.7), DisplayName=p.mi.semanticClusterLabels(iClu), DisplayStyle='stairs');
+%         end
+%         histogram(ax, miMaxRectified(iUnit).(dir).X, [0:0.1:5, Inf], Normalization='pdf', EdgeColor='k', DisplayName='all', DisplayStyle='stairs', LineWidth=2)
+%         title(ax, sprintf('Observed (real %ss)', dir))
+%     end
+%     lgd = legend(ax);
+%     lgd.Layout.Tile = 'east';
+%     xlabel(tl, 'max rectified movement index')
+%     ylabel(tl, 'pdf')
+% end
