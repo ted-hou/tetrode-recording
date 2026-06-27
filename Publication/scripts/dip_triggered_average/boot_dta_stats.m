@@ -200,7 +200,6 @@ parfevalOnAll(pool, @warning, 0, 'off', 'stats:kmeans:FailedToConverge');
 tTic = tic();
 ll = 0;
 hasWarning = false;
-nUnits = 5;
 for iUnit = 1:nUnits
     if ~hasWarning
         fprintf(repmat('\b', [1, ll]));

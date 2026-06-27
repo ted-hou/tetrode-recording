@@ -15,9 +15,9 @@ end
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot", "20260617_metaRasterData.mat"));
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to800ms_units1to1225_0boots_20260613.mat"));
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_200to800ms_1225units_10000boots_20260614.mat")); % contains updated `p`
-load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_sdBoot_1225units_1000boots_20260620.mat")); % Load bootstrapped statistics for fig6 panels
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_sdBoot_1225units_1000boots_20260626.mat")); % Load bootstrapped statistics for fig6 panels
 %%
-clearvars -except etaArtiFree euArtiFree metaArtiFree clusterSize kinematics metaRasterData mi miBoot miObs sdBoot p ROOTPATH xta
+clearvars -except etaArtiFree euArtiFree metaArtiFree clusterSize kinematics metaRasterData mi miBoot miObs sdBoot miMaxRectified p ROOTPATH xta
 if ~exist('p', 'var') || ~isfield(p, 'fontSize')
     p.fontSize = 8;
 end
