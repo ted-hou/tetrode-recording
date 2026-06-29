@@ -327,6 +327,8 @@ for iUnit = 1:nUnits
         xObs = mean(miMaxRectified(iUnit).(dir).X, 1, 'omitnan');
         XBoot = mean(miMaxRectified(iUnit).(dir).XBoot, 1, 'omitnan');
         pVal.all.(dir)(iUnit) = nnz(XBoot<=xObs)./length(XBoot);   
+    end
+end
 
 alpha = 0.05;
 edges = 0:alpha/2:1;
@@ -369,10 +371,10 @@ for src = ["all", "clu1"]
     xlim(ax, [0, nUnits])
     xticks(ax, [0, nUnits])
     xtickangle(ax, 90)
-    
+
     xticks(AX([1, 2]), [0, 0.5, 1])
     yticks(AX([1, 3]), [0, 0.5, 1])
-    
+
     switch src
         case "all"
             title(tl, "dips/rises in all clusters", FontWeight='bold')
@@ -382,6 +384,7 @@ for src = ["all", "clu1"]
 
     fontsize(fig, 8, 'points')
 end
+
 %% Plot aggregate distributions
 close all
 fig = figure(Units='inches', Position=[3, 3, 10, 6]);

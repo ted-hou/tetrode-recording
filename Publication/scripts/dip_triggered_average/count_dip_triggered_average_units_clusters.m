@@ -233,87 +233,88 @@ for iTest = 1:length(tests)
 end
 clear iTest dir iGrp testNames testGroups selClusters hasData found n
 
-close all
-for iTest = 1:length(tests)
-    fig = figure(Name=tests(iTest).name, Units='inches', Position=[1, 1, 5, 7]);
-    tl = tiledlayout(fig, 4, 2, TileIndexing='columnmajor');
-    title(tl, sprintf("%s\n[%s]", tests(iTest).name, strjoin(cellfun(@(labels) strjoin(labels, "/"), tests(iTest).labels), "] vs. [")))
-    ax = gobjects(4, 2);
-    iCol = 0;
-    for dir = ["dip", "rise"]
-        iCol = iCol + 1;
-        iRow = 0;
-        for fn = ["numGroupsClean", "numGroupsPresent", "prcGroupsClean"]
-            iRow = iRow + 1;
-            ax(iRow, iCol) = nexttile(tl);
-            edges = 0:length(tests(iTest).labels)+1;% Each bin includes the leading edge, but does not include the trailing edge, except for the last bin which includes both edges.
-            if fn == "prcGroupsClean"
-                edges = edges./edges(end);
-            end
-            n = histcounts(tests(iTest).(dir).(fn), edges);
-            % n = histcounts(tests(iTest).(dir).(fn)(tests(iTest).(dir).valid), edges);
-            if fn ~= "prcGroupsClean"
-                bar(ax(iRow, iCol), edges(1:end-1), n, 1, EdgeColor='black', FaceColor='black', FaceAlpha=0.5)
-                xlim(ax(iRow, iCol), [edges(1), edges(end)]-0.5)
-            else
-                histogram(ax(iRow, iCol), BinEdges=edges, BinCounts=n, EdgeColor='black', FaceColor='black', FaceAlpha=0.5)
-                xlim(ax(iRow, iCol), [-0.1, 1.1])
-            end
-            xlabel(ax(iRow, iCol), fn)
-            ylabel(ax(iRow, iCol), "no. units")
-            if iRow == 1
-                title(ax(iRow, iCol), dir)
-            end
-        end
-        iRow = iRow + 1;
-        ax(iRow, iCol) = nexttile(tl);
-        [n, xEdges, yEdges] = histcounts2(tests(iTest).(dir).numGroupsPresent, tests(iTest).(dir).numGroupsClean);
-        n = n./nUnits;
-        histogram2(ax(iRow, iCol), XBinEdges=xEdges, YBinEdges=yEdges, BinCounts=n, ...
-            DisplayStyle='tile', ShowEmptyBins=true)
-        xlabel(ax(iRow, iCol), "numGroupsPresent")
-        ylabel(ax(iRow, iCol), "numGroupsClean")
-        applyCustomColormap(ax(iRow, iCol), [0, 0.25], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
-        % colormap(ax(iRow, iCol), 'sky')
-        colorbar(ax(iRow, iCol), 'eastoutside')
-        axis(ax(iRow, iCol), 'equal')
-        xticks(ax(iRow, iCol), xEdges+0.5)
-        yticks(ax(iRow, iCol), yEdges+0.5)
-        grid(ax(iRow, iCol), 'off');
-    end
-    fontsize(fig, 9, 'points')
-end
-clear iTest fig tl ax iCol dir iRow fn centers edges n xEdges yEdges
-
-% Do rises contain more movement types than dips?
-fig = figure(Units='inches', Position=[1 1 4 8]);
-tl = tiledlayout(fig, 3, 2);
-maxC = [0.10, 0.10, 0.15, 0.2, 0.3, 0.3];
-for iTest = 1:length(tests)
-    ax = nexttile(tl);
-    [n, xEdges, yEdges] = histcounts2(tests(iTest).dip.numGroupsClean, tests(iTest).rise.numGroupsClean);
-    n = n./nUnits;
-    histogram2(ax, XBinEdges=xEdges, YBinEdges=yEdges, BinCounts=n, ...
-        DisplayStyle='tile', ShowEmptyBins=true)
-    applyCustomColormap(ax, [0, maxC(iTest)], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.5, h0=0.33);
-    axis(ax, 'equal')
-    title(ax, tests(iTest).name)
-    xlabel(ax, 'dip')
-    ylabel(ax, 'rise')
-
-    xticks(ax, 0:max(xEdges))
-    yticks(ax, 0:max(yEdges))
-
-    cb = colorbar(ax, Location='southoutside');
-    % cb.Layout.Tile = 'south';
-    cb.Label.String = sprintf("%% of %i units", nUnits);
-    cb.Ticks = [0, maxC(iTest)];
-    cb.TickLabels = ["0", sprintf("%g%%", maxC(iTest)*100)];
-
-end
-
-fontsize(fig, 9, 'points')
-clear fig tl iTest ax n xEdges yEdges cb maxC
+% %% Plotting - 1 figrue per test
+% close all
+% for iTest = 1:length(tests)
+%     fig = figure(Name=tests(iTest).name, Units='inches', Position=[1, 1, 5, 7]);
+%     tl = tiledlayout(fig, 4, 2, TileIndexing='columnmajor');
+%     title(tl, sprintf("%s\n[%s]", tests(iTest).name, strjoin(cellfun(@(labels) strjoin(labels, "/"), tests(iTest).labels), "] vs. [")))
+%     ax = gobjects(4, 2);
+%     iCol = 0;
+%     for dir = ["dip", "rise"]
+%         iCol = iCol + 1;
+%         iRow = 0;
+%         for fn = ["numGroupsClean", "numGroupsPresent", "prcGroupsClean"]
+%             iRow = iRow + 1;
+%             ax(iRow, iCol) = nexttile(tl);
+%             edges = 0:length(tests(iTest).labels)+1;% Each bin includes the leading edge, but does not include the trailing edge, except for the last bin which includes both edges.
+%             if fn == "prcGroupsClean"
+%                 edges = edges./edges(end);
+%             end
+%             n = histcounts(tests(iTest).(dir).(fn), edges);
+%             % n = histcounts(tests(iTest).(dir).(fn)(tests(iTest).(dir).valid), edges);
+%             if fn ~= "prcGroupsClean"
+%                 bar(ax(iRow, iCol), edges(1:end-1), n, 1, EdgeColor='black', FaceColor='black', FaceAlpha=0.5)
+%                 xlim(ax(iRow, iCol), [edges(1), edges(end)]-0.5)
+%             else
+%                 histogram(ax(iRow, iCol), BinEdges=edges, BinCounts=n, EdgeColor='black', FaceColor='black', FaceAlpha=0.5)
+%                 xlim(ax(iRow, iCol), [-0.1, 1.1])
+%             end
+%             xlabel(ax(iRow, iCol), fn)
+%             ylabel(ax(iRow, iCol), "no. units")
+%             if iRow == 1
+%                 title(ax(iRow, iCol), dir)
+%             end
+%         end
+%         iRow = iRow + 1;
+%         ax(iRow, iCol) = nexttile(tl);
+%         [n, xEdges, yEdges] = histcounts2(tests(iTest).(dir).numGroupsPresent, tests(iTest).(dir).numGroupsClean);
+%         n = n./nUnits;
+%         histogram2(ax(iRow, iCol), XBinEdges=xEdges, YBinEdges=yEdges, BinCounts=n, ...
+%             DisplayStyle='tile', ShowEmptyBins=true)
+%         xlabel(ax(iRow, iCol), "numGroupsPresent")
+%         ylabel(ax(iRow, iCol), "numGroupsClean")
+%         applyCustomColormap(ax(iRow, iCol), [0, 0.25], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+%         % colormap(ax(iRow, iCol), 'sky')
+%         colorbar(ax(iRow, iCol), 'eastoutside')
+%         axis(ax(iRow, iCol), 'equal')
+%         xticks(ax(iRow, iCol), xEdges+0.5)
+%         yticks(ax(iRow, iCol), yEdges+0.5)
+%         grid(ax(iRow, iCol), 'off');
+%     end
+%     fontsize(fig, 9, 'points')
+% end
+% clear iTest fig tl ax iCol dir iRow fn centers edges n xEdges yEdges
+% 
+% % Do rises contain more movement types than dips?
+% fig = figure(Units='inches', Position=[1 1 4 8]);
+% tl = tiledlayout(fig, 3, 2);
+% maxC = [0.10, 0.10, 0.15, 0.2, 0.3, 0.3];
+% for iTest = 1:length(tests)
+%     ax = nexttile(tl);
+%     [n, xEdges, yEdges] = histcounts2(tests(iTest).dip.numGroupsClean, tests(iTest).rise.numGroupsClean);
+%     n = n./nUnits;
+%     histogram2(ax, XBinEdges=xEdges, YBinEdges=yEdges, BinCounts=n, ...
+%         DisplayStyle='tile', ShowEmptyBins=true)
+%     applyCustomColormap(ax, [0, maxC(iTest)], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.5, h0=0.33);
+%     axis(ax, 'equal')
+%     title(ax, tests(iTest).name)
+%     xlabel(ax, 'dip')
+%     ylabel(ax, 'rise')
+% 
+%     xticks(ax, 0:max(xEdges))
+%     yticks(ax, 0:max(yEdges))
+% 
+%     cb = colorbar(ax, Location='southoutside');
+%     % cb.Layout.Tile = 'south';
+%     cb.Label.String = sprintf("%% of %i units", nUnits);
+%     cb.Ticks = [0, maxC(iTest)];
+%     cb.TickLabels = ["0", sprintf("%g%%", maxC(iTest)*100)];
+% 
+% end
+% 
+% fontsize(fig, 9, 'points')
+% clear fig tl iTest ax n xEdges yEdges cb maxC
 
 %%
 clc

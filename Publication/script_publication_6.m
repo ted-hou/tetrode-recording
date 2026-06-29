@@ -1,6 +1,6 @@
 %% Set root
-% ROOTPATH = "C:\SERVER";
-ROOTPATH = 'E:\DATA';
+ROOTPATH = "C:\SERVER";
+% ROOTPATH = 'E:\DATA';
 
 %%
 if exist('E:\Data\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials', 'dir')
