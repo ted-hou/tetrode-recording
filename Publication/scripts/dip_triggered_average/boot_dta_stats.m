@@ -295,17 +295,6 @@ warning('sdBoot clusters are in native order, not semantic order')
 
 
 %% Some plotting heh
-close all
-fig = figure(Units='inches', Position=[3, 3, 10, 6]);
-tl = tiledlayout(fig, 2, 2, TileIndexing='columnmajor');
-ax = gobjects(2, 2);
-for i = 1:2
-    for j = 1:2
-        ax(i, j) = nexttile(tl);
-        hold(ax(i, j), 'on')
-    end
-end
-
 for iUnit = 1:nUnits
     for dir = ["dip", "rise"]
         if isfield(sdBoot(iUnit).(dir), 'miMaxRectified')
@@ -315,6 +304,93 @@ for iUnit = 1:nUnits
             miMaxRectified(iUnit).(dir).XBoot = [];
             miMaxRectified(iUnit).(dir).idxBoot = [];
         end
+    end
+end
+
+%% Do per-unit tests for miMaxRectified
+close all
+clear pVal
+pVal.all = struct(dip=NaN(nUnits, 1), rise=NaN(nUnits, 1));
+pVal.clu1 = struct(dip=NaN(nUnits, 1), rise=NaN(nUnits, 1));
+for iUnit = 1:nUnits
+    for dir = ["dip", "rise"]
+        if isempty(miMaxRectified(iUnit).(dir).XBoot)
+            continue
+        end
+        % Cluster 1
+        xObs = mean(miMaxRectified(iUnit).(dir).X(miMaxRectified(iUnit).(dir).idx==1), 1, 'omitnan');
+        XBoot = arrayfun(@(iBoot) miMaxRectified(iUnit).(dir).XBoot(miMaxRectified(iUnit).(dir).idxBoot(:, iBoot)==1, iBoot), 1:p.sd.nBoot, UniformOutput=false);
+        XBoot = cellfun(@(XBoot) mean(XBoot, 1, 'omitnan'), XBoot);
+        pVal.clu1.(dir)(iUnit) = nnz(XBoot<=xObs)./length(XBoot);
+
+        % All
+        xObs = mean(miMaxRectified(iUnit).(dir).X, 1, 'omitnan');
+        XBoot = mean(miMaxRectified(iUnit).(dir).XBoot, 1, 'omitnan');
+        pVal.all.(dir)(iUnit) = nnz(XBoot<=xObs)./length(XBoot);   
+
+alpha = 0.05;
+edges = 0:alpha/2:1;
+
+for src = ["all", "clu1"]
+
+    fig = figure(Units='inches', Position=[3, 3, 5, 3]);
+    tl = tiledlayout(fig, 1, 1);
+    AX = gobjects(1, 3);
+    ax = nexttile(tl); AX(1) = ax;
+    n = histcounts2(pVal.(src).dip, pVal.(src).rise, edges, edges);
+    histogram2(ax, XBinEdges=edges, YBinEdges=edges, BinCounts=n, ...
+        DisplayStyle='tile', ShowEmptyBins=true, EdgeAlpha=0);
+    maxC = 100;
+    cb = colorbar(ax);
+    applyCustomColormap(ax, [0, maxC], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.5, h0=0.33);
+    cb.Label.String = 'no. units';
+    cb.Label.Position(1) = 0;
+    
+    xlabel(ax, 'P(x_{dip}\geqx_{boot})')
+    ylabel(ax, 'P(x_{rise}\geqx_{boot})')
+    xlim(ax, [0, 1])
+    ylim(ax, [0, 1])
+    axis(ax, 'equal')
+    ax.Box = 'off';
+    
+    ax = nexttile(tl, 'south'); AX(2) = ax;
+    histogram(ax, pVal.(src).dip, edges, EdgeColor='none', FaceColor='k', FaceAlpha=1, DisplayName='dip', DisplayStyle='bar')
+    xlim(ax, [0, 1])
+    ylabel(ax, 'no. units')
+    ylim(ax, [0, nUnits])
+    yticks(ax, [0, nUnits])
+    
+    ax = nexttile(tl, 'west'); AX(3) = ax;
+    histogram(ax, pVal.(src).rise, edges, EdgeColor='none', FaceColor='k', FaceAlpha=1, DisplayName='rise', DisplayStyle='bar', Orientation='horizontal')
+    ylim(ax, [0, 1])
+    ax.XDir = 'reverse';
+    ax.YAxisLocation = 'right';
+    xlabel(ax, 'no. units')
+    xlim(ax, [0, nUnits])
+    xticks(ax, [0, nUnits])
+    xtickangle(ax, 90)
+    
+    xticks(AX([1, 2]), [0, 0.5, 1])
+    yticks(AX([1, 3]), [0, 0.5, 1])
+    
+    switch src
+        case "all"
+            title(tl, "dips/rises in all clusters", FontWeight='bold')
+        case "clu1"
+            title(tl, sprintf("dips/rises in cluster 1 (""%s"")", p.mi.semanticClusterLabels(1)), FontWeight='bold')
+    end
+
+    fontsize(fig, 8, 'points')
+end
+%% Plot aggregate distributions
+close all
+fig = figure(Units='inches', Position=[3, 3, 10, 6]);
+tl = tiledlayout(fig, 2, 2, TileIndexing='rowmajor');
+ax = gobjects(2, 2);
+for i = 1:2
+    for j = 1:2
+        ax(i, j) = nexttile(tl);
+        hold(ax(i, j), 'on')
     end
 end
 
@@ -353,28 +429,3 @@ lgd = legend(ax(2, 2));
 lgd.Layout.Tile = 'east';
 xlabel(tl, 'max rectified movement index')
 ylabel(tl, 'pdf')
-
-% for iUnit = 1:nUnits
-%     for dir = ["dip", "rise"]
-%         for iClu = 1:length(p.mi.semanticClusterOrder)
-%             k = p.mi.semanticClusterOrder(iClu);
-%             sel = sdBoot(iUnit).(dir).idx==k;
-%             histogram(ax, sdBoot(iUnit).(dir).miMaxRectified(sel), [0:0.1:5, Inf], Normalization='pdf', EdgeColor=getColor(iClu, 7, 0.7), DisplayName=p.mi.semanticClusterLabels(iClu), DisplayStyle='stairs');
-%         end
-%         histogram(ax, sdBoot(iUnit).(dir).miMaxRectified, [0:0.1:5, Inf], Normalization='pdf', EdgeColor='k', DisplayName='all', DisplayStyle='stairs', LineWidth=2)
-%         title(ax, sprintf('Bootstrap (fake %ss)', dir))
-% 
-% 
-%         for iClu = 1:length(p.mi.semanticClusterOrder)
-%             k = p.mi.semanticClusterOrder(iClu);
-%             sel = miMaxRectified(iUnit).(dir).idx==k;
-%             histogram(ax, miMaxRectified(iUnit).(dir).X(sel), [0:0.1:5, Inf], Normalization='pdf', EdgeColor=getColor(iClu, 7, 0.7), DisplayName=p.mi.semanticClusterLabels(iClu), DisplayStyle='stairs');
-%         end
-%         histogram(ax, miMaxRectified(iUnit).(dir).X, [0:0.1:5, Inf], Normalization='pdf', EdgeColor='k', DisplayName='all', DisplayStyle='stairs', LineWidth=2)
-%         title(ax, sprintf('Observed (real %ss)', dir))
-%     end
-%     lgd = legend(ax);
-%     lgd.Layout.Tile = 'east';
-%     xlabel(tl, 'max rectified movement index')
-%     ylabel(tl, 'pdf')
-% end
