@@ -294,7 +294,7 @@ fprintf("Saved to %s\n", exportPath);
 warning('sdBoot clusters are in native order, not semantic order')
 
 
-%% Some plotting heh
+%% Consolidate bootstrapped and observed miMaxRectified
 for iUnit = 1:nUnits
     for dir = ["dip", "rise"]
         if isfield(sdBoot(iUnit).(dir), 'miMaxRectified')
@@ -306,6 +306,13 @@ for iUnit = 1:nUnits
         end
     end
 end
+
+for iUnit = 1:nUnits
+    for dir = ["dip", "rise"]
+        sdBoot(iUnit).(dir) = rmfield(sdBoot(iUnit).(dir), ["miMaxRectified", "idx"]);
+    end
+end
+
 
 %% Do per-unit tests for miMaxRectified
 close all
