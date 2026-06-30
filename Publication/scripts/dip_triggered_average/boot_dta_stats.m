@@ -60,7 +60,7 @@ for iTry = 1:length(tryNSigmas)
             obsSD(isInvalid) = NaN;
             hLeftSD(isInvalid) = false;
             hRightSD(isInvalid) = false;
-        
+
             if ~isequal(hLeftSD, hLeftBoot) || ~isequal(hRightSD, hRightBoot)
                 % fprintf("\nUnit %i, %s:", iUnit, fn)
                 % fprintf("\nobsSD:     "), fprintf("\t%.3f", obsSD)
@@ -179,9 +179,7 @@ centroids = NaN(nClusters, size(pcaScore, 2));
 for k = 1:nClusters
     centroids(k, :) = mean(pcaScore(idx==k, :), 1, 'omitnan');
 end
-
 clear idx pcaScore k dir
-
 
 % Calculate mi from shuffled data, and assign to existing clusters
 if isempty(gcp('nocreate'))
@@ -215,6 +213,7 @@ for iUnit = 1:nUnits
         nTrials = length(mi.(dir)(iUnit).idx);
         miMaxRectifiedTemp = zeros(nTrials, p.sd.nBoot, 'single');
         idxTemp = zeros(nTrials, p.sd.nBoot, 'uint16');
+        xtaMaxRectifiedClu1Temp = NaN(diff(p.xta.window)*p.xta.res+1, p.sd.nBoot, 'single');
         if nTrials < p.mi.minNumTrialsPerCluster || nTrials < nClusters
             sdBoot(iUnit).(dir) = struct(h=hBootTemp, n=nBootTemp);
             warning("Unit %i has too few (%i) %ss, we cannot do kmeans so this unit/dir is skipped.", iUnit, nTrials, dir)
@@ -225,12 +224,18 @@ for iUnit = 1:nUnits
             pcaScore = zeros(nTrials, 4, 'single');
             T0 = -p.mi.windowPre(1) + rand([1, nTrials])*(tMax - p.mi.windowPost(2) + p.mi.windowPre(1));
             miTemp = NaN(nTrials, length(p.mi.features), 'single');
+            xTemp = NaN(nTrials, diff(p.xta.window)*p.xta.res+1, length(p.mi.features), 'single');
+            xMaxRectifiedClu1Temp = NaN(nTrials, diff(p.xta.window)*p.xta.res+1, 'single');
             for iTrial = 1:length(T0)
                 for iFeat = 1:length(p.mi.features)
                     fn = p.mi.features(iFeat);
+                    % mi
                     [iStartPre, iStopPre] = isin(kine.(fn).t, T0(iTrial) + p.mi.windowPre, true, true);
                     [iStartPost, iStopPost] = isin(kine.(fn).t, T0(iTrial) + p.mi.windowPost, true, true);
                     miTemp(iTrial, iFeat) = mean(kine.(fn).X(iStartPost:iStopPost), 'omitnan') - mean(kine.(fn).X(iStartPre:iStopPre), 'omitnan');
+                    % xta_rectified
+                    [iStart, iStop] = isin(kine.(fn).t, T0(iTrial) + p.xta.window, true, true);
+                    xTemp(iTrial, :, iFeat) = kine.(fn).X(iStart:iStop); % Use interp1? Would be slower?
                 end
                 for iFeat = 1:length(pcFeatures)
                     pcaScore(:, iFeat) = mean(miTemp(:, pcFeatures{iFeat}), 2, 'omitnan');
@@ -243,6 +248,7 @@ for iUnit = 1:nUnits
 
             % Now we have:
             %   miTemp (nTrials x 4 features, removed tongue)
+            %   xtaTemp (nTrials x nTimestamps x 4 features)
             %   idx (cluster id)
             % We need:
             %   convert miTemp from magnitude to significance (3SD)
@@ -272,27 +278,28 @@ for iUnit = 1:nUnits
             hBootTemp(iBoot, :, :) = hTemp;
 
             % Tack on the miMaxRectified stuff
-            miMaxRectifiedTemp(:, iBoot) = max(abs(miTemp), [], 2);
+            [miMaxRectifiedTemp(:, iBoot), IMaxFeat] = max(abs(miTemp), [], 2); % IMaxFeat: 1-4, nTrialsx1
+            for iTrial = 1:size(xTemp, 1)
+                xMaxRectifiedClu1Temp(iTrial, :) = abs(xTemp(iTrial, :, IMaxFeat(iTrial)));
+            end
+            xtaMaxRectifiedClu1Temp(:, iBoot) = mean(xMaxRectifiedClu1Temp(idx==1, :), 1, 'omitnan');
             idxTemp(:, iBoot) = idx;
         end
-        sdBoot(iUnit).(dir) = struct(h=hBootTemp, n=nBootTemp, miMaxRectified=miMaxRectifiedTemp, idx=idxTemp);
+        sdBoot(iUnit).(dir) = struct(h=hBootTemp, n=nBootTemp, miMaxRectified=miMaxRectifiedTemp, idx=idxTemp, xtaMaxRectifiedClu1=xtaMaxRectifiedClu1Temp);
         ll = ll + fprintf('%i positives.\n', nnz(hBootTemp~=0));
     end
 end
-
 
 parfevalOnAll(pool, @warning, 0, 'on', 'stats:kmeans:FailedToConverge');
 clear pool
 clear nUnits nFeatures nClusters idx pcaScore centroids k dir
 clear pcFeatures miBootFeatures tTic ll iExp kine tMax dir nBootTemp hBootTemp nTrials iBoot pcaScore T0 miTemp iTrial iFeat fn iStartPre iStopPre iStartPost iStopPost idx mu sd hTemp k inCluster nTrialsInCluster miCluster ifn
 
-
 exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_sdBoot_%iunits_%iboots_%s.mat", length(xta.dip), p.sd.nBoot, datetime("now", Format="yyyyMMdd")));
 save(exportPath, 'sdBoot', 'p', 'miMaxRectified', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
 
 warning('sdBoot clusters are in native order, not semantic order')
-
 
 %% Consolidate bootstrapped and observed miMaxRectified
 for iUnit = 1:nUnits
@@ -336,13 +343,13 @@ for iUnit = 1:nUnits
         pVal.all.(dir)(iUnit) = nnz(XBoot<=xObs)./length(XBoot);   
     end
 end
-
+%%
 alpha = 0.05;
 edges = 0:alpha/2:1;
 
 for src = ["all", "clu1"]
 
-    fig = figure(Units='inches', Position=[3, 3, 5, 3]);
+    fig = figure(Units='inches', Position=[3, 3, 10, 6]);
     tl = tiledlayout(fig, 1, 1);
     AX = gobjects(1, 3);
     ax = nexttile(tl); AX(1) = ax;
@@ -389,7 +396,7 @@ for src = ["all", "clu1"]
             title(tl, sprintf("dips/rises in cluster 1 (""%s"")", p.mi.semanticClusterLabels(1)), FontWeight='bold')
     end
 
-    fontsize(fig, 8, 'points')
+    fontsize(fig, 12, 'points')
 end
 
 %% Plot aggregate distributions
@@ -439,3 +446,5 @@ lgd = legend(ax(2, 2));
 lgd.Layout.Tile = 'east';
 xlabel(tl, 'max rectified movement index')
 ylabel(tl, 'pdf')
+
+clear X XBoot idx idxBoot iRow iClu k sel iCol dir fig tl ax
