@@ -393,7 +393,7 @@ for src = ["all", "clu1"]
 end
 
 %% Plot aggregate distributions
-close all
+% close all
 fig = figure(Units='inches', Position=[3, 3, 10, 6]);
 tl = tiledlayout(fig, 2, 2, TileIndexing='rowmajor');
 ax = gobjects(2, 2);

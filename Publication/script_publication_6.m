@@ -1,6 +1,6 @@
 %% Set root
-ROOTPATH = "C:\SERVER";
-% ROOTPATH = 'E:\DATA';
+% ROOTPATH = "C:\SERVER";
+ROOTPATH = 'E:\DATA';
 
 %%
 if exist('E:\Data\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials', 'dir')
@@ -172,6 +172,85 @@ clear sel trials expEuIndices FsLick lickHistEdges lickHistCenters lickHistNLick
 %% Count number of "clean clusters" by unit
 p.minNumTrialsPerCluster = 10;
 count_dip_triggered_average_units_clusters
+
+
+
+%% Consolidate bootstrapped and observed miMaxRectified
+for iUnit = 1:nUnits
+    for dir = ["dip", "rise"]
+        if ~all(isfield(miMaxRectified(iUnit).(dir), ["XBoot", "idxBoot"]))
+            if isfield(sdBoot(iUnit).(dir), 'miMaxRectified')
+                miMaxRectified(iUnit).(dir).XBoot = sdBoot(iUnit).(dir).miMaxRectified;
+                miMaxRectified(iUnit).(dir).idxBoot = sdBoot(iUnit).(dir).idx;
+            else
+                miMaxRectified(iUnit).(dir).XBoot = [];
+                miMaxRectified(iUnit).(dir).idxBoot = [];
+            end
+        end
+    end
+end
+
+for iUnit = 1:nUnits
+    for dir = ["dip", "rise"]
+        if all(isfield(sdBoot(iUnit).(dir), ["miMaxRectified", "idx"]))
+            sdBoot(iUnit).(dir) = rmfield(sdBoot(iUnit).(dir), ["miMaxRectified", "idx"]);
+        end
+    end
+end
+clear iUnit dir
+
+
+% Do per-unit tests for miMaxRectified
+clear pVal
+pVal.all = struct(dip=NaN(nUnits, 1), rise=NaN(nUnits, 1));
+pVal.clu1 = struct(dip=NaN(nUnits, 1), rise=NaN(nUnits, 1));
+for iUnit = 1:nUnits
+    for dir = ["dip", "rise"]
+        if isempty(miMaxRectified(iUnit).(dir).XBoot)
+            continue
+        end
+        % Cluster 1
+        xObs = mean(miMaxRectified(iUnit).(dir).X(miMaxRectified(iUnit).(dir).idx==1), 1, 'omitnan');
+        XBoot = arrayfun(@(iBoot) miMaxRectified(iUnit).(dir).XBoot(miMaxRectified(iUnit).(dir).idxBoot(:, iBoot)==1, iBoot), 1:p.sd.nBoot, UniformOutput=false);
+        XBoot = cellfun(@(XBoot) mean(XBoot, 1, 'omitnan'), XBoot);
+        pVal.clu1.(dir)(iUnit) = nnz(XBoot<=xObs)./length(XBoot);
+
+        % All
+        xObs = mean(miMaxRectified(iUnit).(dir).X, 1, 'omitnan');
+        XBoot = mean(miMaxRectified(iUnit).(dir).XBoot, 1, 'omitnan');
+        pVal.all.(dir)(iUnit) = nnz(XBoot<=xObs)./length(XBoot);   
+    end
+end
+clear xObs xBoot iUnit dir
+%%
+alpha = 0.05;
+less = struct(dip=[], rise=[]);
+more = struct(dip=[], rise=[]);
+for cn = ["clu1", "all"]
+    less.dip = pVal.(cn).dip < alpha/2; % dips have less movement than chance
+    more.dip = pVal.(cn).dip > 1-alpha/2; % dips have more movement than chance
+    less.rise = pVal.(cn).rise < alpha/2; % rises have less movement than chance
+    more.rise = pVal.(cn).rise > 1-alpha/2; % rises have more movement than chance
+
+    switch cn
+        case "clu1"
+            fprintf("In cluster 1 (no move):\n")
+        case "all"
+            fprintf("In all clusters:\n")
+    end
+    fprintf("\t%i units (%.1f%%) have less movement during dips than chance.\n", nnz(less.dip), 100*nnz(less.dip)./nUnits);
+    fprintf("\t%i units (%.1f%%) have more movement during dips than chance.\n", nnz(more.dip), 100*nnz(more.dip)./nUnits);
+    fprintf("\t%i units (%.1f%%) have less movement during rises than chance.\n", nnz(less.rise), 100*nnz(less.rise)./nUnits);
+    fprintf("\t%i units (%.1f%%) have more movement during rises than chance.\n", nnz(more.rise), 100*nnz(more.rise)./nUnits);
+
+
+    fprintf("\t%i units (%.1f%%) have less movement during dips and rises than chance.\n", nnz(less.dip & less.rise), 100*nnz(less.dip & less.rise)./nUnits);
+    fprintf("\t%i units (%.1f%%) have more movement during dips and rises than chance.\n", nnz(more.dip & more.rise), 100*nnz(more.dip & more.rise)./nUnits);
+
+    fprintf("\t%i units (%.1f%%) have less movement during dips but more movement during rises than chance.\n", nnz(less.dip & more.rise), 100*nnz(less.dip & more.rise)./nUnits);
+    fprintf("\t%i units (%.1f%%) have more movement during dips but less movement during rises than chance.\n", nnz(more.dip & less.rise), 100*nnz(more.dip & less.rise)./nUnits);
+
+end
 
 %% Fig 6
 XLIM = {[-1, 0.3], [-1, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3]};
@@ -569,7 +648,7 @@ for iTl = 1:2
                 plot(ax(iFeat, iClu), t(selT), mu(selT), Color='red', LineStyle='-', LineWidth=1);
                 clear selT
             end
-            clear pVal nStars yPos
+            clear nStars
             plot(ax(iFeat, iClu), [0, 0], ylims{iFeat}, '-', Color=[0.15, 0.15, 0.15, 0.25])
             plot(ax(iFeat, iClu), [-0.5, 0.5], [0, 0], '-', Color=[0.15, 0.15, 0.15, 0.25])
             if iClu == 1
