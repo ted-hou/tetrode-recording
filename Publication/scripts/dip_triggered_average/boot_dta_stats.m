@@ -194,6 +194,7 @@ miBootFeatures = ismember(p.mi.features, p.mi.boot.features);
 clear sdBoot
 sdBoot(nUnits) = struct(dip=struct(h=[], n=[]), rise=struct(h=[], n=[]));
 parfevalOnAll(pool, @warning, 0, 'off', 'stats:kmeans:FailedToConverge');
+warning('off', 'stats:kmeans:FailedToConverge')
 %%
 tTic = tic();
 ll = 0;
@@ -207,25 +208,26 @@ for iUnit = 1:nUnits
     iExp = expIndices(iUnit);
     kine = kinematics(iExp);
     tMax = min(arrayfun(@(fn) kine.(fn).t(end), p.mi.features));
+    xtaLen = diff(p.xta.window)./p.xta.res;
     for dir = ["dip", "rise"]
         nBootTemp = zeros(p.sd.nBoot, nClusters, 'uint16');
         hBootTemp = zeros(p.sd.nBoot, nClusters, nFeatures, 'int8');
         nTrials = length(mi.(dir)(iUnit).idx);
         miMaxRectifiedTemp = zeros(nTrials, p.sd.nBoot, 'single');
         idxTemp = zeros(nTrials, p.sd.nBoot, 'uint16');
-        xtaMaxRectifiedClu1Temp = NaN(diff(p.xta.window)*p.xta.res+1, p.sd.nBoot, 'single');
+        xtaMaxRectifiedClu1Temp = NaN(xtaLen, p.sd.nBoot, 'single');
         if nTrials < p.mi.minNumTrialsPerCluster || nTrials < nClusters
             sdBoot(iUnit).(dir) = struct(h=hBootTemp, n=nBootTemp);
             warning("Unit %i has too few (%i) %ss, we cannot do kmeans so this unit/dir is skipped.", iUnit, nTrials, dir)
             hasWarning = true;
             continue
         end
-        parfor iBoot = 1:p.sd.nBoot
+        for iBoot = 1:p.sd.nBoot
             pcaScore = zeros(nTrials, 4, 'single');
             T0 = -p.mi.windowPre(1) + rand([1, nTrials])*(tMax - p.mi.windowPost(2) + p.mi.windowPre(1));
             miTemp = NaN(nTrials, length(p.mi.features), 'single');
-            xTemp = NaN(nTrials, diff(p.xta.window)*p.xta.res+1, length(p.mi.features), 'single');
-            xMaxRectifiedClu1Temp = NaN(nTrials, diff(p.xta.window)*p.xta.res+1, 'single');
+            xTemp = NaN(nTrials, xtaLen, length(p.mi.features), 'single');
+            xMaxRectifiedClu1Temp = NaN(nTrials, xtaLen, 'single');
             for iTrial = 1:length(T0)
                 for iFeat = 1:length(p.mi.features)
                     fn = p.mi.features(iFeat);
@@ -235,12 +237,18 @@ for iUnit = 1:nUnits
                     miTemp(iTrial, iFeat) = mean(kine.(fn).X(iStartPost:iStopPost), 'omitnan') - mean(kine.(fn).X(iStartPre:iStopPre), 'omitnan');
                     % xta_rectified
                     [iStart, iStop] = isin(kine.(fn).t, T0(iTrial) + p.xta.window, true, true);
+                    iStop = iStart + xtaLen - 1;
+                    if iStop > length(kine.(fn).X)
+                        iStop = length(kine.(fn).X);
+                        iStart = iStop - xtaLen + 1;
+                    end
                     xTemp(iTrial, :, iFeat) = kine.(fn).X(iStart:iStop); % Use interp1? Would be slower?
                 end
                 for iFeat = 1:length(pcFeatures)
                     pcaScore(:, iFeat) = mean(miTemp(:, pcFeatures{iFeat}), 2, 'omitnan');
                 end
             end
+            xTemp = xTemp(:, :, miBootFeatures);
             miTemp = miTemp(:, miBootFeatures);
             miTemp(isnan(miTemp)) = 0;
             pcaScore(isnan(pcaScore)) = 0;
@@ -289,7 +297,8 @@ for iUnit = 1:nUnits
         ll = ll + fprintf('%i positives.\n', nnz(hBootTemp~=0));
     end
 end
-
+%%
+warning('on', 'stats:kmeans:FailedToConverge')
 parfevalOnAll(pool, @warning, 0, 'on', 'stats:kmeans:FailedToConverge');
 clear pool
 clear nUnits nFeatures nClusters idx pcaScore centroids k dir
@@ -322,6 +331,7 @@ end
 
 
 %% Do per-unit tests for miMaxRectified
+
 close all
 clear pVal
 pVal.all = struct(dip=NaN(nUnits, 1), rise=NaN(nUnits, 1));
