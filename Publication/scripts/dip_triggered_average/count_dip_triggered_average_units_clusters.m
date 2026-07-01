@@ -174,7 +174,7 @@ for iUnit = 1:nUnits
     end
     clear dir
 end
-clear iUnit nUnits nFeatures nClusters
+clear iUnit nUnits nFeatures nClusters iBoot k expectedSign
 
 %% Count units
 % To say: this unit moved one body part and nothing else, for that
@@ -231,7 +231,7 @@ for iTest = 1:length(tests)
         tests(iTest).(dir).valid = tests(iTest).(dir).numGroupsPresent >= 2;
     end
 end
-clear iTest dir iGrp testNames testGroups selClusters hasData found n
+clear iTest dir iGrp testNames testGroups selClusters hasData found n nGroups
 
 % %% Plotting - 1 figrue per test
 % close all
@@ -351,4 +351,9 @@ for iTest = 1:length(tests)
         end
     end
 end
-clear iTest n dir
+clear iTest n dir plural
+
+%% Save results
+exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_cc_%iunits_%iboots_%s.mat", length(xta.dip), p.sd.nBoot, datetime("now", Format="yyyyMMdd")));
+save(exportPath, 'p', 'tests', 'cc', 'clusterSize', '-v7.3')
+fprintf("Saved to %s\n", exportPath);

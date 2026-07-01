@@ -15,9 +15,18 @@ end
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot", "20260617_metaRasterData.mat"));
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to800ms_units1to1225_0boots_20260613.mat"));
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_200to800ms_1225units_10000boots_20260614.mat")); % contains updated `p`
-load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_sdBoot_1225units_1000boots_20260626.mat")); % Load bootstrapped statistics for fig6 panels
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_sdBoot_1225units_1000boots_20260701.mat")); % Load bootstrapped statistics for fig6 panels (sd version of cleanclusters boot)
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectified_1225units_1000boots_20260701.mat")); % Load bootstrapped statistics for fig6 panels (maxRectified xta, mi)
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectifiedPVal_1225units_1000boots_20260701.mat")); % pVal of observing mimr under null bootstrap
+% %% Count number of "clean clusters" by unit
+% p.minNumTrialsPerCluster = 10;
+% count_dip_triggered_average_units_clusters
+load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_cc_1225units_1000boots_20260701.mat")); % Load bootstrapped statistics for fig6 panels (maxRectified xta, mi)
+
+
 %%
-clearvars -except etaArtiFree euArtiFree metaArtiFree clusterSize kinematics metaRasterData mi miBoot miObs sdBoot miMaxRectified p ROOTPATH xta
+% clearvars -except etaArtiFree euArtiFree metaArtiFree clusterSize kinematics metaRasterData mi miBoot miObs sdBoot miMaxRectified xtaMaxRectified p ROOTPATH xta nUnits
+nUnits = length(xta.dip);
 if ~exist('p', 'var') || ~isfield(p, 'fontSize')
     p.fontSize = 8;
 end
@@ -150,7 +159,7 @@ lickHist.correctLickOsci.t = lickHistCenters;
 lickHist.correctLickOsci.edges = lickHistEdges;
 
 clear sel trials expEuIndices FsLick lickHistEdges lickHistCenters lickHistNLicks lickHistCounts iExp iEu firstLickTimes allLickTimes iLick edgesGlobal n
-%%
+% %%
 % etaArtiFree.circLickNaive = euArtiFree.getETA('count', 'circlick_naive', window=[0, 2*pi], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, artifacts=metaArtiFree.artifactParams);
 % etaArtiFree.lickBoutNaive = euArtiFree.getETA('count', 'lickbout_naive', window=[0, 2*pi*4], resolution=2*pi/30, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
 %     minBoutCycles=2, maxBoutCycles=4, artifacts=metaArtiFree.artifactParams);
@@ -169,59 +178,7 @@ clear sel trials expEuIndices FsLick lickHistEdges lickHistCenters lickHistNLick
 % metaArtiFree.eta = etaArtiFree;
 % save('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat', 'metaArtiFree')
 
-%% Count number of "clean clusters" by unit
-p.minNumTrialsPerCluster = 10;
-count_dip_triggered_average_units_clusters
 
-
-
-%% Consolidate bootstrapped and observed miMaxRectified
-for iUnit = 1:nUnits
-    for dir = ["dip", "rise"]
-        if ~all(isfield(miMaxRectified(iUnit).(dir), ["XBoot", "idxBoot"]))
-            if isfield(sdBoot(iUnit).(dir), 'miMaxRectified')
-                miMaxRectified(iUnit).(dir).XBoot = sdBoot(iUnit).(dir).miMaxRectified;
-                miMaxRectified(iUnit).(dir).idxBoot = sdBoot(iUnit).(dir).idx;
-            else
-                miMaxRectified(iUnit).(dir).XBoot = [];
-                miMaxRectified(iUnit).(dir).idxBoot = [];
-            end
-        end
-    end
-end
-
-for iUnit = 1:nUnits
-    for dir = ["dip", "rise"]
-        if all(isfield(sdBoot(iUnit).(dir), ["miMaxRectified", "idx"]))
-            sdBoot(iUnit).(dir) = rmfield(sdBoot(iUnit).(dir), ["miMaxRectified", "idx"]);
-        end
-    end
-end
-clear iUnit dir
-
-
-% Do per-unit tests for miMaxRectified
-clear pVal
-pVal.all = struct(dip=NaN(nUnits, 1), rise=NaN(nUnits, 1));
-pVal.clu1 = struct(dip=NaN(nUnits, 1), rise=NaN(nUnits, 1));
-for iUnit = 1:nUnits
-    for dir = ["dip", "rise"]
-        if isempty(miMaxRectified(iUnit).(dir).XBoot)
-            continue
-        end
-        % Cluster 1
-        xObs = mean(miMaxRectified(iUnit).(dir).X(miMaxRectified(iUnit).(dir).idx==1), 1, 'omitnan');
-        XBoot = arrayfun(@(iBoot) miMaxRectified(iUnit).(dir).XBoot(miMaxRectified(iUnit).(dir).idxBoot(:, iBoot)==1, iBoot), 1:p.sd.nBoot, UniformOutput=false);
-        XBoot = cellfun(@(XBoot) mean(XBoot, 1, 'omitnan'), XBoot);
-        pVal.clu1.(dir)(iUnit) = nnz(XBoot<=xObs)./length(XBoot);
-
-        % All
-        xObs = mean(miMaxRectified(iUnit).(dir).X, 1, 'omitnan');
-        XBoot = mean(miMaxRectified(iUnit).(dir).XBoot, 1, 'omitnan');
-        pVal.all.(dir)(iUnit) = nnz(XBoot<=xObs)./length(XBoot);   
-    end
-end
-clear xObs xBoot iUnit dir
 %%
 alpha = 0.05;
 less = struct(dip=[], rise=[]);
@@ -249,8 +206,8 @@ for cn = ["clu1", "all"]
 
     fprintf("\t%i units (%.1f%%) have less movement during dips but more movement during rises than chance.\n", nnz(less.dip & more.rise), 100*nnz(less.dip & more.rise)./nUnits);
     fprintf("\t%i units (%.1f%%) have more movement during dips but less movement during rises than chance.\n", nnz(more.dip & less.rise), 100*nnz(more.dip & less.rise)./nUnits);
-
 end
+clear alpha cn
 
 %% Fig 6
 XLIM = {[-1, 0.3], [-1, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3]};
