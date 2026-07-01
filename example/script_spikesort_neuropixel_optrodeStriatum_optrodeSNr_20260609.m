@@ -4,7 +4,7 @@
 clear, clc
 folders = { ...
     % 'C:\SERVER\daisy37\daisy37_20260331', ... Striatum A2A Chrimson Optrode Control, Done
-    % 'C:\SERVER\daisy37\daisy37_20260401', ... Striatum A2A Chrimson Optrode Control, Has Spikes, no AutoSortedIterative
+    % 'C:\SERVER\daisy37\daisy37_20260401', ... Striatum A2A Chrimsom Optrode Control, Has Spikes, no AutoSortedIterative
     % 'C:\SERVER\daisy37\daisy37_20260402', ... Striatum A2A Chrimson Optrode Control, Has Spikes, no AutoSortedIterative
     % 'C:\SERVER\daisy37\daisy37_20260403', ... Striatum A2A Chrimson Optrode Control, Has Spikes, no AutoSortedIterative
     % 'C:\SERVER\daisy37\daisy37_20260406', ... Striatum A2A Chrimson Optrode Control, Not processed yet
@@ -58,11 +58,11 @@ end
 
 clear, clc
 tr = TetrodeRecording();
-tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy37\daisy37_20260401')
+tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy37\daisy37_20260407')
 tr.LoadNeuropixelIO();
 tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
 
-channels = 1:128;
+channels = 129:256;
 tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
 tr.PlotAllChannels(Channels=channels, plotMethod='mean')
 
