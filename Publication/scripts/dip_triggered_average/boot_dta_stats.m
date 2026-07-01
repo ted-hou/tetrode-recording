@@ -150,11 +150,14 @@ for iUnit = 1:length(xta.dip)
         miTemp = cat(2, miTemp{:});
         [miMR, IMaxFeat] = max(abs(miTemp), [], 2);
         idx = mi.(dir)(iUnit).idx;
-        X = NaN(length(idx), length(xta.(dir)(iUnit).HandR.t), 'half');
+        X = NaN(length(idx), length(xta.(dir)(iUnit).HandR.t));
         for iTrial = 1:length(idx)
             fn = p.mi.boot.features(IMaxFeat(iTrial));
             X(iTrial, :) = xta.(dir)(iUnit).(fn).X(iTrial, :);
         end
+        t = xta.(dir)(iUnit).HandR.t;
+        selT = isin(t, p.mi.windowPre);
+        X = X - mean(X(:, selT), 2, 'omitnan'); % Subtract mean xta during p.mi.windowPre
         miMaxRectified(iUnit).(dir).X = miMR;
         miMaxRectified(iUnit).(dir).idx = idx;
         miMaxRectified(iUnit).(dir).iMaxFeat = IMaxFeat;
@@ -164,7 +167,7 @@ for iUnit = 1:length(xta.dip)
         xtaMaxRectified(iUnit).(dir).clu1.t = xta.(dir)(iUnit).HandR.t;
     end
 end
-clear iUnit dir X miTemp miMR iMaxFeat idx X iTrial fn
+clear iUnit dir X miTemp miMR iMaxFeat idx X iTrial fn t selT
 
 %% b) calculate kmeans cluster centroids
 p.sd.nBoot = 1000;
@@ -220,13 +223,15 @@ for iUnit = 1:nUnits
     kine = kinematics(iExp);
     tMax = min(arrayfun(@(fn) kine.(fn).t(end), p.mi.features));
     xtaLen = diff(p.xta.window)./p.xta.res;
+    tLocal = single(p.xta.window(1):p.xta.res:p.xta.window(1)+(xtaLen-1)*p.xta.res) + p.xta.res/2;
+    [iStartBaseline, iStopBaseline] = isin(tLocal, p.mi.windowPre, true, true);
     for dir = ["dip", "rise"]
         nBootTemp = zeros(p.sd.nBoot, nClusters, 'uint16');
         hBootTemp = zeros(p.sd.nBoot, nClusters, nFeatures, 'int8');
         nTrials = length(mi.(dir)(iUnit).idx);
-        miMaxRectifiedTemp = zeros(nTrials, p.sd.nBoot, 'half');
+        miMaxRectifiedTemp = zeros(nTrials, p.sd.nBoot, 'single');
         idxTemp = zeros(nTrials, p.sd.nBoot, 'uint8');
-        xtaMaxRectifiedClu1Temp = NaN(xtaLen, p.sd.nBoot, 'half');
+        xtaMaxRectifiedClu1Temp = NaN(xtaLen, p.sd.nBoot, 'single');
         if nTrials < p.mi.minNumTrialsPerCluster || nTrials < nClusters
             sdBoot(iUnit).(dir) = struct(h=hBootTemp, n=nBootTemp);
             warning("Unit %i has too few (%i) %ss, we cannot do kmeans so this unit/dir is skipped.", iUnit, nTrials, dir)
@@ -236,9 +241,9 @@ for iUnit = 1:nUnits
         parfor iBoot = 1:p.sd.nBoot
             pcaScore = zeros(nTrials, 4, 'single');
             T0 = -p.mi.windowPre(1) + rand([1, nTrials])*(tMax - p.mi.windowPost(2) + p.mi.windowPre(1));
-            miTemp = NaN(nTrials, length(p.mi.features), 'half');
-            xTemp = NaN(nTrials, xtaLen, length(p.mi.features), 'half');
-            xMaxRectifiedClu1Temp = NaN(nTrials, xtaLen, 'half');
+            miTemp = NaN(nTrials, length(p.mi.features), 'single');
+            xTemp = NaN(nTrials, xtaLen, length(p.mi.features), 'single');
+            xMaxRectifiedClu1Temp = NaN(nTrials, xtaLen, 'single');
             for iTrial = 1:length(T0)
                 for iFeat = 1:length(p.mi.features)
                     fn = p.mi.features(iFeat);
@@ -300,8 +305,11 @@ for iUnit = 1:nUnits
             % Tack on the miMaxRectified stuff
             [miMaxRectifiedTemp(:, iBoot), IMaxFeat] = max(abs(miTemp), [], 2); % IMaxFeat: 1-4, nTrialsx1
             for iTrial = 1:size(xTemp, 1)
-                xMaxRectifiedClu1Temp(iTrial, :) = abs(xTemp(iTrial, :, IMaxFeat(iTrial)));
+                xMaxRectifiedClu1Temp(iTrial, :) = xTemp(iTrial, :, IMaxFeat(iTrial));
             end
+            % Subtract baseline then abs (rectify)
+            xMaxRectifiedClu1Temp = abs(xMaxRectifiedClu1Temp - mean(xMaxRectifiedClu1Temp(:, iStartBaseline:iStopBaseline), 2, 'omitnan'));
+            % Average across trials
             xtaMaxRectifiedClu1Temp(:, iBoot) = mean(xMaxRectifiedClu1Temp(idx==1, :), 1, 'omitnan');
             idxTemp(:, iBoot) = idx;
         end
@@ -309,7 +317,7 @@ for iUnit = 1:nUnits
         miMaxRectified(iUnit).(dir).XBoot = miMaxRectifiedTemp;
         miMaxRectified(iUnit).(dir).idxBoot = idxTemp;
         xtaMaxRectified(iUnit).(dir).clu1.XBoot = xtaMaxRectifiedClu1Temp;
-        xtaMaxRectified(iUnit).(dir).clu1.tBoot = half(p.xta.window(1):p.xta.res:p.xta.window(1)+(xtaLen-1)*p.xta.res) + p.xta.res/2;
+        xtaMaxRectified(iUnit).(dir).clu1.tBoot = tLocal;
         ll = ll + fprintf('%i positives.\n', nnz(hBootTemp~=0));
     end
 end
@@ -319,26 +327,26 @@ parfevalOnAll(pool, @warning, 0, 'on', 'stats:kmeans:FailedToConverge');
 clear pool
 clear nUnits nFeatures nClusters idx pcaScore centroids k dir
 clear pcFeatures miBootFeatures tTic ll iExp kine tMax dir nBootTemp hBootTemp nTrials iBoot pcaScore T0 miTemp iTrial iFeat fn iStartPre iStopPre iStartPost iStopPost idx mu sd hTemp k inCluster nTrialsInCluster miCluster ifn
-
+%%
 exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_sdBoot_%iunits_%iboots_%s.mat", length(xta.dip), p.sd.nBoot, datetime("now", Format="yyyyMMdd")));
 save(exportPath, 'sdBoot', 'p', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
 
 warning('sdBoot clusters are in native order, not semantic order')
 
-% Convert single->half for timestamps and z-scores, use uint8 for cluster indices
+% Convert to single for timestamps and z-scores, use uint8 for cluster indices
 nUnits = length(xta.dip);
 for iUnit = 1:nUnits
     for dir = ["dip", "rise"]
-        xtaMaxRectified(iUnit).(dir).all.X = half(xtaMaxRectified(iUnit).(dir).all.X);
-        xtaMaxRectified(iUnit).(dir).all.t = half(xtaMaxRectified(iUnit).(dir).all.t);
-        xtaMaxRectified(iUnit).(dir).clu1.X = half(xtaMaxRectified(iUnit).(dir).clu1.X);
-        xtaMaxRectified(iUnit).(dir).clu1.t = half(xtaMaxRectified(iUnit).(dir).clu1.t);
-        xtaMaxRectified(iUnit).(dir).clu1.XBoot = half(xtaMaxRectified(iUnit).(dir).clu1.XBoot);
-        xtaMaxRectified(iUnit).(dir).clu1.tBoot = half(xtaMaxRectified(iUnit).(dir).clu1.tBoot);
-        miMaxRectified(iUnit).(dir).X = half(miMaxRectified(iUnit).(dir).X);
+        xtaMaxRectified(iUnit).(dir).all.X = single(xtaMaxRectified(iUnit).(dir).all.X);
+        xtaMaxRectified(iUnit).(dir).all.t = single(xtaMaxRectified(iUnit).(dir).all.t);
+        xtaMaxRectified(iUnit).(dir).clu1.X = single(xtaMaxRectified(iUnit).(dir).clu1.X);
+        xtaMaxRectified(iUnit).(dir).clu1.t = single(xtaMaxRectified(iUnit).(dir).clu1.t);
+        xtaMaxRectified(iUnit).(dir).clu1.XBoot = single(xtaMaxRectified(iUnit).(dir).clu1.XBoot);
+        xtaMaxRectified(iUnit).(dir).clu1.tBoot = single(xtaMaxRectified(iUnit).(dir).clu1.tBoot);
+        miMaxRectified(iUnit).(dir).X = single(miMaxRectified(iUnit).(dir).X);
         miMaxRectified(iUnit).(dir).idx = uint8(miMaxRectified(iUnit).(dir).idx);
-        miMaxRectified(iUnit).(dir).XBoot = half(miMaxRectified(iUnit).(dir).XBoot);
+        miMaxRectified(iUnit).(dir).XBoot = single(miMaxRectified(iUnit).(dir).XBoot);
         miMaxRectified(iUnit).(dir).idxBoot = uint8(miMaxRectified(iUnit).(dir).idxBoot);
     end
 end
@@ -620,7 +628,7 @@ for iUnit = 1:nUnits
         plot(ax(iAx), tOld, xOld, 'k-', DisplayName="xtaMR_{wrong}");
 
         
-        x = xta.(dir)(iUnit).
+        % x = xta.(dir)(iUnit).
         plot(ax(iAx), tObs, xObs, 'k-', DisplayName=sprintf('obs (%i trials)', size(xtaMaxRectified(iUnit).(dir).clu1.X, 1)));
 
 
