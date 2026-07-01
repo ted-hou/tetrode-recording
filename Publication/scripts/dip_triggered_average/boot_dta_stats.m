@@ -181,7 +181,7 @@ for k = 1:nClusters
 end
 clear idx pcaScore k dir
 
-% Calculate mi from shuffled data, and assign to existing clusters
+%% Calculate mi from shuffled data, and assign to existing clusters
 if isempty(gcp('nocreate'))
     pool = parpool('Processes');
 else
@@ -195,7 +195,7 @@ clear sdBoot
 sdBoot(nUnits) = struct(dip=struct(h=[], n=[]), rise=struct(h=[], n=[]));
 parfevalOnAll(pool, @warning, 0, 'off', 'stats:kmeans:FailedToConverge');
 warning('off', 'stats:kmeans:FailedToConverge')
-%%
+
 tTic = tic();
 ll = 0;
 hasWarning = false;
@@ -222,7 +222,7 @@ for iUnit = 1:nUnits
             hasWarning = true;
             continue
         end
-        for iBoot = 1:p.sd.nBoot
+        parfor iBoot = 1:p.sd.nBoot
             pcaScore = zeros(nTrials, 4, 'single');
             T0 = -p.mi.windowPre(1) + rand([1, nTrials])*(tMax - p.mi.windowPost(2) + p.mi.windowPre(1));
             miTemp = NaN(nTrials, length(p.mi.features), 'single');
@@ -297,7 +297,7 @@ for iUnit = 1:nUnits
         ll = ll + fprintf('%i positives.\n', nnz(hBootTemp~=0));
     end
 end
-%%
+
 warning('on', 'stats:kmeans:FailedToConverge')
 parfevalOnAll(pool, @warning, 0, 'on', 'stats:kmeans:FailedToConverge');
 clear pool
