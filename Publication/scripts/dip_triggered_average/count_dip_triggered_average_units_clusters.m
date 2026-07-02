@@ -18,6 +18,7 @@ p.mi.boot.nBonferroni = nClusters*nFeatures;
 assert(isequal(p.mi.semanticClusterLabels, ["no move", "lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"]))
 p.mi.mustMove = {"", "Jaw", "Jaw", "HandL", "HandL", "HandR", "HandR"};
 p.mi.mustNotMove = {["Jaw", "HandL", "HandR", "Spine"], ["HandL", "HandR", "Spine"], ["HandL", "HandR", "Spine"], ["Jaw", "HandR", "Spine"], ["Jaw", "HandR", "Spine"], ["Jaw", "HandL", "Spine"], ["Jaw", "HandL", "Spine"]};
+% p.mi.mustNotMove = {["Jaw", "HandL", "HandR"], ["HandL", "HandR"], ["HandL", "HandR"], ["Jaw", "HandR"], ["Jaw", "HandR"], ["Jaw", "HandL"], ["Jaw", "HandL"]};
 
 clear cc ccData ccParams
 ccData(nUnits) = struct(dip=struct(p=[], h=[], n=[]), rise=struct(p=[], h=[], n=[]));
@@ -156,18 +157,20 @@ for iUnit = 1:nUnits
             iMustMove = find(ismember(cc.featureNames, cc.params(iClu).mustMove));
             iMustNotMove = find(ismember(cc.featureNames, cc.params(iClu).mustNotMove));
             expectedSign = cc.params(iClu).expectedSign;
-            for iBoot = 1:p.sd.nBoot % THERE'S NO TIME TO OPTIMIZE THIS!
+            hTemp = sdBoot(iUnit).(dir).h(:, k, :);
+            for iBoot = 1:p.sd.nBoot % THERE'S NO TIME TO OPTIMIZE THIS! % Okay I optimize a bit
                 % Cluster of interest must move
-                if ~isempty(iMustMove) && sdBoot(iUnit).(dir).h(iBoot, k, iMustMove)~=expectedSign
-                    assert(isscalar(iMustMove))
+                if ~isempty(iMustMove) && hTemp(iBoot, :, iMustMove)~=expectedSign
+                    % assert(isscalar(iMustMove))
                     clean(iBoot, k) = false;
                     continue
                 end
                 % Other clusters must not move
-                if any(sdBoot(iUnit).(dir).h(iBoot, k, iMustNotMove) ~= 0)
+                if any(hTemp(iBoot, :, iMustNotMove))
                     clean(iBoot, k) = false;
                 end
             end
+            clear hTemp
         end
         sdBoot(iUnit).(dir).clean = clean;
         clear iClu clean iMustMove iMustNotMove n
