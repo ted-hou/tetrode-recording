@@ -342,12 +342,19 @@ for iUnit = 1:nUnits
         xtaMaxRectified(iUnit).(dir).all.t = single(xtaMaxRectified(iUnit).(dir).all.t);
         xtaMaxRectified(iUnit).(dir).clu1.X = single(xtaMaxRectified(iUnit).(dir).clu1.X);
         xtaMaxRectified(iUnit).(dir).clu1.t = single(xtaMaxRectified(iUnit).(dir).clu1.t);
-        xtaMaxRectified(iUnit).(dir).clu1.XBoot = single(xtaMaxRectified(iUnit).(dir).clu1.XBoot);
-        xtaMaxRectified(iUnit).(dir).clu1.tBoot = single(xtaMaxRectified(iUnit).(dir).clu1.tBoot);
+        if isfield(xtaMaxRectified(iUnit).(dir).clu1, "XBoot")
+            xtaMaxRectified(iUnit).(dir).clu1.XBoot = single(xtaMaxRectified(iUnit).(dir).clu1.XBoot);
+            xtaMaxRectified(iUnit).(dir).clu1.tBoot = single(xtaMaxRectified(iUnit).(dir).clu1.tBoot);
+        end
         miMaxRectified(iUnit).(dir).X = single(miMaxRectified(iUnit).(dir).X);
         miMaxRectified(iUnit).(dir).idx = uint8(miMaxRectified(iUnit).(dir).idx);
-        miMaxRectified(iUnit).(dir).XBoot = single(miMaxRectified(iUnit).(dir).XBoot);
-        miMaxRectified(iUnit).(dir).idxBoot = uint8(miMaxRectified(iUnit).(dir).idxBoot);
+        if isfield(miMaxRectified(iUnit).(dir), "XBoot")
+            miMaxRectified(iUnit).(dir).XBoot = single(miMaxRectified(iUnit).(dir).XBoot);
+            miMaxRectified(iUnit).(dir).idxBoot = uint8(miMaxRectified(iUnit).(dir).idxBoot);
+        else
+            miMaxRectified(iUnit).(dir).XBoot = [];
+            miMaxRectified(iUnit).(dir).idxBoot = [];
+        end
     end
 end
 
