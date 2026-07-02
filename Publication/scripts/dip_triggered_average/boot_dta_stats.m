@@ -38,7 +38,7 @@ load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_200to80
 %% a) validate 3SD as a potential replacement for 10000 boots (where alpha=0.05/nBonferroni)
 nUnits = length(xta.dip);
 tryNSigmas = 1:0.1:3;
-results(length(tryNSigmas)) = struct(nMismatchUnits=[], nMismatchFeatures=[], nFalse=[], nFalsePositives=[], nFalseNegatives=[]);
+clear results, results(length(tryNSigmas)) = struct(nMismatchUnits=[], nMismatchFeatures=[], nFalse=[], nFalsePositives=[], nFalseNegatives=[], nFalsePositivesByFeat=[], nFalseNegativesByFeat=[]);
 
 for iTry = 1:length(tryNSigmas)
     nSigmas = tryNSigmas(iTry);
@@ -46,6 +46,13 @@ for iTry = 1:length(tryNSigmas)
     nMismatchFeatures = 0;
     nFalsePositives = 0;
     nFalseNegatives = 0;
+    clear nFalsePositivesByFeat nFalseNegativesByFeat
+    nFalsePositivesByFeat(nUnits) = struct(Jaw=0, HandL=0, HandR=0, Spine=0);
+    nFalseNegativesByFeat(nUnits) = struct(Jaw=0, HandL=0, HandR=0, Spine=0);
+    for iUnit = 1:nUnits
+        nFalsePositivesByFeat(iUnit) = struct(Jaw=0, HandL=0, HandR=0, Spine=0);
+        nFalseNegativesByFeat(iUnit) = struct(Jaw=0, HandL=0, HandR=0, Spine=0);
+    end
     parfor iUnit = 1:nUnits
         isInvalid = logical(arrayfun(@(i) mean(nnz(mi.dip(iUnit).idx==i)<p.mi.minNumTrialsPerCluster), p.mi.semanticClusterOrder));
         hasMismatch = false;
@@ -73,6 +80,8 @@ for iTry = 1:length(tryNSigmas)
                 nMismatchFeatures = nMismatchFeatures + 1;
                 nFalsePositives = nFalsePositives + sum(hLeftSD > hLeftBoot) + sum(hRightSD > hRightBoot);
                 nFalseNegatives = nFalseNegatives + sum(hLeftSD < hLeftBoot) + sum(hRightSD < hRightBoot);
+                nFalsePositivesByFeat(iUnit).(fn) = nFalsePositivesByFeat(iUnit).(fn) + sum(hLeftSD > hLeftBoot) + sum(hRightSD > hRightBoot);
+                nFalseNegativesByFeat(iUnit).(fn) = nFalseNegativesByFeat(iUnit).(fn) + sum(hLeftSD < hLeftBoot) + sum(hRightSD < hRightBoot);
                 hasMismatch = true;
             end
         end
@@ -80,50 +89,47 @@ for iTry = 1:length(tryNSigmas)
             nMismatchUnits = nMismatchUnits + 1;
         end
     end
-    results(iTry) = struct(nMismatchUnits=nMismatchUnits, nMismatchFeatures=nMismatchFeatures, nFalse=nFalsePositives+nFalseNegatives, nFalsePositives=nFalsePositives, nFalseNegatives=nFalseNegatives);
+    clear nFalsePositivesByFeatAllUnits nFalseNegativesByFeatAllUnits
+    for fn = p.mi.boot.features
+        nFalsePositivesByFeatAllUnits.(fn) = sum([nFalsePositivesByFeat.(fn)]);
+        nFalseNegativesByFeatAllUnits.(fn) = sum([nFalseNegativesByFeat.(fn)]);
+    end
+    results(iTry) = struct(nMismatchUnits=nMismatchUnits, nMismatchFeatures=nMismatchFeatures, nFalse=nFalsePositives+nFalseNegatives, nFalsePositives=nFalsePositives, nFalseNegatives=nFalseNegatives, nFalsePositivesByFeat=nFalsePositivesByFeatAllUnits, nFalseNegativesByFeat=nFalseNegativesByFeatAllUnits);
     fprintf('%gSD: %i mismatched units,\t%i mismatched features,\t%i false,\t%i false positives,\t%i false negatives;\n', nSigmas, nMismatchUnits, nMismatchFeatures, nFalsePositives+nFalseNegatives, nFalsePositives, nFalseNegatives)
 end
 
 
-colors = 'yckrb';
-fig = figure(Units='inches', Position=[1, 1, 4, 3]);
-tl = tiledlayout(fig, 1, 2);
-ax = nexttile(tl);
-hold(ax, 'on')
-nComparisons = nUnits*length(p.mi.boot.clusters)*length(p.mi.boot.features);
-i = 0;
-for fn = string(fieldnames(results)')
-    i = i + 1;
-    plot(ax, tryNSigmas, [results.(fn)], '-', Color=colors(i), DisplayName=fn);
+nComparisons = nUnits*length(p.mi.boot.clusters);
+fig = figure(Units='inches', Position=[1, 1, 8, 3]);
+tl = tiledlayout(fig, 1, 4);
+
+for ifn = 1:length(p.mi.boot.features)
+    fn = p.mi.boot.features(ifn);
+    ax = nexttile(tl);
+    hold(ax, 'on')
+    colors = 'rbk';
+    fNames = ["nFalsePositivesByFeat", "nFalseNegativesByFeat", "nFalse"];
+    fDispNames = ["false positive rate", "false negative rate", "error rate"];
+    
+    for i = 1:2
+        plot(ax, tryNSigmas, 100*[arrayfun(@(results) results.(fNames(i)).(fn), results)]./nComparisons, '-', Color=colors(i), DisplayName=fDispNames(i))
+    end
+    i = 3;
+    plot(ax, tryNSigmas, 100*[arrayfun(@(results) results.(fNames(1)).(fn), results)]./nComparisons + 100*[arrayfun(@(results) results.(fNames(2)).(fn), results)]./nComparisons, '-', Color=colors(i), DisplayName=fDispNames(i))
+    hold(ax, 'off')
+    xlabel(ax, 'threshold (SD)')
+    ylabel(ax, 'error rate (%)')
+    ylim(ax, [0, 15])
+    legend(ax, Location='southoutside')
+    title(ax, fn)
+    
+    fontsize(fig, 8, 'points')
 end
-legend(ax, Location='southoutside')
-xlabel(ax, 'threshold (SD)')
-ylabel(ax, 'error count')
-hold(ax, 'off')
-title(ax, sprintf("%i units", nUnits))
-
-ax = nexttile(tl);
-hold(ax, 'on')
-colors = 'rbk';
-fNames = ["nFalsePositives", "nFalseNegatives", "nFalse"];
-fDispNames = ["false positive rate", "false negative rate", "error rate"];
-for i = 1:3
-    plot(ax, tryNSigmas, 100*[results.(fNames(i))]./nComparisons, '-', Color=colors(i), DisplayName=fDispNames(i))
-end
-hold(ax, 'off')
-xlabel(ax, 'threshold (SD)')
-ylabel(ax, 'error rate (%)')
-ylim(ax, [0, 10])
-legend(ax, Location='southoutside')
-title(ax, sprintf("%i total comparisons\n(unit x feature x cluster)", nComparisons))
-
-fontsize(fig, 8, 'points')
-
 copygraphics(fig, BackgroundColor='none', ContentType='vector')
 
-% After some thinking I decided to used 3SD as a threshold to approximate
-% boostrapping with an alpha of 0.05/28. We will get very few false
-% positives (<1%) but more false negatives (8%)
+% After some thinking I decided to used 3SD for hand, 1.5SD for jaw/spine
+% as a threshold to approximate boostrapping with an alpha of 0.05/28. We
+% will get very few false positives (<1%) but more false negatives (8%)
 % sometimes bootstrapping can be more sensitive, since in this test, our SD
 % is calculated during real dips, so more movement/SD is expected; in
 % reality, we'd be generating fake dips from random parts of the session,
@@ -171,6 +177,8 @@ clear iUnit dir X miTemp miMR iMaxFeat idx X iTrial fn t selT
 
 %% b) calculate kmeans cluster centroids
 p.sd.nBoot = 1000;
+assert(isequal(p.mi.boot.features, ["Jaw", "HandL", "HandR", "Spine"]))
+p.sd.nSigmas = [1.5, 3, 3, 1.5];
 nUnits = length(xta.dip);
 nFeatures = length(p.mi.boot.features);
 nClusters = length(p.mi.boot.clusters);
@@ -205,6 +213,7 @@ end
 assert(isequal(p.mi.features, ["Jaw", "Tongue", "HandL", "HandR", "Spine"]))
 pcFeatures = cellfun(@(f) ismember(p.mi.features, f), {"HandL", ["Tongue", "Jaw"], "HandR", "Spine"}, UniformOutput=false);
 miBootFeatures = ismember(p.mi.features, p.mi.boot.features);
+nSigmas = p.sd.nSigmas;
 clear sdBoot
 sdBoot(nUnits) = struct(dip=struct(h=[], n=[]), rise=struct(h=[], n=[]));
 parfevalOnAll(pool, @warning, 0, 'off', 'stats:kmeans:FailedToConverge');
@@ -293,9 +302,9 @@ for iUnit = 1:nUnits
                 end
                 miCluster = mean(miTemp(inCluster, :), 1, 'omitnan');
                 for ifn = 1:nFeatures
-                    if miCluster(ifn) >= mu + 3*sd
+                    if miCluster(ifn) >= mu + nSigmas(ifn)*sd
                         hTemp(k, ifn) = 1;
-                    elseif miCluster(ifn) <= mu - 3*sd
+                    elseif miCluster(ifn) <= mu - nSigmas(ifn)*sd
                         hTemp(k, ifn) = -1;
                     end
                 end
