@@ -9,8 +9,9 @@ folders = { ...
     % 'C:\SERVER\daisy37\daisy37_20260403', ... Striatum A2A Chrimson Optrode Control, Has Spikes, no AutoSortedIterative
     % 'C:\SERVER\daisy37\daisy37_20260406', ... Striatum A2A Chrimson Optrode Control, Not processed yet
     % 'C:\SERVER\daisy37\daisy37_20260407', ... Striatum A2A Chrimson Optrode Control, Not processed yet
-    'C:\SERVER\desmond45\desmond45_20260414', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond45\desmond45_20260414', ... SNr ChR2 Optrode, Sorted by Emma
     % 'C:\SERVER\desmond45\desmond45_20260415', ... SNr ChR2 Optrode, Sorted by Emma
+    'C:\SERVER\daisy37\daisy37_20260408', ... Striatum A2A Chrimson Optrode Control
     };
 
 chunkSize = 32;
