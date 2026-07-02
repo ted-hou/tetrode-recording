@@ -327,7 +327,7 @@ parfevalOnAll(pool, @warning, 0, 'on', 'stats:kmeans:FailedToConverge');
 clear pool
 clear nUnits nFeatures nClusters idx pcaScore centroids k dir
 clear pcFeatures miBootFeatures tTic ll iExp kine tMax dir nBootTemp hBootTemp nTrials iBoot pcaScore T0 miTemp iTrial iFeat fn iStartPre iStopPre iStartPost iStopPost idx mu sd hTemp k inCluster nTrialsInCluster miCluster ifn
-%%
+
 exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_sdBoot_%iunits_%iboots_%s.mat", length(xta.dip), p.sd.nBoot, datetime("now", Format="yyyyMMdd")));
 save(exportPath, 'sdBoot', 'p', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
@@ -363,37 +363,7 @@ exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach
 save(exportPath, 'p', 'miMaxRectified', 'xtaMaxRectified', '-v7.3')
 fprintf("Saved to %s\n", exportPath);
 
-
-%% Consolidate bootstrapped and observed miMaxRectified (shouldn't need to do this anymore)
-% nUnits = length(xta.dip);
-% for iUnit = 1:nUnits
-%     for dir = ["dip", "rise"]
-%         if isfield(sdBoot(iUnit).(dir), 'miMaxRectified')
-%             miMaxRectified(iUnit).(dir).XBoot = sdBoot(iUnit).(dir).miMaxRectified;
-%             miMaxRectified(iUnit).(dir).idxBoot = sdBoot(iUnit).(dir).idx;
-%             sdBoot(iUnit).(dir) = rmfield(sdBoot(iUnit).(dir), ["miMaxRectified", "idx"]);
-%         else
-%             miMaxRectified(iUnit).(dir).XBoot = [];
-%             miMaxRectified(iUnit).(dir).idxBoot = [];
-%         end
-%         assert(all(isfield(miMaxRectified(iUnit).(dir), ["XBoot", "idxBoot"])))
-%     end
-% end
-% 
-% for iUnit = 1:nUnits
-%     for dir = ["dip", "rise"]
-%         if isfield(sdBoot(iUnit).(dir), "xtaMaxRectifiedClu1")
-%             xtaMaxRectified(iUnit).(dir).clu1.XBoot = sdBoot(iUnit).(dir).xtaMaxRectifiedClu1;
-%             xtaMaxRectified(iUnit).(dir).clu1.tBoot = single(p.xta.window(1):p.xta.res:p.xta.window(1)+(size(sdBoot(iUnit).(dir).xtaMaxRectifiedClu1, 1)-1)*p.xta.res) + p.xta.res/2;
-%             sdBoot(iUnit).(dir) = rmfield(sdBoot(iUnit).(dir), "xtaMaxRectifiedClu1");
-%         end
-%     end
-% end
-% 
-% clear iUnit dir
-
-
-%% Do per-unit tests for miMaxRectified
+% Do per-unit tests for miMaxRectified
 clear pVal
 pVal.all = struct(dip=NaN(nUnits, 1), rise=NaN(nUnits, 1));
 pVal.clu1 = struct(dip=NaN(nUnits, 1), rise=NaN(nUnits, 1));
@@ -527,91 +497,115 @@ ylabel(tl, 'pdf')
 
 clear X XBoot idx idxBoot iRow iClu k sel iCol dir fig tl ax
 
-% %% Examine xtaMaxRectified obs vs boot for clu1
-% close all
-% alpha = 0.05;
-% fig = figure(Units='inches', Position=[3, 3, 6, 3]);
-% tl = tiledlayout(fig, 1, 2);
-% ax = gobjects(1, 2);
-% h = gobjects(2, 1);
-% for iAx = 1:2
-%     ax(iAx) = nexttile(tl);
-%     hold(ax(iAx), 'on');
-%     ax(iAx).XLimMode = 'manual';
-%     ax(iAx).YLimMode = 'manual';
-%     xlim(ax(iAx), [-1, 1])
-%     ylim(ax(iAx), [0, 1])
-% end
-% title(ax(1), 'dip')
-% title(ax(2), 'rise')
-% xlabel(tl, 'time to dip/rise onset (s)')
-% ylabel(tl, ["rectified position (a.u.)", "of most-moved bodypart"])
-% nUnits = length(xtaMaxRectified);
-% for iUnit = 1:nUnits
-%     for iAx = 1:2
-%         cla(ax(iAx))
-%     end
-%     iAx = 0;
-%     for dir = ["dip", "rise"]
-%         iAx = iAx + 1;
-%         xObs = double(mean(xtaMaxRectified(iUnit).(dir).clu1.X, 1, 'omitnan'));
-%         tObs = double(xtaMaxRectified(iUnit).(dir).clu1.t);
-%         h(1) = plot(ax(iAx), tObs, xObs, 'k-', DisplayName=sprintf('obs (%i trials)', size(xtaMaxRectified(iUnit).(dir).clu1.X, 1)));
-% 
-%         XBoot = double(xtaMaxRectified(iUnit).(dir).clu1.XBoot');
-%         tBoot = double(xtaMaxRectified(iUnit).(dir).clu1.tBoot);
-%         muBoot = mean(XBoot, 1, 'omitnan');
-%         ciBoot = quantile(XBoot, [alpha/2, 1-alpha/2], 1);
-%         plot(ax(iAx), tBoot, muBoot, 'k:');
-%         h(2) = patch(ax(iAx), [tBoot, flip(tBoot)], [ciBoot(1, :), flip(ciBoot(2, :))], [0.15, 0.15, 0.15], FaceAlpha=0.15, EdgeAlpha=0.5, DisplayName=sprintf('boot %i%% CI', round(100*(1-alpha))));
-% 
-%         miObs = mean(miMaxRectified(iUnit).(dir).X(miMaxRectified(iUnit).(dir).idx==1), 1, 'omitnan');
-%         miBoot = mean(miMaxRectified(iUnit).(dir).XBoot(miMaxRectified(iUnit).(dir).idxBoot==1), 'all', 'omitnan');
-%         selT = isin(tObs, [p.mi.windowPre(1), p.mi.windowPost(2)]);
-%         if pVal.clu1.(dir)(iUnit) <= alpha/2
-%             plot(ax(iAx), tObs(selT), xObs(selT), 'b-', LineWidth=2);
-%             rel = "$\ll$";
-%             pValDisp = max(1/p.sd.nBoot, pVal.clu1.(dir)(iUnit));
-%             pValDisp = sprintf("p$\\leq$%g", pValDisp);
-%         elseif pVal.clu1.(dir)(iUnit) >= 1-alpha/2
-%             plot(ax(iAx), tObs(selT), xObs(selT), 'r-', LineWidth=2);
-%             rel = "$\gg$";
-%             pValDisp = max(1/p.sd.nBoot, 1 - pVal.clu1.(dir)(iUnit));
-%             pValDisp = sprintf("p$\\leq$%g", pValDisp);
-%         else
-%             rel = "$\approx$";
-%             pValDisp = pVal.clu1.(dir)(iUnit);
-%             if pValDisp > 0.5
-%                 pValDisp = 1 - pValDisp;
-%             end
-%             pValDisp = sprintf("p$>$%g", pValDisp);
-%         end
-%         text(ax(iAx), 0, 1, sprintf("%.2f %s %.2f (%s)", miObs, rel, miBoot, pValDisp), HorizontalAlignment='center', VerticalAlignment='top', Interpreter='latex')
-%         ifn = 0;
-%         for fn = p.mi.boot.features
-%             ifn = ifn + 1;
-%             text(ax(iAx), 1, ifn*0.1, sprintf("|mi_{%s}| = %.2f", fn, mean(abs(mi.(dir)(iUnit).(fn)(mi.(dir)(iUnit).idx==1)), 1, 'omitnan')), HorizontalAlignment='right', VerticalAlignment='bottom', Interpreter='tex');
-%         end
-% 
-%         xline(ax(iAx), 0, 'k--')
-%         yline(ax(iAx), 0, 'k--')
-%     end
-%     lgd = legend(h, Orientation='horizontal');
-%     lgd.Layout.Tile = 'north';
-%     disp(iUnit)
-% end
-% clear fig tl ax iAx IUnit dir xObs tObs XBoot tBoot muBoot ciBoot rel oValDisp selT miObs miBoot lgd fn ifn
-
-
-%% xta-mean(xta(isin(t, p.mi.windowPre))
+%% Examine xtaMaxRectified obs vs boot for clu1 (one figure per unit, remember to put breakpoint at the end)
 close all
 alpha = 0.05;
 fig = figure(Units='inches', Position=[3, 3, 6, 3]);
 tl = tiledlayout(fig, 1, 2);
 ax = gobjects(1, 2);
 h = gobjects(2, 1);
-xl = [-0.5, 0.5];
-yl = [-2, 2];
+xl = [-0.1, 0.5];
+yl = [-0.5, 0.5];
+for iAx = 1:2
+    ax(iAx) = nexttile(tl);
+    hold(ax(iAx), 'on');
+    ax(iAx).XLimMode = 'manual';
+    ax(iAx).YLimMode = 'manual';
+    xlim(ax(iAx), xl)
+    ylim(ax(iAx), yl)
+end
+% title(ax(1), 'dip')
+% title(ax(2), 'rise')
+xlabel(tl, 'time to dip/rise onset (s)')
+ylabel(tl, ["rectified position (a.u.)", "of most-moved bodypart"])
+nUnits = length(xtaMaxRectified);
+xline(ax(iAx), 0, 'k--')
+yline(ax(iAx), 0, 'k--')
+for iUnit = 1:nUnits
+    for iAx = 1:2
+        cla(ax(iAx))
+    end
+    iAx = 0;
+    for dir = ["dip", "rise"]
+        iAx = iAx + 1;
+        xObs = double(mean(xtaMaxRectified(iUnit).(dir).clu1.X, 1, 'omitnan'));
+        tObs = double(xtaMaxRectified(iUnit).(dir).clu1.t);
+        h(1) = plot(ax(iAx), tObs, xObs, 'k-', DisplayName=sprintf('obs (%i trials)', size(xtaMaxRectified(iUnit).(dir).clu1.X, 1)));
+
+        XBoot = double(xtaMaxRectified(iUnit).(dir).clu1.XBoot');
+        tBoot = double(xtaMaxRectified(iUnit).(dir).clu1.tBoot);
+        muBoot = mean(XBoot, 1, 'omitnan');
+        ciBoot = quantile(XBoot, [alpha/2, 1-alpha/2], 1);
+        plot(ax(iAx), tBoot, muBoot, 'k:');
+        h(2) = patch(ax(iAx), [tBoot, flip(tBoot)], [ciBoot(1, :), flip(ciBoot(2, :))], [0.15, 0.15, 0.15], FaceAlpha=0.15, EdgeAlpha=0.5, DisplayName=sprintf('boot %i%% CI', round(100*(1-alpha))));
+
+        miObs = mean(miMaxRectified(iUnit).(dir).X(miMaxRectified(iUnit).(dir).idx==1), 1, 'omitnan');
+        miBoot = mean(miMaxRectified(iUnit).(dir).XBoot(miMaxRectified(iUnit).(dir).idxBoot==1), 'all', 'omitnan');
+        selT = isin(tObs, [p.mi.windowPre(1), p.mi.windowPost(2)]);
+        if pVal.clu1.(dir)(iUnit) <= alpha/2
+            plot(ax(iAx), tObs(selT), xObs(selT), 'b-', LineWidth=2);
+            rel = "$\ll$";
+            pValDisp = max(1/p.sd.nBoot, pVal.clu1.(dir)(iUnit));
+            pValDisp = sprintf("p$\\leq$%g", pValDisp);
+        elseif pVal.clu1.(dir)(iUnit) >= 1-alpha/2
+            plot(ax(iAx), tObs(selT), xObs(selT), 'r-', LineWidth=2);
+            rel = "$\gg$";
+            pValDisp = max(1/p.sd.nBoot, 1 - pVal.clu1.(dir)(iUnit));
+            pValDisp = sprintf("p$\\leq$%g", pValDisp);
+        else
+            rel = "$\approx$";
+            pValDisp = pVal.clu1.(dir)(iUnit);
+            if pValDisp > 0.5
+                pValDisp = 1 - pValDisp;
+            end
+            pValDisp = sprintf("p$>$%g", pValDisp);
+        end
+        text(ax(iAx), 0, yl(2)/2, sprintf("%.2f %s %.2f (%s)", miObs, rel, miBoot, pValDisp), HorizontalAlignment='left', VerticalAlignment='top', Interpreter='latex')
+        ifn = 0;
+        for fn = p.mi.boot.features
+            ifn = ifn + 1;
+            text(ax(iAx), xl(2), yl(1)+(ifn-1)*(abs(yl(1))/length(p.mi.boot.features)), sprintf("$|\\bar{mi}_{%s}|$ = %.2f", fn, mean(abs(mi.(dir)(iUnit).(fn)(mi.(dir)(iUnit).idx==1)), 1, 'omitnan')), HorizontalAlignment='right', VerticalAlignment='bottom', Interpreter='latex');
+        end
+
+        xline(ax(iAx), 0, 'k--')
+        yline(ax(iAx), 0, 'k--')
+
+        title(ax(iAx), sprintf("%s (n=%i)", dir, size(xtaMaxRectified(iUnit).(dir).clu1.X, 1)))
+    end
+    title(tl, sprintf("Unit %i", iUnit))
+end
+clear fig tl ax iAx iUnit dir xObs tObs XBoot tBoot muBoot ciBoot rel pValDisp selT miObs miBoot lgd fn ifn x t
+
+
+%% Examine xtaMaxRectified obs vs boot for clu1 (average across all units)
+alpha = 0.05;
+aggr(nUnits) = struct(dip=[], rise=[]);
+for iUnit = 1:nUnits
+    for dir = ["dip", "rise"]
+        aggr(iUnit).(dir).xObs = mean(xtaMaxRectified(iUnit).(dir).clu1.X, 1, 'omitnan');
+        aggr(iUnit).(dir).tObs = xtaMaxRectified(iUnit).(dir).clu1.t;
+
+        if isfield(xtaMaxRectified(iUnit).(dir).clu1, 'XBoot')
+            XBoot = xtaMaxRectified(iUnit).(dir).clu1.XBoot';
+            aggr(iUnit).(dir).tBoot = xtaMaxRectified(iUnit).(dir).clu1.tBoot;
+            aggr(iUnit).(dir).muBoot = mean(XBoot, 1, 'omitnan');
+            aggr(iUnit).(dir).ciBoot = quantile(XBoot, [alpha/2, 1-alpha/2], 1);
+        else
+            aggr(iUnit).(dir).tBoot = [];
+            aggr(iUnit).(dir).muBoot = NaN(size(aggr(1).dip.muBoot), 'single');
+            aggr(iUnit).(dir).ciBoot = NaN(size(aggr(1).dip.ciBoot), 'single');
+        end
+    end
+end
+clear iUnit dir XBoot
+
+close all
+fig = figure(Units='inches', Position=[3, 3, 6, 4]);
+tl = tiledlayout(fig, 1, 2);
+ax = gobjects(1, 2);
+h = gobjects(2, 1);
+xl = [-0.1, 0.3];
+yl = [0, 0.4];
 for iAx = 1:2
     ax(iAx) = nexttile(tl);
     hold(ax(iAx), 'on');
@@ -622,54 +616,49 @@ for iAx = 1:2
 end
 title(ax(1), 'dip')
 title(ax(2), 'rise')
-xlabel(tl, 'time to dip/rise onset (s)')
-ylabel(tl, ["rectified position (a.u.)", "of most-moved bodypart"])
-nUnits = length(xtaMaxRectified);
-xline(ax(iAx), 0, 'k--')
-yline(ax(iAx), 0, 'k--')
-for iUnit = 1:nUnits
-    % for iAx = 1:2
-    %     cla(ax(iAx))
-    % end
-    iAx = 0;
-    for dir = ["dip", "rise"]
-        iAx = iAx + 1;
-        x = mean(xtaMaxRectified(iUnit).(dir).clu1.X, 1, 'omitnan');
-        t = xtaMaxRectified(iUnit).(dir).clu1.t;
-        % plot(ax(iAx), t, x, 'k-', DisplayName="xtaMR");
+iAx = 0;
+for dir = ["dip", "rise"]
+    tObs = aggr(1).(dir).tObs;
+    tBoot = aggr(1).(dir).tBoot;
+    selLo =  pVal.clu1.(dir) < alpha/2;
+    selHi =  pVal.clu1.(dir) > 1 - alpha/2;
 
-        miObs = mean(miMaxRectified(iUnit).(dir).X(miMaxRectified(iUnit).(dir).idx==1), 1, 'omitnan');
-        miBoot = mean(miMaxRectified(iUnit).(dir).XBoot(miMaxRectified(iUnit).(dir).idxBoot==1), 'all', 'omitnan');
-        selT = isin(t, [p.mi.windowPre(1), p.mi.windowPost(2)]);
-        if pVal.clu1.(dir)(iUnit) <= alpha/2
-            plot(ax(iAx), t, x, Color=[0, 0, 1, 0.2], LineWidth=0.5);
-            rel = "$\ll$";
-            pValDisp = max(1/p.sd.nBoot, pVal.clu1.(dir)(iUnit));
-            pValDisp = sprintf("p$\\leq$%g", pValDisp);
-        elseif pVal.clu1.(dir)(iUnit) >= 1-alpha/2
-            plot(ax(iAx), t, x, Color=[1, 0, 0, 0.2], LineWidth=0.5);
-            rel = "$\gg$";
-            pValDisp = max(1/p.sd.nBoot, 1 - pVal.clu1.(dir)(iUnit));
-            pValDisp = sprintf("p$\\leq$%g", pValDisp);
-        else
-            plot(ax(iAx), t, x, Color=[0, 0, 0, 0.2], LineWidth=0.5);
-            rel = "$\approx$";
-            pValDisp = pVal.clu1.(dir)(iUnit);
-            if pValDisp > 0.5
-                pValDisp = 1 - pValDisp;
-            end
-            pValDisp = sprintf("p$>$%g", pValDisp);
-        end
-        % text(ax(iAx), 0, yl(2)/2, sprintf("%.2f %s %.2f (%s)", miObs, rel, miBoot, pValDisp), HorizontalAlignment='center', VerticalAlignment='top', Interpreter='latex')
-        % ifn = 0;
-        % for fn = p.mi.boot.features
-        %     ifn = ifn + 1;
-        %     text(ax(iAx), xl(2), yl(1)+(ifn-1)*(abs(yl(1))/length(p.mi.boot.features)), sprintf("$|\\bar{mi}_{%s}|$ = %.2f", fn, mean(abs(mi.(dir)(iUnit).(fn)(mi.(dir)(iUnit).idx==1)), 1, 'omitnan')), HorizontalAlignment='right', VerticalAlignment='bottom', Interpreter='latex');
-        % end
+    xObs = arrayfun(@(aggr) aggr.(dir).xObs, aggr, UniformOutput=false);
+    xObs = cat(1, xObs{:}); % untis x timestamps
+    xObsLo = mean(xObs(selLo, :), 1, 'omitnan');
+    xObsHi = mean(xObs(selHi, :), 1, 'omitnan');
+    xObsNull = mean(xObs(~selLo&~selHi, :), 1, 'omitnan');
+    xObs = mean(xObs, 1, 'omitnan');
 
-        % xline(ax(iAx), 0, 'k--')
-        % yline(ax(iAx), 0, 'k--')
-    end
-    % title(tl, sprintf("Unit %i", iUnit))
+    muBoot = arrayfun(@(aggr) aggr.(dir).muBoot, aggr, UniformOutput=false);
+    muBoot = cat(1, muBoot{:}); % units x timestamps
+    muBootLo = mean(muBoot(selLo, :), 1, 'omitnan');
+    muBootHi = mean(muBoot(selHi, :), 1, 'omitnan');
+    muBootNull = mean(muBoot(~selLo&~selHi, :), 1, 'omitnan');
+    muBoot = mean(muBoot, 1, 'omitnan');
+
+    ciBoot = arrayfun(@(aggr) aggr.(dir).ciBoot, aggr, UniformOutput=false);
+    ciBoot = cat(3, ciBoot{:}); % quantile x timestamps x units
+    ciBootLo = mean(ciBoot(:, :, selLo), 1, 'omitnan');
+    ciBootHi = mean(ciBoot(:, :, selHi), 1, 'omitnan');
+    ciBootHiNull = mean(ciBoot(:, :, ~selLo&~selHi), 1, 'omitnan');
+    ciBoot = mean(ciBoot, 3, 'omitnan');
+
+    iAx = iAx + 1;
+    h(1) = patch(ax(iAx), [tBoot, flip(tBoot)], [ciBoot(1, :), flip(ciBoot(2, :))], [0.15, 0.15, 0.15], FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName=sprintf('boot %i%% CI (%i units)', round(100*(1-alpha)), nUnits));
+    h(2) = plot(ax(iAx), tObs, xObs, 'k-', DisplayName=sprintf("grand average (%i units)", nUnits), LineWidth=1.5);
+    h(3) = plot(ax(iAx), tObs, xObsHi, 'r--', DisplayName=sprintf("move-preferring (%i units)", nnz(selHi)), LineWidth=1.5);
+    h(4) = plot(ax(iAx), tObs, xObsLo, 'b--', DisplayName=sprintf("no-move-preferring (%i units)", nnz(selLo)), LineWidth=1.5);
+    h(5) = plot(ax(iAx), tObs, xObsNull, 'k--', DisplayName=sprintf("no-preference (%i units)", nnz(~selLo&~selHi)), LineWidth=1.5);
+    xline(ax(iAx), 0, 'k--')
+    yline(ax(iAx), 0, 'k--')
+    legend(ax(iAx), h, Location="southoutside");
+
+    xlabel(ax(iAx), sprintf("time to %s onset (s)", dir))
+    ylabel(ax(iAx), sprintf("max-rectified\n%s-triggered-average\nposition (a.u.)", dir))
+
 end
-clear fig tl ax iAx IUnit dir xObs tObs XBoot tBoot muBoot ciBoot rel oValDisp selT miObs miBoot lgd fn ifn x t
+% title(tl, sprintf("aggregate (%i units)", nUnits), FontWeight='bold')
+fontsize(tl, 8, 'points')
+
+clear fig tl ax iAx dir xObs tObs XBoot tBoot muBoot ciBoot selT miObs miBoot lgd
