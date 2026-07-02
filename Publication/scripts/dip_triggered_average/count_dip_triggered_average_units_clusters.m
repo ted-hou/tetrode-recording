@@ -353,7 +353,7 @@ for iTest = 1:length(tests)
 end
 clear iTest n dir plural
 
-%% Save results
-exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_cc_%iunits_%iboots_%s.mat", length(xta.dip), p.sd.nBoot, datetime("now", Format="yyyyMMdd")));
-save(exportPath, 'p', 'tests', 'cc', 'clusterSize', '-v7.3')
-fprintf("Saved to %s\n", exportPath);
+% %% Save results
+% exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_cc_%iunits_%iboots_%s.mat", length(xta.dip), p.sd.nBoot, datetime("now", Format="yyyyMMdd")));
+% save(exportPath, 'p', 'tests', 'cc', 'clusterSize', '-v7.3')
+% fprintf("Saved to %s\n", exportPath);

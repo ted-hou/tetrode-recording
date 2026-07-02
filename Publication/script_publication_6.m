@@ -19,9 +19,8 @@ load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_sdBoot_1225uni
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectified_1225units_1000boots_20260701.mat")); % Load bootstrapped statistics for fig6 panels (maxRectified xta, mi)
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectifiedPVal_1225units_1000boots_20260701.mat")); % pVal of observing mimr under null bootstrap
 % %% Count number of "clean clusters" by unit
-% p.minNumTrialsPerCluster = 10;
-% count_dip_triggered_average_units_clusters
-load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_cc_1225units_1000boots_20260701.mat")); % Load bootstrapped statistics for fig6 panels (maxRectified xta, mi)
+p.minNumTrialsPerCluster = 10;
+count_dip_triggered_average_units_clusters
 
 
 %%
@@ -1181,7 +1180,7 @@ hCb.Label.VerticalAlignment = 'bottom';
 
 fontname(fig, 'Arial')
 
-drawnow()
+% drawnow()
 
 
 % Adjust locations of some tiledlayout x/y labels at the end
@@ -1194,4 +1193,5 @@ drawnow()
 
 
 % exportgraphics(fig, 'test.emf', ContentType='vector', BackgroundColor='none', Padding='Figure')
-copygraphics(fig, ContentType='vector', BackgroundColor='none')
+% copygraphics(fig, ContentType='vector', BackgroundColor='none', Padding='figure')
+exportgraphics(fig, 'Figure_6.emf', ContentType='vector', BackgroundColor='none');
