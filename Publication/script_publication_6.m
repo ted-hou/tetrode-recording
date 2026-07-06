@@ -18,11 +18,12 @@ load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_200to80
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_sdBoot_1225units_1000boots_20260703.mat")); % Load bootstrapped statistics for fig6 panels (sd version of cleanclusters boot)
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectified_1225units_1000boots_20260703.mat")); % Load bootstrapped statistics for fig6 panels (maxRectified xta, mi)
 % %% Count number of "clean clusters" by unit
-p.mi.minNumTrialsPerCluster = 10;
+p.mi.minNumTrialsPerCluster = 5;
 p.mi.ignoreSpine = true;
 p.mi.requireCleanClusters = true;
 count_dip_triggered_average_units_clusters
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectifiedPVal_1225units_1000boots_20260703.mat")); % pVal of observing mimr under null bootstrap
+p.mi.minNumTrialsPerCluster = 10;
 
 
 %%
