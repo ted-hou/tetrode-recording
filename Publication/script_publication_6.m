@@ -18,13 +18,15 @@ load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_200to80
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_sdBoot_1225units_1000boots_20260703.mat")); % Load bootstrapped statistics for fig6 panels (sd version of cleanclusters boot)
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectified_1225units_1000boots_20260703.mat")); % Load bootstrapped statistics for fig6 panels (maxRectified xta, mi)
 % %% Count number of "clean clusters" by unit
-p.minNumTrialsPerCluster = 10;
+p.mi.minNumTrialsPerCluster = 10;
+p.mi.ignoreSpine = true;
+p.mi.requireCleanClusters = true;
 count_dip_triggered_average_units_clusters
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectifiedPVal_1225units_1000boots_20260703.mat")); % pVal of observing mimr under null bootstrap
 
 
 %%
-% clearvars -except etaArtiFree euArtiFree metaArtiFree clusterSize kinematics metaRasterData mi miBoot miObs sdBoot miMaxRectified xtaMaxRectified p ROOTPATH xta nUnits
+clearvars -except cc clusterSize etaArtiFree euArtiFree kinematics metaArtiFree metaRasterData mi miBoot miMaxRectified miObs nUnits p pVal ROOTPATH sdBoot tests xta xtaMaxRectified nUnits
 nUnits = length(xta.dip);
 if ~exist('p', 'var') || ~isfield(p, 'fontSize')
     p.fontSize = 8;
@@ -209,6 +211,8 @@ end
 clear alpha cn
 
 %% Fig 6
+% close all
+
 XLIM = {[-1, 0.3], [-1, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3]};
 W = cellfun(@(xl) diff(xl*10), XLIM, UniformOutput=true);
 CW = cumsum([0, W]);
@@ -221,7 +225,6 @@ TRIALTYPE = {'press', 'lick', 'CorrectPressToFirstRewardLick', 'CueToLastLickOff
 XTICKS = {[-1, 0], [-1, 0], [0], [0], [0]};
 XTICKLABELS = {["-1", "0"], ["-1", "0"], ["0"], ["0"], ["0"]};
 nEgUnits = 2;
-close all
 
 % Figure layout
 fig = figure(Units='inches', Position=[1, 1, 7.5, 8]);
@@ -566,7 +569,7 @@ for iTl = 1:2
     for iClu = 1:length(p.mi.semanticClusterOrder)
         k = p.mi.semanticClusterOrder(iClu); % raw cluster index
         nTrials = clusterSize(iUnit).(dir).n(k);
-        if isnan(nTrials) || nTrials < p.mi.minNumTrialsPerCluster
+        if isnan(nTrials)% || nTrials < p.mi.minNumTrialsPerCluster
             set(ax(:, iClu), Visible=false);
             continue
         end
@@ -648,7 +651,7 @@ hLetter.VerticalAlignment = 'top';
 hLetter.Position = [-0.1, axLetter.Position(4) + 0.3, 0];
 
 % 6e. Histogram count of units per movement type (xticks are cluster names)
-REQUIRE_CLEAN_CLUSTERS = true;
+nUnits = length(xta.dip);
 tl = layout.child(4).child(3).tl;
 tl.TileSpacing = 'tight';
 ax = gobjects(2, 2);
@@ -665,24 +668,24 @@ for iCol = 1:2
 
     x = 1:length(clusterDispName);
 
-    if REQUIRE_CLEAN_CLUSTERS
+    if p.mi.requireCleanClusters
         cs = arrayfun(@(ccData) ccData.(dir).n(:, 1) .* uint16(ccData.(dir).clean), cc.data, UniformOutput=false);
     else
         cs = arrayfun(@(ccData) ccData.(dir).n(:, 1), cc.data, UniformOutput=false);
     end
     cs = double(cat(2, cs{:})');
-    cs(cs<p.minNumTrialsPerCluster) = NaN;
+    cs(cs<p.mi.minNumTrialsPerCluster) = NaN;
     % mu = mean(cs, 1, 'omitnan');
 
     % Bootstrapped cluster size (null)
-    if REQUIRE_CLEAN_CLUSTERS
+    if p.mi.requireCleanClusters
         csBoot = arrayfun(@(d) d.(dir).n .* uint16(d.(dir).clean), sdBoot, UniformOutput=false);
     else
         csBoot = arrayfun(@(d) d.(dir).n, sdBoot, UniformOutput=false);
     end
     csBoot = double(cat(3, csBoot{:}));
     csBoot = permute(csBoot, [1, 3, 2]); % nBoot x nUnits x nClusters
-    csBoot(csBoot<p.minNumTrialsPerCluster) = NaN;
+    csBoot(csBoot<p.mi.minNumTrialsPerCluster) = NaN;
     csBoot = csBoot(:, :, p.mi.semanticClusterOrder); % put clusters in semantic order
     % muBoot = reshape(mean(csBoot, [1, 2], 'omitnan'), 1, nClusters);
     % ciBoot = quantile(squeeze(mean(csBoot, 2, 'omitnan')), [0.05/7/2, 1-0.05/7/2], 1);
@@ -727,16 +730,16 @@ for iCol = 1:2
     hold(ax(iRow, iCol), 'on')
     x = 1:length(clusterDispName);
     % nUnits with clean cluster
-    if REQUIRE_CLEAN_CLUSTERS
+    if p.mi.requireCleanClusters
         nuwcc = arrayfun(@(ccData) ccData.(dir).n(:, 1) .* uint16(ccData.(dir).clean), cc.data, UniformOutput=false);
     else
         nuwcc = arrayfun(@(ccData) ccData.(dir).n(:, 1), cc.data, UniformOutput=false);
     end
     nuwcc = cat(2, nuwcc{:})';
-    y = sum(nuwcc>=p.minNumTrialsPerCluster, 1);
+    y = sum(nuwcc>=p.mi.minNumTrialsPerCluster, 1);
 
     % nUnits with clean cluster, bootstrapped
-    if REQUIRE_CLEAN_CLUSTERS
+    if p.mi.requireCleanClusters
         nuwccBoot = arrayfun(@(ccData) ccData.(dir).n .* uint16(ccData.(dir).clean), sdBoot, UniformOutput=false);
     else
         nuwccBoot = arrayfun(@(ccData) ccData.(dir).n, sdBoot, UniformOutput=false);
@@ -744,7 +747,7 @@ for iCol = 1:2
     nuwccBoot = cat(3, nuwccBoot{:});
     nuwccBoot = permute(nuwccBoot, [3, 2, 1]); % nUnits x nClusters x nBoot
     nuwccBoot = nuwccBoot(:, p.mi.semanticClusterOrder, :); % nUnits x nClusters x nBoot, clusters in semantic order
-    yBoot = squeeze(sum(nuwccBoot>=p.minNumTrialsPerCluster, 1)); % nClusters x nBoot
+    yBoot = squeeze(sum(nuwccBoot>=p.mi.minNumTrialsPerCluster, 1)); % nClusters x nBoot
     % muBoot = mean(yBoot, 2, 'omitnan')';
     % ciBoot = quantile(yBoot, [0.05/7/2, 1-0.05/7/2], 2)';
 
@@ -791,6 +794,7 @@ hLetter.Position = [-0.15, axLetter.Position(4) + 0.35, 0];
 
 % 6f. Histogram count of no. movement types for each unit (xticks are numCleanClusters 0-6)
 maxC = 0.1;
+edges = -0.5:1:6.5;
 tl = layout.child(4).child(4).tl;
 set(tl, TileSpacing='tight')
 ax = gobjects(1, 5);
@@ -799,23 +803,22 @@ for iAx = 1:5
 end
 dirs = ["dip", "rise"];
 colors = [0, 0, 1; 1, 0, 0];
-nUnits = length(xta.dip);
 ncc = struct(dip=[], rise=[]);
 for dir = dirs
-    if REQUIRE_CLEAN_CLUSTERS
-        ncc.(dir) = arrayfun(@(ccData) ccData.(dir).clean & ccData.(dir).n(:, 1)>=p.minNumTrialsPerCluster, cc.data, UniformOutput=false);
+    if p.mi.requireCleanClusters
+        ncc.(dir) = arrayfun(@(ccData) ccData.(dir).clean & ccData.(dir).n(:, 1)>=p.mi.minNumTrialsPerCluster, cc.data, UniformOutput=false);
     else
-        ncc.(dir) = arrayfun(@(ccData) ccData.(dir).n(:, 1)>=p.minNumTrialsPerCluster, cc.data, UniformOutput=false);
+        ncc.(dir) = arrayfun(@(ccData) ccData.(dir).n(:, 1)>=p.mi.minNumTrialsPerCluster, cc.data, UniformOutput=false);
     end
     ncc.(dir) = cat(2, ncc.(dir){:})';
     ncc.(dir) = sum(ncc.(dir)(:, 2:end), 2);
 end
 nccBoot = struct(dip=[], rise=[]);
 for dir = dirs
-    if REQUIRE_CLEAN_CLUSTERS
-        nccBoot.(dir) = arrayfun(@(ccData) ccData.(dir).n>=p.minNumTrialsPerCluster & ccData.(dir).clean, sdBoot, UniformOutput=false);
+    if p.mi.requireCleanClusters
+        nccBoot.(dir) = arrayfun(@(ccData) ccData.(dir).n>=p.mi.minNumTrialsPerCluster & ccData.(dir).clean, sdBoot, UniformOutput=false);
     else
-        nccBoot.(dir) = arrayfun(@(ccData) ccData.(dir).n>=p.minNumTrialsPerCluster, sdBoot, UniformOutput=false);
+        nccBoot.(dir) = arrayfun(@(ccData) ccData.(dir).n>=p.mi.minNumTrialsPerCluster, sdBoot, UniformOutput=false);
     end
     nccBoot.(dir) = permute(cat(3, nccBoot.(dir){:}), [3, 2, 1]);
     nccBoot.(dir) = squeeze(sum(nccBoot.(dir)(:, 2:end, :), 2));
@@ -824,7 +827,7 @@ for iAx = 1:2
     hold(ax(iAx), 'on')
     dir = dirs(iAx);
     n = histcounts(ncc.(dir), -0.5:1:6.5);
-    nBoot = arrayfun(@(iBoot) histcounts(nccBoot.(dir)(:, iBoot), -0.5:1:6.5), 1:p.sd.nBoot, UniformOutput=false);
+    nBoot = arrayfun(@(iBoot) histcounts(nccBoot.(dir)(:, iBoot), edges), 1:p.sd.nBoot, UniformOutput=false);
     nBoot = cat(1, nBoot{:});
     ciBoot = quantile(nBoot, [0.05/2, 1-0.05/2], 1);
     nBoot = mean(nBoot, 1);
@@ -842,7 +845,7 @@ end
 xlim(ax(1:2), [-0.5, 6.5])
 
 iAx = 3;
-[n, xEdges, yEdges] = histcounts2(mean(nccBoot.dip, 2, 'omitnan'), mean(nccBoot.rise, 2, 'omitnan'));
+[n, xEdges, yEdges] = histcounts2(mean(nccBoot.dip, 2, 'omitnan'), mean(nccBoot.rise, 2, 'omitnan'), edges, edges);
 n = n./nUnits;
 histogram2(ax(iAx), XBinEdges=xEdges, YBinEdges=yEdges, BinCounts=n, ...
     DisplayStyle='tile', ShowEmptyBins=true);
@@ -850,7 +853,7 @@ applyCustomColormap(ax(iAx), [0, maxC], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1
 title(ax(iAx), 'bootstrap')
 
 iAx = 4;
-[n, xEdges, yEdges] = histcounts2(ncc.dip, ncc.rise);
+[n, xEdges, yEdges] = histcounts2(ncc.dip, ncc.rise, edges, edges);
 n = n./nUnits;
 histogram2(ax(iAx), XBinEdges=xEdges, YBinEdges=yEdges, BinCounts=n, ...
     DisplayStyle='tile', ShowEmptyBins=true);
