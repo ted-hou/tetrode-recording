@@ -1,6 +1,6 @@
 %% Set root
-ROOTPATH = "C:\SERVER";
-% ROOTPATH = 'E:\DATA';
+% ROOTPATH = "C:\SERVER";
+ROOTPATH = 'E:\DATA';
 
 %%
 if exist('E:\Data\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials', 'dir')
@@ -18,7 +18,7 @@ load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_200to80
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_sdBoot_1225units_1000boots_20260703.mat")); % Load bootstrapped statistics for fig6 panels (sd version of cleanclusters boot)
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectified_1225units_1000boots_20260703.mat")); % Load bootstrapped statistics for fig6 panels (maxRectified xta, mi)
 % %% Count number of "clean clusters" by unit
-p.mi.minNumTrialsPerCluster = 5;
+p.mi.minNumTrialsPerCluster = 5; % This is just for example units in Fig 6d, so that small clusters are not culled
 p.mi.ignoreSpine = true;
 count_dip_triggered_average_units_clusters
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectifiedPVal_1225units_1000boots_20260703.mat")); % pVal of observing mimr under null bootstrap
@@ -263,7 +263,7 @@ layout.child(3).tl = tiledlayout(layout.tl, sum(layout.child(3).h), sum(layout.c
 l = layout.child(3).tl; l.Layout.Tile = 1 + layout.ch(3); l.Layout.TileSpan = [layout.h(3), sum(layout.w)];
 
 % upper right (dip triggered average)
-layout.child(4).h = [2, 5, 4, 3];
+layout.child(4).h = [2, 5, 7];
 layout.child(4).w = [1];
 layout.child(4).ch = cumsum([0, layout.child(4).h]).*sum(layout.child(4).w);
 layout.child(4).tl = tiledlayout(layout.tl, sum(layout.child(4).h), sum(layout.child(4).w), TileSpacing='compact', Padding='compact');
@@ -276,15 +276,12 @@ layout.child(4).child(1).h = [1];
 % upper right, 2nd row: 2 example untis (dip, rise): feature x cluster
 layout.child(4).child(2).w = [1, 1];
 layout.child(4).child(2).h = [1];
-% upper right, 3rd row: 
-layout.child(4).child(3).w = [1, 1];
-layout.child(4).child(3).h = [1];
-% upper right, 4th row: 
-layout.child(4).child(4).w = [7, 7];
-layout.child(4).child(4).cw = cumsum([0, layout.child(4).child(4).w]);
-layout.child(4).child(4).h = [1];
+% upper right, 3rd row: 2 subrows (dip vs. rise), 3 subcolumns (nuwcc, ncc, xtamr): 
+layout.child(4).child(3).w = [2, 1, 2];
+layout.child(4).child(3).h = [1, 1];
+layout.child(4).child(3).cw = cumsum([0, layout.child(4).child(3).w]);
 
-for iChild = 1:4
+for iChild = 1:length(layout.child(4).child)
     layout.child(4).child(iChild).tl = tiledlayout(layout.child(4).tl, sum(layout.child(4).child(iChild).h), sum(layout.child(4).child(iChild).w), TileSpacing='loose', Padding='compact');
     l = layout.child(4).child(iChild).tl; l.Layout.Tile = 1 + layout.child(4).ch(iChild); l.Layout.TileSpan = [layout.child(4).h(iChild), layout.child(4).w(1)];
 end
@@ -496,7 +493,15 @@ for iAx = 1:2
     title(ax(iAx), trialTypeDispNames(iAx))
 end
 fprintf('\n')
-fprintf('In total: %i units (%i animals, %i sessions): %i dips, %i rises\n', length(xta.dip), 6, length(unique([xta.dip.iExp])), length([xta.dip.t0]), length([xta.rise.t0]))
+% Find total no. reach vs. lick trials
+expName = arrayfun(@(rd) strsplit(string(rd.name), '_'), metaRasterData.press.spike, UniformOutput=false);
+expName = cellfun(@(c) strjoin(c(1:2), "_"), expName);
+[~, ia, ~] = unique(expName);
+nTrialsPress = sum(arrayfun(@length, [metaRasterData.press.spike(ia).duration]));
+nTrialsLick = sum(arrayfun(@length, [metaRasterData.lick.spike(ia).duration]));
+clear expName ia
+fprintf('In total: %i units (%i animals, %i sessions, %i press trials, %i lick trials): %i dips, %i rises\n', length(xta.dip), 6, length(unique([xta.dip.iExp])), nTrialsPress, nTrialsLick, length([xta.dip.t0]), length([xta.rise.t0]))
+
 yticks(ax, [])
 xlim(ax, [-4, 1])
 xlabel(ax(1), "time to bar contact (s)")
@@ -519,13 +524,15 @@ egUnitIndices = [354, 374];
 egUnitDirs = ["dip", "rise"];
 % egUnitNames = ["daisy29_20251024_Channel56_Unit2", "daisy29_20251025_Channel346_Unit1"];
 features = ["spikerate"; "Jaw"; "HandL"; "HandR"; "Spine"];
-% clusterDispName = ["none", "jaw\nopen", "jaw\nclose", "handL\nreach", "handL\nretract", "handR\nreach", "handR\nretract"];
 % featureDispName = ["spike"; "jaw"; "handL"; "handR"; "spine"];
-clusterDispName = ["~", "jo", "jc", "lhf", "lhb", "rhf", "rhb"]; % cc features are in semantic order already
+clusterDispNameShort = ["~", "jo", "jc", "lhf", "lhb", "rhf", "rhb"]; % cc features are in semantic order already
+% clusterDispName = ["no.move", "jaw.open", "jaw.close", "l.hand.fwd", "r.hand.back", "r.hand.fwd", "r.hand.back"]; % cc features are in semantic order already
+clusterDispName = string(1:7);
 clusterDispNameLong = ["no move", "jaw open", "jaw close", "left hand forward", "left hand back", "right hand forward", "right hand back"]; % cc features are in semantic order already
 clusterDispNameMerged = ["jaw", "l.hand", "r.hand"];
 assert(isequal(cc.clusterNames, ["no move", "lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"]))
-featureDispName = ["spk"; "jaw"; "lh"; "rh"; "spn"];
+featureDispNameShort = ["spk"; "jaw"; "lh"; "rh"; "spn"];
+featureDispName = ["spike"; "jaw"; "l.hand"; "r.hand"; "spine"];
 featureUnits = ["(a.u.)"; "(DV a.u.)"; "(AP a.u.)"; "(AP a.u.)"; "(DV a.u.)"];
 featureSign = [1; -1; 1; 1; -1];
 featureAxisDir = ["normal"; "reverse"; "normal"; "normal"; "normal"];
@@ -615,11 +622,12 @@ for iTl = 1:2
             plot(ax(iFeat, iClu), [0, 0], ylims{iFeat}, '-', Color=[0.15, 0.15, 0.15, 0.25])
             plot(ax(iFeat, iClu), [-0.5, 0.5], [0, 0], '-', Color=[0.15, 0.15, 0.15, 0.25])
             if iClu == 1
-                ylabel(ax(iFeat, iClu), sprintf("%s", featureDispName(iFeat)))
+                ylabel(ax(iFeat, iClu), sprintf("%s", featureDispName(iFeat)), Rotation=30, FontSize=p.fontSize)
             end
             if iFeat == 1
                 title(ax(iFeat, iClu), strsplit(clusterDispName(iClu), "\\n"), Interpreter='none', FontWeight='normal', Color='black')
             end
+            % title(tl(iTl), 'clusters', FontWeight='normal', Color='black', FontSize=p.fontSize)
             ylim(ax(iFeat, iClu), ylims{iFeat})
             hold(ax(iFeat, iClu), 'off')
             ax(iFeat, iClu).YAxis.Direction = featureAxisDir(iFeat);
@@ -653,20 +661,26 @@ hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
 hLetter.Position = [-0.1, axLetter.Position(4) + 0.3, 0];
 
-% 6e. Histogram count of units per movement type (xticks are cluster names)
-nUnits = length(xta.dip);
+% 6e(l), 6e(r), 6f shares a tiled layout, we'll make the axes here:
 tl = layout.child(4).child(3).tl;
 tl.TileSpacing = 'tight';
-ax = gobjects(1, 2);
+tl.TileIndexing = 'rowmajor';
+for iRow = 1:2
+    for iCol = 1:3
+        ax(iRow, iCol) = nexttile(tl, (iRow-1)*layout.child(4).child(3).cw(end) + 1 + layout.child(4).child(3).cw(iCol), [layout.child(4).child(3).h(iRow), layout.child(4).child(3).w(iCol)]);
+    end
+end
+
+% 6e (left). Histogram count of units per movement type (xticks are cluster names)
+nUnits = length(xta.dip);
 dirs = ["dip", "rise"];
 colors = [0, 0, 1; 1, 0, 0];
-iRow = 1;
+iCol = 1;
 lgd = gobjects(1, 2);
-yl = [0, 1225];
-for iCol = 1:2
-    dir = dirs(iCol);
-    ax(iRow, iCol) = nexttile(tl);
+yl = [0, 1];
+for iRow = 1:2
     hold(ax(iRow, iCol), 'on')
+    dir = dirs(iRow);
     if p.mi.mergeDirections
         x = 1:3;
     else
@@ -683,7 +697,7 @@ for iCol = 1:2
     if p.mi.mergeDirections
         nuwcc = cat(2, any(nuwcc(:, 2:3), 2), any(nuwcc(:, 4:5), 2), any(nuwcc(:, 6:7), 2));
     end
-    y = sum(nuwcc, 1);
+    y = sum(nuwcc, 1)./nUnits;
 
     % nUnits with clean cluster, bootstrapped
     if p.mi.requireCleanClusters
@@ -698,60 +712,81 @@ for iCol = 1:2
     if p.mi.mergeDirections
         nuwccBoot = cat(2, any(nuwccBoot(:, 2:3, :), 2), any(nuwccBoot(:, 4:5, :), 2), any(nuwccBoot(:, 6:7, :), 2));
     end
-    yBoot = squeeze(sum(nuwccBoot, 1)); % nClusters x nBoot
-    % muBoot = mean(yBoot, 2, 'omitnan')';
-    % ciBoot = quantile(yBoot, [0.05/7/2, 1-0.05/7/2], 2)';
+    yBoot = squeeze(sum(nuwccBoot, 1))./nUnits; % nClusters x nBoot
+    muBoot = mean(yBoot, 2, 'omitnan')';
+    ciBoot = quantile(yBoot, [0.05/7/2, 1-0.05/7/2], 2)';
 
-    edges = 0:2:nUnits+1;
     if p.mi.mergeDirections
-        for iClu = 1:3
-            thisNBoot = histcounts(yBoot(iClu, :), edges);
-            xVerticesBoot = reshape([thisNBoot; thisNBoot]./max(thisNBoot), [], 1);
-            yVerticesBoot = reshape([edges(1:end-1); edges(2:end)], [], 1);
-            patch(ax(iRow, iCol), x(iClu)-xVerticesBoot*0.5, yVerticesBoot, 'k', FaceColor=[0.15, 0.15, 0.15], EdgeColor='none', FaceAlpha=0.5)
-            patch(ax(iRow, iCol), x(iClu)+xVerticesBoot*0.5, yVerticesBoot, 'k', FaceColor=[0.15, 0.15, 0.15], EdgeColor='none', FaceAlpha=0.5)
-        end
-        bar(ax(iRow, iCol), x, y, FaceColor=colors(iCol, :), EdgeColor=colors(iCol, :), FaceAlpha=0.5, EdgeAlpha=0.8, BarWidth=0.33);
+        % edges = 0:2:nUnits+1;
+        % for iClu = 1:3
+        %     thisNBoot = histcounts(yBoot(iClu, :), edges);
+        %     xVerticesBoot = reshape([thisNBoot; thisNBoot]./max(thisNBoot), [], 1);
+        %     yVerticesBoot = reshape([edges(1:end-1); edges(2:end)], [], 1);
+        %     patch(ax(iRow, iCol), x(iClu)-xVerticesBoot*0.5, yVerticesBoot, 'k', FaceColor=[0.15, 0.15, 0.15], EdgeColor='none', FaceAlpha=0.5)
+        %     patch(ax(iRow, iCol), x(iClu)+xVerticesBoot*0.5, yVerticesBoot, 'k', FaceColor=[0.15, 0.15, 0.15], EdgeColor='none', FaceAlpha=0.5)
+        % end
+        hBar = bar(ax(iRow, iCol), x, [y; muBoot], FaceAlpha=0.5, EdgeAlpha=0.8, BarWidth=1);
+        set(hBar(1), FaceColor=colors(iRow, :), EdgeColor=colors(iRow, :));
+        set(hBar(2), FaceColor='none', EdgeColor=[0.15, 0.15, 0.15]);
+        hError = errorbar(ax(iRow, iCol), x+1/7, muBoot, muBoot-ciBoot(1, :), ciBoot(2, :)-muBoot, ...
+            LineStyle='none', Color=[0.15, 0.15, 0.15, 0.8], CapSize=5, Clipping=false);
     else
-        for iClu = 2:nClusters
-            thisNBoot = histcounts(yBoot(iClu, :), edges);
-            xVerticesBoot = reshape([thisNBoot; thisNBoot]./max(thisNBoot), [], 1);
-            yVerticesBoot = reshape([edges(1:end-1); edges(2:end)], [], 1);
-            patch(ax(iRow, iCol), x(iClu)-xVerticesBoot*0.5, yVerticesBoot, 'k', FaceColor=[0.15, 0.15, 0.15], EdgeColor='none', FaceAlpha=0.5)
-            patch(ax(iRow, iCol), x(iClu)+xVerticesBoot*0.5, yVerticesBoot, 'k', FaceColor=[0.15, 0.15, 0.15], EdgeColor='none', FaceAlpha=0.5)
-        end
-        bar(ax(iRow, iCol), x(2:end), y(2:end), FaceColor=colors(iCol, :), EdgeColor=colors(iCol, :), FaceAlpha=0.5, EdgeAlpha=0.8, BarWidth=0.33);
+        % edges = 0:2:nUnits+1;
+        % for iClu = 2:nClusters
+        %     thisNBoot = histcounts(yBoot(iClu, :), edges);
+        %     xVerticesBoot = reshape([thisNBoot; thisNBoot]./max(thisNBoot), [], 1);
+        %     yVerticesBoot = reshape([edges(1:end-1); edges(2:end)], [], 1);
+        %     patch(ax(iRow, iCol), x(iClu)-xVerticesBoot*0.5, yVerticesBoot, 'k', FaceColor=[0.15, 0.15, 0.15], EdgeColor='none', FaceAlpha=0.5)
+        %     patch(ax(iRow, iCol), x(iClu)+xVerticesBoot*0.5, yVerticesBoot, 'k', FaceColor=[0.15, 0.15, 0.15], EdgeColor='none', FaceAlpha=0.5)
+        % end
+        hBar = bar(ax(iRow, iCol), x(2:end), [y(2:end); muBoot(2:end)], FaceAlpha=0.5, EdgeAlpha=0.8, BarWidth=1);
+        set(hBar(1), FaceColor=colors(iRow, :), EdgeColor=colors(iRow, :));
+        set(hBar(2), FaceColor='none', EdgeColor=[0.15, 0.15, 0.15]);
+        hError = errorbar(ax(iRow, iCol), x(2:end)+1/7, muBoot, muBoot(2:end)-ciBoot(1, 2:end), ciBoot(2, 2:end)-muBoot(2:end), ...
+            LineStyle='none', Color=[0.15, 0.15, 0.15, 0.8], CapSize=5, Clipping=false);
+    end
+    if iRow == 1
+        hBar(3) = bar(ax(iRow, iCol), NaN, NaN, FaceAlpha=0.5, EdgeAlpha=0.8, BarWidth=1, FaceColor=colors(2, :), EdgeColor=colors(2, :));
+        h = [hBar([1, 3, 2]), hError];
+        h(1).DisplayName = 'dip';
+        h(2).DisplayName = 'rise';
+        h(3).DisplayName = 'boot';
+        h(4).DisplayName = '95%CI';
     end
 
     if p.mi.mergeDirections
-        xticks(ax(iRow, iCol), 1:length(clusterDispNameMerged))
-        xticklabels(ax(iRow, iCol), clusterDispNameMerged)
-        xtickangle(ax(iRow, iCol), 0)
+        % xticks(ax(1, iCol), [])
+        % xticks(ax(2, iCol), 1:length(clusterDispNameMerged))
+        % xticklabels(ax(2, iCol), ["", "", ""])
+        % xtickangle(ax(2, iCol), 0)
+        xticks(ax(:, iCol), [])
+        for i = 1:length(clusterDispNameMerged)
+            text(ax(2, iCol), x(i), -0, clusterDispNameMerged(i), Color=[0.15, 0.15, 0.15], ...
+                VerticalAlignment='top', HorizontalAlignment='right', Rotation=30, ...
+                FontWeight='normal', FontName='Arial')
+        end
         xlim(ax(iRow, iCol), [0.3, length(clusterDispNameMerged)+0.7])
     else
-        xticks(ax(iRow, iCol), 1:length(clusterDispName))
-        xticklabels(ax(iRow, iCol), clusterDispName)
-        xtickangle(ax(iRow, iCol), 0)
+        xticks(ax(1, iCol), [])
+        xticks(ax(2, iCol), 1:length(clusterDispName))
+        xticklabels(ax(2, iCol), clusterDispName)
+        xtickangle(ax(2, iCol), 0)
         xlim(ax(iRow, iCol), [1.3, length(clusterDispName)+0.7])
     end
 
     ylim(ax(iRow, iCol), yl)
-    ylabel(ax(iRow, iCol), "units")
+    yticks(ax(iRow, iCol), [0, 0.5, 1])
+    ylabel(ax(iRow, iCol), "fraction of units")
     hold(ax(iRow, iCol), 'off')
+
+    lgd = legend(ax(1, iCol), h, Location='north', Orientation='horizontal', FontSize=p.fontSize-1, IconColumnWidth=7, NumColumns=2);
+    lgd.ItemTokenSize = [7, 7];
+    lgd.Position(1:2) = lgd.Position(1:2) + [0.05, 0.16];
 end
-title(ax(1, 1), 'dips')
-title(ax(1, 2), 'rises')
-xlabel(tl, 'movement cluster')
-fontsize(tl, 8, 'points')
+% xlabel(ax(2, iCol), "bodyparts")
 
-axLetter = ax(1, 1);
-hLetter = text(axLetter, 0, 0, 'e', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
-axLetter.Units = 'inches';
-hLetter.HorizontalAlignment = 'right';
-hLetter.VerticalAlignment = 'top';
-hLetter.Position = [-0.15, axLetter.Position(4) + 0.35, 0];
-
-% 6f. Histogram count of no. movement types for each unit (xticks are numCleanClusters 0-6)
+% 6e (right). Histogram count of no. movement types for each unit (xticks are numCleanClusters 0-6)
+iCol = 2;
 if p.mi.mergeDirections
     edges = -0.5:1:3.5;
     centers = 0:3;
@@ -761,14 +796,6 @@ else
     centers = 0:6;
     maxC = 0.1;
 end
-tl = layout.child(4).child(4).tl;
-set(tl, TileSpacing='tight')
-ax = gobjects(1, 2);
-for iAx = 1:2
-    ax(iAx) = nexttile(tl, 1 + layout.child(4).child(4).cw(iAx), [1, layout.child(4).child(4).w(iAx)]);
-end
-dirs = ["dip", "rise"];
-colors = [0, 0, 1; 1, 0, 0];
 ncc = struct(dip=[], rise=[]);
 for dir = dirs
     if p.mi.requireCleanClusters
@@ -801,49 +828,132 @@ for dir = dirs
         nccBoot.(dir) = squeeze(sum(nccBoot.(dir)(:, 2:end, :), 2));
     end
 end
-for iAx = 1:2
-    hold(ax(iAx), 'on')
-    dir = dirs(iAx);
-    n = histcounts(ncc.(dir), edges);
+for iRow = 1:2
+    hold(ax(iRow, iCol), 'on')
+    dir = dirs(iRow);
+    n = histcounts(ncc.(dir), edges)./nUnits;
     nBoot = arrayfun(@(iBoot) histcounts(nccBoot.(dir)(:, iBoot), edges), 1:p.sd.nBoot, UniformOutput=false);
-    nBoot = cat(1, nBoot{:});
+    nBoot = cat(1, nBoot{:})./nUnits;
     ciBoot = quantile(nBoot, [0.05/2, 1-0.05/2], 1);
     nBoot = mean(nBoot, 1);
-    histogram(ax(iAx), BinCounts=n, BinEdges=edges, FaceColor=colors(iAx, :), FaceAlpha=0.5, EdgeColor=colors(iAx, :));
-    histogram(ax(iAx), BinCounts=nBoot, BinEdges=edges, EdgeColor=[0.15, 0.15, 0.15], EdgeAlpha=1, DisplayStyle='stairs');
-    errorbar(ax(iAx), centers, nBoot, nBoot-ciBoot(1, :), ciBoot(2, :)-nBoot, LineStyle='none', Color=[0.15, 0.15, 0.15, 0.8], CapSize=10, Clipping=false)
+    histogram(ax(iRow, iCol), BinCounts=n, BinEdges=edges, FaceColor=colors(iRow, :), FaceAlpha=0.5, EdgeColor=colors(iRow, :));
+    histogram(ax(iRow, iCol), BinCounts=nBoot, BinEdges=edges, EdgeColor=[0.15, 0.15, 0.15], EdgeAlpha=1, DisplayStyle='stairs');
+    errorbar(ax(iRow, iCol), centers, nBoot, nBoot-ciBoot(1, :), ciBoot(2, :)-nBoot, LineStyle='none', Color=[0.15, 0.15, 0.15, 0.8], CapSize=5, Clipping=false)
 
-    ylabel(ax(iAx), "units")
-    xticks(ax(iAx), centers)
-    xtickangle(ax(iAx), 0)
-    if p.mi.mergeDirections
-        xlabel(ax(iAx), "no. moving bodyparts")
-    else
-        xlabel(ax(iAx), "clusters")
-    end
-    title(ax(iAx), dir)
+    % ylabel(ax(iRow, iCol), "no. units")
+    hold(ax(iRow, iCol), 'off')
 end
-xlim(ax(1:2), [edges(1), edges(end)])
+xticks(ax(1, iCol), [])
+xticks(ax(2, iCol), centers)
+xtickangle(ax(2, iCol), 0)
+if p.mi.mergeDirections
+    xlabel(ax(2, iCol), "no. bodyparts")
+else
+    xlabel(ax(2, iCol), "no. clusters")
+end
+xlim(ax(:, iCol), [edges(1), edges(end)])
+ylim(ax(:, iCol), yl)
+yticks(ax(:, iCol), [0, 0.5, 1])
 
-fontsize(ax, p.fontSize, 'points')
+% 6f: xtamr (maxRectifiedXTA)
+alpha = 0.05;
+aggr(nUnits) = struct(dip=[], rise=[]);
+for iUnit = 1:nUnits
+    for dir = ["dip", "rise"]
+        aggr(iUnit).(dir).xObs = mean(xtaMaxRectified(iUnit).(dir).clu1.X, 1, 'omitnan');
+        aggr(iUnit).(dir).tObs = xtaMaxRectified(iUnit).(dir).clu1.t;
 
-% cb = colorbar(ax(iAx));
-% cb.Layout.Tile = layout.child(4).child(4).cw(5)-1;
-% cb.Label.String = "% units";
-% cb.Label.VerticalAlignment = 'bottom';
-% cb.Label.Position(1) = 0;
-% cb.Ticks = [0, maxC];
-% cb.TickLabels = ["0", sprintf("%g", maxC*100)];
-% fontsize(tl, p.fontSize, 'points')
+        if isfield(xtaMaxRectified(iUnit).(dir).clu1, 'XBoot')
+            XBoot = xtaMaxRectified(iUnit).(dir).clu1.XBoot';
+            aggr(iUnit).(dir).tBoot = xtaMaxRectified(iUnit).(dir).clu1.tBoot;
+            aggr(iUnit).(dir).muBoot = mean(XBoot, 1, 'omitnan');
+            aggr(iUnit).(dir).ciBoot = quantile(XBoot, [alpha/2, 1-alpha/2], 1);
+        else
+            aggr(iUnit).(dir).tBoot = [];
+            aggr(iUnit).(dir).muBoot = NaN(size(aggr(1).dip.muBoot), 'single');
+            aggr(iUnit).(dir).ciBoot = NaN(size(aggr(1).dip.ciBoot), 'single');
+        end
+    end
+end
+clear iUnit dir XBoot
+iCol = 3;
+h = gobjects(4, 1);
+xl = [-0.1, 0.3];
+yl = [0, 0.4];
+for iRow = 1:2
+    hold(ax(iRow, iCol), 'on')
+    dir = dirs(iRow);
+    tObs = aggr(1).(dir).tObs;
+    tBoot = aggr(1).(dir).tBoot;
+    selLo =  pVal.clu1.(dir) < alpha/2;
+    selHi =  pVal.clu1.(dir) > 1 - alpha/2;
 
-axLetter = ax(1);
-hLetter = text(axLetter, 0, 0, 'f', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+    xObs = arrayfun(@(aggr) aggr.(dir).xObs, aggr, UniformOutput=false);
+    xObs = cat(1, xObs{:}); % untis x timestamps
+    xObsLo = mean(xObs(selLo, :), 1, 'omitnan');
+    xObsHi = mean(xObs(selHi, :), 1, 'omitnan');
+    xObsNull = mean(xObs(~selLo&~selHi, :), 1, 'omitnan');
+    xObs = mean(xObs, 1, 'omitnan');
+
+    ciBoot = arrayfun(@(aggr) aggr.(dir).ciBoot, aggr, UniformOutput=false);
+    ciBoot = cat(3, ciBoot{:}); % quantile x timestamps x units (2x60x1225)
+    ciBootLo = mean(ciBoot(:, :, selLo), 3, 'omitnan');
+    ciBootHi = mean(ciBoot(:, :, selHi), 3, 'omitnan');
+    ciBootHiNull = mean(ciBoot(:, :, ~selLo&~selHi), 3, 'omitnan');
+    ciBoot = mean(ciBoot, 3, 'omitnan');
+
+    h(1) = patch(ax(iRow, iCol), [tBoot, flip(tBoot)], [ciBoot(1, :), flip(ciBoot(2, :))], [0.15, 0.15, 0.15], FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName=sprintf('%i%% CI', round(100*(1-alpha))));
+    h(2) = plot(ax(iRow, iCol), tObs, xObs, 'k-', DisplayName="all units", LineWidth=1.5);
+    h(3) = plot(ax(iRow, iCol), tObs, xObsHi, 'r:', DisplayName="move+", LineWidth=1);
+    h(4) = plot(ax(iRow, iCol), tObs, xObsLo, 'b:', DisplayName="move-", LineWidth=1);
+    % h(5) = plot(ax(iRow, iCol), tObs, xObsNull, 'k--', DisplayName="move~", LineWidth=1.5);
+    xline(ax(iRow, iCol), 0, 'k--')
+    yline(ax(iRow, iCol), 0, 'k--')
+    if iRow == 1
+        lgd = legend(ax(iRow, iCol), h, Location="north", FontSize=p.fontSize-1, IconColumnWidth=7, NumColumns=2);
+        lgd.ItemTokenSize = [7, 7];
+    end
+
+
+    fprintf("xtamr (%s): ", dir);
+    fprintf("\tmove+: %i units (%.1f%%);", nnz(selHi), nnz(selHi)/nUnits*100)
+    fprintf("\tmove-: %i units (%.1f%%);", nnz(selLo), nnz(selLo)/nUnits*100)
+    fprintf("\tmove~: %i units (%.1f%%);", nnz(~selLo&~selHi), nnz(~selLo&~selHi)/nUnits*100)
+    fprintf("\n")
+
+    ylabel(ax(iRow, iCol), "movement")
+
+    % ax(iRow, iCol).XLimMode = 'manual';
+    % ax(iRow, iCol).YLimMode = 'manual';
+    xlim(ax(iRow, iCol), xl)
+    ylim(ax(iRow, iCol), yl)
+    hold(ax(iRow, iCol), 'off')
+end
+xticks(ax(1, iCol), [])
+xlabel(ax(2, iCol), "time to dip/rise onset (s)")
+lgd.Position(2) = lgd.Position(2) + 0.16;
+% title(ax(1, :), 'dip')
+% title(ax(2, :), 'rise')
+
+
+% 6e/f - common labels/fonts
+fontsize(tl, 8, 'points')
+
+axLetter = ax(1, 1);
+hLetter = text(axLetter, 0, 0, 'e', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
 axLetter.Units = 'inches';
 hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
 hLetter.Position = [-0.15, axLetter.Position(4) + 0.35, 0];
 
-% 6g. Correct lick bout lick histogram
+axLetter = ax(1, 3);
+hLetter = text(axLetter, 0, 0, 'f', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
+axLetter.Units = 'inches';
+hLetter.HorizontalAlignment = 'right';
+hLetter.VerticalAlignment = 'top';
+hLetter.Position = [-0.1, axLetter.Position(4) + 0.35, 0];
+
+% 6h. Correct lick bout lick histogram
 nBoutsDisp = 6;
 ax = nexttile(layout.child(3).tl, [layout.child(3).h(1), layout.child(3).w(1)]);
 counts = lickHist.correctLickOsci.count;
@@ -1281,7 +1391,7 @@ end
 % Colorbar right
 iAx = 6;
 axc3 = ax(iAx);
-axc3.Layout.Tile = layout.child(4).child(4).cw(5)-1;
+axc3.Layout.Tile = layout.child(4).child(3).cw(5)-1;
 axc3.Layout.TileSpan = [1, 4];
 patch(axc3, [0, 1, 1, 0], [0, 0, maxC, maxC], [0, 0, maxC, maxC], EdgeColor='k');
 applyCustomColormap(axc3, [0, maxC], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.5, h0=0.33);
