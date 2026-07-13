@@ -1,6 +1,6 @@
 %% Set root
-% ROOTPATH = "C:\SERVER";
-ROOTPATH = 'E:\DATA';
+ROOTPATH = "C:\SERVER";
+% ROOTPATH = 'E:\DATA';
 
 %%
 if exist('E:\Data\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials', 'dir')
@@ -877,9 +877,10 @@ for iUnit = 1:nUnits
 end
 clear iUnit dir XBoot
 iCol = 3;
-h = gobjects(4, 1);
+h = gobjects(3, 1);
 xl = [-0.1, 0.3];
 yl = [0, 0.4];
+colors = [0, 0, 1; 1, 0, 0];
 for iRow = 1:2
     hold(ax(iRow, iCol), 'on')
     dir = dirs(iRow);
@@ -890,27 +891,28 @@ for iRow = 1:2
 
     xObs = arrayfun(@(aggr) aggr.(dir).xObs, aggr, UniformOutput=false);
     xObs = cat(1, xObs{:}); % untis x timestamps
-    xObsLo = mean(xObs(selLo, :), 1, 'omitnan');
-    xObsHi = mean(xObs(selHi, :), 1, 'omitnan');
-    xObsNull = mean(xObs(~selLo&~selHi, :), 1, 'omitnan');
+    % xObsLo = mean(xObs(selLo, :), 1, 'omitnan');
+    % xObsHi = mean(xObs(selHi, :), 1, 'omitnan');
+    % xObsNull = mean(xObs(~selLo&~selHi, :), 1, 'omitnan');
     xObs = mean(xObs, 1, 'omitnan');
 
     ciBoot = arrayfun(@(aggr) aggr.(dir).ciBoot, aggr, UniformOutput=false);
     ciBoot = cat(3, ciBoot{:}); % quantile x timestamps x units (2x60x1225)
-    ciBootLo = mean(ciBoot(:, :, selLo), 3, 'omitnan');
-    ciBootHi = mean(ciBoot(:, :, selHi), 3, 'omitnan');
-    ciBootHiNull = mean(ciBoot(:, :, ~selLo&~selHi), 3, 'omitnan');
+    % ciBootLo = mean(ciBoot(:, :, selLo), 3, 'omitnan');
+    % ciBootHi = mean(ciBoot(:, :, selHi), 3, 'omitnan');
+    % ciBootHiNull = mean(ciBoot(:, :, ~selLo&~selHi), 3, 'omitnan');
     ciBoot = mean(ciBoot, 3, 'omitnan');
 
-    h(1) = patch(ax(iRow, iCol), [tBoot, flip(tBoot)], [ciBoot(1, :), flip(ciBoot(2, :))], [0.15, 0.15, 0.15], FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName=sprintf('%i%% CI', round(100*(1-alpha))));
-    h(2) = plot(ax(iRow, iCol), tObs, xObs, 'k-', DisplayName="all units", LineWidth=1.5);
-    h(3) = plot(ax(iRow, iCol), tObs, xObsHi, 'r:', DisplayName="move+", LineWidth=1);
-    h(4) = plot(ax(iRow, iCol), tObs, xObsLo, 'b:', DisplayName="move-", LineWidth=1);
+    h(3) = patch(ax(iRow, iCol), [tBoot, flip(tBoot)], [ciBoot(1, :), flip(ciBoot(2, :))], [0.15, 0.15, 0.15], FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName=sprintf('%i%%CI', round(100*(1-alpha))));
+    h(1) = plot(ax(iRow, iCol), tObs, xObs, Color=colors(iRow, :), DisplayName=dir, LineWidth=1.5);
+    % h(3) = plot(ax(iRow, iCol), tObs, xObsHi, 'r:', DisplayName="move+", LineWidth=1);
+    % h(4) = plot(ax(iRow, iCol), tObs, xObsLo, 'b:', DisplayName="move-", LineWidth=1);
     % h(5) = plot(ax(iRow, iCol), tObs, xObsNull, 'k--', DisplayName="move~", LineWidth=1.5);
     xline(ax(iRow, iCol), 0, 'k--')
     yline(ax(iRow, iCol), 0, 'k--')
     if iRow == 1
-        lgd = legend(ax(iRow, iCol), h, Location="north", FontSize=p.fontSize-1, IconColumnWidth=7, NumColumns=2);
+        h(2) = plot(ax(iRow, iCol), NaN, NaN, Color=colors(2, :), DisplayName="rise", LineWidth=1.5);
+        lgd = legend(ax(iRow, iCol), h, Location="northwest", FontSize=p.fontSize-1, IconColumnWidth=7, NumColumns=1);
         lgd.ItemTokenSize = [7, 7];
     end
 
@@ -931,7 +933,8 @@ for iRow = 1:2
 end
 xticks(ax(1, iCol), [])
 xlabel(ax(2, iCol), "time to dip/rise onset (s)")
-lgd.Position(2) = lgd.Position(2) + 0.16;
+lgd.Position(2) = lgd.Position(2) + 0.15;
+clear alpha iUnit dir XBoot aggr
 % title(ax(1, :), 'dip')
 % title(ax(2, :), 'rise')
 
