@@ -24,8 +24,7 @@ count_dip_triggered_average_units_clusters
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectifiedPVal_1225units_1000boots_20260703.mat")); % pVal of observing mimr under null bootstrap
 p.mi.requireCleanClusters = true;
 p.mi.minNumTrialsPerCluster = 10;
-p.mi.mergeDirections = true; % false: 6+1 clusters, true: 3+1 clusters (e.g., merging "jaw open" "jaw close" using `or`)
-
+p.mi.mergeDirections = "jaw"; % none: 6+1 clusters, all: 3+1 clusters (e.g., merging "jaw open" "jaw close" using `or`), jaw: 5+1, merging jaw open and jaw close, leave hands alone
 
 %%
 clearvars -except cc clusterSize etaArtiFree euArtiFree kinematics metaArtiFree metaRasterData mi miBoot miMaxRectified miObs nUnits p pVal ROOTPATH sdBoot tests xta xtaMaxRectified nUnits
@@ -277,7 +276,16 @@ layout.child(4).child(1).h = [1];
 layout.child(4).child(2).w = [1, 1];
 layout.child(4).child(2).h = [1];
 % upper right, 3rd row: 2 subrows (dip vs. rise), 3 subcolumns (nuwcc, ncc, xtamr): 
-layout.child(4).child(3).w = [2, 1, 2];
+switch p.mi.mergeDirections
+    case "none"
+        layout.child(4).child(3).w = [6, 3, 3];
+    case "jaw"
+        layout.child(4).child(3).w = [5, 3, 3];
+    case "all"
+        layout.child(4).child(3).w = [2, 1, 2];
+    otherwise
+        error("invalid argument")
+end
 layout.child(4).child(3).h = [1, 1];
 layout.child(4).child(3).cw = cumsum([0, layout.child(4).child(3).w]);
 
@@ -529,7 +537,14 @@ clusterDispNameShort = ["~", "jo", "jc", "lhf", "lhb", "rhf", "rhb"]; % cc featu
 % clusterDispName = ["no.move", "jaw.open", "jaw.close", "l.hand.fwd", "r.hand.back", "r.hand.fwd", "r.hand.back"]; % cc features are in semantic order already
 clusterDispName = string(1:7);
 clusterDispNameLong = ["no move", "jaw open", "jaw close", "left hand forward", "left hand back", "right hand forward", "right hand back"]; % cc features are in semantic order already
-clusterDispNameMerged = ["jaw", "l.hand", "r.hand"];
+switch p.mi.mergeDirections
+    case "none"
+        clusterDispNameMerged = ["jaw open", "jaw close", "l.hand fwd", "l.hand back", "r.hand fwd", "r.hand back"];
+    case "jaw"
+        clusterDispNameMerged = ["jaw", "l.hand fwd", "l.hand back", "r.hand fwd", "r.hand back"];
+    case "all"
+        clusterDispNameMerged = ["jaw", "l.hand", "r.hand"];
+end
 assert(isequal(cc.clusterNames, ["no move", "lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"]))
 featureDispNameShort = ["spk"; "jaw"; "lh"; "rh"; "spn"];
 featureDispName = ["spike"; "jaw"; "l.hand"; "r.hand"; "spine"];
@@ -681,10 +696,15 @@ yl = [0, 1];
 for iRow = 1:2
     hold(ax(iRow, iCol), 'on')
     dir = dirs(iRow);
-    if p.mi.mergeDirections
-        x = 1:3;
-    else
-        x = 1:length(clusterDispName);
+    switch p.mi.mergeDirections
+        case "none"
+            x = 1:length(clusterDispName)-1;
+        case "jaw"
+            x = 1:5;
+        case "all"
+            x = 1:3;
+        otherwise
+            error("invalid argument")
     end
     % nUnits with clean cluster
     if p.mi.requireCleanClusters
@@ -694,8 +714,15 @@ for iRow = 1:2
     end
     nuwcc = cat(2, nuwcc{:})';
     nuwcc = nuwcc>=p.mi.minNumTrialsPerCluster;
-    if p.mi.mergeDirections
-        nuwcc = cat(2, any(nuwcc(:, 2:3), 2), any(nuwcc(:, 4:5), 2), any(nuwcc(:, 6:7), 2));
+    switch p.mi.mergeDirections
+        case "none"
+            nuwcc = nuwcc(:, 2:end);
+        case "jaw"
+            nuwcc = cat(2, any(nuwcc(:, 2:3), 2), nuwcc(:, 4:end));
+        case "all"
+            nuwcc = cat(2, any(nuwcc(:, 2:3), 2), any(nuwcc(:, 4:5), 2), any(nuwcc(:, 6:7), 2));
+        otherwise
+            error("invalid argument")
     end
     y = sum(nuwcc, 1)./nUnits;
 
@@ -709,42 +736,25 @@ for iRow = 1:2
     nuwccBoot = permute(nuwccBoot, [3, 2, 1]); % nUnits x nClusters x nBoot
     nuwccBoot = nuwccBoot(:, p.mi.semanticClusterOrder, :); % nUnits x nClusters x nBoot, clusters in semantic order
     nuwccBoot = nuwccBoot>=p.mi.minNumTrialsPerCluster;
-    if p.mi.mergeDirections
-        nuwccBoot = cat(2, any(nuwccBoot(:, 2:3, :), 2), any(nuwccBoot(:, 4:5, :), 2), any(nuwccBoot(:, 6:7, :), 2));
+    switch p.mi.mergeDirections
+        case "none"
+            nuwccBoot = nuwccBoot(:, 2:end, :);
+        case "jaw"
+            nuwccBoot = cat(2, any(nuwccBoot(:, 2:3, :), 2), nuwccBoot(:, 4:end, :));
+        case "all"
+            nuwccBoot = cat(2, any(nuwccBoot(:, 2:3, :), 2), any(nuwccBoot(:, 4:5, :), 2), any(nuwccBoot(:, 6:7, :), 2));
+        otherwise
+            error("invalid argument")
     end
     yBoot = squeeze(sum(nuwccBoot, 1))./nUnits; % nClusters x nBoot
     muBoot = mean(yBoot, 2, 'omitnan')';
     ciBoot = quantile(yBoot, [0.05/7/2, 1-0.05/7/2], 2)';
 
-    if p.mi.mergeDirections
-        % edges = 0:2:nUnits+1;
-        % for iClu = 1:3
-        %     thisNBoot = histcounts(yBoot(iClu, :), edges);
-        %     xVerticesBoot = reshape([thisNBoot; thisNBoot]./max(thisNBoot), [], 1);
-        %     yVerticesBoot = reshape([edges(1:end-1); edges(2:end)], [], 1);
-        %     patch(ax(iRow, iCol), x(iClu)-xVerticesBoot*0.5, yVerticesBoot, 'k', FaceColor=[0.15, 0.15, 0.15], EdgeColor='none', FaceAlpha=0.5)
-        %     patch(ax(iRow, iCol), x(iClu)+xVerticesBoot*0.5, yVerticesBoot, 'k', FaceColor=[0.15, 0.15, 0.15], EdgeColor='none', FaceAlpha=0.5)
-        % end
-        hBar = bar(ax(iRow, iCol), x, [y; muBoot], FaceAlpha=0.5, EdgeAlpha=0.8, BarWidth=1);
-        set(hBar(1), FaceColor=colors(iRow, :), EdgeColor=colors(iRow, :));
-        set(hBar(2), FaceColor='none', EdgeColor=[0.15, 0.15, 0.15]);
-        hError = errorbar(ax(iRow, iCol), x+1/7, muBoot, muBoot-ciBoot(1, :), ciBoot(2, :)-muBoot, ...
-            LineStyle='none', Color=[0.15, 0.15, 0.15, 0.8], CapSize=5, Clipping=false);
-    else
-        % edges = 0:2:nUnits+1;
-        % for iClu = 2:nClusters
-        %     thisNBoot = histcounts(yBoot(iClu, :), edges);
-        %     xVerticesBoot = reshape([thisNBoot; thisNBoot]./max(thisNBoot), [], 1);
-        %     yVerticesBoot = reshape([edges(1:end-1); edges(2:end)], [], 1);
-        %     patch(ax(iRow, iCol), x(iClu)-xVerticesBoot*0.5, yVerticesBoot, 'k', FaceColor=[0.15, 0.15, 0.15], EdgeColor='none', FaceAlpha=0.5)
-        %     patch(ax(iRow, iCol), x(iClu)+xVerticesBoot*0.5, yVerticesBoot, 'k', FaceColor=[0.15, 0.15, 0.15], EdgeColor='none', FaceAlpha=0.5)
-        % end
-        hBar = bar(ax(iRow, iCol), x(2:end), [y(2:end); muBoot(2:end)], FaceAlpha=0.5, EdgeAlpha=0.8, BarWidth=1);
-        set(hBar(1), FaceColor=colors(iRow, :), EdgeColor=colors(iRow, :));
-        set(hBar(2), FaceColor='none', EdgeColor=[0.15, 0.15, 0.15]);
-        hError = errorbar(ax(iRow, iCol), x(2:end)+1/7, muBoot, muBoot(2:end)-ciBoot(1, 2:end), ciBoot(2, 2:end)-muBoot(2:end), ...
-            LineStyle='none', Color=[0.15, 0.15, 0.15, 0.8], CapSize=5, Clipping=false);
-    end
+    hBar = bar(ax(iRow, iCol), x, [y; muBoot], FaceAlpha=0.5, EdgeAlpha=0.8, BarWidth=1);
+    set(hBar(1), FaceColor=colors(iRow, :), EdgeColor=colors(iRow, :));
+    set(hBar(2), FaceColor='none', EdgeColor=[0.15, 0.15, 0.15]);
+    hError = errorbar(ax(iRow, iCol), x+1/7, muBoot, muBoot-ciBoot(1, :), ciBoot(2, :)-muBoot, ...
+        LineStyle='none', Color=[0.15, 0.15, 0.15, 0.8], CapSize=5, Clipping=false);
     if iRow == 1
         hBar(3) = bar(ax(iRow, iCol), NaN, NaN, FaceAlpha=0.5, EdgeAlpha=0.8, BarWidth=1, FaceColor=colors(2, :), EdgeColor=colors(2, :));
         h = [hBar([1, 3, 2]), hError];
@@ -754,47 +764,42 @@ for iRow = 1:2
         h(4).DisplayName = '95%CI';
     end
 
-    if p.mi.mergeDirections
-        % xticks(ax(1, iCol), [])
-        % xticks(ax(2, iCol), 1:length(clusterDispNameMerged))
-        % xticklabels(ax(2, iCol), ["", "", ""])
-        % xtickangle(ax(2, iCol), 0)
-        xticks(ax(:, iCol), [])
-        for i = 1:length(clusterDispNameMerged)
-            text(ax(2, iCol), x(i), -0, clusterDispNameMerged(i), Color=[0.15, 0.15, 0.15], ...
-                VerticalAlignment='top', HorizontalAlignment='right', Rotation=30, ...
-                FontWeight='normal', FontName='Arial')
-        end
-        xlim(ax(iRow, iCol), [0.3, length(clusterDispNameMerged)+0.7])
-    else
-        xticks(ax(1, iCol), [])
-        xticks(ax(2, iCol), 1:length(clusterDispName))
-        xticklabels(ax(2, iCol), clusterDispName)
-        xtickangle(ax(2, iCol), 0)
-        xlim(ax(iRow, iCol), [1.3, length(clusterDispName)+0.7])
+    xticks(ax(:, iCol), [])
+    for i = 1:length(clusterDispNameMerged)
+        text(ax(2, iCol), x(i), -0, clusterDispNameMerged(i), Color=[0.15, 0.15, 0.15], ...
+            VerticalAlignment='top', HorizontalAlignment='right', Rotation=30, ...
+            FontWeight='normal', FontName='Arial')
     end
+    xlim(ax(iRow, iCol), [0.3, length(clusterDispNameMerged)+0.7])
 
     ylim(ax(iRow, iCol), yl)
     yticks(ax(iRow, iCol), [0, 0.5, 1])
     ylabel(ax(iRow, iCol), "fraction of units")
     hold(ax(iRow, iCol), 'off')
 
-    lgd = legend(ax(1, iCol), h, Location='north', Orientation='horizontal', FontSize=p.fontSize-1, IconColumnWidth=7, NumColumns=2);
+    lgd = legend(ax(1, iCol), h, Location='north', Orientation='horizontal', FontSize=p.fontSize-1, IconColumnWidth=7, NumColumns=4);
     lgd.ItemTokenSize = [7, 7];
-    lgd.Position(1:2) = lgd.Position(1:2) + [0.05, 0.16];
+    lgd.Position(1:2) = lgd.Position(1:2) + [0.12, 0.175];
 end
 % xlabel(ax(2, iCol), "bodyparts")
 
 % 6e (right). Histogram count of no. movement types for each unit (xticks are numCleanClusters 0-6)
 iCol = 2;
-if p.mi.mergeDirections
-    edges = -0.5:1:3.5;
-    centers = 0:3;
-    maxC = 0.2;
-else
-    edges = -0.5:1:6.5;
-    centers = 0:6;
-    maxC = 0.1;
+switch p.mi.mergeDirections
+    case "none"
+        edges = -0.5:1:6.5;
+        centers = 0:6;
+        maxC = 0.1;
+    case "jaw"
+        edges = -0.5:1:5.5;
+        centers = 0:5;
+        maxC = 0.2;
+    case "all"
+        edges = -0.5:1:3.5;
+        centers = 0:3;
+        maxC = 0.2;
+    otherwise
+        error("invalid argument")
 end
 ncc = struct(dip=[], rise=[]);
 for dir = dirs
@@ -804,11 +809,17 @@ for dir = dirs
         ncc.(dir) = arrayfun(@(ccData) ccData.(dir).n(:, 1)>=p.mi.minNumTrialsPerCluster, cc.data, UniformOutput=false);
     end
     ncc.(dir) = cat(2, ncc.(dir){:})';
-    if p.mi.mergeDirections
-        ncc.(dir) = [any(ncc.(dir)(:, 2:3), 2), any(ncc.(dir)(:, 4:5), 2), any(ncc.(dir)(:, 6:7), 2)];
-        ncc.(dir) = sum(ncc.(dir), 2);
-    else
-        ncc.(dir) = sum(ncc.(dir)(:, 2:end), 2);
+    switch p.mi.mergeDirections
+        case "none"
+            ncc.(dir) = sum(ncc.(dir)(:, 2:end), 2);
+        case "jaw"
+            ncc.(dir) = [any(ncc.(dir)(:, 2:3), 2), ncc.(dir)(:, 4:end)];
+            ncc.(dir) = sum(ncc.(dir), 2);
+        case "all"
+            ncc.(dir) = [any(ncc.(dir)(:, 2:3), 2), any(ncc.(dir)(:, 4:5), 2), any(ncc.(dir)(:, 6:7), 2)];
+            ncc.(dir) = sum(ncc.(dir), 2);
+        otherwise
+            error("invalid argument")
     end
 end
 nccBoot = struct(dip=[], rise=[]);
@@ -820,12 +831,19 @@ for dir = dirs
     end
     nccBoot.(dir) = permute(cat(3, nccBoot.(dir){:}), [3, 2, 1]); % units x clusters x boots
 
-    if p.mi.mergeDirections
-        nccBoot.(dir) = nccBoot.(dir)(:, p.mi.semanticClusterOrder, :);
-        nccBoot.(dir) = cat(2, any(nccBoot.(dir)(:, 2:3, :), 2), any(nccBoot.(dir)(:, 4:5, :), 2), any(nccBoot.(dir)(:, 6:7, :), 2));
-        nccBoot.(dir) = squeeze(sum(nccBoot.(dir), 2));
-    else
-        nccBoot.(dir) = squeeze(sum(nccBoot.(dir)(:, 2:end, :), 2));
+    switch p.mi.mergeDirections
+        case "none"
+            nccBoot.(dir) = squeeze(sum(nccBoot.(dir)(:, 2:end, :), 2));
+        case "jaw"
+            nccBoot.(dir) = nccBoot.(dir)(:, p.mi.semanticClusterOrder, :);
+            nccBoot.(dir) = cat(2, any(nccBoot.(dir)(:, 2:3, :), 2), nccBoot.(dir)(:, 4:end, :));
+            nccBoot.(dir) = squeeze(sum(nccBoot.(dir), 2));
+        case "all"
+            nccBoot.(dir) = nccBoot.(dir)(:, p.mi.semanticClusterOrder, :);
+            nccBoot.(dir) = cat(2, any(nccBoot.(dir)(:, 2:3, :), 2), any(nccBoot.(dir)(:, 4:5, :), 2), any(nccBoot.(dir)(:, 6:7, :), 2));
+            nccBoot.(dir) = squeeze(sum(nccBoot.(dir), 2));
+        otherwise
+            error("invalid argument")
     end
 end
 for iRow = 1:2
@@ -840,16 +858,21 @@ for iRow = 1:2
     histogram(ax(iRow, iCol), BinCounts=nBoot, BinEdges=edges, EdgeColor=[0.15, 0.15, 0.15], EdgeAlpha=1, DisplayStyle='stairs');
     errorbar(ax(iRow, iCol), centers, nBoot, nBoot-ciBoot(1, :), ciBoot(2, :)-nBoot, LineStyle='none', Color=[0.15, 0.15, 0.15, 0.8], CapSize=5, Clipping=false)
 
-    % ylabel(ax(iRow, iCol), "no. units")
+    % ylabel(ax(iRow, iCol), "fraction of units")
     hold(ax(iRow, iCol), 'off')
 end
 xticks(ax(1, iCol), [])
 xticks(ax(2, iCol), centers)
 xtickangle(ax(2, iCol), 0)
-if p.mi.mergeDirections
-    xlabel(ax(2, iCol), "no. bodyparts")
-else
-    xlabel(ax(2, iCol), "no. clusters")
+switch p.mi.mergeDirections
+    case "none"
+        xlabel(ax(2, iCol), "no. clusters")
+    case "jaw"
+        xlabel(ax(2, iCol), "no. movements")
+    case "all"
+        xlabel(ax(2, iCol), "no. bodyparts")
+    otherwise
+        error("invalid argument")
 end
 xlim(ax(:, iCol), [edges(1), edges(end)])
 ylim(ax(:, iCol), yl)
@@ -891,23 +914,14 @@ for iRow = 1:2
 
     xObs = arrayfun(@(aggr) aggr.(dir).xObs, aggr, UniformOutput=false);
     xObs = cat(1, xObs{:}); % untis x timestamps
-    % xObsLo = mean(xObs(selLo, :), 1, 'omitnan');
-    % xObsHi = mean(xObs(selHi, :), 1, 'omitnan');
-    % xObsNull = mean(xObs(~selLo&~selHi, :), 1, 'omitnan');
     xObs = mean(xObs, 1, 'omitnan');
 
     ciBoot = arrayfun(@(aggr) aggr.(dir).ciBoot, aggr, UniformOutput=false);
     ciBoot = cat(3, ciBoot{:}); % quantile x timestamps x units (2x60x1225)
-    % ciBootLo = mean(ciBoot(:, :, selLo), 3, 'omitnan');
-    % ciBootHi = mean(ciBoot(:, :, selHi), 3, 'omitnan');
-    % ciBootHiNull = mean(ciBoot(:, :, ~selLo&~selHi), 3, 'omitnan');
     ciBoot = mean(ciBoot, 3, 'omitnan');
 
     h(3) = patch(ax(iRow, iCol), [tBoot, flip(tBoot)], [ciBoot(1, :), flip(ciBoot(2, :))], [0.15, 0.15, 0.15], FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName=sprintf('%i%%CI', round(100*(1-alpha))));
     h(1) = plot(ax(iRow, iCol), tObs, xObs, Color=colors(iRow, :), DisplayName=dir, LineWidth=1.5);
-    % h(3) = plot(ax(iRow, iCol), tObs, xObsHi, 'r:', DisplayName="move+", LineWidth=1);
-    % h(4) = plot(ax(iRow, iCol), tObs, xObsLo, 'b:', DisplayName="move-", LineWidth=1);
-    % h(5) = plot(ax(iRow, iCol), tObs, xObsNull, 'k--', DisplayName="move~", LineWidth=1.5);
     xline(ax(iRow, iCol), 0, 'k--')
     yline(ax(iRow, iCol), 0, 'k--')
     if iRow == 1
@@ -923,17 +937,15 @@ for iRow = 1:2
     fprintf("\tmove~: %i units (%.1f%%);", nnz(~selLo&~selHi), nnz(~selLo&~selHi)/nUnits*100)
     fprintf("\n")
 
-    ylabel(ax(iRow, iCol), "movement")
+    ylabel(ax(iRow, iCol), "displacement")
 
-    % ax(iRow, iCol).XLimMode = 'manual';
-    % ax(iRow, iCol).YLimMode = 'manual';
     xlim(ax(iRow, iCol), xl)
     ylim(ax(iRow, iCol), yl)
     hold(ax(iRow, iCol), 'off')
 end
 xticks(ax(1, iCol), [])
-xlabel(ax(2, iCol), "time to dip/rise onset (s)")
-lgd.Position(2) = lgd.Position(2) + 0.15;
+xlabel(ax(2, iCol), "time from onset (s)")
+lgd.Position(2) = lgd.Position(2) + 0.16;
 clear alpha iUnit dir XBoot aggr
 % title(ax(1, :), 'dip')
 % title(ax(2, :), 'rise')
@@ -1280,128 +1292,169 @@ fontname(fig, 'Arial')
 % exportgraphics(fig, 'test.emf', ContentType='vector', BackgroundColor='none', Padding='Figure')
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
+%% Some stats
+for i = 1:7
+    n = arrayfun(@(mi) nnz(mi.idx==i), mi.dip);
+    prc = arrayfun(@(mi) nnz(mi.idx==i)./length(mi.idx)*100, mi.dip);
+    fprintf("dip cluster size: %i = %.1f +- %.1f; percentage %.1f%% +- %.1f%%\n", i, mean(n), std(n), mean(prc), std(prc))
+end
+
+for i = 1:7
+    n = arrayfun(@(mi) nnz(mi.idx==i), mi.rise);
+    prc = arrayfun(@(mi) nnz(mi.idx==i)./length(mi.idx)*100, mi.rise);
+    fprintf("rise cluster size: %i = %.1f +- %.1f; percentage %.1f%% +- %.1f%%\n", i, mean(n), std(n), mean(prc), std(prc))
+end
+clear i n prc
+
+%%
+for dir = ["dip", "rise"]
+    edges = -0.5:5.5;
+    n = histcounts(ncc.(dir), edges);
+    n = n./nUnits;
+
+    nBoot = arrayfun(@(iBoot) histcounts(nccBoot.(dir)(:, iBoot), edges), 1:p.sd.nBoot, UniformOutput=false);
+    nBoot = cat(1, nBoot{:})./nUnits;
+
+    alpha = 0.05;
+    nBoot1CI = quantile(nBoot(:, 2), [alpha/2, 1-alpha/2]);
+    nBoot2PlusCI = quantile(sum(nBoot(:, 3:end), 2), [alpha/2, 1-alpha/2]);
+    
+    nBoot = mean(nBoot, 1);
+
+
+    fprintf("%s:\n", dir)
+    fprintf("\tobs: %.0f%% of 1225 units had %s accompanied by exactly one movement, while %.0f%% had 2 or more movements.\n", 100*n(2), dir, 100*sum(n(3:end)))
+    fprintf("\tboot: %.0f%% ([%.0f%%, %.0f%%]) of 1225 units had %s accompanied by exactly one movement, while %.0f%% ([%.0f%%, %.0f%%]) had 2 or more movements.\n", 100*nBoot(2), 100*nBoot1CI(1), 100*nBoot1CI(2), dir, 100*sum(nBoot(3:end)), 100*nBoot2PlusCI(1), 100*nBoot2PlusCI(2))
+
+end
+
 
 %% S6
 
 % from 6e
-nUnits = length(xta.dip);
-tl = layout.child(4).child(3).tl;
-tl.TileSpacing = 'tight';
-ax = gobjects(2, 2);
-dirs = ["dip", "rise"];
-colors = [0, 0, 1; 1, 0, 0];
-yl = [0, 100];
-iRow = 1;
-lgd = gobjects(1, 2);
-hPatch = gobjects(2, 2);
-for iCol = 1:2
-    dir = dirs(iCol);
-    ax(iRow, iCol) = nexttile(tl);
-    hold(ax(iRow, iCol), 'on')
-
-    x = 1:length(clusterDispName);
-
-    if p.mi.requireCleanClusters
-        cs = arrayfun(@(ccData) ccData.(dir).n(:, 1) .* uint16(ccData.(dir).clean), cc.data, UniformOutput=false);
-    else
-        cs = arrayfun(@(ccData) ccData.(dir).n(:, 1), cc.data, UniformOutput=false);
-    end
-    cs = double(cat(2, cs{:})');
-    cs(cs<p.mi.minNumTrialsPerCluster) = NaN;
-    % mu = mean(cs, 1, 'omitnan');
-
-    % Bootstrapped cluster size (null)
-    if p.mi.requireCleanClusters
-        csBoot = arrayfun(@(d) d.(dir).n .* uint16(d.(dir).clean), sdBoot, UniformOutput=false);
-    else
-        csBoot = arrayfun(@(d) d.(dir).n, sdBoot, UniformOutput=false);
-    end
-    csBoot = double(cat(3, csBoot{:}));
-    csBoot = permute(csBoot, [1, 3, 2]); % nBoot x nUnits x nClusters
-    csBoot(csBoot<p.mi.minNumTrialsPerCluster) = NaN;
-    csBoot = csBoot(:, :, p.mi.semanticClusterOrder); % put clusters in semantic order
-    % muBoot = reshape(mean(csBoot, [1, 2], 'omitnan'), 1, nClusters);
-    % ciBoot = quantile(squeeze(mean(csBoot, 2, 'omitnan')), [0.05/7/2, 1-0.05/7/2], 1);
-
-    edges = 0:2:1226;
-    for iClu = 2:nClusters
-        thisN = histcounts(cs(:, iClu), edges);
-        thisNBoot = histcounts(reshape(csBoot(:, :, iClu), [], 1), edges);
-        xVertices = reshape([thisN; thisN]./max(thisN), [], 1);
-        yVertices = reshape([edges(1:end-1); edges(2:end)], [], 1);
-        xVerticesBoot = reshape([thisNBoot; thisNBoot]./max(thisNBoot), [], 1);
-        yVerticesBoot = reshape([edges(1:end-1); edges(2:end)], [], 1);
-        xVertices = x(iClu) + xVertices*0.5;
-        xVerticesBoot = x(iClu) - xVerticesBoot*0.5;
-        hPatch(1, iCol) = patch(ax(iRow, iCol), xVertices, yVertices, 'k', FaceColor=colors(iCol, :), EdgeColor='none', FaceAlpha=0.5, DisplayName='obs');
-        hPatch(2, iCol) = patch(ax(iRow, iCol), xVerticesBoot, yVerticesBoot, 'k', FaceColor=[0.15, 0.15, 0.15], EdgeColor='none', FaceAlpha=0.5, DisplayName='boot');
-    end
-
-    % % The first cluster is too tall to draw, we do with clipping and write n+-sd on top.
-    % violinplot(ax(iRow, iCol), x(1), cs(:, 1), DensityDirection='positive', FaceColor=colors(iCol, :), EdgeColor=colors(iCol, :), FaceAlpha=0.5, Clipping='on')
-    % violinplot(ax(iRow, iCol), x(1), reshape(csBoot(:, :, 1), [], 1), DensityDirection='negative', FaceColor='none', EdgeColor=[0.15, 0.15, 0.15], Clipping='on')
-    % % Draw clusters 2:7 without clipping so errorbars display correctly
-    % violinplot(ax(iRow, iCol), x(2:end), cs(:, 2:end), DensityDirection='positive', FaceColor=colors(iCol, :), EdgeColor=colors(iCol, :), FaceAlpha=0.5, Clipping='on')
-    % violinplot(ax(iRow, iCol), x(2:end), reshape(csBoot(:, :, 2:end), [], nClusters-1), DensityDirection='negative', FaceColor='none', EdgeColor=[0.15, 0.15, 0.15], Clipping='on')
-
-    ylabel(ax(iRow, iCol), sprintf("%ss", dir))
-    xlim(ax(iRow, iCol), [1.3, length(clusterDispName)+0.7])
-    ylim(ax(iRow, iCol), yl)
-    hold(ax(iRow, iCol), 'off')
-    lgd(iCol) = legend(ax(iRow, iCol), hPatch(:, iCol), Location='northeast', Orientation='horizontal', IconColumnWidth=7, FontSize=7);
-    lgd(iCol).ItemTokenSize = [7, 7];
-    lgd(iCol).Position(2) = 0.72;
-end
-lgd(1).Position(1) = 0.26;
-lgd(2).Position(1) = 0.72;
-
-%from 6f
-iAx = 3;
-[nBoot, xEdges, yEdges] = histcounts2(mean(nccBoot.dip, 2, 'omitnan'), mean(nccBoot.rise, 2, 'omitnan'), edges, edges);
-nBoot = nBoot./nUnits;
-histogram2(ax(iAx), XBinEdges=xEdges, YBinEdges=yEdges, BinCounts=nBoot, ...
-    DisplayStyle='tile', ShowEmptyBins=true);
-applyCustomColormap(ax(iAx), [0, maxC], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.5, h0=0.33);
-title(ax(iAx), 'bootstrap')
-
-iAx = 4;
-[n, xEdges, yEdges] = histcounts2(ncc.dip, ncc.rise, edges, edges);
-n = n./nUnits;
-histogram2(ax(iAx), XBinEdges=xEdges, YBinEdges=yEdges, BinCounts=n, ...
-    DisplayStyle='tile', ShowEmptyBins=true);
-applyCustomColormap(ax(iAx), [0, maxC], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.5, h0=0.33);
-title(ax(iAx), 'observed')
-
-iAx = 5;
-[n, xEdges, yEdges] = histcounts2(ncc.dip, ncc.rise, edges, edges);
-n = n./nUnits;
-n = log((n + 1/nUnits)./(nBoot + 1/nUnits));
-imagesc(ax(iAx), n);
-applyCustomColormap(ax(iAx), [-2, 2], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.5, h0=0.33);
-title(ax(iAx), 'log(observed/bootstrap)')
-
-axis(ax(3:5), 'equal')
-xlabel(ax(3:5), 'dip')
-ylabel(ax(3:5), 'rise')
-xticks(ax(3:5), 0:max(xEdges))
-xtickangle(ax(3:5), 0)
-if p.mi.mergeDirections
-    yticks(ax(3:5), 0:max(xEdges))
-else
-    yticks(ax(3:5), 0:2:6)
-end
-
-% Colorbar right
-iAx = 6;
-axc3 = ax(iAx);
-axc3.Layout.Tile = layout.child(4).child(3).cw(5)-1;
-axc3.Layout.TileSpan = [1, 4];
-patch(axc3, [0, 1, 1, 0], [0, 0, maxC, maxC], [0, 0, maxC, maxC], EdgeColor='k');
-applyCustomColormap(axc3, [0, maxC], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.5, h0=0.33);
-xlim(axc3, [0, 1])
-ylim(axc3, [0, maxC])
-xticks(axc3, [])
-yticks(axc3, [0, maxC])
-yticklabels(axc3, ["0", sprintf("%g", maxC*100)]);
-text(axc3, 0.5, maxC/2, '% units', Rotation=90, FontSize=p.fontSize-1, VerticalAlignment='middle', HorizontalAlignment='center')
-axc3.YAxisLocation = 'right';
+% nUnits = length(xta.dip);
+% tl = layout.child(4).child(3).tl;
+% tl.TileSpacing = 'tight';
+% ax = gobjects(2, 2);
+% dirs = ["dip", "rise"];
+% colors = [0, 0, 1; 1, 0, 0];
+% yl = [0, 100];
+% iRow = 1;
+% lgd = gobjects(1, 2);
+% hPatch = gobjects(2, 2);
+% for iCol = 1:2
+%     dir = dirs(iCol);
+%     ax(iRow, iCol) = nexttile(tl);
+%     hold(ax(iRow, iCol), 'on')
+% 
+%     x = 1:length(clusterDispName);
+% 
+%     if p.mi.requireCleanClusters
+%         cs = arrayfun(@(ccData) ccData.(dir).n(:, 1) .* uint16(ccData.(dir).clean), cc.data, UniformOutput=false);
+%     else
+%         cs = arrayfun(@(ccData) ccData.(dir).n(:, 1), cc.data, UniformOutput=false);
+%     end
+%     cs = double(cat(2, cs{:})');
+%     cs(cs<p.mi.minNumTrialsPerCluster) = NaN;
+%     % mu = mean(cs, 1, 'omitnan');
+% 
+%     % Bootstrapped cluster size (null)
+%     if p.mi.requireCleanClusters
+%         csBoot = arrayfun(@(d) d.(dir).n .* uint16(d.(dir).clean), sdBoot, UniformOutput=false);
+%     else
+%         csBoot = arrayfun(@(d) d.(dir).n, sdBoot, UniformOutput=false);
+%     end
+%     csBoot = double(cat(3, csBoot{:}));
+%     csBoot = permute(csBoot, [1, 3, 2]); % nBoot x nUnits x nClusters
+%     csBoot(csBoot<p.mi.minNumTrialsPerCluster) = NaN;
+%     csBoot = csBoot(:, :, p.mi.semanticClusterOrder); % put clusters in semantic order
+%     % muBoot = reshape(mean(csBoot, [1, 2], 'omitnan'), 1, nClusters);
+%     % ciBoot = quantile(squeeze(mean(csBoot, 2, 'omitnan')), [0.05/7/2, 1-0.05/7/2], 1);
+% 
+%     edges = 0:2:1226;
+%     for iClu = 2:nClusters
+%         thisN = histcounts(cs(:, iClu), edges);
+%         thisNBoot = histcounts(reshape(csBoot(:, :, iClu), [], 1), edges);
+%         xVertices = reshape([thisN; thisN]./max(thisN), [], 1);
+%         yVertices = reshape([edges(1:end-1); edges(2:end)], [], 1);
+%         xVerticesBoot = reshape([thisNBoot; thisNBoot]./max(thisNBoot), [], 1);
+%         yVerticesBoot = reshape([edges(1:end-1); edges(2:end)], [], 1);
+%         xVertices = x(iClu) + xVertices*0.5;
+%         xVerticesBoot = x(iClu) - xVerticesBoot*0.5;
+%         hPatch(1, iCol) = patch(ax(iRow, iCol), xVertices, yVertices, 'k', FaceColor=colors(iCol, :), EdgeColor='none', FaceAlpha=0.5, DisplayName='obs');
+%         hPatch(2, iCol) = patch(ax(iRow, iCol), xVerticesBoot, yVerticesBoot, 'k', FaceColor=[0.15, 0.15, 0.15], EdgeColor='none', FaceAlpha=0.5, DisplayName='boot');
+%     end
+% 
+%     % % The first cluster is too tall to draw, we do with clipping and write n+-sd on top.
+%     % violinplot(ax(iRow, iCol), x(1), cs(:, 1), DensityDirection='positive', FaceColor=colors(iCol, :), EdgeColor=colors(iCol, :), FaceAlpha=0.5, Clipping='on')
+%     % violinplot(ax(iRow, iCol), x(1), reshape(csBoot(:, :, 1), [], 1), DensityDirection='negative', FaceColor='none', EdgeColor=[0.15, 0.15, 0.15], Clipping='on')
+%     % % Draw clusters 2:7 without clipping so errorbars display correctly
+%     % violinplot(ax(iRow, iCol), x(2:end), cs(:, 2:end), DensityDirection='positive', FaceColor=colors(iCol, :), EdgeColor=colors(iCol, :), FaceAlpha=0.5, Clipping='on')
+%     % violinplot(ax(iRow, iCol), x(2:end), reshape(csBoot(:, :, 2:end), [], nClusters-1), DensityDirection='negative', FaceColor='none', EdgeColor=[0.15, 0.15, 0.15], Clipping='on')
+% 
+%     ylabel(ax(iRow, iCol), sprintf("%ss", dir))
+%     xlim(ax(iRow, iCol), [1.3, length(clusterDispName)+0.7])
+%     ylim(ax(iRow, iCol), yl)
+%     hold(ax(iRow, iCol), 'off')
+%     lgd(iCol) = legend(ax(iRow, iCol), hPatch(:, iCol), Location='northeast', Orientation='horizontal', IconColumnWidth=7, FontSize=7);
+%     lgd(iCol).ItemTokenSize = [7, 7];
+%     lgd(iCol).Position(2) = 0.72;
+% end
+% lgd(1).Position(1) = 0.26;
+% lgd(2).Position(1) = 0.72;
+% 
+% %from 6f
+% iAx = 3;
+% [nBoot, xEdges, yEdges] = histcounts2(mean(nccBoot.dip, 2, 'omitnan'), mean(nccBoot.rise, 2, 'omitnan'), edges, edges);
+% nBoot = nBoot./nUnits;
+% histogram2(ax(iAx), XBinEdges=xEdges, YBinEdges=yEdges, BinCounts=nBoot, ...
+%     DisplayStyle='tile', ShowEmptyBins=true);
+% applyCustomColormap(ax(iAx), [0, maxC], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.5, h0=0.33);
+% title(ax(iAx), 'bootstrap')
+% 
+% iAx = 4;
+% [n, xEdges, yEdges] = histcounts2(ncc.dip, ncc.rise, edges, edges);
+% n = n./nUnits;
+% histogram2(ax(iAx), XBinEdges=xEdges, YBinEdges=yEdges, BinCounts=n, ...
+%     DisplayStyle='tile', ShowEmptyBins=true);
+% applyCustomColormap(ax(iAx), [0, maxC], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.5, h0=0.33);
+% title(ax(iAx), 'observed')
+% 
+% iAx = 5;
+% [n, xEdges, yEdges] = histcounts2(ncc.dip, ncc.rise, edges, edges);
+% n = n./nUnits;
+% n = log((n + 1/nUnits)./(nBoot + 1/nUnits));
+% imagesc(ax(iAx), n);
+% applyCustomColormap(ax(iAx), [-2, 2], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.5, h0=0.33);
+% title(ax(iAx), 'log(observed/bootstrap)')
+% 
+% axis(ax(3:5), 'equal')
+% xlabel(ax(3:5), 'dip')
+% ylabel(ax(3:5), 'rise')
+% xticks(ax(3:5), 0:max(xEdges))
+% xtickangle(ax(3:5), 0)
+% switch p.mi.mergeDirections
+%     case "none"
+%         yticks(ax(3:5), 0:2:6)
+%     case "jaw"
+%         yticks(ax(3:5), 0:max(xEdges))
+%     case "all"
+%         yticks(ax(3:5), 0:max(xEdges))
+%     otherwise
+%         error("invalid argument")
+% end
+% 
+% % Colorbar right
+% iAx = 6;
+% axc3 = ax(iAx);
+% axc3.Layout.Tile = layout.child(4).child(3).cw(5)-1;
+% axc3.Layout.TileSpan = [1, 4];
+% patch(axc3, [0, 1, 1, 0], [0, 0, maxC, maxC], [0, 0, maxC, maxC], EdgeColor='k');
+% applyCustomColormap(axc3, [0, maxC], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.5, h0=0.33);
+% xlim(axc3, [0, 1])
+% ylim(axc3, [0, maxC])
+% xticks(axc3, [])
+% yticks(axc3, [0, maxC])
+% yticklabels(axc3, ["0", sprintf("%g", maxC*100)]);
+% text(axc3, 0.5, maxC/2, '% units', Rotation=90, FontSize=p.fontSize-1, VerticalAlignment='middle', HorizontalAlignment='center')
+% axc3.YAxisLocation = 'right';
