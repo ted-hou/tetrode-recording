@@ -5,12 +5,30 @@ load_ephysunits
 % boot_baselineVsUpDown
 read_DLC_data
 
+euReachDir2tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction_2tgts\SingleUnits_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
+euReachDir4tgt = EphysUnit.load('C:\SERVER\Units\acute_3cam_reach_direction\SingleUnits_NonDuplicate', waveforms=false, spikecounts=false, spikerates=false);
+
+load('C:\SERVER\Units\traj_reachDir_4tgt.mat')
+load('C:\SERVER\Units\traj_reachDir_2tgt.mat')
 % fit_GLM
 load('C:\SERVER\acute_glm_20241218.mat') % Load previously saved fit_GLM output
 
 
 % boot_bta
 load('C:\SERVER\boot_bta_20250121.mat') % load boot_bta results
+
+% boot_bta_mono
+% load('C:\SERVER\boot_bta_mono_20250204.mat') % load boot_bta_mono results (i think i tried this and gave up)
+
+bta.pressUpRaw.X = bta.pressUpRaw.X./0.1;
+bta.pressUpRaw.S = bta.pressUpRaw.S./0.1;
+bta.pressDownRaw.X = bta.pressDownRaw.X./0.1;
+bta.pressDownRaw.S = bta.pressDownRaw.S./0.1;
+bta.lickUpRaw.X = bta.lickUpRaw.X./0.1;
+bta.lickUpRaw.S = bta.lickUpRaw.S./0.1;
+bta.lickDownRaw.X = bta.lickDownRaw.X./0.1;
+bta.lickDownRaw.S = bta.lickDownRaw.S./0.1;
+
 
 
 %% TST calculated from contra paw spd (2 samples conseq above 0.25 zscore)
@@ -47,7 +65,7 @@ latency.contraPaw = [fAll.press.onset; cat(1, trajCombined2tgt.onset{:}); cat(2,
 latency.contraPawN = struct( ...
     trials=nnz(~isnan(latency.contraPaw)), ...
     sessions=length(fCorrect) + length(traj2tgt) + length(traj4tgt), ...
-    animals=length(unique(euAcute.getAnimalName())) + length(unique(euReachDir2tgt.getAnimalName())) + length(unique(euReachDir4Tgt.getAnimalName())) ...
+    animals=length(unique(euAcute.getAnimalName())) + length(unique(euReachDir2tgt.getAnimalName())) + length(unique(euReachDir4tgt.getAnimalName())) ...
     );
 latency.pRankSum.pressVsContraPaw = ranksum(latency.contraPaw , latency.press(c.isPressResponsive), tail='right');
 latency.pRankSum.pressUpVsContraPaw = ranksum(latency.contraPaw , latency.press(c.isPressUp), tail='right');
@@ -80,7 +98,7 @@ p.fontSize = 9;
 variantColors = hsl2rgb([linspace(0.3, 0.9, 5)', linspace(0.75, 0.25, 5)', 0.5*ones(5, 1)]);
 
 nBTABins = length(p.binnedTrialEdges) - 1;
-btaColors = hsl2rgb([linspace(0.7, 0, nBTABins)'.^1.3, linspace(0.8, 0.6, nBTABins)', 0.5*ones(nBTABins, 1)]);
+btaColors = hsl2rgb([linspace(0.4, 0, nBTABins)'.^1.3, linspace(0.8, 0.6, nBTABins)', 0.5*ones(nBTABins, 1)]);
 
 clear layout
 layout.w = 7;
@@ -162,7 +180,8 @@ ylim(ax(1), [10, 80])
 hold(ax(1), 'off')
 xlabel(ax(1), 'Time to bar-contact (s)')
 ylabel(ax(1), 'Spike rate (sp/s)')
-hLgd = legend(ax(1), h, Location='northwest', AutoUpdate=false);
+hLgd = legend(ax(1), h, Location='northwest', AutoUpdate=false, IconColumnWidth=9);
+hLgd.ItemTokenSize=[9, 9];
 % hLgd.Position(1) = 0.24;
 % hLgd.Position(2) = 0.85;
 
@@ -176,14 +195,16 @@ hHist(2) = histogram(ax(2), latency.press(c.isPressDown), edges, Normalization='
 xlabel(ax(2), 'Time to bar-contact (s)')
 ylabel(ax(2), 'No. units')
 title(ax(2), 'SNr response onset')
-hLgd = legend(ax(2), hHist, Location='northwest', AutoUpdate=false);
+hLgd = legend(ax(2), hHist, Location='northwest', AutoUpdate=false, IconColumnWidth=9);
+hLgd.ItemTokenSize=[9, 9];
 hLgd.Position(1) = 0.22;
 hLgd.Position(2) = 0.46;
 
 % 4c. Histogram of movement onset times
 ax(3) = nexttile(layout.top.left.tl, [layout.top.left.bottom.h, 1]);
 histogram(latency.contraPaw, edges, Normalization='count', FaceColor='black');
-hLgd = legend(sprintf('%g trials\n%g sessions\n%g animals', latency.contraPawN.trials, latency.contraPawN.sessions, latency.contraPawN.animals), Location='northwest', AutoUpdate=false);
+hLgd = legend(sprintf('%g trials\n%g sessions\n%g animals', latency.contraPawN.trials, latency.contraPawN.sessions, latency.contraPawN.animals), Location='northwest', AutoUpdate=false, IconColumnWidth=9);
+hLgd.ItemTokenSize=[9, 9];
 hLgd.Position(1) = 0.22;
 hLgd.Position(2) = 0.17;
 title('Forepaw movement onset')
@@ -242,7 +263,8 @@ for iVariant = 2:nVariants
 end
 xlabel('R^2')
 ylabel('CDF')
-h = legend(ax, Orientation='horizontal');
+h = legend(ax, Orientation='horizontal', IconColumnWidth=9);
+hLgd.ItemTokenSize=[9, 9];
 h.Layout.Tile = 'north';
 hold(ax, 'off')
 ax.FontSize = p.fontSize;
@@ -342,7 +364,8 @@ for i = 1:length(SEL)
     end
     h(end) = plot(ax, tHat, mean(msrObs(:, :, selUnits), 3, 'omitnan'), Color='black', LineStyle='--', LineWidth=2, DisplayName='Obs');
     if SHOW_LEGEND{i}
-        l = legend(ax, h, Location=LOCATION{i}, Orientation='horizontal');
+        l = legend(ax, h, Location=LOCATION{i}, Orientation='horizontal', IconColumnWidth=9);
+        l.ItemTokenSize=[9, 9];
         l.Layout.Tile = 'north';
     end
     xlim(ax, [-2, 0])
@@ -403,7 +426,8 @@ for i = 1:length(SEL)
             'filled', DisplayName=variantNamesMedium{iVariant});
     end
     if SHOW_LEGEND{i}
-        l = legend(ax, h, AutoUpdate=false, Orientation='horizontal');
+        l = legend(ax, h, AutoUpdate=false, Orientation='horizontal', IconColumnWidth=9);
+        l.ItemTokenSize=[9, 9];
         l.Layout.Tile = 'north';
     end
     title(ax, TITLE{i})
@@ -433,7 +457,7 @@ unitNames = { ...
 files = cellfun(@(name) sprintf('C:\\SERVER\\Units\\Lite_NonDuplicate\\%s.mat', name), unitNames, UniformOutput=false);
 euEg = EphysUnit.load(files);
 
-YLIM = {[0, 40], [0, 150]};
+YLIM = {[0, 50], [0, 200]};
 for iEu = 1:length(euEg)
     ax = nexttile(layout.bottom.tl);
     clear btaEg
@@ -454,7 +478,8 @@ for iEu = 1:length(euEg)
     end
     xline(ax, 0, 'k--')
     ylim(ax, YLIM{iEu})
-    xlim(ax, [-2.5, 0.5])
+    xlim(ax, [-4, 0.5])
+    % ylabel(ax, "(sp/s)")
 end
 
 
@@ -469,15 +494,17 @@ delete(ax(2).Legend)
 fontsize(ax, p.fontSize, 'points')
 fontname(ax, 'Arial')
 xlabel(layout.bottom.tl, 'Time to bar-contact (s)', FontSize=p.fontSize)
+% ylabel(ax, "(a.u.)")
 ylabel(layout.bottom.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
 ax(1).Legend.Orientation = 'horizontal';
 ax(1).Legend.Layout.Tile = 'north';
 ax(1).Legend.Title.String = 'Time from cue to movement';
 ax(1).Legend.AutoUpdate = false;
+ax(1).Legend.ItemTokenSize=[9, 9];
 xline(ax(1), 0, 'k--')
 xline(ax(2), 0, 'k--')
-ylim(ax, [20, 80])
-xlim(ax, [-2.5, 0.5])
+ylim(ax, [30, 80])
+xlim(ax, [-4, 0.5])
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
@@ -591,7 +618,8 @@ y = meta.pressCue;
 
 hScat = scatter(ax, x(sel & c.isPressResponsive), y(sel & c.isPressResponsive), 4, 'k', 'filled', MarkerFaceAlpha=0.9, DisplayName=sprintf('Responsive (%i units)', nnz(sel&c.isPressResponsive)));
 scatter(ax, x(sel & ~c.isPressResponsive), y(sel & ~c.isPressResponsive), 3, 'k', MarkerEdgeAlpha=0.1, DisplayName=sprintf('Unresponsive (n=%i)', nnz(sel&~c.isPressResponsive)));
-lgd = legend(ax, hScat, Orientation='horizontal', AutoUpdate=false);
+lgd = legend(ax, hScat, Orientation='horizontal', AutoUpdate=false, IconColumnWidth=9);
+lgd.ItemTokenSize=[9, 9];
 lgd.Layout.Tile = 'north';
 xline(ax, 0, ':')
 yline(ax, 0, ':')
@@ -655,7 +683,8 @@ for iResult = 1:2
 end
 xlabel(layout.bottom.right.tl, 'Time to bar contact (s)', FontSize=p.fontSize)
 
-lgd = legend(ax, hFt, Orientation='horizontal');
+lgd = legend(ax, hFt, Orientation='horizontal', IconColumnWidth=9);
+lgd.ItemTokenSize=[9, 9];
 lgd.Layout.Tile = 'north';
 
 lgd = legend(AX(1, 2), h, Location='northwest', AutoUpdate='off', FontSize=p.fontSize);
@@ -666,69 +695,52 @@ copygraphics(fig, ContentType='vector', BackgroundColor='none')
 %% S2 bottom
 p.fontSize = 9;
 
-nBTABins = length(p.binnedTrialEdgesFine) - 1;
-btaColors = hsl2rgb([linspace(0.8, 0, nBTABins)'.^1.3, linspace(0.8, 0.6, nBTABins)', 0.5*ones(nBTABins, 1)]);
+nBTABins = length(p.binnedTrialEdges) - 1;
+btaColors = hsl2rgb([linspace(0.4, 0, nBTABins)'.^1.3, linspace(0.8, 0.6, nBTABins)', 0.5*ones(nBTABins, 1)]);
 
 clear layout
 layout.w = 7;
-layout.h = 4;
+layout.h = 2;
 
 p.lineWidth = 1.5;
 
 fig = figure(Units='inches', Position=[1, 1, layout.w, layout.h], DefaultAxesFontSize=p.fontSize);
-layout.tl = tiledlayout(fig, 2, 2, TileSpacing='compact', TileIndexing='columnmajor');
+layout.tl = tiledlayout(fig, 1, 2, TileSpacing='compact', TileIndexing='columnmajor');
 
-AX = gobjects(2, 2);
+AX = gobjects(1, 2);
 
-% S3a 
+% S3d 
 ax = nexttile(layout.tl);
 AX(1, 1) = ax;
-EphysUnit.plotBinnedTrialAverage(ax, btaUp, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors, lineWidth=1.2);
+EphysUnit.plotBinnedTrialAverage(ax, btaSig, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors, lineWidth=1.2);
 hLgd = ax.Legend;
 hLgd.Layout.Tile = 'north';
 hLgd.Orientation = 'horizontal';
 hLgd.Title.String = 'Time from cue to movement';
 hLgd.AutoUpdate = false;
+hLgd.ItemTokenSize = [9, 9];
 xline(ax, 0, 'k--')
-title(ax, sprintf('Significant increase units (n=%i)', nnz(c.isPressBTADifferentUp & c.isPressUp)))
+title(ax, sprintf('Significant units (n=%i)', nnz(c.isPressBTADifferent & c.isPressResponsive)))
 
-
-% S3b
-ax = nexttile(layout.tl);
-AX(2, 1) = ax;
-EphysUnit.plotBinnedTrialAverage(ax, btaDown, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors, lineWidth=1.2);
-xline(ax, 0, 'k--')
-title(ax, sprintf('Significant decrease units (n=%i)', nnz(c.isPressBTADifferentDown & c.isPressDown)))
-delete(ax.Legend);
-
-% S3c
 ax = nexttile(layout.tl);
 AX(1, 2) = ax;
-EphysUnit.plotBinnedTrialAverage(ax, btaNulUp, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors, lineWidth=1.2);
+EphysUnit.plotBinnedTrialAverage(ax, btaNul, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors, lineWidth=1.2);
 xline(ax, 0, 'k--')
-title(ax, sprintf('Null increase units (n=%i)', nnz(~c.isPressBTADifferentUp & c.isPressUp)))
+title(ax, sprintf('Null units (n=%i)', nnz(~c.isPressBTADifferent & c.isPressResponsive)))
 delete(ax.Legend);
 
-% S3d
-ax = nexttile(layout.tl);
-AX(2, 2) = ax;
-EphysUnit.plotBinnedTrialAverage(ax, btaNulDown, [-4, 0.5], nsigmas=1, sem=true, showTrialNum=false, numFormat='%i', colors=btaColors, lineWidth=1.2);
-xline(ax, 0, 'k--')
-title(ax, sprintf('Null decrease units (n=%i)', nnz(~c.isPressBTADifferentDown & c.isPressDown)))
-delete(ax.Legend);
 
 ax = AX;
-xlim(ax, [-2.5, 0.5]);
-ylim(ax(1, :), [30, 100])
-ylim(ax(2, :), [10, 80])
+xlim(ax, [-4, 0.5]);
+ylim(ax, [30, 80])
 xlabel(ax, '')
 ylabel(ax, '')
 xlabel(layout.tl, 'Time to bar contact (s)', FontSize=p.fontSize)
 ylabel(layout.tl, 'Spike rate (sp/s)', FontSize=p.fontSize)
-
-for i = 1:4
-    patch(ax(i), [-2, -0.2, -0.2, -2], [0, 0, 100, 100], [0.15, 0.15, 0.15], FaceAlpha=0.15, EdgeColor='none')
-end
+% 
+% for i = 1:2
+%     patch(ax(i), [-2, -0, -0, -2], [0, 0, 100, 100], [0.15, 0.15, 0.15], FaceAlpha=0.15, EdgeColor='none')
+% end
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
 

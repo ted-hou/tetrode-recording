@@ -17,8 +17,11 @@ nFeatures = length(p.mi.boot.features);
 p.mi.boot.nBonferroni = nClusters*nFeatures;
 assert(isequal(p.mi.semanticClusterLabels, ["no move", "lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"]))
 p.mi.mustMove = {"", "Jaw", "Jaw", "HandL", "HandL", "HandR", "HandR"};
-p.mi.mustNotMove = {["Jaw", "HandL", "HandR", "Spine"], ["HandL", "HandR", "Spine"], ["HandL", "HandR", "Spine"], ["Jaw", "HandR", "Spine"], ["Jaw", "HandR", "Spine"], ["Jaw", "HandL", "Spine"], ["Jaw", "HandL", "Spine"]};
-% p.mi.mustNotMove = {["Jaw", "HandL", "HandR"], ["HandL", "HandR"], ["HandL", "HandR"], ["Jaw", "HandR"], ["Jaw", "HandR"], ["Jaw", "HandL"], ["Jaw", "HandL"]};
+if ~p.mi.ignoreSpine
+    p.mi.mustNotMove = {["Jaw", "HandL", "HandR", "Spine"], ["HandL", "HandR", "Spine"], ["HandL", "HandR", "Spine"], ["Jaw", "HandR", "Spine"], ["Jaw", "HandR", "Spine"], ["Jaw", "HandL", "Spine"], ["Jaw", "HandL", "Spine"]};
+else
+    p.mi.mustNotMove = {["Jaw", "HandL", "HandR"], ["HandL", "HandR"], ["HandL", "HandR"], ["Jaw", "HandR"], ["Jaw", "HandR"], ["Jaw", "HandL"], ["Jaw", "HandL"]};
+end
 
 clear cc ccData ccParams
 ccData(nUnits) = struct(dip=struct(p=[], h=[], n=[]), rise=struct(p=[], h=[], n=[]));
@@ -199,42 +202,42 @@ clear iUnit nUnits nFeatures nClusters iBoot k expectedSign
 %   - ["lick start", "left hand retract", "right hand retract"]
 %   - ["lick stop", "left hand reach", "right hand reach"]
 
-nUnits = length(xta.dip);
-testNames = ["all clusters", "bodypart+movement specificity", "lick vs. reach vs. retract", "bodypart specificity", "start vs. stop specificity", "locomotion vs. consumption specificity"];
-testGroups = { ... 
-    {"no move", "lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"}, ...
-    {"lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"}, ...
-    {["lick start", "lick stop"], "left hand reach", "left hand retract", "right hand reach", "right hand retract"}, ...
-    {["lick start", "lick stop"], ["left hand reach", "left hand retract"], ["right hand reach", "right hand retract"]}, ...
-    {["lick start", "left hand reach", "right hand reach"], ["lick stop", "left hand retract", "right hand retract"]}, ...
-    {["lick start", "left hand retract", "right hand retract"], ["lick stop", "left hand reach", "right hand reach"]}, ...
-    };
-clear tests
-tests(length(testGroups)) = struct(labels=[]);
-for iTest = 1:length(tests)
-    tests(iTest).name = testNames(iTest);
-    tests(iTest).labels = testGroups{iTest};
-    nGroups = length(testGroups{iTest});
-    for dir = ["dip", "rise"]
-        tests(iTest).(dir).groupContainsCleanClusters = false(nUnits, nGroups); % nUnits x nGroups
-        tests(iTest).(dir).groupContainsClusters = false(nUnits, nGroups); % nUnits x nGroups
-        for iGrp = 1:length(tests(iTest).labels)
-            selClusters = ismember([cc.params.label], tests(iTest).labels{iGrp});
-            
-            found = arrayfun(@(d) d.clean(selClusters), vertcat(cc.data.(dir)), UniformOutput=false);
-            found = any(cat(2, found{:}), 1); % nClustersInGroup x nUnits -> 1 x nUnits          
-            tests(iTest).(dir).groupContainsCleanClusters(:, iGrp) = found';
-
-            hasData = arrayfun(@(d) any(max(d.n(selClusters, :), [], 2) > 0), vertcat(cc.data.(dir)), UniformOutput=true);
-            tests(iTest).(dir).groupContainsClusters(:, iGrp) = hasData;
-        end
-        tests(iTest).(dir).numGroupsClean = sum(tests(iTest).(dir).groupContainsCleanClusters, 2);
-        tests(iTest).(dir).numGroupsPresent = sum(tests(iTest).(dir).groupContainsClusters, 2);
-        tests(iTest).(dir).prcGroupsClean = tests(iTest).(dir).numGroupsClean ./ tests(iTest).(dir).numGroupsPresent;
-        tests(iTest).(dir).valid = tests(iTest).(dir).numGroupsPresent >= 2;
-    end
-end
-clear iTest dir iGrp testNames testGroups selClusters hasData found n nGroups
+% nUnits = length(xta.dip);
+% testNames = ["all clusters", "bodypart+movement specificity", "lick vs. reach vs. retract", "bodypart specificity", "start vs. stop specificity", "locomotion vs. consumption specificity"];
+% testGroups = { ... 
+%     {"no move", "lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"}, ...
+%     {"lick start", "lick stop", "left hand reach", "left hand retract", "right hand reach", "right hand retract"}, ...
+%     {["lick start", "lick stop"], "left hand reach", "left hand retract", "right hand reach", "right hand retract"}, ...
+%     {["lick start", "lick stop"], ["left hand reach", "left hand retract"], ["right hand reach", "right hand retract"]}, ...
+%     {["lick start", "left hand reach", "right hand reach"], ["lick stop", "left hand retract", "right hand retract"]}, ...
+%     {["lick start", "left hand retract", "right hand retract"], ["lick stop", "left hand reach", "right hand reach"]}, ...
+%     };
+% clear tests
+% tests(length(testGroups)) = struct(labels=[]);
+% for iTest = 1:length(tests)
+%     tests(iTest).name = testNames(iTest);
+%     tests(iTest).labels = testGroups{iTest};
+%     nGroups = length(testGroups{iTest});
+%     for dir = ["dip", "rise"]
+%         tests(iTest).(dir).groupContainsCleanClusters = false(nUnits, nGroups); % nUnits x nGroups
+%         tests(iTest).(dir).groupContainsClusters = false(nUnits, nGroups); % nUnits x nGroups
+%         for iGrp = 1:length(tests(iTest).labels)
+%             selClusters = ismember([cc.params.label], tests(iTest).labels{iGrp});
+% 
+%             found = arrayfun(@(d) d.clean(selClusters), vertcat(cc.data.(dir)), UniformOutput=false);
+%             found = any(cat(2, found{:}), 1); % nClustersInGroup x nUnits -> 1 x nUnits          
+%             tests(iTest).(dir).groupContainsCleanClusters(:, iGrp) = found';
+% 
+%             hasData = arrayfun(@(d) any(max(d.n(selClusters, :), [], 2) > 0), vertcat(cc.data.(dir)), UniformOutput=true);
+%             tests(iTest).(dir).groupContainsClusters(:, iGrp) = hasData;
+%         end
+%         tests(iTest).(dir).numGroupsClean = sum(tests(iTest).(dir).groupContainsCleanClusters, 2);
+%         tests(iTest).(dir).numGroupsPresent = sum(tests(iTest).(dir).groupContainsClusters, 2);
+%         tests(iTest).(dir).prcGroupsClean = tests(iTest).(dir).numGroupsClean ./ tests(iTest).(dir).numGroupsPresent;
+%         tests(iTest).(dir).valid = tests(iTest).(dir).numGroupsPresent >= 2;
+%     end
+% end
+% clear iTest dir iGrp testNames testGroups selClusters hasData found n nGroups
 
 % %% Plotting - 1 figrue per test
 % close all
@@ -320,41 +323,41 @@ clear iTest dir iGrp testNames testGroups selClusters hasData found n nGroups
 % clear fig tl iTest ax n xEdges yEdges cb maxC
 
 %%
-clc
-for iTest = 1:length(tests)
-    fprintf("Test %i (%s):\n%s:\n", ...
-        iTest, tests(iTest).name, ...
-        strjoin(cellfun(@(labels) sprintf("[%s]", strjoin(labels, ", ")), tests(iTest).labels), " vs. ") ...
-        )
-    for dir = ["dip", "rise"]
-        for n = 1:length(tests(iTest).labels)
-            if n > 1
-                plural = "s";
-            else
-                plural = "";
-            end
-            fprintf("\t%s\t%2i%% (%4i/%i total units)\t%2i%% (%4i/%i valid units)\thas\t%i clean cluster%s.\n", ...
-                dir, ...
-                round(100*nnz(tests(iTest).(dir).numGroupsClean == n) / nUnits), ...
-                nnz(tests(iTest).(dir).numGroupsClean == n), nUnits, ...
-                round(100*nnz(tests(iTest).(dir).numGroupsClean == n & tests(iTest).(dir).numGroupsPresent >=n) / nnz(tests(iTest).(dir).numGroupsPresent >=n)), ...
-                nnz(tests(iTest).(dir).numGroupsClean == n & tests(iTest).(dir).numGroupsPresent >=n), nnz(tests(iTest).(dir).numGroupsPresent >=n), ...
-                n, plural);
-        end
-    end
-    for dir = ["dip", "rise"]
-        for n = 2:length(tests(iTest).labels)
-            fprintf("\t%s\t%2i%% (%4i/%i total units)\t%2i%% (%4i/%i valid units)\thas\t%i+ clean cluster%s.\n", ...
-                dir, ...
-                round(100*nnz(tests(iTest).(dir).numGroupsClean >= n) / nUnits), ...
-                nnz(tests(iTest).(dir).numGroupsClean >= n), nUnits, ...
-                round(100*nnz(tests(iTest).(dir).numGroupsClean >= n & tests(iTest).(dir).numGroupsPresent >=n) / nnz(tests(iTest).(dir).numGroupsPresent >=n)), ...
-                nnz(tests(iTest).(dir).numGroupsClean >= n & tests(iTest).(dir).numGroupsPresent >=n), nnz(tests(iTest).(dir).numGroupsPresent >=n), ...
-                n, plural);
-        end
-    end
-end
-clear iTest n dir plural
+% clc
+% for iTest = 1:length(tests)
+%     fprintf("Test %i (%s):\n%s:\n", ...
+%         iTest, tests(iTest).name, ...
+%         strjoin(cellfun(@(labels) sprintf("[%s]", strjoin(labels, ", ")), tests(iTest).labels), " vs. ") ...
+%         )
+%     for dir = ["dip", "rise"]
+%         for n = 1:length(tests(iTest).labels)
+%             if n > 1
+%                 plural = "s";
+%             else
+%                 plural = "";
+%             end
+%             fprintf("\t%s\t%2i%% (%4i/%i total units)\t%2i%% (%4i/%i valid units)\thas\t%i clean cluster%s.\n", ...
+%                 dir, ...
+%                 round(100*nnz(tests(iTest).(dir).numGroupsClean == n) / nUnits), ...
+%                 nnz(tests(iTest).(dir).numGroupsClean == n), nUnits, ...
+%                 round(100*nnz(tests(iTest).(dir).numGroupsClean == n & tests(iTest).(dir).numGroupsPresent >=n) / nnz(tests(iTest).(dir).numGroupsPresent >=n)), ...
+%                 nnz(tests(iTest).(dir).numGroupsClean == n & tests(iTest).(dir).numGroupsPresent >=n), nnz(tests(iTest).(dir).numGroupsPresent >=n), ...
+%                 n, plural);
+%         end
+%     end
+%     for dir = ["dip", "rise"]
+%         for n = 2:length(tests(iTest).labels)
+%             fprintf("\t%s\t%2i%% (%4i/%i total units)\t%2i%% (%4i/%i valid units)\thas\t%i+ clean cluster%s.\n", ...
+%                 dir, ...
+%                 round(100*nnz(tests(iTest).(dir).numGroupsClean >= n) / nUnits), ...
+%                 nnz(tests(iTest).(dir).numGroupsClean >= n), nUnits, ...
+%                 round(100*nnz(tests(iTest).(dir).numGroupsClean >= n & tests(iTest).(dir).numGroupsPresent >=n) / nnz(tests(iTest).(dir).numGroupsPresent >=n)), ...
+%                 nnz(tests(iTest).(dir).numGroupsClean >= n & tests(iTest).(dir).numGroupsPresent >=n), nnz(tests(iTest).(dir).numGroupsPresent >=n), ...
+%                 n, plural);
+%         end
+%     end
+% end
+% clear iTest n dir plural
 
 % %% Save results
 % exportPath = fullfile("C:\SERVER\LickVsReach_DTA_RTA_boot", sprintf("LickVsReach_DLC_cc_%iunits_%iboots_%s.mat", length(xta.dip), p.sd.nBoot, datetime("now", Format="yyyyMMdd")));
