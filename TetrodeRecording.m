@@ -417,6 +417,9 @@ classdef TetrodeRecording < handle
 
                 for iChunk = 1:length(files)
                     chunk = load(fullfile(files(iChunk).folder, files(iChunk).name), 'spikes');
+                    if ~isfield(chunk, 'spikes')
+                        continue
+                    end
                     if isempty(obj.Spikes) || length(obj.Spikes) < iChannel || ~isfield(obj.Spikes, 'Timestamps') || isempty(obj.Spikes(iChannel).Timestamps)
                         for fn = string(fieldnames(chunk.spikes))'
                             obj.Spikes(iChannel).(fn) = chunk.spikes.(fn);
