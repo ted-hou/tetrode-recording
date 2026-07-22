@@ -1196,39 +1196,38 @@ tl.Layout.Tile = 1 + layout.child(3).cw(3);
 tl.Layout.TileSpan = [sum(layout.child(3).h), layout.child(3).w(3)];
 
 AX = gobjects(2, 1);
-% AX(1) = nexttile(tl, 1 + W(2) - W(1), [1, W(1)]);
 AX(1) = nexttile(tl, 1, [1, W(2)]);
 AX(2) = nexttile(tl, 1 + max(W), [1, W(2)]);
 
-% 6d (left) and 7g (right)
-for iPhase = 3
-    iEu = ID{iPhase};
-    for iTask = 1:2
-        % First lick
-        % ax = nexttile(layout.right.bottom.tl, (iAx-1)*sum(W) + 1 + sum(W(1:iTask)), [1, W(iTask + 1)]); 
-        ax = AX(iTask); 
-        hold(ax, 'on')
-        t = ETAMOVEBOUT{iTask}.t;
-        switch TASKS(iTask)
-            case "press"
-                t(t>0 & t<=2*pi) = t(t>0 & t<=2*pi) / (2*pi) * 0.8;
-                t(t>2*pi) = (t(t>2*pi) - 2*pi) ./ (2*pi) / 8 + 0.8;
-            case "lick"
-                t(t>0) = t(t>0) ./ (2*pi) / 8;
-        end
 
-        for iDir = [1, 3]
-            iEuDir = IDSplit{iPhase, iTask}{iDir};
-            X = ETAMOVEBOUT{iTask}.X(iEuDir, :);
-            if isempty(X)
-                continue
-            end
-            X = smoothdata(X, 2, 'gaussian', 5);
-            % plot(ax, t, mean(X, 1, 'omitnan'), Color=colors(ICOLOR(iPhase), :), LineWidth=1.5)
-            % plot(ax, t, X, Color=[0.15, 0.15, 0.15, 0.1], LineWidth=0.5)
-            plot(ax, t, X(randi(size(X, 1)), :), Color=colors(ICOLOR(iPhase), :), LineWidth=1.5)
-            % plot(ax, t, X, Color=[0.15, 0.15, 0.15, 0.1], LineWidth=0.5)
-        end
+SEL = { ...
+    metaArtiFree.cc.isLick' & metaArtiFree.cc.isLickUp; ...
+    metaArtiFree.cc.isLick' & ~metaArtiFree.cc.isLickResponsive; ...
+    metaArtiFree.cc.isLick' & metaArtiFree.cc.isLickDown; ...
+    };
+groupLabels = ["lick inc", "lick flat", "lick dec"];
+colors = [1, 0, 0, 0.8; 0, 0, 0, 0.8; 0, 0, 1, 0.8];
+
+% 6d (left) and 7g (right)
+for iTask = 1:2
+    ax = AX(iTask); 
+    hold(ax, 'on')
+    t = ETAMOVEBOUT{iTask}.t;
+    switch TASKS(iTask)
+        case "press"
+            t(t>0 & t<=2*pi) = t(t>0 & t<=2*pi) / (2*pi) * 0.8;
+            t(t>2*pi) = (t(t>2*pi) - 2*pi) ./ (2*pi) / 8 + 0.8;
+        case "lick"
+            t(t>0) = t(t>0) ./ (2*pi) / 8;
+    end
+    h = gobjects(3, 1);
+    for iGroup = 1:length(SEL)
+        iEu = find(SEL{iGroup});
+        % First lick
+
+        X = ETAMOVEBOUT{iTask}.X(iEu, :);
+        X = smoothdata(X, 2, 'gaussian', 5);
+        h(iGroup) = plot(ax, t, mean(X, 1, 'omitnan'), Color=colors(iGroup, :), LineWidth=1.5, DisplayName=sprintf("%s (n=%i)", groupLabels(iGroup), size(X, 1)));
 
         ylim(ax, [-1, 2])
         yticks(ax, [-1, 0, 1, 2])
@@ -1252,12 +1251,16 @@ for iPhase = 3
         end
 
         % ax.XGrid = 'on';
-        hold(ax, 'off')
         fontsize(ax, p.fontSize, 'points')
-        text(ax, 0.025, 1, sprintf('inc(n=%i)', nnz(IDSplit{iPhase, iTask}{1})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='top', Interpreter='none', FontSize=p.fontSize-1)
-        text(ax, 0.025, 0.025, sprintf('dec(n=%i)', nnz(IDSplit{iPhase, iTask}{3})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize-1)
+        % text(ax, 0.025, 2-iGroup, sprintf('n=%i', size(X, 1)), HorizontalAlignment='left', VerticalAlignment='middle', Interpreter='none', FontSize=p.fontSize-1, Color=colors(iGroup))
         yline(ax, 0, '--')
     end
+    if iTask == 1
+        lgd = legend(h, Location='northwest', FontSize=7);
+        lgd.ItemTokenSize = [7, 7];
+        lgd.Position(1:2) = lgd.Position(1:2) + [-0.04, 0.16];
+    end
+    hold(ax, 'off')
 end
 ylabel(tl, 'norm spike rate (a.u.)', FontSize=p.fontSize)
 xlabel(tl, '   time (s)           lick phase', FontSize=p.fontSize)
