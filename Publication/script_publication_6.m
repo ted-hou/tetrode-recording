@@ -16,12 +16,12 @@ load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot", "20260617_metaRasterData.mat
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_dta_rta_25_100_200to800ms_units1to1225_0boots_20260613.mat"));
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_miBoot_200to800ms_1225units_10000boots_20260614.mat")); % contains updated `p`
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_sdBoot_1225units_1000boots_20260703.mat")); % Load bootstrapped statistics for fig6 panels (sd version of cleanclusters boot)
-load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectified_1225units_1000boots_20260703.mat")); % Load bootstrapped statistics for fig6 panels (maxRectified xta, mi)
+% load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectified_1225units_1000boots_20260703.mat")); % Load bootstrapped statistics for fig6 panels (maxRectified xta, mi)
 % %% Count number of "clean clusters" by unit
 p.mi.minNumTrialsPerCluster = 5; % This is just for example units in Fig 6d, so that small clusters are not culled
 p.mi.ignoreSpine = true;
 count_dip_triggered_average_units_clusters
-load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectifiedPVal_1225units_1000boots_20260703.mat")); % pVal of observing mimr under null bootstrap
+% load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot\LickVsReach_DLC_maxRectifiedPVal_1225units_1000boots_20260703.mat")); % pVal of observing mimr under null bootstrap
 p.mi.requireCleanClusters = true;
 p.mi.minNumTrialsPerCluster = 10;
 p.mi.mergeDirections = "jaw"; % none: 6+1 clusters, all: 3+1 clusters (e.g., merging "jaw open" "jaw close" using `or`), jaw: 5+1, merging jaw open and jaw close, leave hands alone
@@ -182,34 +182,34 @@ clear sel trials expEuIndices FsLick lickHistEdges lickHistCenters lickHistNLick
 
 
 %%
-alpha = 0.05;
-less = struct(dip=[], rise=[]);
-more = struct(dip=[], rise=[]);
-for cn = ["clu1", "all"]
-    less.dip = pVal.(cn).dip < alpha/2; % dips have less movement than chance
-    more.dip = pVal.(cn).dip > 1-alpha/2; % dips have more movement than chance
-    less.rise = pVal.(cn).rise < alpha/2; % rises have less movement than chance
-    more.rise = pVal.(cn).rise > 1-alpha/2; % rises have more movement than chance
-
-    switch cn
-        case "clu1"
-            fprintf("In cluster 1 (no move):\n")
-        case "all"
-            fprintf("In all clusters:\n")
-    end
-    fprintf("\t%i units (%.1f%%) have less movement during dips than chance.\n", nnz(less.dip), 100*nnz(less.dip)./nUnits);
-    fprintf("\t%i units (%.1f%%) have more movement during dips than chance.\n", nnz(more.dip), 100*nnz(more.dip)./nUnits);
-    fprintf("\t%i units (%.1f%%) have less movement during rises than chance.\n", nnz(less.rise), 100*nnz(less.rise)./nUnits);
-    fprintf("\t%i units (%.1f%%) have more movement during rises than chance.\n", nnz(more.rise), 100*nnz(more.rise)./nUnits);
-
-
-    fprintf("\t%i units (%.1f%%) have less movement during dips and rises than chance.\n", nnz(less.dip & less.rise), 100*nnz(less.dip & less.rise)./nUnits);
-    fprintf("\t%i units (%.1f%%) have more movement during dips and rises than chance.\n", nnz(more.dip & more.rise), 100*nnz(more.dip & more.rise)./nUnits);
-
-    fprintf("\t%i units (%.1f%%) have less movement during dips but more movement during rises than chance.\n", nnz(less.dip & more.rise), 100*nnz(less.dip & more.rise)./nUnits);
-    fprintf("\t%i units (%.1f%%) have more movement during dips but less movement during rises than chance.\n", nnz(more.dip & less.rise), 100*nnz(more.dip & less.rise)./nUnits);
-end
-clear alpha cn
+% alpha = 0.05;
+% less = struct(dip=[], rise=[]);
+% more = struct(dip=[], rise=[]);
+% for cn = ["clu1", "all"]
+%     less.dip = pVal.(cn).dip < alpha/2; % dips have less movement than chance
+%     more.dip = pVal.(cn).dip > 1-alpha/2; % dips have more movement than chance
+%     less.rise = pVal.(cn).rise < alpha/2; % rises have less movement than chance
+%     more.rise = pVal.(cn).rise > 1-alpha/2; % rises have more movement than chance
+% 
+%     switch cn
+%         case "clu1"
+%             fprintf("In cluster 1 (no move):\n")
+%         case "all"
+%             fprintf("In all clusters:\n")
+%     end
+%     fprintf("\t%i units (%.1f%%) have less movement during dips than chance.\n", nnz(less.dip), 100*nnz(less.dip)./nUnits);
+%     fprintf("\t%i units (%.1f%%) have more movement during dips than chance.\n", nnz(more.dip), 100*nnz(more.dip)./nUnits);
+%     fprintf("\t%i units (%.1f%%) have less movement during rises than chance.\n", nnz(less.rise), 100*nnz(less.rise)./nUnits);
+%     fprintf("\t%i units (%.1f%%) have more movement during rises than chance.\n", nnz(more.rise), 100*nnz(more.rise)./nUnits);
+% 
+% 
+%     fprintf("\t%i units (%.1f%%) have less movement during dips and rises than chance.\n", nnz(less.dip & less.rise), 100*nnz(less.dip & less.rise)./nUnits);
+%     fprintf("\t%i units (%.1f%%) have more movement during dips and rises than chance.\n", nnz(more.dip & more.rise), 100*nnz(more.dip & more.rise)./nUnits);
+% 
+%     fprintf("\t%i units (%.1f%%) have less movement during dips but more movement during rises than chance.\n", nnz(less.dip & more.rise), 100*nnz(less.dip & more.rise)./nUnits);
+%     fprintf("\t%i units (%.1f%%) have more movement during dips but less movement during rises than chance.\n", nnz(more.dip & less.rise), 100*nnz(more.dip & less.rise)./nUnits);
+% end
+% clear alpha cn
 
 %% Fig 6
 % close all
@@ -278,11 +278,11 @@ layout.child(4).child(2).h = [1];
 % upper right, 3rd row: 2 subrows (dip vs. rise), 3 subcolumns (nuwcc, ncc, xtamr): 
 switch p.mi.mergeDirections
     case "none"
-        layout.child(4).child(3).w = [6, 3, 3];
+        layout.child(4).child(3).w = [6, 3];
     case "jaw"
-        layout.child(4).child(3).w = [5, 3, 3];
+        layout.child(4).child(3).w = [5, 3];
     case "all"
-        layout.child(4).child(3).w = [2, 1, 2];
+        layout.child(4).child(3).w = [2, 1];
     otherwise
         error("invalid argument")
 end
@@ -677,16 +677,17 @@ hLetter.VerticalAlignment = 'top';
 hLetter.Position = [-0.1, axLetter.Position(4) + 0.3, 0];
 
 % 6e(l), 6e(r), 6f shares a tiled layout, we'll make the axes here:
+ax = gobjects(2, 2);
 tl = layout.child(4).child(3).tl;
 tl.TileSpacing = 'tight';
 tl.TileIndexing = 'rowmajor';
 for iRow = 1:2
-    for iCol = 1:3
+    for iCol = 1:2
         ax(iRow, iCol) = nexttile(tl, (iRow-1)*layout.child(4).child(3).cw(end) + 1 + layout.child(4).child(3).cw(iCol), [layout.child(4).child(3).h(iRow), layout.child(4).child(3).w(iCol)]);
     end
 end
 
-% 6e (left). Histogram count of units per movement type (xticks are cluster names)
+% 6e (formerly 6e/left). Histogram count of units per movement type (xticks are cluster names)
 nUnits = length(xta.dip);
 dirs = ["dip", "rise"];
 colors = [0, 0, 1; 1, 0, 0];
@@ -777,13 +778,14 @@ for iRow = 1:2
     ylabel(ax(iRow, iCol), "fraction of units")
     hold(ax(iRow, iCol), 'off')
 
-    lgd = legend(ax(1, iCol), h, Location='north', Orientation='horizontal', FontSize=p.fontSize-1, IconColumnWidth=7, NumColumns=4);
+    lgd = legend(ax(1, iCol), h, Location='north', Orientation='horizontal', FontSize=p.fontSize-1, IconColumnWidth=7, NumColumns=2);
     lgd.ItemTokenSize = [7, 7];
-    lgd.Position(1:2) = lgd.Position(1:2) + [0.12, 0.175];
+    % lgd.Position(1:2) = lgd.Position(1:2) + [0.12, 0.175];
+    lgd.Position(1:2) = lgd.Position(1:2) + [0.07, 0];
 end
 % xlabel(ax(2, iCol), "bodyparts")
 
-% 6e (right). Histogram count of no. movement types for each unit (xticks are numCleanClusters 0-6)
+% 6f (formerly 6e/right). Histogram count of no. movement types for each unit (xticks are numCleanClusters 0-6)
 iCol = 2;
 switch p.mi.mergeDirections
     case "none"
@@ -878,75 +880,75 @@ xlim(ax(:, iCol), [edges(1), edges(end)])
 ylim(ax(:, iCol), yl)
 yticks(ax(:, iCol), [0, 0.5, 1])
 
-% 6f: xtamr (maxRectifiedXTA)
-alpha = 0.05;
-aggr(nUnits) = struct(dip=[], rise=[]);
-for iUnit = 1:nUnits
-    for dir = ["dip", "rise"]
-        aggr(iUnit).(dir).xObs = mean(xtaMaxRectified(iUnit).(dir).clu1.X, 1, 'omitnan');
-        aggr(iUnit).(dir).tObs = xtaMaxRectified(iUnit).(dir).clu1.t;
-
-        if isfield(xtaMaxRectified(iUnit).(dir).clu1, 'XBoot')
-            XBoot = xtaMaxRectified(iUnit).(dir).clu1.XBoot';
-            aggr(iUnit).(dir).tBoot = xtaMaxRectified(iUnit).(dir).clu1.tBoot;
-            aggr(iUnit).(dir).muBoot = mean(XBoot, 1, 'omitnan');
-            aggr(iUnit).(dir).ciBoot = quantile(XBoot, [alpha/2, 1-alpha/2], 1);
-        else
-            aggr(iUnit).(dir).tBoot = [];
-            aggr(iUnit).(dir).muBoot = NaN(size(aggr(1).dip.muBoot), 'single');
-            aggr(iUnit).(dir).ciBoot = NaN(size(aggr(1).dip.ciBoot), 'single');
-        end
-    end
-end
-clear iUnit dir XBoot
-iCol = 3;
-h = gobjects(3, 1);
-xl = [-0.1, 0.3];
-yl = [0, 0.4];
-colors = [0, 0, 1; 1, 0, 0];
-for iRow = 1:2
-    hold(ax(iRow, iCol), 'on')
-    dir = dirs(iRow);
-    tObs = aggr(1).(dir).tObs;
-    tBoot = aggr(1).(dir).tBoot;
-    selLo =  pVal.clu1.(dir) < alpha/2;
-    selHi =  pVal.clu1.(dir) > 1 - alpha/2;
-
-    xObs = arrayfun(@(aggr) aggr.(dir).xObs, aggr, UniformOutput=false);
-    xObs = cat(1, xObs{:}); % untis x timestamps
-    xObs = mean(xObs, 1, 'omitnan');
-
-    ciBoot = arrayfun(@(aggr) aggr.(dir).ciBoot, aggr, UniformOutput=false);
-    ciBoot = cat(3, ciBoot{:}); % quantile x timestamps x units (2x60x1225)
-    ciBoot = mean(ciBoot, 3, 'omitnan');
-
-    h(3) = patch(ax(iRow, iCol), [tBoot, flip(tBoot)], [ciBoot(1, :), flip(ciBoot(2, :))], [0.15, 0.15, 0.15], FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName=sprintf('%i%%CI', round(100*(1-alpha))));
-    h(1) = plot(ax(iRow, iCol), tObs, xObs, Color=colors(iRow, :), DisplayName=dir, LineWidth=1.5);
-    xline(ax(iRow, iCol), 0, 'k--')
-    yline(ax(iRow, iCol), 0, 'k--')
-    if iRow == 1
-        h(2) = plot(ax(iRow, iCol), NaN, NaN, Color=colors(2, :), DisplayName="rise", LineWidth=1.5);
-        lgd = legend(ax(iRow, iCol), h, Location="northwest", FontSize=p.fontSize-1, IconColumnWidth=7, NumColumns=1);
-        lgd.ItemTokenSize = [7, 7];
-    end
-
-
-    fprintf("xtamr (%s): ", dir);
-    fprintf("\tmove+: %i units (%.1f%%);", nnz(selHi), nnz(selHi)/nUnits*100)
-    fprintf("\tmove-: %i units (%.1f%%);", nnz(selLo), nnz(selLo)/nUnits*100)
-    fprintf("\tmove~: %i units (%.1f%%);", nnz(~selLo&~selHi), nnz(~selLo&~selHi)/nUnits*100)
-    fprintf("\n")
-
-    ylabel(ax(iRow, iCol), "displacement")
-
-    xlim(ax(iRow, iCol), xl)
-    ylim(ax(iRow, iCol), yl)
-    hold(ax(iRow, iCol), 'off')
-end
-xticks(ax(1, iCol), [])
-xlabel(ax(2, iCol), "time from onset (s)")
-lgd.Position(2) = lgd.Position(2) + 0.16;
-clear alpha iUnit dir XBoot aggr
+% % 6f: xtamr (maxRectifiedXTA)
+% alpha = 0.05;
+% aggr(nUnits) = struct(dip=[], rise=[]);
+% for iUnit = 1:nUnits
+%     for dir = ["dip", "rise"]
+%         aggr(iUnit).(dir).xObs = mean(xtaMaxRectified(iUnit).(dir).clu1.X, 1, 'omitnan');
+%         aggr(iUnit).(dir).tObs = xtaMaxRectified(iUnit).(dir).clu1.t;
+% 
+%         if isfield(xtaMaxRectified(iUnit).(dir).clu1, 'XBoot')
+%             XBoot = xtaMaxRectified(iUnit).(dir).clu1.XBoot';
+%             aggr(iUnit).(dir).tBoot = xtaMaxRectified(iUnit).(dir).clu1.tBoot;
+%             aggr(iUnit).(dir).muBoot = mean(XBoot, 1, 'omitnan');
+%             aggr(iUnit).(dir).ciBoot = quantile(XBoot, [alpha/2, 1-alpha/2], 1);
+%         else
+%             aggr(iUnit).(dir).tBoot = [];
+%             aggr(iUnit).(dir).muBoot = NaN(size(aggr(1).dip.muBoot), 'single');
+%             aggr(iUnit).(dir).ciBoot = NaN(size(aggr(1).dip.ciBoot), 'single');
+%         end
+%     end
+% end
+% clear iUnit dir XBoot
+% iCol = 3;
+% h = gobjects(3, 1);
+% xl = [-0.1, 0.3];
+% yl = [0, 0.4];
+% colors = [0, 0, 1; 1, 0, 0];
+% for iRow = 1:2
+%     hold(ax(iRow, iCol), 'on')
+%     dir = dirs(iRow);
+%     tObs = aggr(1).(dir).tObs;
+%     tBoot = aggr(1).(dir).tBoot;
+%     selLo =  pVal.clu1.(dir) < alpha/2;
+%     selHi =  pVal.clu1.(dir) > 1 - alpha/2;
+% 
+%     xObs = arrayfun(@(aggr) aggr.(dir).xObs, aggr, UniformOutput=false);
+%     xObs = cat(1, xObs{:}); % untis x timestamps
+%     xObs = mean(xObs, 1, 'omitnan');
+% 
+%     ciBoot = arrayfun(@(aggr) aggr.(dir).ciBoot, aggr, UniformOutput=false);
+%     ciBoot = cat(3, ciBoot{:}); % quantile x timestamps x units (2x60x1225)
+%     ciBoot = mean(ciBoot, 3, 'omitnan');
+% 
+%     h(3) = patch(ax(iRow, iCol), [tBoot, flip(tBoot)], [ciBoot(1, :), flip(ciBoot(2, :))], [0.15, 0.15, 0.15], FaceAlpha=0.1, EdgeAlpha=0.5, DisplayName=sprintf('%i%%CI', round(100*(1-alpha))));
+%     h(1) = plot(ax(iRow, iCol), tObs, xObs, Color=colors(iRow, :), DisplayName=dir, LineWidth=1.5);
+%     xline(ax(iRow, iCol), 0, 'k--')
+%     yline(ax(iRow, iCol), 0, 'k--')
+%     if iRow == 1
+%         h(2) = plot(ax(iRow, iCol), NaN, NaN, Color=colors(2, :), DisplayName="rise", LineWidth=1.5);
+%         lgd = legend(ax(iRow, iCol), h, Location="northwest", FontSize=p.fontSize-1, IconColumnWidth=7, NumColumns=1);
+%         lgd.ItemTokenSize = [7, 7];
+%     end
+% 
+% 
+%     fprintf("xtamr (%s): ", dir);
+%     fprintf("\tmove+: %i units (%.1f%%);", nnz(selHi), nnz(selHi)/nUnits*100)
+%     fprintf("\tmove-: %i units (%.1f%%);", nnz(selLo), nnz(selLo)/nUnits*100)
+%     fprintf("\tmove~: %i units (%.1f%%);", nnz(~selLo&~selHi), nnz(~selLo&~selHi)/nUnits*100)
+%     fprintf("\n")
+% 
+%     ylabel(ax(iRow, iCol), "displacement")
+% 
+%     xlim(ax(iRow, iCol), xl)
+%     ylim(ax(iRow, iCol), yl)
+%     hold(ax(iRow, iCol), 'off')
+% end
+% xticks(ax(1, iCol), [])
+% xlabel(ax(2, iCol), "time from onset (s)")
+% lgd.Position(2) = lgd.Position(2) + 0.16;
+% clear alpha iUnit dir XBoot aggr
 % title(ax(1, :), 'dip')
 % title(ax(2, :), 'rise')
 
@@ -961,7 +963,7 @@ hLetter.HorizontalAlignment = 'right';
 hLetter.VerticalAlignment = 'top';
 hLetter.Position = [-0.15, axLetter.Position(4) + 0.35, 0];
 
-axLetter = ax(1, 3);
+axLetter = ax(1, 2);
 hLetter = text(axLetter, 0, 0, 'f', FontSize=16, FontName='Arial', FontWeight='bold', Units='inches');
 axLetter.Units = 'inches';
 hLetter.HorizontalAlignment = 'right';
@@ -1199,9 +1201,8 @@ AX(1) = nexttile(tl, 1, [1, W(2)]);
 AX(2) = nexttile(tl, 1 + max(W), [1, W(2)]);
 
 % 6d (left) and 7g (right)
-% AX = gobjects(4, 3);
-for iAx = 2
-    iEu = ID{iAx};
+for iPhase = 3
+    iEu = ID{iPhase};
     for iTask = 1:2
         % First lick
         % ax = nexttile(layout.right.bottom.tl, (iAx-1)*sum(W) + 1 + sum(W(1:iTask)), [1, W(iTask + 1)]); 
@@ -1217,18 +1218,20 @@ for iAx = 2
         end
 
         for iDir = [1, 3]
-            iEuDir = IDSplit{iAx, iTask}{iDir};
+            iEuDir = IDSplit{iPhase, iTask}{iDir};
             X = ETAMOVEBOUT{iTask}.X(iEuDir, :);
             if isempty(X)
                 continue
             end
             X = smoothdata(X, 2, 'gaussian', 5);
-            plot(ax, t, mean(X, 1, 'omitnan'), Color=colors(ICOLOR(iAx), :), LineWidth=1.5)
-            plot(ax, t, X, Color=[0.15, 0.15, 0.15, 0.05], LineWidth=0.5)
+            % plot(ax, t, mean(X, 1, 'omitnan'), Color=colors(ICOLOR(iPhase), :), LineWidth=1.5)
+            % plot(ax, t, X, Color=[0.15, 0.15, 0.15, 0.1], LineWidth=0.5)
+            plot(ax, t, X(randi(size(X, 1)), :), Color=colors(ICOLOR(iPhase), :), LineWidth=1.5)
+            % plot(ax, t, X, Color=[0.15, 0.15, 0.15, 0.1], LineWidth=0.5)
         end
 
-        ylim(ax, [-0.5, 2])
-        yticks(ax, [0, 1, 2])
+        ylim(ax, [-1, 2])
+        yticks(ax, [-1, 0, 1, 2])
 
         switch TASKS(iTask)
             case "press"
@@ -1244,15 +1247,15 @@ for iAx = 2
         end
         ax.XAxis.TickLabelRotation = 0;
 
-        if iAx == 1
+        if iPhase == 1
             title(ax, TASKTITLE(iTask))
         end
 
         % ax.XGrid = 'on';
         hold(ax, 'off')
         fontsize(ax, p.fontSize, 'points')
-        % text(ax, 0.025, 1, sprintf('inc(n=%i)', nnz(IDSplit{iAx, iTask}{1})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='top', Interpreter='none', FontSize=p.fontSize-1)
-        % text(ax, 0.025, 0.025, sprintf('dec(n=%i)', nnz(IDSplit{iAx, iTask}{3})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize-1)
+        text(ax, 0.025, 1, sprintf('inc(n=%i)', nnz(IDSplit{iPhase, iTask}{1})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='top', Interpreter='none', FontSize=p.fontSize-1)
+        text(ax, 0.025, 0.025, sprintf('dec(n=%i)', nnz(IDSplit{iPhase, iTask}{3})), Unit='normalized', HorizontalAlignment='left', VerticalAlignment='bottom', Interpreter='none', FontSize=p.fontSize-1)
         yline(ax, 0, '--')
     end
 end
