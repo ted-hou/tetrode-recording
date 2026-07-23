@@ -1081,7 +1081,10 @@ idThirdQuarterPhaseLickDown = sel(isThirdQuarterPhase & isHighAmp & metaArtiFree
 idThirdQuarterPhasePressUp = sel(isThirdQuarterPhase & isHighAmp & metaArtiFree.cc.isPressUp(sel));
 idThirdQuarterPhasePressFlat = sel(isThirdQuarterPhase & isHighAmp & ~metaArtiFree.cc.isPressResponsive(sel));
 idThirdQuarterPhasePressDown = sel(isThirdQuarterPhase & isHighAmp & metaArtiFree.cc.isPressDown(sel));
-colors = getColor([1, 3, 2, 4], 4, 0.6);%getColor(1:4, 4, 0.6);
+% colors = getColor([1, 3, 2, 4], 4, 0.6);%getColor(1:4, 4, 0.6);
+
+groupLabels = ["lick inc", "lick flat", "lick dec"];
+colors = [1, 0, 0; 0, 0, 0; 0, 0, 1];
 
 euSel = euArtiFree(sel);
 [~, expEuIndices] = unique({euSel.ExpName});
@@ -1113,16 +1116,20 @@ lickHist.correctLickOsci.edges = lickHistEdges;
 % 6i. Osci lick phase distribution histogram
 ax = nexttile(layout.child(3).tl, 1 + layout.child(3).cw(2), [layout.child(3).h(1), layout.child(3).w(2)]);
 hold(ax, 'on')
-edges = -0:2*pi/32:2*pi;
-histogram(ax, rectifiedPhase(isInPhase), edges, FaceColor=colors(1, :), FaceAlpha=1, EdgeAlpha=0.5);
-histogram(ax, rectifiedPhase(isFirstQuarterPhase), edges, FaceColor=colors(2, :), FaceAlpha=1, EdgeAlpha=0.5);
-histogram(ax, rectifiedPhase(isAntiPhase), edges, FaceColor=colors(4, :), FaceAlpha=1, EdgeAlpha=0.5);
-histogram(ax, rectifiedPhase(isThirdQuarterPhase), edges, FaceColor=colors(3, :), FaceAlpha=1, EdgeAlpha=0.5);
+edges = -0:2*pi/16:2*pi;
+% histogram(ax, rectifiedPhase(isInPhase), edges, FaceColor=colors(1, :), FaceAlpha=1, EdgeAlpha=0.5);
+% histogram(ax, rectifiedPhase(isFirstQuarterPhase), edges, FaceColor=colors(2, :), FaceAlpha=1, EdgeAlpha=0.5);
+% histogram(ax, rectifiedPhase(isAntiPhase), edges, FaceColor=colors(4, :), FaceAlpha=1, EdgeAlpha=0.5);
+% histogram(ax, rectifiedPhase(isThirdQuarterPhase), edges, FaceColor=colors(3, :), FaceAlpha=1, EdgeAlpha=0.5);
+histogram(ax, rectifiedPhase, edges, FaceColor=[0.1, 0.6, 0.1], FaceAlpha=0.5, EdgeAlpha=0.8);
+% histogram(ax, rectifiedPhase(metaArtiFree.cc.isLickUp(find(metaArtiFree.cc.isLick))), edges, EdgeColor=colors(1, :), EdgeAlpha=0.8, DisplayStyle='stairs', DisplayName=groupLabels(1));
+% histogram(ax, rectifiedPhase(~metaArtiFree.cc.isLickResponsive(find(metaArtiFree.cc.isLick))), edges, EdgeColor=colors(2, :), EdgeAlpha=0.8, DisplayStyle='stairs', DisplayName=groupLabels(2));
+% histogram(ax, rectifiedPhase(metaArtiFree.cc.isLickDown(find(metaArtiFree.cc.isLick))), edges, EdgeColor=colors(3, :), EdgeAlpha=0.8, DisplayStyle='stairs', DisplayName=groupLabels(3));
 xticks(ax, 0:pi:2*pi)
 yticks(ax, [0, 15])
 xlim(ax, pi*[0, 2])
 xticklabels(ax, {'0', '\pi', '2\pi'});
-xlabel('lick phase')
+xlabel('preferred lick phase')
 ylabel('units     ')
 fontsize(ax, p.fontSize, 'points')
 
@@ -1160,12 +1167,13 @@ fprintf('Fig 6j: press vs. lick (osci): LM slope p<%g.\n', mdl.Coefficients.pVal
 % right, scatter press vs lick META, color by lick entrainment phase: 
 ax = nexttile(layout.child(3).tl, 1 + layout.child(3).ch(2)*sum(layout.child(3).w) + layout.child(3).cw(2), [layout.child(3).h(2), layout.child(3).w(2)]);
 hold(ax, 'on')
-h = gobjects(5, 1);
-h(5) = scatter(ax, x(~metaArtiFree.cc.isLick), y(~metaArtiFree.cc.isLick), sz-2, [0.2 0.2 0.2], Marker='o', MarkerEdgeAlpha=0.25, DisplayName='not-entrained');
-for i = 1:4
-    sel = ID{i};
-    h(i) = scatter(ax, x(sel), y(sel), sz, colors(ICOLOR(i), :), 'filled', Marker='o', MarkerFaceAlpha=0.75, MarkerEdgeAlpha=1, DisplayName=PHASENAME(i));
-end
+h = gobjects(2, 1);
+h(2) = scatter(ax, x(~metaArtiFree.cc.isLick), y(~metaArtiFree.cc.isLick), sz-2, [0.2 0.2 0.2], Marker='o', MarkerEdgeAlpha=0.25, DisplayName='not-entrained');
+h(1) = scatter(ax, x(metaArtiFree.cc.isLick), y(metaArtiFree.cc.isLick), sz, [0.1, 0.6, 0.1], 'filled', Marker='o', MarkerFaceAlpha=0.75, MarkerEdgeAlpha=1, DisplayName='lick-entrained');
+% for i = 1:4
+%     sel = ID{i};
+%     h(i) = scatter(ax, x(sel), y(sel), sz, colors(ICOLOR(i), :), 'filled', Marker='o', MarkerFaceAlpha=0.75, MarkerEdgeAlpha=1, DisplayName=PHASENAME(i));
+% end
 
 plot(ax, [-10, 10], [0, 0], 'k:');
 plot(ax, [0, 0], [-10, 10], 'k:');
