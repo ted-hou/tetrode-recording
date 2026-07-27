@@ -5,11 +5,11 @@ ROOTPATH = "C:\SERVER";
 %%
 if exist('E:\Data\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials', 'dir')
     euArtiFree = EphysUnit.load('E:\Data\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials');
-    load('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat');
+    load('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260723.mat');
     etaArtiFree = metaArtiFree.eta;
 else
     euArtiFree = EphysUnit.load('C:\SERVER\Units\PressVsLick_ArtifactsRemoved_Full\FixedEventsAndTrials');
-    load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat');
+    load('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260723.mat');
     etaArtiFree = metaArtiFree.eta;
 end
 load(fullfile(ROOTPATH, "LickVsReach_DTA_RTA_boot", "20260617_metaRasterData.mat"));
@@ -52,7 +52,6 @@ end
 % etaArtiFree.incorrectPress = euArtiFree.getETA('count', 'PressIncorrect', [-4, 4], alignTo='stop', ...
 %     normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
 % 
-% 
 % etaArtiFree.correctRelease = euArtiFree.getETA('count', 'CueToLeverReleaseCorrect', [-4, 4], alignTo='stop', ...
 %     normalize='none', resolution=etaArtiFree.resolution, artifacts=artifactParams);
 % 
@@ -94,8 +93,6 @@ end
 % etaArtiFree.correctLickLastLickOffNorm = euArtiFree.getETA('count', 'CueToLastLickOffCorrect', [-4, 4], alignTo='stop', ...
 %     normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=artifactParams);
 % 
-% % Lick trials, last lickOff before next cue
-% 
 % 
 % % Lick bouts (norm to pre-press [-4, -2])
 % etaArtiFree.lickBoutNaive = euArtiFree.getETA('count', 'lickbout_naive', window=[0, 2*pi*4], resolution=2*pi/8, normalize='none',  minInterval=0.05, maxInterval=0.20, ...
@@ -106,6 +103,15 @@ end
 % metaArtiFree.eta = etaArtiFree;
 % save('E:\Data\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260107.mat', 'metaArtiFree')
 
+% Make lastlick of any correct trial (lick/reach)
+% for iEu = 1:length(euArtiFree)
+%     euArtiFree(iEu).Trials.CorrectAnyMoveToLastLickOffNorm = [euArtiFree(iEu).Trials.LickToLastLickOffCorrect, euArtiFree(iEu).Trials.CorrectPressToLastLickOff];
+% end
+% % 
+% etaArtiFree.correctAnyLastLickOffNorm = euArtiFree.getETA('count', 'CorrectAnyMoveToLastLickOffNorm', [-4, 4], alignTo='stop', ...
+%     normalize=etaArtiFree.pressNorm.stats, resolution=etaArtiFree.resolution, artifacts=etaArtiFree.artifactParams);
+% metaArtiFree.eta = etaArtiFree;
+% save('C:\SERVER\Units\meta_PressVsLick_ArtifactsRemoved_Full_20260723.mat', 'metaArtiFree')
 %% Calculate peri-lick lick frequency histograms for any first lick in trial
 [~, expEuIndices] = unique({euArtiFree.ExpName});
 FsLick = 500;
@@ -211,15 +217,132 @@ clear sel trials expEuIndices FsLick lickHistEdges lickHistCenters lickHistNLick
 % end
 % clear alpha cn
 
+
+%% Count units for fig 6b
+boot = metaArtiFree.boot;
+
+metaArtiFree.cc.isPressUp = boot.press.h > 0 & ~isnan(boot.press.h);
+metaArtiFree.cc.isPressDown = boot.press.h < 0 & ~isnan(boot.press.h);
+metaArtiFree.cc.isLickUp = boot.lick.h > 0 & ~isnan(boot.lick.h);
+metaArtiFree.cc.isLickDown = boot.lick.h < 0 & ~isnan(boot.lick.h);
+metaArtiFree.cc.isCorrectReleaseUp = boot.correctRelease.h > 0 & ~isnan(boot.correctRelease.h);
+metaArtiFree.cc.isCorrectReleaseDown = boot.correctRelease.h < 0 & ~isnan(boot.correctRelease.h);
+metaArtiFree.cc.isCorrectLastLickOffUp = boot.correctAnyLastLickOffNorm.h > 0 & ~isnan(boot.correctAnyLastLickOffNorm.h);
+metaArtiFree.cc.isCorrectLastLickOffDown = boot.correctAnyLastLickOffNorm.h < 0 & ~isnan(boot.correctAnyLastLickOffNorm.h);
+metaArtiFree.cc.isCorrectPressFirstLickUp = boot.correctPressFirstLick.h > 0 & ~isnan(boot.correctPressFirstLick.h);
+metaArtiFree.cc.isCorrectPressFirstLickDown = boot.correctPressFirstLick.h < 0 & ~isnan(boot.correctPressFirstLick.h);
+
+metaArtiFree.cc.isPressResponsive = metaArtiFree.cc.isPressUp | metaArtiFree.cc.isPressDown;
+metaArtiFree.cc.isLickResponsive = metaArtiFree.cc.isLickUp | metaArtiFree.cc.isLickDown;
+metaArtiFree.cc.isCorrectReleaseResponsive = metaArtiFree.cc.isCorrectReleaseUp | metaArtiFree.cc.isCorrectReleaseDown;
+metaArtiFree.cc.isCorrectLastLickOffResponsive = metaArtiFree.cc.isCorrectLastLickOffUp | metaArtiFree.cc.isCorrectLastLickOffDown;
+metaArtiFree.cc.isCorrectPressFirstLickResponsive = metaArtiFree.cc.isCorrectPressFirstLickUp | metaArtiFree.cc.isCorrectPressFirstLickDown;
+
+fprintf('\n%i total units, %i (%.0f%%) reach modulated, %i (%.0f%%) lick modulated, %i (%.0f%%) correct-release modulated, %i (%.0f%%) correct-lastLickOff modulated, %i (%.0f%%) correct-press-firstLick modulated:\n', ...
+    length(eu), ...
+    nnz(metaArtiFree.cc.isPressResponsive), nnz(metaArtiFree.cc.isPressResponsive)/length(eu)*100, ...
+    nnz(metaArtiFree.cc.isLickResponsive), nnz(metaArtiFree.cc.isLickResponsive)/length(eu)*100, ...
+    nnz(metaArtiFree.cc.isCorrectReleaseResponsive), nnz(metaArtiFree.cc.isCorrectReleaseResponsive)/length(eu)*100, ...
+    nnz(metaArtiFree.cc.isCorrectLastLickOffResponsive), nnz(metaArtiFree.cc.isCorrectLastLickOffResponsive)/length(eu)*100, ...
+    nnz(metaArtiFree.cc.isCorrectPressFirstLickResponsive), nnz(metaArtiFree.cc.isCorrectPressFirstLickResponsive)/length(eu)*100)
+fprintf('\t%i/%i units reach inc (%.0f%%);\n', nnz(metaArtiFree.cc.isPressUp), nnz(metaArtiFree.cc.isPressResponsive), nnz(metaArtiFree.cc.isPressUp)./nnz(metaArtiFree.cc.isPressResponsive)*100);
+fprintf('\t%i/%i units reach dec (%.0f%%);\n', nnz(metaArtiFree.cc.isPressDown), nnz(metaArtiFree.cc.isPressResponsive), nnz(metaArtiFree.cc.isPressDown)./nnz(metaArtiFree.cc.isPressResponsive)*100);
+fprintf('\t%i/%i units lick inc (%.0f%%);\n', nnz(metaArtiFree.cc.isLickUp), nnz(metaArtiFree.cc.isLickResponsive), nnz(metaArtiFree.cc.isLickUp)./nnz(metaArtiFree.cc.isLickResponsive)*100);
+fprintf('\t%i/%i units lick dec (%.0f%%);\n', nnz(metaArtiFree.cc.isLickDown), nnz(metaArtiFree.cc.isLickResponsive), nnz(metaArtiFree.cc.isLickDown)./nnz(metaArtiFree.cc.isLickResponsive)*100);
+fprintf('\t%i/%i units correctPressFirstLick inc (%.0f%%);\n', nnz(metaArtiFree.cc.isCorrectPressFirstLickUp), nnz(metaArtiFree.cc.isCorrectPressFirstLickResponsive), nnz(metaArtiFree.cc.isCorrectPressFirstLickUp)./nnz(metaArtiFree.cc.isCorrectPressFirstLickResponsive)*100);
+fprintf('\t%i/%i units correctPressFirstLick dec (%.0f%%).\n', nnz(metaArtiFree.cc.isCorrectPressFirstLickDown), nnz(metaArtiFree.cc.isCorrectPressFirstLickResponsive), nnz(metaArtiFree.cc.isCorrectPressFirstLickDown)./nnz(metaArtiFree.cc.isCorrectPressFirstLickResponsive)*100);
+fprintf('\t%i/%i units lastLickOff inc (%.0f%%);\n', nnz(metaArtiFree.cc.isCorrectLastLickOffUp), nnz(metaArtiFree.cc.isCorrectLastLickOffResponsive), nnz(metaArtiFree.cc.isCorrectLastLickOffUp)./nnz(metaArtiFree.cc.isCorrectLastLickOffResponsive)*100);
+fprintf('\t%i/%i units lastLickOff dec (%.0f%%).\n', nnz(metaArtiFree.cc.isCorrectLastLickOffDown), nnz(metaArtiFree.cc.isCorrectLastLickOffResponsive), nnz(metaArtiFree.cc.isCorrectLastLickOffDown)./nnz(metaArtiFree.cc.isCorrectLastLickOffResponsive)*100);
+fprintf('\t%i/%i units release inc (%.0f%%);\n', nnz(metaArtiFree.cc.isCorrectReleaseUp), nnz(metaArtiFree.cc.isCorrectReleaseResponsive), nnz(metaArtiFree.cc.isCorrectReleaseUp)./nnz(metaArtiFree.cc.isCorrectReleaseResponsive)*100);
+fprintf('\t%i/%i units release dec (%.0f%%).\n', nnz(metaArtiFree.cc.isCorrectReleaseDown), nnz(metaArtiFree.cc.isCorrectReleaseResponsive), nnz(metaArtiFree.cc.isCorrectReleaseDown)./nnz(metaArtiFree.cc.isCorrectReleaseResponsive)*100);
+% 
+% selCommon = metaArtiFree.cc.isPressResponsive & metaArtiFree.cc.isLickResponsive & metaArtiFree.cc.isCorrectReleaseResponsive & metaArtiFree.cc.isCorrectLastLickOffResponsive & metaArtiFree.cc.isCorrectPressFirstLickResponsive;
+% fprintf('\n%i/%i (%.0f%%) units modulated for reach, lick, correct-release, last-lick-off, first-lick, of which:\n', nnz(selCommon), length(eu), nnz(selCommon)/length(eu)*100)
+% 
+% sel = metaArtiFree.cc.isPressDown & metaArtiFree.cc.isLickDown & metaArtiFree.cc.isCorrectPressFirstLickDown & metaArtiFree.cc.isCorrectLastLickOffDown & metaArtiFree.cc.isCorrectReleaseDown;
+% fprintf('\t%i/%i (%.0f%%) decrease for all five;\n', nnz(selCommon & sel), nnz(selCommon), nnz(selCommon & sel)./nnz(selCommon)*100)
+% 
+% sel = metaArtiFree.cc.isPressUp & metaArtiFree.cc.isLickUp & metaArtiFree.cc.isCorrectPressFirstLickUp & metaArtiFree.cc.isCorrectLastLickOffUp & metaArtiFree.cc.isCorrectReleaseUp;
+% fprintf('\t%i/%i (%.0f%%) increase for all five;\n', nnz(selCommon & sel), nnz(selCommon), nnz(selCommon & sel)./nnz(selCommon)*100)
+% 
+% sel1 = metaArtiFree.cc.isPressDown & metaArtiFree.cc.isLickUp & metaArtiFree.cc.isCorrectPressFirstLickUp & metaArtiFree.cc.isCorrectLastLickOffUp & metaArtiFree.cc.isCorrectReleaseUp;
+% fprintf('\t%i/%i (%.0f%%) decrease for just reach, increase for others;\n', nnz(selCommon & sel1), nnz(selCommon), nnz(selCommon & sel1)./nnz(selCommon)*100)
+% 
+% sel2 = metaArtiFree.cc.isPressUp & metaArtiFree.cc.isLickDown & metaArtiFree.cc.isCorrectPressFirstLickUp & metaArtiFree.cc.isCorrectLastLickOffUp & metaArtiFree.cc.isCorrectReleaseUp;
+% fprintf('\t%i/%i (%.0f%%) decrease for just lick, increase for others;\n', nnz(selCommon & sel2), nnz(selCommon), nnz(selCommon & sel2)./nnz(selCommon)*100)
+% 
+% sel3 = metaArtiFree.cc.isPressUp & metaArtiFree.cc.isLickUp & metaArtiFree.cc.isCorrectPressFirstLickDown & metaArtiFree.cc.isCorrectLastLickOffUp & metaArtiFree.cc.isCorrectReleaseUp;
+% fprintf('\t%i/%i (%.0f%%) decrease for just lick start, increase for others;\n', nnz(selCommon & sel3), nnz(selCommon), nnz(selCommon & sel3)./nnz(selCommon)*100)
+% 
+% sel4 = metaArtiFree.cc.isPressUp & metaArtiFree.cc.isLickUp & metaArtiFree.cc.isCorrectPressFirstLickUp & metaArtiFree.cc.isCorrectLastLickOffDown & metaArtiFree.cc.isCorrectReleaseUp;
+% fprintf('\t%i/%i (%.0f%%) decrease for just lick end, increase for others;\n', nnz(selCommon & sel4), nnz(selCommon), nnz(selCommon & sel4)./nnz(selCommon)*100)
+% 
+% sel5 = metaArtiFree.cc.isPressUp & metaArtiFree.cc.isLickUp & metaArtiFree.cc.isCorrectPressFirstLickUp & metaArtiFree.cc.isCorrectLastLickOffUp & metaArtiFree.cc.isCorrectReleaseDown;
+% fprintf('\t%i/%i (%.0f%%) decrease for just retract, increase for others;\n', nnz(selCommon & sel5), nnz(selCommon), nnz(selCommon & sel5)./nnz(selCommon)*100)
+% 
+% selCommon = true(size(selCommon));
+% fprintf('\n%iunits, of which:\n', length(eu))
+% 
+% sel1 = metaArtiFree.cc.isPressDown & metaArtiFree.cc.isLickUp & metaArtiFree.cc.isCorrectPressFirstLickUp & metaArtiFree.cc.isCorrectLastLickOffUp & metaArtiFree.cc.isCorrectReleaseUp;
+% fprintf('\t%i/%i (%.0f%%) decrease for just reach, increase for others;\n', nnz(selCommon & sel1), nnz(selCommon), nnz(selCommon & sel1)./nnz(selCommon)*100)
+% 
+% sel2 = metaArtiFree.cc.isPressUp & metaArtiFree.cc.isLickDown & metaArtiFree.cc.isCorrectPressFirstLickUp & metaArtiFree.cc.isCorrectLastLickOffUp & metaArtiFree.cc.isCorrectReleaseUp;
+% fprintf('\t%i/%i (%.0f%%) decrease for just lick, increase for others;\n', nnz(selCommon & sel2), nnz(selCommon), nnz(selCommon & sel2)./nnz(selCommon)*100)
+% 
+% sel3 = metaArtiFree.cc.isPressUp & metaArtiFree.cc.isLickUp & metaArtiFree.cc.isCorrectPressFirstLickDown & metaArtiFree.cc.isCorrectLastLickOffUp & metaArtiFree.cc.isCorrectReleaseUp;
+% fprintf('\t%i/%i (%.0f%%) decrease for just lick start, increase for others;\n', nnz(selCommon & sel3), nnz(selCommon), nnz(selCommon & sel3)./nnz(selCommon)*100)
+% 
+% sel4 = metaArtiFree.cc.isPressUp & metaArtiFree.cc.isLickUp & metaArtiFree.cc.isCorrectPressFirstLickUp & metaArtiFree.cc.isCorrectLastLickOffDown & metaArtiFree.cc.isCorrectReleaseUp;
+% fprintf('\t%i/%i (%.0f%%) decrease for just lick end, increase for others;\n', nnz(selCommon & sel4), nnz(selCommon), nnz(selCommon & sel4)./nnz(selCommon)*100)
+% 
+% sel5 = metaArtiFree.cc.isPressUp & metaArtiFree.cc.isLickUp & metaArtiFree.cc.isCorrectPressFirstLickUp & metaArtiFree.cc.isCorrectLastLickOffUp & metaArtiFree.cc.isCorrectReleaseDown;
+% fprintf('\t%i/%i (%.0f%%) decrease for just retract, increase for others;\n', nnz(selCommon & sel5), nnz(selCommon), nnz(selCommon & sel5)./nnz(selCommon)*100)
+
+selCommon = true(size(selCommon));
+fprintf('\n%i total units, of which:\n', length(eu))
+h = [boot.press.h, boot.lick.h, boot.correctPressFirstLick.h, boot.correctAnyLastLickOffNorm.h, boot.correctRelease.h];
+sel = sum(h == -1, 2) == 1 & sum(h == 1, 2) == 4;
+fprintf('\t%i/%i (%.0f%%) decrease for just one; increase for all others;\n', nnz(selCommon & sel), nnz(selCommon), nnz(selCommon & sel)./nnz(selCommon)*100)
+
+sel = sum(h == -1, 2) == 1;
+fprintf('\t%i/%i (%.0f%%) decrease for just one; increase or flat for all others;\n', nnz(selCommon & sel), nnz(selCommon), nnz(selCommon & sel)./nnz(selCommon)*100)
+
+sel = sum(h == -1, 2) == 1 & sum(h == 1, 2) >= 1;
+fprintf('\t%i/%i (%.0f%%) decrease for just one, increase at least one other;\n', nnz(selCommon & sel), nnz(selCommon), nnz(selCommon & sel)./nnz(selCommon)*100)
+
+sel = sum(h == -1, 2) >= 2 & sum(h == -1, 2) < 5;
+fprintf('\t%i/%i (%.0f%%) decrease for two or more but not all;\n', nnz(selCommon & sel), nnz(selCommon), nnz(selCommon & sel)./nnz(selCommon)*100)
+
+sel = sum(h == 1, 2) == 5;
+fprintf('\t%i/%i (%.0f%%) increase for all five;\n', nnz(selCommon & sel), nnz(selCommon), nnz(selCommon & sel)./nnz(selCommon)*100)
+
+sel = sum(h == -1, 2) == 5;
+fprintf('\t%i/%i (%.0f%%) decrease for all five;\n', nnz(selCommon & sel), nnz(selCommon), nnz(selCommon & sel)./nnz(selCommon)*100)
+
+selCommon = sum(h==-1 | h==1, 2) == 5;
+fprintf('\n%i/%i (%.0f%%) units modulated for all five, of which:\n', nnz(selCommon), length(eu), nnz(selCommon)./length(eu)*100)
+h = [boot.press.h, boot.lick.h, boot.correctPressFirstLick.h, boot.correctAnyLastLickOffNorm.h, boot.correctRelease.h];
+sel = sum(h == -1, 2) == 1 & sum(h == 1, 2) == 4;
+fprintf('\t%i/%i (%.0f%%) decrease for just one; increase for all others;\n', nnz(selCommon & sel), nnz(selCommon), nnz(selCommon & sel)./nnz(selCommon)*100)
+
+sel = sum(h == -1, 2) >= 2 & sum(h == -1, 2) < 5;
+fprintf('\t%i/%i (%.0f%%) decrease for two or more but not all;\n', nnz(selCommon & sel), nnz(selCommon), nnz(selCommon & sel)./nnz(selCommon)*100)
+
+sel = sum(h == 1, 2) == 5;
+fprintf('\t%i/%i (%.0f%%) increase for all five;\n', nnz(selCommon & sel), nnz(selCommon), nnz(selCommon & sel)./nnz(selCommon)*100)
+
+sel = sum(h == -1, 2) == 5;
+fprintf('\t%i/%i (%.0f%%) decrease for all five;\n', nnz(selCommon & sel), nnz(selCommon), nnz(selCommon & sel)./nnz(selCommon)*100)
+
 %% Fig 6
 % close all
 
 XLIM = {[-1, 0.3], [-1, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3]};
 W = cellfun(@(xl) diff(xl*10), XLIM, UniformOutput=true);
 CW = cumsum([0, W]);
-SORTWINDOW = {[-0.3, 0.3], [-0.3, 0.3], [-0.1, 0.3], [-0.1, 0.3], [-0.1, 0.3]};
+SORTWINDOW = {[-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3], [-0.3, 0.3]};
 DATAWINDOW = {[-2, 0.5], [-2, 0.5], [-0.5, 0.5], [-0.5, 0.5], [-0.5, 0.5]};
-NAME = ["reach", "lick", "lick\nstart", "lick\nend", "retract"];
+NAME = ["reach", "lick", "first\nlick", "last\nlick", "bar\nrelease"];
 TRIALTYPE = {'press', 'lick', 'CorrectPressToFirstRewardLick', 'CueToLastLickOffCorrect', 'CueToLeverReleaseCorrect'};
 % XTICKS = {[-1, 0], [-1, 0], [0, 0.3], [0, 0.3], [0, 0.3]};
 % XTICKLABELS = {["-1", "touch"], ["-1", "lick"], ["lick", "0.3"], ["lick", "0.3"], ["release", "0.3"]};
@@ -378,8 +501,8 @@ clear thisRD ax iEu AX
 
 % 6b. Heatmap, 5 phases of movement
 selUnits = 1:length(euArtiFree);
-ETASORT = {etaArtiFree.pressNorm, etaArtiFree.lickNorm, etaArtiFree.correctPressFirstLickNorm, etaArtiFree.correctLickLastLickOffNorm, etaArtiFree.correctReleaseNorm};
-ETA = {etaArtiFree.pressNorm, etaArtiFree.lickNorm, etaArtiFree.correctPressFirstLickNorm, etaArtiFree.correctLickLastLickOffNorm, etaArtiFree.correctReleaseNorm};
+ETASORT = {etaArtiFree.pressNorm, etaArtiFree.lickNorm, etaArtiFree.correctPressFirstLickNorm, etaArtiFree.correctAnyLastLickOffNorm, etaArtiFree.correctReleaseNorm};
+ETA = {etaArtiFree.pressNorm, etaArtiFree.lickNorm, etaArtiFree.correctPressFirstLickNorm, etaArtiFree.correctAnyLastLickOffNorm, etaArtiFree.correctReleaseNorm};
 
 % Combine ETA, PCA, and sort along 1st dimension
 etaCombined = struct(X=[], t=[]);
@@ -1148,7 +1271,7 @@ IDSplit = { ...
     };
 ETAMOVEBOUT = {etaArtiFree.correctLickBoutNorm, etaArtiFree.correctPressBoutNorm};
 TASKS = ["lick", "press"];
-TASKTITLE = ["Self-timed lick", "Self-timed reach"];
+TASKTITLE = ["self-timed lick", "self-timed reach"];
 PHASENAME = ["2\pi", "1/2\pi", "\pi", "3/2\pi"];
 ICOLOR = [1, 2, 4, 3];
 
@@ -1254,9 +1377,9 @@ for iTask = 1:2
         end
         ax.XAxis.TickLabelRotation = 0;
 
-        if iPhase == 1
-            title(ax, TASKTITLE(iTask))
-        end
+        % if iTask == 1
+        title(ax, TASKTITLE(iTask))
+        % end
 
         % ax.XGrid = 'on';
         fontsize(ax, p.fontSize, 'points')
@@ -1266,7 +1389,8 @@ for iTask = 1:2
     if iTask == 1
         lgd = legend(h, Location='northwest', FontSize=7);
         lgd.ItemTokenSize = [7, 7];
-        lgd.Position(1:2) = lgd.Position(1:2) + [-0.04, 0.16];
+        lgd.Position(1:2) = lgd.Position(1:2) + [-0.04, 0.1];
+        lgd.Box = 'off';
     end
     hold(ax, 'off')
 end

@@ -306,7 +306,7 @@ clear t latTrialLat latTrialMed medTrialLat medTrialMed DATA COLOR LABEL h
 clear iMove mu selUnits2tgt nAnimals2tgt TARGETNAME TARGETNAMEDISP SELTRIALS
 clear FIELDNAME ITARGET AX targetNamesDisp nUnits CL iCol iCol order lgd
 
-%% Fig S8. Lever-4-pos and scatter META comparisons for any A vs. B movement
+%% Fig S7. Lever-4-pos and scatter META comparisons for any A vs. B movement
 close all
 % 8g. 4tgt trajectories (contra, ipsi)
 DOTFACTOR = 1;

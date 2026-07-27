@@ -217,25 +217,6 @@ h.VerticalAlignment = 'top';
 h.Position = [-0.4, ax.Position(4)+0.2, 0];
 
 % 1f,g,h Baseline spike rates, pre-move response, normalized pre-move response
-% fig = figure(Units='inches', Position=[5, 0, 2.5, 5], DefaultAxesFontSize=p.fontSize);
-ax = nexttile(layout.bottom.right.tl);
-hold(ax, 'on')
-edges = 0:5:150;
-hHist1 = gobjects(3, 1);
-hHist1(1) = histogram(ax, bsr(c.hasPress), edges, FaceColor='white', DisplayName='all');
-hHist1(2) = histogram(ax, bsr(c.isPressUp), edges, FaceColor='red', DisplayName='inc', EdgeColor='none');
-hHist1(3) = histogram(ax, bsr(c.isPressDown), edges, FaceColor='blue', DisplayName='dec', EdgeColor='none');
-hold(ax, 'off')
-xlabel(ax, 'Baseline spike rate (sp/s)'), ylabel(ax, 'Count')
-fontsize(ax, p.fontSize, 'points');
-fontname(ax, 'Arial')
-h = text(ax, 0, 0, 'f', FontSize=16, FontName='Arial', FontWeight='bold');
-ax.Units = 'inches'; h.Units = 'inches';
-h.HorizontalAlignment = 'right';
-h.VerticalAlignment = 'top';
-h.Position = [-0.5, ax.Position(4)+0.2, 0];
-hLgd = legend(ax, hHist1, Orientation='horizontal');
-hLgd.Layout.Tile = 'north';
 
 ax = nexttile(layout.bottom.right.tl);
 hold(ax, 'on')
@@ -246,7 +227,7 @@ hold(ax, 'off')
 xlabel(ax, 'Peri-reach response (\Deltasp/s)'), ylabel(ax, 'Count')
 fontsize(ax, p.fontSize, 'points');
 fontname(ax, 'Arial')
-h = text(ax, 0, 0, 'g', FontSize=16, FontName='Arial', FontWeight='bold');
+h = text(ax, 0, 0, 'f', FontSize=16, FontName='Arial', FontWeight='bold');
 ax.Units = 'inches'; h.Units = 'inches';
 h.HorizontalAlignment = 'right';
 h.VerticalAlignment = 'top';
@@ -261,11 +242,31 @@ hold(ax, 'off')
 xlabel(ax, {'Normalized peri-reach', 'response (a.u.)'}), ylabel(ax, 'Count')
 fontsize(ax, p.fontSize, 'points');
 fontname(ax, 'Arial')
+h = text(ax, 0, 0, 'g', FontSize=16, FontName='Arial', FontWeight='bold');
+ax.Units = 'inches'; h.Units = 'inches';
+h.HorizontalAlignment = 'right';
+h.VerticalAlignment = 'top';
+h.Position = [-0.5, ax.Position(4)+0.2, 0];
+
+ax = nexttile(layout.bottom.right.tl);
+hold(ax, 'on')
+edges = 0:5:150;
+hHist1 = gobjects(3, 1);
+hHist1(1) = histogram(ax, bsr(c.hasPress), edges, FaceColor='white', DisplayName='all');
+hHist1(2) = histogram(ax, bsr(c.isPressUp), edges, FaceColor='red', DisplayName='inc', EdgeColor='none');
+hHist1(3) = histogram(ax, bsr(c.isPressDown), edges, FaceColor='blue', DisplayName='dec', EdgeColor='none');
+hold(ax, 'off')
+xlabel(ax, 'Baseline spike rate (sp/s)'), ylabel(ax, 'Count')
+fontsize(ax, p.fontSize, 'points');
+fontname(ax, 'Arial')
 h = text(ax, 0, 0, 'h', FontSize=16, FontName='Arial', FontWeight='bold');
 ax.Units = 'inches'; h.Units = 'inches';
 h.HorizontalAlignment = 'right';
 h.VerticalAlignment = 'top';
 h.Position = [-0.5, ax.Position(4)+0.2, 0];
+hLgd = legend(ax, hHist1, Orientation='horizontal');
+hLgd.Layout.Tile = 'north';
+hLgd.ItemTokenSize = [9, 9];
 
 copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
