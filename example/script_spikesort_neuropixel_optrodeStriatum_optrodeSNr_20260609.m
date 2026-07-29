@@ -1,5 +1,5 @@
 %% Spike detection
-% pause(40*60);
+pause(20*60);
 
 clear, clc
 folders = { ...
@@ -11,7 +11,17 @@ folders = { ...
     % 'C:\SERVER\daisy37\daisy37_20260407', ... Striatum A2A Chrimson Optrode Control, Not processed yet
     % 'C:\SERVER\desmond45\desmond45_20260414', ... SNr ChR2 Optrode, Sorted by Emma
     % 'C:\SERVER\desmond45\desmond45_20260415', ... SNr ChR2 Optrode, Sorted by Emma
-    'C:\SERVER\daisy37\daisy37_20260408', ... Striatum A2A Chrimson Optrode Control
+    % 'C:\SERVER\daisy37\daisy37_20260408', ... Striatum A2A Chrimson Optrode Control
+    % 'C:\SERVER\desmond46\desmond46_20260708', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond46\desmond46_20260709', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond47\desmond47_20260709', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond46\desmond46_20260710', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond47\desmond47_20260710', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond47\desmond47_20260716', ... SNr ChR2 Optrode
+    % 'C:\SERVER\desmond46\desmond46_20260717', ... SNr ChR2 Optrode
+    % 'C:\SERVER\desmond46\desmond46_20260722', ... SNr ChR2 Optrode
+    % 'C:\SERVER\desmond47\desmond47_20260724', ... SNr ChR2 Optrode
+    'C:\SERVER\desmond46\desmond46_20260728', ... SNr ChR2 Optrode
     };
 
 chunkSize = 32;
@@ -59,14 +69,20 @@ end
 
 clear, clc
 tr = TetrodeRecording();
-tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy37\daisy37_20260407')
+tr.SelectFiles(NeuropixelPath='C:\SERVER\desmond46\desmond46_20260722')
 tr.LoadNeuropixelIO();
 tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
 
-channels = 129:256;
+channels = 1:73;
 tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
 tr.PlotAllChannels(Channels=channels, plotMethod='mean')
 
+%%
+% tr.SaveSpikes(Channels=channels, Path='Spikes_Sorted')
+channels = 74:128;
+tr.Spikes = [];
+tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
+tr.PlotAllChannels(Channels=channels, plotMethod='mean')
 %%
 tr.SaveSpikes(Channels=channels, Path='Spikes_Sorted')
 channels = 129:256;
