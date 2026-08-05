@@ -1,5 +1,11 @@
-eu = EphysUnit.load('C:\SERVER\Units\ReachVsLick_1225');
-load('C:\SERVER\Units\meta_ReachVsLick_1225_20260728.mat') % 'boot', 'c', 'eta'
+% eu = EphysUnit.load('C:\SERVER\Units\ReachVsLick_1225');
+% load('C:\SERVER\Units\meta_ReachVsLick_1225_20260728.mat') % 'boot', 'c', 'eta'
+
+
+load('C:\SERVER\Units\boot_SNr_CoChR_VGATCre.mat')
+eu = EphysUnit.load('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr');
+
+
 %%
 % clearvars -except boot c eta eu exp expIndices
 %% Make pairwise(same-session) rasters of increase/decrease cells
