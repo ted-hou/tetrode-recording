@@ -186,8 +186,8 @@ p.spikeRes = 0.001;
 p.spikeKernelType = 'gaussian';
 switch p.spikeKernelType
     case 'gaussian'
-        p.spikeKernelSigma = 0.1;
-        p.spikeKernelWidth = 0.5;
+        p.spikeKernelSigma = 0.15; % 0.1;
+        p.spikeKernelWidth = 0.5; % 0.5;
         [~, ~, p.spikeKernel] = eu(1).getSpikeRates('gaussian', p.spikeKernelSigma, p.spikeRes, kernelWidth=p.spikeKernelWidth);
     case 'exponential'
         p.spikeKernelLambda1 = 10;
@@ -249,6 +249,7 @@ for trialType = "press"
                         error("Unknown p.spikeDataSource=%s", p.spikeDataSource)
                 end
                 xx = (xx - mean(xBaseline, 'all', 'omitnan')) ./ std(xBaseline, 0, 'all', 'omitnan');
+                % xx = xx - smoothdata(xx, 2, 'movmedian', 1000/res);
 
                 for iEvent = 1:length(p.blank)
                     tEvent = eu(iEu).EventTimes.(p.blank(iEvent).event);
@@ -313,7 +314,7 @@ for trialType = "press"
         % rhoBootCI = quantile(rhoBoot, [alpha/2, 1-alpha/2]);
         % rBootCI = quantile(rBoot, [alpha/2, 1-alpha/2], 2);
         
-        %% Do a PCA on population activity
+        % Do a PCA on population activity
         XMerge = double([X.dec, X.inc]);
         XMerge = XMerge - mean(XMerge, 1, 'omitnan');
         [coeff, score, ~, ~, explained, mu] = pca(XMerge);
@@ -506,7 +507,7 @@ for windowWidth = 0.1
     legend
 
     title(tl, sprintf("windowWidth=%g", windowWidth))
-%%
+
     fig = figure();
     pax = polaraxes(); hold(pax, 'on')
     polarhistogram(periMovementThetas, linspace(0, pi, 50), DisplayStyle='stairs', EdgeColor='red', DisplayName='peri-movement')
@@ -526,7 +527,7 @@ for windowWidth = 0.1
     xlabel('PC1')
     ylabel('PC2')
     axis(ax, 'equal')
-%%
+
     fig = figure(Units='inches', Position=[1, 1, 6, 6], DefaultAxesFontSize=9);
     tl = tiledlayout(fig, 4, 1);
     ax = nexttile(tl); hold(ax, 'on')
@@ -618,7 +619,7 @@ for t0 = vel.HandR.st(:)'
 end
 
 for t0 = tGood(randperm(length(tGood), length(tGood)))
-    xlim(gca, t0+[-15, 15])
+    xlim(gca, t0+[-30, 30])
     disp(t0) % Put a breakpoint here and keep on scrolling
 end
 
@@ -629,53 +630,46 @@ close all
 % lineStyles = ["-", "-.", ":", "-"];
 % l.h = [1, 1, 1, 3];
 features = ["Jaw", "HandR", "SpikeRate"];
-featureDispName = ["jaw\nvelocity", "r.hand\nvelocity", "spike rate (a.u.)"];
+featureScale = [0.3, 0.2, 1];
+featureOffset = [4.5, 3, 0];
+featureDispName = ["jaw\nvelocity", "forepaw\nvelocity", "spike rate\n(a.u.)"];
 lineStyles = ["-", "-", "-"];
-l.h = [3, 3, 10];
-l.ch = cumsum([1, l.h]);
-fig = figure(Units='inches', Position=[1, 1, 4, 2.5], DefaultAxesFontSize=8);
-tl = tiledlayout(fig, sum(l.h), 1, TileSpacing='none', Padding='tight');
+fig = figure(Units='inches', Position=[1, 1, 4, 1.5], DefaultAxesFontSize=8);
 t0 = 4244;
-window = [-20, 15];
+window = [-30, 30];
 
 h = gobjects(length(features)+1, 1);
 iLine = 0;
-ax = gobjects(length(features), 1);
+ax = axes(fig);
 for i = 1:length(features)
-    ax(i) = nexttile(tl, l.ch(i), [l.h(i), 1]);
-    hold(ax(i), 'on')
+    hold(ax, 'on')
     fn = features(i);
     switch fn
         case {"Jaw", "HandR", "HandL"}
             iLine = iLine + 1;
-            h(iLine) = plot(ax(i), vel.(fn).t, vel.(fn).x, Color='k', LineWidth=1, LineStyle=lineStyles(i), DisplayName=featureDispName(i));
+            h(iLine) = plot(ax, vel.(fn).t, vel.(fn).x.*featureScale(i) + featureOffset(i), Color='k', LineWidth=1, LineStyle=lineStyles(i), DisplayName=featureDispName(i));
         case "SpikeRate"
+            baseline = smoothdata(mean([x.dec, x.inc], 2, 'omitnan'), 1, 'movmedian', 100./res);
             iLine = iLine + 1;
-            h(iLine) = plot(ax(i), t, x.dec, 'b', LineWidth=1, DisplayName=sprintf('dec (n=%i)', n.(trialType).dec));
+            h(iLine) = plot(ax, t, x.dec - baseline, 'b', LineWidth=1, DisplayName=sprintf('decrease (n=%i)', n.(trialType).dec));
             iLine = iLine + 1;
-            h(iLine) = plot(ax(i), t, x.inc, 'r', LineWidth=1, DisplayName=sprintf('inc (n=%i)', n.(trialType).inc));
+            h(iLine) = plot(ax, t, x.inc - baseline, 'r', LineWidth=1, DisplayName=sprintf('increase (n=%i)', n.(trialType).inc));
             % yline(ax(i), 0, 'k--')
     end
-    ylabel(ax(i), strsplit(featureDispName(i), "\\n"))
-    ax(i).InteractionOptions.LimitsDimensions = "x";
+    ax.InteractionOptions.LimitsDimensions = "x";
 end
+yline(ax, 0, 'k:')
+plot(ax, t0+window(2)+[-2, 0]-1, -2.5*[1, 1], 'k-', LineWidth=2)
+text(ax, t0+window(2)-1-1, -2.5, "1s", VerticalAlignment="bottom", HorizontalAlignment='center', Clipping='off', FontSize=8, FontName='Arial')
 
-plot(ax(length(features)), t0+window(2)+[-2, 0]-1, [-3.5, -3.5], 'k-', LineWidth=2)
-text(ax(length(features)), t0+window(2)-1-1, -3.5, "1 s", VerticalAlignment="bottom", HorizontalAlignment='center', Clipping='off', FontSize=8, FontName='Arial')
-for i = 1:length(features)-1
-    ax(i).XAxis.Visible = "off";
-end
-ylim(ax(1:length(features)-1), [-10, 10]);
-yticks(ax(1:length(features)-1), [])
-ylim(ax(length(features)), [-4, 4]);
-yticks(ax(length(features)), [-2, 0, 2])
+xticks(ax, [])
+yticks(ax, [-2, 0, 2])
 xlim(ax, t0+window)
-xticks(ax(length(features)), [])
 % grid(ax(4), 'on')
-linkaxes(ax, 'x');
-lgd = legend(h([4, 3]), Location='northeast');
-lgd.ItemTokenSize = [12, 8];
-xlabel(tl, 'time')
-box(ax, 'off')
+% linkaxes(ax, 'x');
+% lgd = legend(h([4, 3]), Location='northeast');
+% lgd.ItemTokenSize = [12, 8];
+xlabel(ax, 'time')
 fontsize(fig, 8, 'points')
 fontname(fig, 'Arial')
+ylim(ax, [-3, 5])
