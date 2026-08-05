@@ -20,8 +20,9 @@ folders = { ...
     % 'C:\SERVER\desmond47\desmond47_20260716', ... SNr ChR2 Optrode, Sorted by Emma
     % 'C:\SERVER\desmond46\desmond46_20260717', ... SNr ChR2 Optrode, Sorted by Emma
     % 'C:\SERVER\desmond46\desmond46_20260722', ... SNr ChR2 Optrode, Sorted by Emma
-    % 'C:\SERVER\desmond47\desmond47_20260724', ... SNr ChR2 Optrode, Not sorted
-    'C:\SERVER\desmond46\desmond46_20260728', ... SNr ChR2 Optrode, Not pipelined
+    % 'C:\SERVER\desmond47\desmond47_20260724', ... SNr ChR2 Optrode, Sorted by Emma
+    'C:\SERVER\desmond46\desmond46_20260728', ... SNr ChR2 Optrode, Sorted by Emma
+    'C:\SERVER\desmond47\desmond47_20260729', ... SNr ChR2 Optrode, Sorted by Emma
     };
 
 chunkSize = 32;
@@ -114,14 +115,17 @@ tr.PlotAllChannels(Channels=1:32, plotMethod='mean')
 %%
 %% Convert to EphysUnits
 folders = { ...
-    'C:\SERVER\desmond46\desmond46_20260708', ... SNr ChR2 Optrode, Sorted by Emma
-    'C:\SERVER\desmond46\desmond46_20260709', ... SNr ChR2 Optrode, Sorted by Emma
-    'C:\SERVER\desmond47\desmond47_20260709', ... SNr ChR2 Optrode, Sorted by Emma
-    'C:\SERVER\desmond46\desmond46_20260710', ... SNr ChR2 Optrode, Sorted by Emma
-    'C:\SERVER\desmond47\desmond47_20260710', ... SNr ChR2 Optrode, Sorted by Emma
-    'C:\SERVER\desmond47\desmond47_20260716', ... SNr ChR2 Optrode, Sorted by Emma
-    'C:\SERVER\desmond46\desmond46_20260717', ... SNr ChR2 Optrode, Sorted by Emma
-    'C:\SERVER\desmond46\desmond46_20260722', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond46\desmond46_20260708', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond46\desmond46_20260709', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond47\desmond47_20260709', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond46\desmond46_20260710', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond47\desmond47_20260710', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond47\desmond47_20260716', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond46\desmond46_20260717', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond46\desmond46_20260722', ... SNr ChR2 Optrode, Sorted by Emma
+    'C:\SERVER\desmond47\desmond47_20260724', ... SNr ChR2 Optrode, Sorted by Emma
+    'C:\SERVER\desmond46\desmond46_20260728', ... SNr ChR2 Optrode, Sorted by Emma
+    'C:\SERVER\desmond47\desmond47_20260729', ... SNr ChR2 Optrode, Sorted by Emma
     };
 
 chunkSize = 32; % NumChannelsPerChunk
@@ -166,7 +170,7 @@ eu = eu.removeMultiUnits(cullZeros=true);
 % Remove drift, low spike rate units, fast
 clear c
 % Remove drift
-c.isDrifting = detectDriftingUnits(eu, smoothWindow=300, tolerance=0.05, spikeRateThreshold=5, includeITI=true);
+c.isDrifting = detectDriftingUnits(eu, smoothWindow=300, tolerance=0.3, spikeRateThreshold=5, includeITI=true);
 
 % Filter by spike rate
 msr = arrayfun(@(eu) eu.SpikeRateStats.median, eu);

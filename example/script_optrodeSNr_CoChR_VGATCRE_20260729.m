@@ -38,12 +38,11 @@ clear artifacts
 artifacts(1) = struct(event='StimOn', length=0.5, lengthUnit='ms', direction='right');
 artifacts(2) = struct(event='StimOff', length=0.5, lengthUnit='ms', direction='right');
 eta.stim = eu.getETA('count', 'stim', [-1, 1], resolution=0.020, alignTo='start', normalize=[-0.5, 0], artifacts=artifacts);
-meta.stim = mean(eta.stim.X(:, isin(eta.stim.t, [0, 0.1])), 2, 'omitnan');
+meta.stim = mean(eta.stim.X(:, isin(eta.stim.t, [0.05, 0.2])), 2, 'omitnan');
 ax = axes(figure); hold(ax, 'on')
 plot(ax, eta.stim.t, eta.stim.X(meta.stim>=0, :), Color=[0.8, 0.2, 0.2, 0.1])
 plot(ax, eta.stim.t, eta.stim.X(meta.stim<0, :), Color=[0.2, 0.2, 0.8, 0.1])
 plot(ax, eta.stim.t, mean(eta.stim.X, 1, 'omitnan'), Color='k', LineWidth=2)
-
 
 %% Plot PETH aligned to reach
 close all
@@ -52,17 +51,35 @@ eta.lick = eu.getETA('count', 'lick', [-4, 1], resolution=0.2, alignTo='start', 
 meta.press = mean(eta.press.X(:, isin(eta.press.t, [-0.4, 0.2])), 2, 'omitnan');
 meta.lick = mean(eta.lick.X(:, isin(eta.lick.t, [-0.4, 0.2])), 2, 'omitnan');
 
-% Plot press PETH
+%%
+ax = axes(figure); hold(ax, 'on')
+plot(ax, eta.stim.t, eta.stim.X(meta.press>=0.5, :), Color=[0.8, 0.2, 0.2, 0.1])
+plot(ax, eta.stim.t, eta.stim.X(meta.press<-0.25, :), Color=[0.2, 0.2, 0.8, 0.1])
+plot(ax, eta.stim.t, mean(eta.stim.X, 1, 'omitnan'), Color='k', LineWidth=2)
+plot(ax, eta.stim.t, mean(eta.stim.X(meta.press>=0.50, :), 1, 'omitnan'), Color=[0.8, 0.2, 0.2], LineWidth=2)
+plot(ax, eta.stim.t, mean(eta.stim.X(meta.press<-0.25, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.8], LineWidth=2)
+
+%% Plot press PETH
 ax = axes(figure); hold(ax, 'on')
 plot(ax, eta.press.t, eta.press.X(meta.press>=0.5, :), Color=[0.8, 0.2, 0.2, 0.1])
 plot(ax, eta.press.t, eta.press.X(meta.press<-0.25, :), Color=[0.2, 0.2, 0.8, 0.1])
 plot(ax, eta.press.t, mean(eta.press.X, 1, 'omitnan'), Color='k', LineWidth=2)
+xline(ax, 0, 'k-')
 title(ax, 'press')
-
+%%
+ax = axes(figure); hold(ax, 'on')
+plot(ax, eta.press.t, eta.press.X(meta.stim>+0.50, :), Color=[0.8, 0.2, 0.2, 0.1])
+plot(ax, eta.press.t, eta.press.X(meta.stim<-0.5, :), Color=[0.2, 0.2, 0.8, 0.1])
+plot(ax, eta.press.t, mean(eta.press.X(meta.stim>0, :), 1, 'omitnan'), Color=[0.8, 0.2, 0.2], LineWidth=1)
+plot(ax, eta.press.t, mean(eta.press.X(meta.stim<0, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.8], LineWidth=1)
+xline(ax, 0, 'k-')
+title(ax, 'press')
+%%
 ax = axes(figure); hold(ax, 'on')
 plot(ax, eta.lick.t, eta.lick.X(meta.lick>=0.5, :), Color=[0.8, 0.2, 0.2, 0.1])
 plot(ax, eta.lick.t, eta.lick.X(meta.lick<-0.25, :), Color=[0.2, 0.2, 0.8, 0.1])
 plot(ax, eta.lick.t, mean(eta.lick.X, 1, 'omitnan'), Color='k', LineWidth=2)
+xline(ax, 0, 'k-')
 title(ax, 'lick')
 
 ax = axes(figure); hold(ax, 'on')
