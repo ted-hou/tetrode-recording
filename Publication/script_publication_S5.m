@@ -676,3 +676,7 @@ save('C:\SERVER\Units\boot_1225_reach_vs_lick.mat', 'boot', 'c', 'eta')
 % 	2 (4%) are press-excited AND lick-inhibited;
 % 	2 (4%) are press-inhibited AND lick-excited;
 % 05 Calculate: Of 600: 48 (8%) showed modulation for BOTH, 53 (9%) showed modulation for lick only, 151 (25%) showed modulation for reach only, 348 (58%) for neither.>> 
+
+%% Save results
+eu.save('C:\SERVER\Units\ReachVsLick_1225\')
+save('C:\SERVER\Units\meta_ReachVsLick_1225_20260728.mat', 'boot', 'c', 'eta')

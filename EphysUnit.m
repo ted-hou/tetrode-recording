@@ -2770,6 +2770,7 @@ classdef EphysUnit < handle
             end
             p.addParameter('artifacts', [], @(x) isempty(x) || (isstruct(x) && all(isfield(x, {'t', 'length', 'direction'}))))
             p.addParameter('minArtifactBlankingProportion', 0.2, @isnumeric) % When artifact blanking leaves less than this proportion of bin, make spike rate for that bin NaN rather than counting and then dividing by remaining bin proportion.
+            p.addParameter('spikeTimes', [], @isnumeric)
             p.parse(varargin{:})
             artifacts = p.Results.artifacts;
             minArtifactBlankingProportion = p.Results.minArtifactBlankingProportion;
@@ -2781,7 +2782,11 @@ classdef EphysUnit < handle
                 edges = p.Results.edges;
             end
             
-            spikes = obj.SpikeTimes;
+            if isempty(p.Results.spikeTimes)
+                spikes = obj.SpikeTimes;
+            else
+                spikes = p.Results.spikeTimes;
+            end
             if isempty(edges)
                 edges = spikes(1) - binWidth:binWidth:spikes(end) + binWidth;
             end
@@ -2958,6 +2963,7 @@ classdef EphysUnit < handle
             end
             p.addOptional('edgesOrResolution', defaultResolution, @isnumeric)
             p.addParameter('kernelWidth', 1.0, @(x) isnumeric(x) && x > 0)
+            p.addParameter('spikeTimes', [], @isnumeric)
             p.parse(varargin{:})
             if length(p.Results.edgesOrResolution) <= 1
                 resolution = p.Results.edgesOrResolution;
@@ -2993,7 +2999,11 @@ classdef EphysUnit < handle
             yKernel = yKernel / sum(yKernel) / resolution;
             kernel = struct('type', kernelType, 'params', kernelParams, 't', tKernel, 'y', yKernel);
             
-            spikes = obj.SpikeTimes;
+            if isempty(p.Results.spikeTimes)
+                spikes = obj.SpikeTimes;
+            else
+                spikes = p.Results.spikeTimes;
+            end
             if isempty(edges)
                 edges = spikes(1) + kernelWindow(1):resolution:spikes(end) + kernelWindow(2);
                 nPrepad = 0;
@@ -3016,7 +3026,7 @@ classdef EphysUnit < handle
         end
 
         function [xAligned, tAligned, requestedDuration, tAlignedGlobal] = getTrialAlignedData(obj, varargin)
-            assert(length(obj) == 1)
+            assert(isscalar(obj))
             p = inputParser();
             if isnumeric(varargin{1}) && isnumeric(varargin{2})
                 p.addRequired('x', @isnumeric)
@@ -3054,6 +3064,7 @@ classdef EphysUnit < handle
             p.addParameter('minInterval', 0.05);
             p.addParameter('maxInterval', 0.25);
             p.addParameter('startBlankWindow', [0, 0])
+            p.addParameter('spikeTimes', [], @isnumeric)
             p.parse(varargin{:})
             if useResampleMethod
                 x = p.Results.x;
@@ -3077,6 +3088,11 @@ classdef EphysUnit < handle
             minInterval = p.Results.minInterval;
             maxInterval = p.Results.maxInterval;
             startBlankWindow = p.Results.startBlankWindow;
+            if isempty(p.Results.spikeTimes)
+                spikeTimes = obj.SpikeTimes;
+            else
+                spikeTimes = p.Results.spikeTimes;
+            end            
 
             % Parse artifacts
             artifactIndex = struct(LickOn=[], LickOff=[], PressOn=[], PressOff=[]);
@@ -3572,7 +3588,7 @@ classdef EphysUnit < handle
                             case 'count'
                                 for iTrial = 1:length(trials)
                                     binWidth = diff(tAlignedGlobal(iTrial, :));
-                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :));
+                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :), spikeTimes=spikeTimes);
                                     xx = double(xx);
                                     xx = xx./binWidth;
                                     xx(isLickArtifact(iTrial, :)) = NaN;
@@ -3590,7 +3606,7 @@ classdef EphysUnit < handle
 
                                     sel = ~isnan(tAlignedGlobal(iBout, :));
                                     binWidth = diff(tAlignedGlobal(iBout, sel));
-                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iBout, sel));
+                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iBout, sel), spikeTimes=spikeTimes);
                                     xx = double(xx);
                                     xx = xx./binWidth;
                                     xx(isLickArtifact(iBout, 1:end-1)) = NaN;
@@ -3628,7 +3644,7 @@ classdef EphysUnit < handle
                                 for iTrial = 1:nTrials
                                     sel = ~isnan(tAlignedGlobal(iTrial, :));
                                     binWidth = diff(tAlignedGlobal(iTrial, sel));
-                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, sel));
+                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, sel), spikeTimes=spikeTimes);
                                     xx = double(xx);
                                     xx = xx./binWidth;
                                     xx(isLickArtifact(1:end-1)) = NaN;
@@ -3654,7 +3670,7 @@ classdef EphysUnit < handle
                                 for iTrial = 1:nTrials
                                     sel = ~isnan(tAlignedGlobal(iTrial, :));
                                     binWidth = diff(tAlignedGlobal(iTrial, sel));
-                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, sel));
+                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, sel), spikeTimes=spikeTimes);
                                     xx = double(xx);
                                     xx = xx./binWidth;
                                     xx(isLickArtifact(sel)) = NaN;
@@ -3681,7 +3697,7 @@ classdef EphysUnit < handle
                                 for iTrial = 1:nTrials
                                     sel = ~isnan(tAlignedGlobal(iTrial, :));
                                     binWidth = diff(tAlignedGlobal(iTrial, sel));
-                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, sel));
+                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, sel), spikeTimes=spikeTimes);
                                     xx = double(xx);
                                     xx = xx./binWidth;
                                     xx(isLickArtifact(sel)) = NaN;
@@ -3706,7 +3722,7 @@ classdef EphysUnit < handle
                                     sigma = kernel.params.sigma;
         %                             sigma = 0.01;
                                     for iTrial = 1:length(trials)
-                                        [xx, ~] = obj.getSpikeRates('gaussian', sigma, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
+                                        [xx, ~] = obj.getSpikeRates('gaussian', sigma, tAlignedGlobal(iTrial, :), 'kernelWidth', width, spikeTimes=spikeTimes);
                                         sel = select(tAligned, iTrial);
                                         xAligned(iTrial, sel) = xx(sel);
                                     end
@@ -3714,14 +3730,14 @@ classdef EphysUnit < handle
                                     lambda1 = kernel.params.lambda1;
                                     lambda2 = kernel.params.lambda2;
                                     for iTrial = 1:length(trials)
-                                        [xx, ~] = obj.getSpikeRates('exponential', lambda1, lambda2, tAlignedGlobal(iTrial, :), 'kernelWidth', width);
+                                        [xx, ~] = obj.getSpikeRates('exponential', lambda1, lambda2, tAlignedGlobal(iTrial, :), 'kernelWidth', width, spikeTimes=spikeTimes);
                                         sel = select(tAligned, iTrial);
                                         xAligned(iTrial, sel) = xx(sel);
                                     end
                                 end
                             case 'count'
                                 for iTrial = 1:length(trials)
-                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :), artifacts=artifacts);
+                                    [xx, ~] = obj.getSpikeCounts(tAlignedGlobal(iTrial, :), artifacts=artifacts, spikeTimes=spikeTimes);
                                     sel = select(tAligned, iTrial);
                                     xAligned(iTrial, sel) = xx(sel);
                                 end

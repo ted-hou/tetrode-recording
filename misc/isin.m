@@ -21,6 +21,16 @@ function varargout = isin(x, window, inclusive, assumeAscending)
         iStop = binarySearchStopIndex(x, window(2), inclusive);
         if isempty(iStart) || isempty(iStop)
             varargout = {[], []};
+        elseif iStop < iStart && ~inclusive
+            if iStart == length(x)
+                if window(1) < x(end) && window(2) > x(end)
+                    varargout = {iStart, iStart};
+                else
+                    varargout = {[], []};
+                end
+            else
+                varargout = {[], []};
+            end
         else
             varargout = {iStart, iStop};
         end
