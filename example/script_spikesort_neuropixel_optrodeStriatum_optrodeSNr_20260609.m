@@ -183,3 +183,4 @@ eu = eu(c.isSNr & ~c.isDrifting);
 [eu, isDuplicate] = eu.removeDuplicates(0.7);
 
 eu.save('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr')
+
