@@ -1290,6 +1290,11 @@ classdef EphysUnit < handle
             assert(isa(tce, 'TwoColorExperiment'))
             clear file
 
+            if ismember(animalName, {'desmond46', 'desmond47'})
+                tOn = []; tOff = []; trainIndices = [];
+                return
+            end
+
             tOn = obj.EventTimes.StimOn;
             tOff = obj.EventTimes.StimOff;
 
