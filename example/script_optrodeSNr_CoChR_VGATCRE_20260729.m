@@ -4,8 +4,8 @@ eu = EphysUnit.load('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_N
 nTrials = arrayfun(@(eu) length(eu.EventTimes.TimeoutOn), eu);
 eu(nTrials==0) = [];
 
-% [ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames] = eu.loadArduinoConnection();
-% eu.alignTimestamps(["WAITFORTOUCH", "TIMEOUT_START"], ac={ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames}, acRefEventName="TIMEOUT_END", euRefEventName="TimeoutOff");
+[ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames] = eu.loadArduinoConnection();
+eu.alignTimestamps(["WAITFORTOUCH", "TIMEOUT_START"], ac={ac.ac, ac.euIndicesFirstInSession, ac.expIndices, ac.uniqueExpNames}, acRefEventName="TIMEOUT_END", euRefEventName="TimeoutOff");
 
 % Make press/lick trials
 
@@ -16,13 +16,101 @@ for iEu = 1:length(eu)
 end
 
 
+%% Make CompleteExperiment3
+dlcResultsPath = 'C:\SERVER\DeepLabCut\Results\FourPawsJawTongueSpine_Emma';
+
+exp = CompleteExperiment3(eu, cameras='lr', deeplabcutPath=dlcResultsPath);
+
+exp.alignTimestamps(refEventNameArduino={'REWARD_ON'}, refEventNameEphys={'RewardOn'}, trialDurationTolerance=2);
+
+clear results
+results(length(exp)) = struct(name=[], varsL=[], hasTimestampsL=[], varsR=[], hasTimestampsR=[], isValid=[]);
+for iExp = 1:length(exp)
+    results(iExp).name = exp(iExp).name;
+    results(iExp).varsR = string(exp(iExp).vtdR.Properties.VariableNames)';
+    results(iExp).hasTimestampsR = ismember('Timestamp', exp(iExp).vtdR.Properties.VariableNames);
+
+    results(iExp).varsL = string(exp(iExp).vtdL.Properties.VariableNames)';
+    results(iExp).hasTimestampsL = ismember('Timestamp', exp(iExp).vtdL.Properties.VariableNames);
+
+
+    results(iExp).isValid = length(results(iExp).varsL) == 23 && length(results(iExp).varsR) == 23;
+end
+clear iExp
+eu = EphysUnit.load('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
+
+%% Cull bad experiments (some are still pending DLC)
+assert(isequal({exp.name}, {results.name}));
+exp = exp([results.isValid]);
+results = results([results.isValid]);
+eu = [exp.eu];
+
+% Rename variables
+from = ["HandIpsiCam", "HandContraCam", "FootIpsiCam", "FootContraCam", "Jaw", "Tongue", "Spine"];
+toL = ["HandL", "HandR", "FootL", "FootR", "Jaw", "Tongue", "Spine"];
+toR = ["HandR", "HandL", "FootR", "FootL", "Jaw", "Tongue", "Spine"];
+for iExp = 1:length(exp)
+    if results(iExp).hasTimestampsL
+        vtd = exp(iExp).vtdL;
+        for i = 1:length(toL)
+            if ismember(sprintf("%s_X", from(i)), results(iExp).varsL)
+                vtd = renamevars(vtd, ...
+                    [sprintf("%s_X", from(i)), sprintf("%s_Y", from(i)), sprintf("%s_Likelihood", from(i))], ...
+                    [sprintf("%s_X", toL(i)), sprintf("%s_Y", toL(i)), sprintf("%s_Likelihood", toL(i))]);
+            end
+        end
+        exp(iExp).vtdL = vtd;
+    end
+    if results(iExp).hasTimestampsR
+        vtd = exp(iExp).vtdR;
+        for i = 1:length(toR)
+            if ismember(sprintf("%s_X", from(i)), results(iExp).varsR)
+                vtd = renamevars(vtd, ...
+                    [sprintf("%s_X", from(i)), sprintf("%s_Y", from(i)), sprintf("%s_Likelihood", from(i))], ...
+                    [sprintf("%s_X", toR(i)), sprintf("%s_Y", toR(i)), sprintf("%s_Likelihood", toR(i))]);
+            end
+        end
+        exp(iExp).vtdR = vtd;
+    end
+end
+
+%% Reset results
+clearvars -except eu exp results boot c eta p
+
+expIndices = cellfun(@(name) find(strcmpi(name, {exp.name}), 1, 'first'), {eu.ExpName});
+
+%%
+for iEu = 1:length(eu)
+    try
+        selPress = eu(iEu).EventTimes.PressOff - eu(iEu).EventTimes.PressOn > 2e-3;
+        eu(iEu).EventTimes.ValidPress = eu(iEu).EventTimes.Press(selPress);
+        selLick = eu(iEu).EventTimes.LickOff - eu(iEu).EventTimes.LickOn > 2e-3;
+        eu(iEu).EventTimes.ValidLick = eu(iEu).EventTimes.Lick(selLick);  
+    
+        if isfield(eu(iEu).EventTimes, 'TIMEOUT_START')
+            eu(iEu).Trials.Press = Trial(eu(iEu).EventTimes.TIMEOUT_START, eu(iEu).EventTimes.ValidPress, stopMode='first', exclude=eu(iEu).EventTimes.ValidLick);
+            eu(iEu).Trials.Lick = Trial(eu(iEu).EventTimes.TIMEOUT_START, eu(iEu).EventTimes.ValidLick, stopMode='first', exclude=eu(iEu).EventTimes.ValidPress);
+        else
+            eu(iEu).Trials.Press = Trial(eu(iEu).EventTimes.TimeoutOn, eu(iEu).EventTimes.ValidPress, stopMode='first', exclude=eu(iEu).EventTimes.ValidLick);
+            eu(iEu).Trials.Lick = Trial(eu(iEu).EventTimes.TimeoutOn, eu(iEu).EventTimes.ValidLick, stopMode='first', exclude=eu(iEu).EventTimes.ValidPress);
+        end
+    
+        eu(iEu).EventTimes.FirstPress = [eu(iEu).Trials.Press.Stop];
+        eu(iEu).EventTimes.FirstLick = [eu(iEu).Trials.Lick.Stop];
+    catch
+        eu(iEu).EventTimes.FirstPress = [];
+        eu(iEu).EventTimes.FirstLick = [];
+        warning("Could not do unit %i from (exp %i)", iEu, expIndices(iEu))
+    end
+end
+
 
 %% Boot movement responses
 c.hasPress = false(1, length(eu));
 c.hasLick = false(1, length(eu));
 for iEu = 1:length(eu)
-    c.hasPress(iEu) = length(eu(iEu).Trials.Press) > 10;
-    c.hasLick(iEu) = length(eu(iEu).Trials.Lick) > 10;
+    c.hasPress(iEu) = nnz(eu(iEu).Trials.Press.duration()>=2) >= 10;
+    c.hasLick(iEu) = nnz(eu(iEu).Trials.Lick.duration()>=2) >= 10;
 end
 p.bootAlpha = 0.01;
 p.nboot = 100000;
@@ -39,6 +127,216 @@ boot.lick = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muD
     eu, 'lick', nboot=p.nboot, alpha=p.bootAlpha, withReplacement=false, oneSided=false, ...
     responseWindow=p.responseWindowLick);
 fprintf(1, '\nAll done\n')
+
+%%
+p.features = ["HandR", "HandL", "FootR", "FootL", "Tongue", "Jaw", "Spine"];
+p.featureStats = ["xPos", "xPos", "xPos", "xPos", "likelihood", "yPos", "yPos"]; % xPos, yPos, xVel, yVel, likelihood, displacement, speed
+p.vtdNames = ["vtdR", "vtdL", "vtdR", "vtdL", "both", "both", "both"];
+p.smoothWindow = [5, 5, 5, 5, 5, 5, 5];
+p.minL = [0.5, 0.5, 0.5, 0.5, 0.2, 0.5, 0.5];
+p.spikeDataSource = "rate"; % rate, count
+p.spikeRes = 0.01;
+p.spikeKernelType = 'gaussian';
+switch p.spikeKernelType
+    case 'gaussian'
+        p.spikeKernelSigma = 0.075;
+        p.spikeKernelWidth = 0.5;
+        [~, ~, p.spikeKernel] = eu(1).getSpikeRates('gaussian', p.spikeKernelSigma, p.spikeRes, kernelWidth=p.spikeKernelWidth);
+    case 'exponential'
+        p.spikeKernelLambda1 = 10;
+        p.spikeKernelLambda2 = 100;
+        p.spikeKernelWidth = 0.5;
+        [~, ~, p.spikeKernel] = eu(1).getSpikeRates('exponential', p.spikeKernelLambda1, p.spikeKernelLambda2, p.spikeRes, kernelWidth=p.spikeKernelWidth);
+end
+
+ax = axes(figure());
+title(ax, 'Spike rate kernel')
+xlabel(ax, 'time (s)')
+hold(ax, 'on')
+
+switch p.spikeKernelType
+    case 'gaussian'
+        plot(ax, p.spikeKernel.t, p.spikeKernel.y, DisplayName=sprintf('\\sigma=%g', p.spikeKernelSigma));
+    case 'exponential'
+        plot(ax, p.spikeKernel.t, p.spikeKernel.y, DisplayName=sprintf('\\lambda_1=%g, \\lambda_2=%g', p.spikeKernelLambda1, p.spikeKernelLambda2));
+end
+legend(ax, Interpreter='tex')
+drawnow
+
+p.xta.res = 1/30;
+p.xta.window = [-1, 1];
+p.xta.meanWindow = [-0.3, 0.3];
+
+p.xta.dip.samples = [0.2, 0.8]./p.spikeRes; % exceed threshold for 200-800ms
+p.xta.dip.nullSamplesPre = 0.2/p.spikeRes; % 200 ms below threshold pre dip
+p.xta.dip.nullSamplesPost = 0.2/p.spikeRes; % 200 ms below threshold post dip
+p.xta.dip.thresholdQuantile = 0.25; % 0.25
+p.xta.dip.thresholdSubQuantile = 0.05;
+p.xta.dip.pattern = arrayfun(@(n) [zeros(1, p.xta.dip.nullSamplesPre), ones(1, n), zeros(1, p.xta.dip.nullSamplesPost)] , p.xta.dip.samples(1):p.xta.dip.samples(2), UniformOutput=false);
+p.xta.dip.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.dip.pattern); % finds the onset
+
+p.xta.rise.samples = [0.2, 0.8]./p.spikeRes; % exceed threshold for 200-800ms
+p.xta.rise.nullSamplesPre = 0.2/p.spikeRes; % 200 ms below threshold pre dip
+p.xta.rise.nullSamplesPost = 0.2/p.spikeRes; % 200 ms below threshold post dip
+p.xta.rise.thresholdQuantile = 1 - p.xta.dip.thresholdQuantile;
+p.xta.rise.thresholdSubQuantile = 1 - p.xta.dip.thresholdSubQuantile;
+p.xta.rise.pattern = arrayfun(@(n) [zeros(1, p.xta.rise.nullSamplesPre), ones(1, n), zeros(1, p.xta.rise.nullSamplesPost)] , p.xta.rise.samples(1):p.xta.rise.samples(2), UniformOutput=false);
+p.xta.rise.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.rise.pattern);
+
+p.blank(1).event = "StimOn";
+p.blank(1).window = [-1, 1];
+p.blank(1).event = "FirstPress";
+p.blank(1).window = [-2, 2];
+p.blank(1).event = "FirstLick";
+p.blank(1).window = [-2, 2];
+
+p.nBoot = 10000;
+p.bootAlpha = 0.05;
+
+% Process vtdFeatues
+clear kinematics
+kinematics(length(exp)) = struct(HandR=[], HandL=[], FootR=[], FootL=[], Tongue=[]);
+for iExp = 1:length(exp)
+    for iFeature = 1:length(p.features)
+        fn = p.features(iFeature);
+        vn = p.vtdNames(iFeature);
+        sn = p.featureStats(iFeature);
+        if ismember(vn, ["vtdL", "vtdR"])
+            vtd = exp(iExp).(vn);
+            if isempty(vtd)
+                continue
+            end
+        end
+        % Tongue uses bilateral likelihood
+        if fn == "Tongue"
+            assert(sn == "likelihood");
+            iSide = 0;
+            t = 0:p.xta.res:max(exp(iExp).vtdL.Timestamp(end), exp(iExp).vtdR.Timestamp(end));
+            L = NaN(length(t), 1);
+            for side = ["vtdL", "vtdR"]
+                iSide = iSide + 1;
+                l = exp(iExp).(side).(sprintf("%s_Likelihood", fn));
+                l(l<p.minL(iFeature)) = 0;
+                l(l>p.minL(iFeature)) = 1;
+                % l = smoothdata(l, 'gaussian', 7);
+                L(:, iSide) = interp1(exp(iExp).(side).Timestamp, l, t, 'linear');
+            end
+            L = sum(L, 2);
+            L = single(L > 0);
+            clear iSide side l
+            L = smoothdata(L, 'gaussian', p.smoothWindow(iFeature));
+            kinematics(iExp).(fn) = struct(X=single(L), t=single(t));
+            clear t
+        % Licks from digital events
+        elseif fn == "Lick"
+            assert(sn == "likelihood");
+            L = exp(iExp).eu(1).EventTimes.LickOn;
+            t = 0:p.xta.res:exp(iExp).vtdR.Timestamp(end);
+            edges = [t - p.xta.res/2, t(end) + p.xta.res/2];
+            L = histcounts(L, edges);
+            L = smoothdata(L, 'gaussian', p.smoothWindow(iFeature));
+            kinematics(iExp).(fn) = struct(X=single(L), t=single(t));
+            clear edges t
+        % Average displacement from both sides
+        elseif vn == "both"
+            iSide = 0;
+            t = 0:p.xta.res:max(exp(iExp).vtdL.Timestamp(end), exp(iExp).vtdR.Timestamp(end));
+            S = NaN(length(t), 1);
+            for side = ["vtdL", "vtdR"]
+                iSide = iSide + 1;
+                x = exp(iExp).(side).(sprintf("%s_X", fn));
+                y = exp(iExp).(side).(sprintf("%s_Y", fn));
+                l = exp(iExp).(side).(sprintf("%s_Likelihood", fn));
+                x(l<p.minL(iFeature)) = NaN;
+                y(l<p.minL(iFeature)) = NaN;
+                x = (x - mean(x, 'all', 'omitnan')) ./ std(x, 0, 'all', 'omitnan');
+                y = (y - mean(y, 'all', 'omitnan')) ./ std(y, 0, 'all', 'omitnan');
+                tt = exp(iExp).(side).Timestamp;
+
+                switch sn
+                    case "xPos"
+                        if vn == "vtdR"
+                            s = x;
+                        else
+                            s = -x;
+                        end
+                    case "yPos"
+                        s = y;
+                    case "xVel"
+                        if vn == "vtdR"
+                            s = [NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
+                        else
+                            s = -[NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
+                        end
+                    case "yVel"
+                        s = [NaN; diff(smoothdata(y, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
+                    case "displacement"
+                        s = sqrt(x.^2 + y.^2);
+                    case "speed"
+                        x = [NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
+                        y = [NaN; diff(smoothdata(y, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
+                        s = sqrt(x.^2 + y.^2);
+                    otherwise
+                        error("Unsupported stat '%s' for feature '%s'", sn, fn)
+                end
+
+                % l = smoothdata(l, 'gaussian', 7);
+                S(:, iSide) = interp1(tt, s, t, 'linear');
+            end
+            clear iSide side x y l d
+            S = mean(S, 2, 'omitnan');
+            if ~ismember(sn, ["xVel", "yVel", "speed"])
+                S = smoothdata(S, 'gaussian', p.smoothWindow(iFeature));
+            end
+            kinematics(iExp).(fn) = struct(X=single(S), t=single(t));
+            clear t
+        % Other tracking points use position or speed
+        elseif ismember(sprintf("%s_X", fn), vtd.Properties.VariableNames)
+            x = vtd.(sprintf("%s_X", fn));
+            y = vtd.(sprintf("%s_Y", fn));
+            l = vtd.(sprintf("%s_Likelihood", fn));
+            t = vtd.Timestamp;
+            x(l<p.minL(iFeature)) = NaN;
+            y(l<p.minL(iFeature)) = NaN;
+            x = (x - mean(x, 'all', 'omitnan')) ./ std(x, 0, 'all', 'omitnan');
+            y = (y - mean(y, 'all', 'omitnan')) ./ std(y, 0, 'all', 'omitnan');
+            switch sn
+                case "xPos"
+                    if vn == "vtdR"
+                        s = x;
+                    else
+                        s = -x;
+                    end
+                case "yPos"
+                    s = y;
+                case "xVel"
+                    if vn == "vtdR"
+                        s = [NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
+                    else
+                        s = -[NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
+                    end
+                case "yVel"
+                    s = [NaN; diff(smoothdata(y, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
+                case "displacement"
+                    s = sqrt(x.^2 + y.^2);
+                case "speed"
+                    x = [NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
+                    y = [NaN; diff(smoothdata(y, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
+                    s = sqrt(x.^2 + y.^2);
+                otherwise
+                    error("Unsupported stat '%s' for feature '%s'", sn, fn)
+            end
+            % selnan = isnan(D);
+            % D(selnan) = interp1(vtd.Timestamp(~selnan), D(~selnan), vtd.Timestamp(selnan), 'linear');
+            if ~ismember(sn, ["xVel", "yVel", "speed"])
+                s = smoothdata(s, 'gaussian', p.smoothWindow(iFeature));
+            end
+            kinematics(iExp).(fn) = struct(X=single(s), t=single(vtd.Timestamp));
+        end
+    end
+end
+clear iExp iFeature vn fn vtd L X Y S selnan
+
 
 %% Report bootstraped movement response direction
 
@@ -90,8 +388,8 @@ fprintf('05 Calculate: Of %i: %i (%i%%) showed modulation for BOTH, %i (%i%%) sh
 
 clear nTotal sel
 
-save('C:\SERVER\Units\boot_SNr_CoChR_VGATCre.mat', 'boot', 'c', 'eta')
-eu.save('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr')
+save('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos.mat', 'boot', 'c', 'eta', 'kinematics')
+eu.save('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr_ValidVideos')
 
 %%
 rd = eu.getRasterData('stim', window=[-1, 1], photoelectricBlankDuration=0.5e-3, minTrialDuration=0.75, maxTrialDuration=4);

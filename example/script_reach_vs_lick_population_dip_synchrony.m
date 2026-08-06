@@ -2,8 +2,9 @@
 % load('C:\SERVER\Units\meta_ReachVsLick_1225_20260728.mat') % 'boot', 'c', 'eta'
 
 
-load('C:\SERVER\Units\boot_SNr_CoChR_VGATCre.mat')
-eu = EphysUnit.load('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr');
+% Try running script_optrodeSNr_CoChR_VGATCre_20260729 again;
+% load('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos.mat')
+% eu = EphysUnit.load('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr_ValidVideos');
 
 
 %%
@@ -24,8 +25,8 @@ for iExp = 1:length(uniqueExpNames)
     ei.lick.inc = find(isInExp & c.isLickUp(:));
     ei.lick.dec = find(isInExp & c.isLickDown(:));
     if (n.press.inc > 0 && n.press.dec > 0) || (n.lick.inc > 0 && n.lick.dec > 0)
-        fprintf('iExp=%i, %i units; %i reach-inc, %i reach-dec; %i lick-inc, %i lick-dec\n', ...
-            iExp, nnz(isInExp), ...
+        fprintf('iExp=%i %s, %i units; %i reach-inc, %i reach-dec; %i lick-inc, %i lick-dec\n', ...
+            iExp, exp(iExp).name, nnz(isInExp), ...
             nnz(isInExp & c.isPressUp(:)), nnz(isInExp & c.isPressDown(:)), ...
             nnz(isInExp & c.isLickUp(:)), nnz(isInExp & c.isLickDown(:)))
     else
@@ -40,7 +41,7 @@ for i = 1:length(eu)
 end
 
 %%
-for iExp = 9%1:length(uniqueExpNames) %9
+for iExp = 7%1:length(uniqueExpNames) %9
     close all
     clear n ei
     isInExp = euToExpIndices == iExp;
@@ -180,20 +181,23 @@ end
 
 %% Increase vs. decrease population PETHs: are they always anti-correlated, even in ITI/pre-movement quiescent period?
 close all
-p.blank(1).event = "StimOn";
-p.blank(1).window = [-1, 1];
-p.blank(1).event = "FirstPress";
-p.blank(1).window = [-2, 2];
-p.blank(1).event = "FirstLick";
-p.blank(1).window = [-2, 2];
+if isfield(p, 'blank')
+    p = rmfield(p, 'blank');
+end
+% p.blank(1).event = "StimOn";
+% p.blank(1).window = [-0.01, 0.01];
+% p.blank(1).event = "FirstPress";
+% p.blank(1).window = [-2, 2];
+% p.blank(1).event = "FirstLick";
+% p.blank(1).window = [-2, 2];
 
 p.spikeDataSource = "rate"; % rate, count
 p.spikeRes = 0.001;
 p.spikeKernelType = 'gaussian';
 switch p.spikeKernelType
     case 'gaussian'
-        p.spikeKernelSigma = 0.15; % 0.1;
-        p.spikeKernelWidth = 0.5; % 0.5;
+        p.spikeKernelSigma = 0.1/2; % 0.1;
+        p.spikeKernelWidth = 0.5/2; % 0.5;
         [~, ~, p.spikeKernel] = eu(1).getSpikeRates('gaussian', p.spikeKernelSigma, p.spikeRes, kernelWidth=p.spikeKernelWidth);
     case 'exponential'
         p.spikeKernelLambda1 = 10;
@@ -204,8 +208,8 @@ end
 
 
 % for trialType = ["press", "lick"]
-for trialType = "press"
-    for iExp = 9%1:length(exp)
+for trialType = "lick"
+    for iExp = 2%1:length(exp)
         clear n ei
         isInExp = euToExpIndices == iExp;
         n.press.inc = nnz(isInExp & c.isPressUp(:));
@@ -257,15 +261,17 @@ for trialType = "press"
                 xx = (xx - mean(xBaseline, 'all', 'omitnan')) ./ std(xBaseline, 0, 'all', 'omitnan');
                 % xx = xx - smoothdata(xx, 2, 'movmedian', 1000/res);
 
-                for iEvent = 1:length(p.blank)
-                    tEvent = eu(iEu).EventTimes.(p.blank(iEvent).event);
-                    windows = tEvent(:) + p.blank(iEvent).window;
-                    for ii = 1:length(tEvent)
-                        [a, b] = isin(t, windows(ii, :), true, true);
-                        xx(a:b) = NaN;
+                if isfield(p, 'blank')
+                    for iEvent = 1:length(p.blank)
+                        tEvent = eu(iEu).EventTimes.(p.blank(iEvent).event);
+                        windows = tEvent(:) + p.blank(iEvent).window;
+                        for ii = 1:length(tEvent)
+                            [a, b] = isin(t, windows(ii, :), true, true);
+                            xx(a:b) = NaN;
+                        end
                     end
+                    clear iEvent tEvent windows ii a b
                 end
-                clear iEvent tEvent windows ii a b
 
                 X.(dir)(i, :) = xx;
 
@@ -355,19 +361,21 @@ for trialType = "press"
         for ifn = 1:length(features)
             fn = features(ifn);
             vel.(fn).t = kinematics(iExp).(fn).t;
-            vel.(fn).x = diff([NaN; kinematics(iExp).(fn).X(:)]) ./ diff([NaN; kinematics(iExp).(fn).t(:)]);
+            vel.(fn).x = kinematics(iExp).(fn).X(:);
+            % vel.(fn).x = diff([NaN; kinematics(iExp).(fn).X(:)]) ./ diff([NaN; kinematics(iExp).(fn).t(:)]);
             % vel.(fn).st = vel.(fn).t(strfind(vel.(fn).x' >= threshold, [0, 1]) + 1); % spike time, duh
             [~, vel.(fn).st] = findpeaks(vel.(fn).x, vel.(fn).t, MinPeakHeight=1, MinPeakProminence=1);
-
-            for iEvent = 1:length(p.blank)
-                tEvent = eu(iEu).EventTimes.(p.blank(iEvent).event);
-                windows = tEvent(:) + p.blank(iEvent).window;
-                for ii = 1:length(tEvent)
-                    [a, b] = isin(vel.(fn).t, windows(ii, :), true, true);
-                    vel.(fn).x(a:b) = NaN;
+            if isfield(p, 'blank')
+                for iEvent = 1:length(p.blank)
+                    tEvent = eu(iEu).EventTimes.(p.blank(iEvent).event);
+                    windows = tEvent(:) + p.blank(iEvent).window;
+                    for ii = 1:length(tEvent)
+                        [a, b] = isin(vel.(fn).t, windows(ii, :), true, true);
+                        vel.(fn).x(a:b) = NaN;
+                    end
                 end
+                clear iEvent tEvent windows ii a b
             end
-            clear iEvent tEvent windows ii a b
         end
         stMerge = [vel.Jaw.st(:)', vel.HandR.st(:)', vel.HandL.st(:)'];
         stMerge = sort(unique(stMerge), 'ascend');
@@ -380,17 +388,21 @@ for trialType = "press"
             end
             i = i + 1;
         end
-        for iEvent = 1:length(p.blank)
-            tEvent = eu(iEu).EventTimes.(p.blank(iEvent).event);
-            windows = tEvent(:) + p.blank(iEvent).window;
-            for ii = 1:length(tEvent)
-                [a, b] = isin(stMerge, windows(ii, :), true, true);
-                stMerge(a:b) = [];
+        if isfield(p, 'blank')
+            for iEvent = 1:length(p.blank)
+                tEvent = eu(iEu).EventTimes.(p.blank(iEvent).event);
+                windows = tEvent(:) + p.blank(iEvent).window;
+                for ii = 1:length(tEvent)
+                    [a, b] = isin(stMerge, windows(ii, :), true, true);
+                    stMerge(a:b) = [];
+                end
             end
         end
 
-        features = ["Jaw", "HandR", "HandL", "SpikeRate", "PCAScore", "PC1Angle"];
-        featureDispName = ["jaw", "r.hand", "l.hand", "spike rate", "pca scores", "pc1 angle"];
+        % features = ["Jaw", "HandR", "HandL", "SpikeRate", "PCAScore", "PC1Angle"];
+        % featureDispName = ["jaw", "r.hand", "l.hand", "spike rate", "pca scores", "pc1 angle"];
+        features = ["Jaw", "HandR", "HandL", "SpikeRateWithOpto"];
+        featureDispName = ["jaw", "r.hand", "l.hand", "spike rate"];
         nPCs = 1;
 
         l.h = [1, 1, 1, 3, 3, 3];
@@ -406,23 +418,39 @@ for trialType = "press"
             hold(ax(i), 'on')
             fn = features(i);
             switch fn
-                case {"Jaw", "HandR", "HandL"}
+                case "Jaw"
                     iLine = iLine + 1;
                     h(iLine) = plot(ax(i), vel.(fn).t, vel.(fn).x, 'k-', DisplayName=featureDispName(i), Clipping='off');
-                    plot(ax(i), vel.(fn).st, 0, 'bo')
-                    % yline(ax(i), threshold, 'r--')
-                case "SpikeRate"
+                    tLick = exp(iExp).eu(1).EventTimes.FirstLick;
+                    for iLick = 1:length(tLick)
+                        patch(ax(i), tLick(iLick) + [0, 0.1, 0.1, 0], [-5, -5, 5, 5], [0.2, 0.8, 0.2], FaceAlpha=0.1, EdgeColor=[0.2, 0.8, 0.2], EdgeAlpha=0.8)
+                    end
+                case {"HandR", "HandL"}
+                    iLine = iLine + 1;
+                    h(iLine) = plot(ax(i), vel.(fn).t, vel.(fn).x, 'k-', DisplayName=featureDispName(i), Clipping='off');                    
+                    tPress = exp(iExp).eu(1).EventTimes.FirstPress;
+                    for iPress = 1:length(tPress)
+                        patch(ax(i), tPress(iPress) + [0, 0.1, 0.1, 0], [-5, -5, 5, 5], [0.8, 0.2, 0.2], FaceAlpha=0.1, EdgeColor=[0.8, 0.2, 0.2], EdgeAlpha=0.8)
+                    end                    
+                case "SpikeRateWithOpto"
                     iLine = iLine + 1;
                     h(iLine) = plot(ax(i), t, x.dec, 'b', DisplayName=sprintf('dec (n=%i)', n.(trialType).dec), Clipping='off');
                     iLine = iLine + 1;
                     h(iLine) = plot(ax(i), t, x.inc, 'r', DisplayName=sprintf('inc (n=%i)', n.(trialType).inc), Clipping='off');
+
+                    tOn = exp(iExp).eu(1).EventTimes.LaserModBlueOn;
+                    tOff = exp(iExp).eu(1).EventTimes.LaserModBlueOff;
+                    for iStim = 1:length(tOn)
+                        patch(ax(i), [tOn(iStim), tOff(iStim), tOff(iStim), tOn(iStim)], [-5, -5, 5, 5], [0.2, 0.2, 0.8], FaceAlpha=0.1, EdgeColor=[0.2, 0.2, 0.8], EdgeAlpha=0.8)
+                    end
+
                 case "PCAScore"
                     for iPC = 1:nPCs
                         iLine = iLine + 1;
                         h(iLine) = plot(ax(i), t, score(:, iPC), Color=[getColor(iPC, 3, 0.7, s=0.5, l=0.5), 0.3], DisplayName=sprintf('PC%i (%.0f%%)', iPC, explained(iPC)), Clipping='off');
                     end
                     yline(ax(i), 0, 'k--')
-                    plot(ax(i), stMerge, 0, 'bo')
+                    % plot(ax(i), stMerge, 0, 'bo')
                     ylim(ax(i), [-10, 10])
                 case "PC1Angle"
                     for iPC = 1:nPCs
@@ -440,19 +468,26 @@ for trialType = "press"
         end
 
         % xticklabels(ax(1:length(features)-1), [])
-        ylim(ax(1:4), [-15, 15]);
-        yticks(ax(1:4), [-10, 0, 10])
-        ylim(ax(5), [-5, 5]);
-        yticks(ax(5), [-3, 0, 3])
-        xlim(ax, [36, 50])
+        ylim(ax(1:3), [-5, 5]);
+        yticks(ax(1:3), [-3, 0, 3])
+        ylim(ax(4), [-5, 5]);
+        yticks(ax(4), [-3, 0, 3])
+        xlim(ax, exp(iExp).eu(1).EventTimes.LaserModBlueOn(1) + [-30, 30])
         grid(ax, 'on')
         linkaxes(ax, 'x');
-        legend(h);
+        % legend(h);
         xlabel(tl, 'time (s)')
         box(ax, 'off')
     end
 end
 
+xlim(ax, exp(iExp).eu(1).EventTimes.LaserModBlueOn(end) + [-10, 10])
+disp(iStim)
+
+for iStim = 1:length(exp(iExp).eu(1).EventTimes.LaserModBlueOn)
+    xlim(ax, exp(iExp).eu(1).EventTimes.LaserModBlueOn(iStim) + [-10, 10])
+    disp(iStim)
+end
 
 %%
 % for windowWidth = 0.1:0.1:1
