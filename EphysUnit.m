@@ -2968,6 +2968,7 @@ classdef EphysUnit < handle
             end
             p.addOptional('edgesOrResolution', defaultResolution, @isnumeric)
             p.addParameter('kernelWidth', 1.0, @(x) isnumeric(x) && x > 0)
+            p.addParameter('artifacts', [], @(x) isempty(x) || (isstruct(x) && all(isfield(x, {'event', 'length', 'lengthUnit', 'direction'}))))
             p.addParameter('spikeTimes', [], @isnumeric)
             p.parse(varargin{:})
             if length(p.Results.edgesOrResolution) <= 1
@@ -3003,12 +3004,38 @@ classdef EphysUnit < handle
             kernelParams.width = kernelWidth;
             yKernel = yKernel / sum(yKernel) / resolution;
             kernel = struct('type', kernelType, 'params', kernelParams, 't', tKernel, 'y', yKernel);
-            
+
+            artifacts = p.Results.artifacts;
             if isempty(p.Results.spikeTimes)
                 spikes = obj.SpikeTimes;
             else
                 spikes = p.Results.spikeTimes;
             end
+            % Removed spikes from artifact windows (danger!)
+            for iArtifact = 1:length(artifacts)
+                tArtifact = obj.EventTimes.(artifacts(iArtifact).event);
+                switch lower(artifacts(iArtifact).direction)
+                    case 'right'
+                        artifactWindow = [0, artifacts(iArtifact).length];
+                    case 'both'
+                        artifactWindow = [-artifacts(iArtifact).length, artifacts(iArtifact).length];
+                end
+                switch lower(artifacts(iArtifact).lengthUnit)
+                    case 's'
+                        artifactWindow = artifactWindow;
+                    case 'ms'
+                        artifactWindow = artifactWindow*1e-3;
+                    otherwise
+                        error('artifact window unit must be ''ms'' or ''s''!');
+                end
+                for t0 = tArtifact(:)'
+                    [iStart, iStop] = isin(spikes, t0 + artifactWindow, true, true);
+                    if ~isempty(iStart) && ~isempty(iStop)
+                        spikes(iStart:iStop) = [];
+                    end
+                end
+            end
+
             if isempty(edges)
                 edges = spikes(1) + kernelWindow(1):resolution:spikes(end) + kernelWindow(2);
                 nPrepad = 0;
