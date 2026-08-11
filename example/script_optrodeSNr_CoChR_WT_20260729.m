@@ -1,4 +1,4 @@
-eu = EphysUnit.load('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
+eu = EphysUnit.load('C:\SERVER\Units\SNr_CoChR_Optrode_syn\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
 
 
 nTrials = arrayfun(@(eu) length(eu.EventTimes.TimeoutOn), eu);
@@ -36,7 +36,7 @@ for iExp = 1:length(exp)
     results(iExp).isValid = length(results(iExp).varsL) == 23 && length(results(iExp).varsR) == 23;
 end
 clear iExp
-eu = EphysUnit.load('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
+eu = EphysUnit.load('C:\SERVER\Units\SNr_CoChR_Optrode_syn\SingleUnit_NonDuplicate_NonDrift_SNr', waveforms=false, spikecounts=false, spikerates=false);
 
 %% Cull bad experiments (some are still pending DLC)
 assert(isequal({exp.name}, {results.name}));
@@ -386,7 +386,7 @@ fprintf('05 Calculate: Of %i: %i (%i%%) showed modulation for BOTH, %i (%i%%) sh
     )
 
 clear nTotal sel
-
+%%
 save('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos.mat', 'boot', 'c', 'eta', 'kinematics')
 eu.save('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr_ValidVideos')
 
