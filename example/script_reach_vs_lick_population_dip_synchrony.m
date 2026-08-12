@@ -1,10 +1,14 @@
+% expDesc = "WT x SNr(AAV-syn-CoChR)";
 % eu = EphysUnit.load('C:\SERVER\Units\ReachVsLick_1225');
 % load('C:\SERVER\Units\meta_ReachVsLick_1225_20260728.mat') % 'boot', 'c', 'eta'
 
 % Try running script_optrodeSNr_CoChR_VGATCre_20260729 again;
+expDesc = "VGAT-Cre x SNr(AAV-flex-CoChR)";
 load('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos.mat')
 eu = EphysUnit.load('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr_ValidVideos');
 
+expNames = string({eu.ExpName}');
+[uniqueExpNames, expToEuIndices, euToExpIndices] = unique(expNames);
 
 %%
 % clearvars -except boot c eta eu exp expIndices
@@ -20,129 +24,97 @@ meta.stim = mean(eta.stim.X(:, isin(eta.stim.t, [0.05, 0.2])), 2, 'omitnan');
 meta.press = mean(eta.press.X(:, isin(eta.press.t, [-0.3, 0])), 2, 'omitnan');
 meta.lick = mean(eta.lick.X(:, isin(eta.lick.t, [-0.3, 0])), 2, 'omitnan');
 
-%% Plot ETAs (per session)
+%% Plot ETAs (reach vs. lick vs. opto; all sessions combined, or per session)
+
+TRIALTYPES = ["press", "lick", "stim", "stim"];
+SELTYPES = ["press", "lick", "press", "lick"];
+
 close all
-for iExp = 1:length(uniqueExpNames)% + 1
-        if iExp > length(uniqueExpNames)
+for iExp = 0%:length(uniqueExpNames)
+    if iExp == 0
         selUnits = true(1, length(eu));
     else
         selUnits = reshape(euToExpIndices == iExp, size(c.isPressUp));
     end
 
-    fig = figure(Units='inches', Position=[1, 1, 15, 10]);
+    fig = figure(Units='inches', Position=[1, 1, 10, 6]);
     tl = tiledlayout(fig, 2, 2); 
     
-    clear h
-    iLine = 1;
-    ax = nexttile(tl); hold(ax, 'on')
-    plot(ax, eta.press.t, eta.press.X(selUnits & c.isPressUp, :), Color=[1, 0, 0, 0.6])
-    if any(selUnits & c.isPressDown)
-        plot(ax, eta.press.t, eta.press.X(selUnits & c.isPressDown, :), Color=[0, 0, 1, 0.6])
+    for i = 1:length(TRIALTYPES)
+        trialType = TRIALTYPES(i);
+        selType = SELTYPES(i);
+        clear h
+        iLine = 1;
+        ax = nexttile(tl); hold(ax, 'on')
+        switch selType
+            case "press"
+                selTypeDispName = "reach";
+                selUp = c.isPressUp;
+                selDown = c.isPressDown;
+                selFlat = ~c.isPressResponsive;
+            case "lick"
+                selTypeDispName = "lick";
+                selUp = c.isLickUp;
+                selDown = c.isLickDown;
+                selFlat = ~c.isLickResponsive;
+        end
+        switch trialType
+            case "press"
+                trialTypeDispName = "reach";
+                eventDispName = "bar contact";
+            case "lick"
+                trialTypeDispName = "lick";
+                eventDispName = "spout contact";
+            case "stim"
+                trialTypeDispName = "opto";
+                eventDispName = "opto onset";
+        end
+
+        plot(ax, eta.(trialType).t, eta.(trialType).X(selUnits & selUp, :), Color=[1, 0, 0, 0.1])
+        if any(selUnits & c.isPressDown)
+            plot(ax, eta.(trialType).t, eta.(trialType).X(selUnits & selDown, :), Color=[0, 0, 1, 0.1])
+        end
+        plot(ax, eta.(trialType).t, eta.(trialType).X(selUnits & selFlat, :), Color=[0, 0, 0, 0.1])
+        h(iLine) = plot(ax, eta.(trialType).t, mean(eta.(trialType).X(selUnits & selUp, :), 1, 'omitnan'), Color=[0.8, 0.2, 0.2], LineWidth=1.5, DisplayName=sprintf('%s-inc (n=%i)', selTypeDispName, nnz(selUnits & selUp)));
+        iLine = iLine + 1;
+        if any(selUnits & c.isPressDown)
+            h(iLine) = plot(ax, eta.(trialType).t, mean(eta.(trialType).X(selUnits & selDown, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.8], LineWidth=1.5, DisplayName=sprintf('%s-dec (n=%i)', selTypeDispName, nnz(selUnits & selDown)));
+            iLine = iLine + 1;
+        end
+        h(iLine) = plot(ax, eta.(trialType).t, mean(eta.(trialType).X(selUnits & selFlat, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.2], LineWidth=1.5, DisplayName=sprintf('%s-flat (n=%i)', selTypeDispName, nnz(selUnits & selFlat)));
+        iLine = iLine + 1;
+
+        xline(ax, 0, 'k:')
+        switch trialType
+            case {"press", "lick"}
+                xlim(ax, [-2, 3])
+            case "stim"
+                xlim(ax, [-1, 4])
+        end
+        ylim(ax, [-2, 4])
+        lgd = legend(h(isvalid(h)), Location='northeast');
+        lgd.ItemTokenSize = [9, 9];
+        title(ax, trialTypeDispName)
+        xlabel(ax, sprintf('time to %s (s)', eventDispName))
     end
-    plot(ax, eta.press.t, eta.press.X(selUnits & ~c.isPressResponsive, :), Color=[0, 0, 0, 0.6])
-    % h(iLine) = plot(ax, eta.press.t, mean(eta.press.X(selUnits & c.isPressUp, :), 1, 'omitnan'), Color=[0.8, 0.2, 0.2], LineWidth=1.5, DisplayName=sprintf('reach-inc (n=%i)', nnz(selUnits & c.isPressUp)));
-    % iLine = iLine + 1;
-    % if any(selUnits & c.isPressDown)
-    %     h(iLine) = plot(ax, eta.press.t, mean(eta.press.X(selUnits & c.isPressDown, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.8], LineWidth=1.5, DisplayName=sprintf('reach-dec (n=%i)', nnz(selUnits & c.isPressDown)));
-    %     iLine = iLine + 1;
-    % end
-    % h(iLine) = plot(ax, eta.press.t, mean(eta.press.X(selUnits & ~c.isPressResponsive, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.2], LineWidth=1.5, DisplayName=sprintf('reach-flat (n=%i)', nnz(selUnits & ~c.isPressResponsive)));
-    % iLine = iLine + 1;
-    xline(ax, 0, 'k:')
-    % lgd = legend(h(isvalid(h)), Location='northwest');
-    % lgd.ItemTokenSize = [9, 9];
-    xlim(ax, [-3, 2])
-    ylim(ax, [-2, 4])
-    title(ax, 'reach')
-    xlabel(ax, 'time to bar contact (s)')
-    
-    clear h
-    iLine = 1;
-    ax = nexttile(tl); hold(ax, 'on')
-    plot(ax, eta.lick.t, eta.lick.X(selUnits & c.isLickUp, :), Color=[1, 0, 0, 0.6])
-    if any(selUnits & c.isLickDown)
-        plot(ax, eta.lick.t, eta.lick.X(selUnits & c.isLickDown, :), Color=[0, 0, 1, 0.6])
-    end
-    plot(ax, eta.lick.t, eta.lick.X(selUnits & ~c.isLickResponsive, :), Color=[0, 0, 0, 0.6])
-    % h(iLine) = plot(ax, eta.lick.t, mean(eta.lick.X(selUnits & c.isLickUp, :), 1, 'omitnan'), Color=[0.8, 0.2, 0.2], LineWidth=1.5, DisplayName=sprintf('lick-inc (n=%i)', nnz(selUnits & c.isLickUp)));
-    % iLine = iLine + 1;
-    % if any(selUnits & c.isLickDown)
-    %     h(iLine) = plot(ax, eta.lick.t, mean(eta.lick.X(selUnits & c.isLickDown, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.8], LineWidth=1.5, DisplayName=sprintf('lick-dec (n=%i)', nnz(selUnits & c.isLickDown)));
-    %     iLine = iLine + 1;
-    % end
-    % h(iLine) = plot(ax, eta.lick.t, mean(eta.lick.X(selUnits & ~c.isLickResponsive, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.2], LineWidth=1.5, DisplayName=sprintf('lick-flat (n=%i)', nnz(selUnits & ~c.isLickResponsive)));
-    % iLine = iLine + 1;
-    xline(ax, 0, 'k:')
-    % lgd = legend(h(isvalid(h)), Location='northwest');
-    % lgd.ItemTokenSize = [9, 9];
-    xlim(ax, [-3, 2])
-    ylim(ax, [-2, 4])
-    title(ax, 'lick')
-    xlabel(ax, 'time to spout contact (s)')
-    
-    clear h
-    iLine = 1;
-    ax = nexttile(tl); hold(ax, 'on')
-    plot(ax, eta.stim.t, eta.stim.X(selUnits & c.isPressUp, :), Color=[1, 0, 0, 0.6])
-    if any(selUnits & c.isPressDown)
-        plot(ax, eta.stim.t, eta.stim.X(selUnits & c.isPressDown, :), Color=[0, 0, 1, 0.6])
-    end
-    plot(ax, eta.stim.t, eta.stim.X(selUnits & ~c.isPressResponsive, :), Color=[0, 0, 0, 0.6])
-    % h(iLine) = plot(ax, eta.stim.t, mean(eta.stim.X(selUnits & c.isPressUp, :), 1, 'omitnan'), Color=[0.8, 0.2, 0.2], LineWidth=1.5, DisplayName=sprintf('reach-inc (n=%i)', nnz(selUnits & c.isPressUp)));
-    % iLine = iLine + 1;
-    % if any(selUnits & c.isPressDown)
-    %     h(iLine) = plot(ax, eta.stim.t, mean(eta.stim.X(selUnits & c.isPressDown, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.8], LineWidth=1.5, DisplayName=sprintf('reach-dec (n=%i)', nnz(selUnits & c.isPressDown)));
-    %     iLine = iLine + 1;
-    % end
-    % h(iLine) = plot(ax, eta.stim.t, mean(eta.stim.X(selUnits & ~c.isPressResponsive, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.2], LineWidth=1.5, DisplayName=sprintf('reach-flat (n=%i)', nnz(selUnits & ~c.isPressResponsive)));
-    % iLine = iLine + 1;
-    % h(iLine) = plot(ax, eta.stim.t, mean(eta.stim.X(selUnits, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.2], LineStyle='-.', LineWidth=2, DisplayName=sprintf('all (n=%i)', nnz(selUnits)));
-    iLine = iLine + 1;
-    xline(ax, [0, 1, 3], 'k:')
-    % lgd = legend(h(isvalid(h)), Location='northeast');
-    % lgd.ItemTokenSize = [18, 9];
-    xlim(ax, [-1, 4])
-    ylim(ax, [-2, 4])
-    title(ax, 'opto')
-    xlabel(ax, 'time to opto onset (s)')
-    
-    clear h
-    iLine = 1;
-    ax = nexttile(tl); hold(ax, 'on')
-    plot(ax, eta.stim.t, eta.stim.X(selUnits & c.isLickUp, :), Color=[1, 0, 0, 0.6])
-    if any(selUnits & c.isLickDown)
-        plot(ax, eta.stim.t, eta.stim.X(selUnits & c.isLickDown, :), Color=[0, 0, 1, 0.6])
-    end
-    plot(ax, eta.stim.t, eta.stim.X(selUnits & ~c.isLickResponsive, :), Color=[0, 0, 0, 0.6])
-    % h(iLine) = plot(ax, eta.stim.t, mean(eta.stim.X(selUnits & c.isLickUp, :), 1, 'omitnan'), Color=[0.8, 0.2, 0.2], LineWidth=1.5, DisplayName=sprintf('lick-inc (n=%i)', nnz(selUnits & c.isLickUp)));
-    % iLine = iLine + 1;
-    % if any(selUnits & c.isLickDown)
-    %     h(iLine) = plot(ax, eta.stim.t, mean(eta.stim.X(selUnits & c.isLickDown, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.8], LineWidth=1.5, DisplayName=sprintf('lick-dec (n=%i)', nnz(selUnits & c.isLickDown)));
-    %     iLine = iLine + 1;
-    % end
-    % h(iLine) = plot(ax, eta.stim.t, mean(eta.stim.X(selUnits & ~c.isLickResponsive, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.2], LineWidth=1.5, DisplayName=sprintf('lick-flat (n=%i)', nnz(selUnits & ~c.isLickResponsive)));
-    iLine = iLine + 1;
-    % h(iLine) = plot(ax, eta.stim.t, mean(eta.stim.X(selUnits, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.2], LineStyle='-.', LineWidth=2, DisplayName=sprintf('all (n=%i)', nnz(selUnits)));
-    iLine = iLine + 1;
-    xline(ax, [0, 1, 3], 'k:')
-    % lgd = legend(h(isvalid(h)), Location='northeast');
-    % lgd.ItemTokenSize = [18, 9];
-    xlim(ax, [-1, 4])
-    ylim(ax, [-2, 4])
-    title(ax, 'opto')
-    xlabel(ax, 'time to opto onset (s)')
     
     ylabel(tl, 'z-scored spike rate (a.u.)')
 
-    % ttl = sprintf("VGAT-Cre x SNr(AAV-flex-CoChR) %i %s", iExp, eu(expToEuIndices(iExp)).ExpName);
-    ttl = sprintf("WT x SNr(AAV-syn-CoChR) %i %s", iExp, eu(expToEuIndices(iExp)).ExpName);
+    if iExp == 0
+        ttl = sprintf("%s - %i sessions", expDesc, length(uniqueExpNames));
+    else
+        ttl = sprintf("%s - %i %s", expDesc, iExp, eu(expToEuIndices(iExp)).ExpName);
+    end
     title(tl, ttl, Interpreter='none');
+    fontsize(fig, 9, 'points')
     print(fig, fullfile("C:\Users\AssadLab\Pictures\SNrOpto", sprintf("%s.png", ttl)), '-dpng')
 end
 
 
-%% Plot scattered METAs
-tlp = tiledlayout(figure, 1, 2); 
+%% Plot scattered METAs (reach/lick vs. opto)
+
+fig = figure(Units='inches', Position=[1, 1, 10, 5]);
+tlp = tiledlayout(fig, 1, 2); 
 tl = gobjects(1, 2);
 tl(1) = tiledlayout(tlp, 1, 1);
 tl(2) = tiledlayout(tlp, 1, 1); tl(2).Layout.Tile = 2;
@@ -159,7 +131,8 @@ yline(ax, 0, 'k:')
 xlabel(ax, 'reach')
 ylabel(ax, 'opto')
 axis(ax, 'equal')
-legend(h, Location='northeast')
+lgd = legend(h, Orientation='horizontal');
+lgd.Layout.Tile = 'north';
 
 ax = nexttile(tl(1), 'east'); hold(ax, 'on'); AX(2) = ax;
 edges = -2.5:0.5:6.5;
@@ -176,7 +149,8 @@ yline(ax, 0, 'k:')
 xlabel(ax, 'lick')
 ylabel(ax, 'opto')
 axis(ax, 'equal')
-legend(h, Location='northeast')
+lgd = legend(h, Orientation='horizontal');
+lgd.Layout.Tile = 'north';
 ax = nexttile(tl(2), 'east'); AX(4) = ax;
 
 ax = nexttile(tl(2), 'east'); hold(ax, 'on'); AX(2) = ax;
@@ -188,9 +162,275 @@ histogram(ax, meta.stim, edges, DisplayStyle='stairs', EdgeColor=[.2,.2,.2], Edg
 xlim(AX([1, 3]), [-3, 7])
 ylim(AX, [-3, 7])
 
-%% Count units
-expNames = string({eu.ExpName}');
-[uniqueExpNames, expToEuIndices, euToExpIndices] = unique(expNames);
+%% Load laserpower data (SLOW!)
+V = cell(length(uniqueExpNames), 1);
+for iExp = 1:length(uniqueExpNames)
+    eu0 = eu(expToEuIndices(iExp));
+    stimOn = eu0.EventTimes.LaserModBlueOn;
+    stimOff = eu0.EventTimes.LaserModBlueOff;
+
+    tr = TetrodeRecording();
+    tr.SelectFiles(NeuropixelPath=fullfile('C:\SERVER', eu0.getAnimalName(), eu0.ExpName))
+    tr.LoadNeuropixelIO();
+    tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
+
+    assert(strcmpi(tr.AnalogIn.ChannelNames{1}, 'LaserModBlue'))
+    assert(tr.AnalogIn.ChannelIndex(1)==1)
+    V{iExp} = NaN(length(stimOn), 1);
+    for iStim = 1:length(stimOn)
+        [a, b] = isin(tr.AnalogIn.Timestamps, [stimOn(iStim), stimOff(iStim)], true, true);
+        V{iExp}(iStim) = mean(tr.AnalogIn.Data(1, a:b), 2, 'omitnan');
+    end
+    clear eu0 tr stimOn stimOff a b iStim
+end
+clear iExp
+
+%% Parse laser power data 
+LP = cell(length(uniqueExpNames), 1);
+p.laserPowers = [5, 20]*1e-3;
+p.laserPowerVThreshold = 0.6;
+for iExp = 1:length(V)
+    LP{iExp} = NaN(size(V{iExp}));
+    LP{iExp}(V{iExp}<=p.laserPowerVThreshold) = p.laserPowers(1);
+    LP{iExp}(V{iExp}>p.laserPowerVThreshold) = p.laserPowers(2);
+end
+
+clear stimData
+stimData(length(V)) = struct(iExp=[], name=[], power=[], ain=[], stimOn=[], stimOff=[], duration=[]);
+for iExp = 1:length(V)
+    stimData(iExp).iExp = iExp;
+    stimData(iExp).name = eu(expToEuIndices(iExp)).ExpName;
+    stimData(iExp).power = LP{iExp};
+    stimData(iExp).ain = V{iExp};
+    stimData(iExp).stimOn = eu(expToEuIndices(iExp)).EventTimes.LaserModBlueOn(:);
+    stimData(iExp).stimOff = eu(expToEuIndices(iExp)).EventTimes.LaserModBlueOff(:);
+    stimData(iExp).duration = stimData(iExp).stimOff - stimData(iExp).stimOn;
+end
+
+% Trim short pulses
+p.pulseDurations = [1, 3];
+p.pulseDurationRes = 0.1;
+for iExp = 1:length(V)
+    d = round(stimData(iExp).duration./p.pulseDurationRes).*p.pulseDurationRes;
+    sel = ismember(d, p.pulseDurations);
+    fprintf('iExp=%i, removed %i of %i short pulses (mean(removed)=%g, mean(remaining)=%g).\n', iExp, nnz(~sel), length(sel), mean(stimData(iExp).duration(~sel), 'omitnan'), mean(stimData(iExp).duration(sel), 'omitnan'))
+    stimData(iExp).power(~sel) = [];
+    stimData(iExp).ain(~sel) = [];
+    stimData(iExp).stimOn(~sel) = [];
+    stimData(iExp).stimOff(~sel) = [];
+    stimData(iExp).duration = d;
+    stimData(iExp).duration(~sel) = [];
+end
+
+fprintf('\n')
+% Calculate stim hash
+for iExp = 1:length(V)
+    [lia, iPower] = ismember(stimData(iExp).power, p.laserPowers);
+    assert(all(lia)), clear lia
+    [lia, iDuration] = ismember(stimData(iExp).duration, p.pulseDurations);
+    assert(all(lia)), clear lia
+    hash = iPower*10 + iDuration;
+    stimData(iExp).iPower = iPower;
+    stimData(iExp).iDuration = iDuration;
+    stimData(iExp).hash = hash;
+    fprintf('iExp=%i (', iExp)
+    [uniqueHashes, ia] = unique(hash);
+    for i = 1:length(ia)
+        fprintf("[hash=%i, power=%gmW, duration=%gs],\t", uniqueHashes(i), p.laserPowers(iPower(ia(i)))*1e3, p.pulseDurations(iDuration(ia(i))));
+    end
+    fprintf('\n')
+end
+
+%% Check that all pMove thresholds for stim are 0.3;
+% for iExp = 1:length(stimData)
+%     animalName = strsplit(stimData(iExp).name, '_');
+%     animalName = animalName{1};
+%     try
+%         edit(fullfile("C:\SERVER", animalName, stimData(iExp).name, sprintf('%s.m', stimData(iExp).name)))
+%     catch
+%         iExp = 5;
+%         edit(fullfile("C:\SERVER", 'desmond47', stimData(iExp).name, sprintf('%s.m', stimData(iExp).name)))
+%     end
+% end
+% 
+% 'desmond46_20260710', 0.3
+% 'desmond46_20260717', 0.3
+% 'desmond46_20260722', 0.3
+% 'desmond47_20260710', 0.3
+% 'desmond47_20260716', 0.3
+% 'desmond47_20260724', 0.3
+% 'desmond47_20260729', 0.3
+
+%% TODO: Add controls (one duration, read from decoder data the exclude real stim)
+for iExp = 1:length(V)
+    eu0 = eu(expToEuIndices(iExp));
+    stimOn = eu0.EventTimes.LaserModBlueOn;
+    stimOff = eu0.EventTimes.LaserModBlueOff;
+    
+    % Parse the decoded data
+    % 1. Open the binary file
+    fid = fopen(fullfile('C:\SERVER', eu0.getAnimalName(), eu0.ExpName, 'DecodedData.bin'), 'rb');
+
+    % 2. Read all contents as raw unsigned 8-bit bytes
+    rawBytes = fread(fid, Inf, '*uint8');
+    fclose(fid);
+
+    % 3. Calculate total byte-length of one triplet
+    % uint32 = 4 bytes, uint16 = 2 bytes, uint8 = 1 byte (Total = 7 bytes per triplet)
+    bytesPerTriplet = 7;
+    numTriplets = floor(length(rawBytes) / bytesPerTriplet);
+
+    % Trim any trailing incomplete bytes
+    rawBytes = rawBytes(1 : numTriplets * bytesPerTriplet);
+
+    % 4. Reshape bytes into a 7-by-N matrix (column-major layout)
+    mat = reshape(rawBytes, bytesPerTriplet, numTriplets);
+
+    % 5. Extract and cast fields using byte slices
+    I = zeros(1, size(mat, 2), 'uint32');
+    X = zeros(1, size(mat, 2), 'uint16');
+    P = zeros(1, size(mat, 2), 'uint8');
+    for iEvent = 1:size(mat, 2)
+        I(iEvent) = typecast(mat(1:4, iEvent), 'uint32'); % First 4 bytes
+        X(iEvent) = typecast(mat(5:6, iEvent), 'uint16'); % Next 2 bytes
+        P(iEvent)  = mat(7, iEvent);                       % Final 1 byte
+    end
+    X = single(X)/62235*200;
+    P = single(P)/255;
+    t = single(I)./30000;
+
+    % ax = axes(figure);
+    % hold(ax, 'on')
+    % plot(ax, t, (X - mean(X))./std(X, 0), 'k-')
+    % plot(ax, t, P, 'b-')
+    % ax.InteractionOptions.LimitsDimensions = "x";
+
+    threshold = 0.3;
+    tStimCtrl = t(strfind(P >= threshold, [0, 1]) + 1);
+    timeoutStart = eu0.EventTimes.TIMEOUT_START;
+    trials = Trial(timeoutStart(1:end-1)+2, timeoutStart(2:end)+2, advancedValidation=false);
+    [B, t, I] = trials.inTrial(tStimCtrl);
+    [~, ia, ~] = unique(I);
+    tStimCtrl = t(ia);
+
+    for t0 = stimOn(:)'
+        tStimCtrl(isin(tStimCtrl, t0 + [-4, 4])) = [];
+    end
+
+    stimData(iExp).stimCtrl = tStimCtrl(:);
+end
+
+%% Plot opto-aligned movement kinemeatics + spike rates
+p.kinematicDataSource = "pos";
+features = ["Jaw", "HandL", "HandR"];
+close all
+
+for iExp = 1:length(uniqueExpNames)
+    for ifn = 1:length(features)
+        fn = features(ifn);
+        % Calculate STA
+        switch p.kinematicDataSource
+            case "pos"
+                t = kinematics(iExp).(fn).t;
+                x = kinematics(iExp).(fn).X(:);
+            case "vel"
+                t = kinematics(iExp).(fn).t;
+                x = diff([NaN; kinematics(iExp).(fn).X(:)]) ./ diff([NaN; kinematics(iExp).(fn).t(:)]);
+            case "spd"
+                t = kinematics(iExp).(fn).t;
+                x = abs(diff([NaN; kinematics(iExp).(fn).X(:)]) ./ diff([NaN; kinematics(iExp).(fn).t(:)]));
+            otherwise
+                error("Unknown argument p.kinematicDataSource=%s", p.kinematicDataSource)
+        end
+
+        tLocal = -1:1e-2:max(stimData(iExp).duration)+2;
+        stimData(iExp).(fn).t = tLocal;
+        stimData(iExp).(fn).X = NaN(length(stimData(iExp).hash), length(tLocal));
+        for iStim = 1:length(stimData(iExp).hash)
+            stimData(iExp).(fn).X(iStim, :) = interp1(t, x, tLocal + stimData(iExp).stimOn(iStim), 'linear');
+        end
+        stimData(iExp).(fn).XCtrl = NaN(length(stimData(iExp).stimCtrl), length(tLocal));
+        for iStim = 1:length(stimData(iExp).stimCtrl)
+            stimData(iExp).(fn).XCtrl(iStim, :) = interp1(t, x, tLocal + stimData(iExp).stimCtrl(iStim), 'linear');
+        end
+    end
+end
+stimData = stimData(1:length(V));
+for fn = ["power", "ain", "stimOn", "stimOff", "duration", "iPower", "iDuration", "hash", "stimCtrl"]
+    X = {stimData(1:length(V)).(fn)};
+    X = cat(1, X{:});
+    stimData(length(V)+1).(fn) = X;
+end
+for fn = ["Jaw", "HandL", "HandR"]
+    X = arrayfun(@(stimData) stimData.(fn).X, stimData(1:length(V)), UniformOutput=false);
+    X = cat(1, X{:});
+    XCtrl = arrayfun(@(stimData) stimData.(fn).XCtrl, stimData(1:length(V)), UniformOutput=false);
+    XCtrl = cat(1, XCtrl{:});
+    stimData(length(V)+1).(fn).X = X;
+    stimData(length(V)+1).(fn).XCtrl = XCtrl;
+    stimData(length(V)+1).(fn).t = stimData(1).(fn).t;
+end
+stimData(length(V)+1).iExp = 0;
+stimData(length(V)+1).name = 'all sessions';
+
+
+
+% for iExp = 1:length(uniqueExpNames)+1
+for iExp = length(uniqueExpNames)+1
+    fig = figure();
+    clear l
+    features = ["Jaw", "HandL", "HandR"];
+    l.h = [1, 1, 1];
+    l.ch = cumsum([1, l.h]);
+    tl = tiledlayout(fig, sum(l.h), 2, TileSpacing='tight');
+
+    clear ax
+    for ifn = 1:length(features)
+        fn = features(ifn);
+        % Plot STA
+        for selIDuration = 1:2
+            ax = nexttile(tl);
+            if ifn == 1
+                title(ax, sprintf('%gs opto', p.pulseDurations(selIDuration)))
+            end
+            xlabel('time to decoder/opto onset (s)')
+            clear h
+            iLine = 1;
+            hold(ax, 'on')
+
+            lineStyles = ["-", "-"];
+            colors = [.2,.2,.8,.5; .2,.2,.8,1];
+
+            h(iLine) = plot(ax, tLocal, mean(stimData(iExp).(fn).XCtrl, 1, 'omitnan'), 'k-.', LineWidth=1.5, DisplayName=sprintf("ctrl (n=%i)", length(stimData(iExp).stimCtrl)));
+            iLine = iLine + 1;
+
+            [uniqueHash, ia] = unique(stimData(iExp).hash);
+            durations = [0];
+            for iHash = 1:length(uniqueHash)
+                sel = stimData(iExp).hash == uniqueHash(iHash);
+                iPower = stimData(iExp).iPower(ia(iHash));
+                iDuration = stimData(iExp).iDuration(ia(iHash));
+                if iDuration ~= selIDuration
+                    continue
+                end
+                durations = [durations, p.pulseDurations(iDuration)];
+                mu = mean(stimData(iExp).(fn).X(sel, :), 1, 'omitnan');
+                label = sprintf("%gmw %gs", p.laserPowers(iPower)*1e3, p.pulseDurations(iDuration));
+                h(iLine) = plot(ax, tLocal, mu, Color=colors(iPower, :), LineStyle=lineStyles(iPower), LineWidth=1.5, DisplayName=sprintf("%s (n=%i)", label, nnz(sel)));
+                iLine = iLine + 1;
+            end
+            xline(ax, durations, 'k--')
+            ylabel(ax, fn)
+            legend(h)
+        end
+    end
+    title(tl, sprintf('%s', stimData(iExp).name))
+    fontsize(fig, 12, 'points')
+end
+
+%% Plot whole session kinematics + spikeRates
+close all
+
 clc
 for iExp = 1:length(uniqueExpNames)
     clear n ei
@@ -209,15 +449,6 @@ for iExp = 1:length(uniqueExpNames)
         nnz(isInExp & c.isLickUp(:)), nnz(isInExp & c.isLickDown(:)))
 end
 
-
-%% Cull spikes that are too adjacent
-% for i = 1:length(eu)
-%     isi = [Inf, diff(eu(i).SpikeTimes)];
-%     eu(i).SpikeTimes = eu(i).SpikeTimes(isi>1e-4);
-% end
-
-%% Increase vs. decrease population PETHs: are they always anti-correlated, even in ITI/pre-movement quiescent period?
-close all
 p.plotIndividualUnits = false;
 p.plotPopulationMeans = true;
 p.kinematicDataSource = "vel"; % pos, vel
