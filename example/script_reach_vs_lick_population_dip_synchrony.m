@@ -262,42 +262,15 @@ end
 % 'desmond47_20260729', 0.3
 
 %% TODO: Add controls (one duration, read from decoder data the exclude real stim)
+p.decoderDataDelay = 0.66;
+p.decoderSampleRate = 50; % 20ms intervals
+p.decoderSmoothWindow = 0.1;
 for iExp = 1:length(V)
     eu0 = eu(expToEuIndices(iExp));
     stimOn = eu0.EventTimes.LaserModBlueOn;
     stimOff = eu0.EventTimes.LaserModBlueOff;
-    
-    % Parse the decoded data
-    % 1. Open the binary file
-    fid = fopen(fullfile('C:\SERVER', eu0.getAnimalName(), eu0.ExpName, 'DecodedData.bin'), 'rb');
 
-    % 2. Read all contents as raw unsigned 8-bit bytes
-    rawBytes = fread(fid, Inf, '*uint8');
-    fclose(fid);
-
-    % 3. Calculate total byte-length of one triplet
-    % uint32 = 4 bytes, uint16 = 2 bytes, uint8 = 1 byte (Total = 7 bytes per triplet)
-    bytesPerTriplet = 7;
-    numTriplets = floor(length(rawBytes) / bytesPerTriplet);
-
-    % Trim any trailing incomplete bytes
-    rawBytes = rawBytes(1 : numTriplets * bytesPerTriplet);
-
-    % 4. Reshape bytes into a 7-by-N matrix (column-major layout)
-    mat = reshape(rawBytes, bytesPerTriplet, numTriplets);
-
-    % 5. Extract and cast fields using byte slices
-    I = zeros(1, size(mat, 2), 'uint32');
-    X = zeros(1, size(mat, 2), 'uint16');
-    P = zeros(1, size(mat, 2), 'uint8');
-    for iEvent = 1:size(mat, 2)
-        I(iEvent) = typecast(mat(1:4, iEvent), 'uint32'); % First 4 bytes
-        X(iEvent) = typecast(mat(5:6, iEvent), 'uint16'); % Next 2 bytes
-        P(iEvent)  = mat(7, iEvent);                       % Final 1 byte
-    end
-    X = single(X)/62235*200;
-    P = single(P)/255;
-    t = single(I)./30000;
+    [t, P, X] = readDecoderData(eu0, p.decoderDataDelay, p.decoderSampleRate, p.decoderSmoothWindow);
 
     % ax = axes(figure);
     % hold(ax, 'on')
@@ -308,13 +281,14 @@ for iExp = 1:length(V)
     threshold = 0.3;
     tStimCtrl = t(strfind(P >= threshold, [0, 1]) + 1);
     timeoutStart = eu0.EventTimes.TIMEOUT_START;
-    trials = Trial(timeoutStart(1:end-1)+2, timeoutStart(2:end)+2, advancedValidation=false);
-    [B, t, I] = trials.inTrial(tStimCtrl);
-    [~, ia, ~] = unique(I);
-    tStimCtrl = t(ia);
+    trials = Trial(timeoutStart+2, tStimCtrl, 'first', stimOn);
+    tStimCtrl = [trials.Stop];
+    % [B, t, I] = trials.inTrial(tStimCtrl);
+    % [~, ia, ~] = unique(I);
+    % tStimCtrl = t(ia);
 
     for t0 = stimOn(:)'
-        tStimCtrl(isin(tStimCtrl, t0 + [-4, 4])) = [];
+        tStimCtrl(isin(tStimCtrl, t0 + [-3, 3])) = [];
     end
 
     stimData(iExp).stimCtrl = tStimCtrl(:);
@@ -323,12 +297,13 @@ end
 %% Plot opto-aligned movement kinemeatics + spike rates
 p.kinematicDataSource = "pos";
 features = ["Jaw", "HandL", "HandR"];
-close all
+% close all
 
+% Calculate opto-triggered average kinematics
 for iExp = 1:length(uniqueExpNames)
     for ifn = 1:length(features)
         fn = features(ifn);
-        % Calculate STA
+        % get whole-session continuous kinematics data
         switch p.kinematicDataSource
             case "pos"
                 t = kinematics(iExp).(fn).t;
@@ -343,7 +318,8 @@ for iExp = 1:length(uniqueExpNames)
                 error("Unknown argument p.kinematicDataSource=%s", p.kinematicDataSource)
         end
 
-        tLocal = -1:1e-2:max(stimData(iExp).duration)+2;
+        % average across trials
+        tLocal = -4:1e-2:max(stimData(iExp).duration)+2;
         stimData(iExp).(fn).t = tLocal;
         stimData(iExp).(fn).X = NaN(length(stimData(iExp).hash), length(tLocal));
         for iStim = 1:length(stimData(iExp).hash)
@@ -353,10 +329,23 @@ for iExp = 1:length(uniqueExpNames)
         for iStim = 1:length(stimData(iExp).stimCtrl)
             stimData(iExp).(fn).XCtrl(iStim, :) = interp1(t, x, tLocal + stimData(iExp).stimCtrl(iStim), 'linear');
         end
+
+        % Mark down trialtype
+        eu0 = eu(expToEuIndices(iExp));
+        trialType = repmat("unknown", [length(stimData(iExp).stimOn), 1]);
+        trialType(eu0.Trials.Press.inTrial(stimData(iExp).stimOn)) = "press";
+        trialType(eu0.Trials.Lick.inTrial(stimData(iExp).stimOn)) = "lick";
+        trialTypeCtrl = repmat("unknown", [length(stimData(iExp).stimCtrl), 1]);
+        trialTypeCtrl(eu0.Trials.Press.inTrial(stimData(iExp).stimCtrl)) = "press";
+        trialTypeCtrl(eu0.Trials.Lick.inTrial(stimData(iExp).stimCtrl)) = "lick";
+        stimData(iExp).trialType = categorical(trialType);
+        stimData(iExp).trialTypeCtrl = categorical(trialTypeCtrl);
     end
 end
+
+% Combine all sessions, store it in stimData(nSessions+1)
 stimData = stimData(1:length(V));
-for fn = ["power", "ain", "stimOn", "stimOff", "duration", "iPower", "iDuration", "hash", "stimCtrl"]
+for fn = ["power", "ain", "stimOn", "stimOff", "duration", "iPower", "iDuration", "hash", "stimCtrl", "trialType", "trialTypeCtrl"]
     X = {stimData(1:length(V)).(fn)};
     X = cat(1, X{:});
     stimData(length(V)+1).(fn) = X;
@@ -373,63 +362,102 @@ end
 stimData(length(V)+1).iExp = 0;
 stimData(length(V)+1).name = 'all sessions';
 
+% Report trial counts
+for iExp = 1:length(stimData)
+    nTrials = histcounts(stimData(iExp).trialType, ["press", "lick", "unknown"]);
+    nTrialsCtrl = histcounts(stimData(iExp).trialTypeCtrl, ["press", "lick", "unknown"]);
+    fprintf("iExp=%i (%s); stim: %i press, %i lick, %i unknown; ctrl: %i press, %i lick, %i unknown.\n", iExp, stimData(iExp).name, nTrials(1), nTrials(2), nTrials(3), nTrialsCtrl(1), nTrialsCtrl(2), nTrialsCtrl(3))
+end
 
 
 % for iExp = 1:length(uniqueExpNames)+1
-for iExp = length(uniqueExpNames)+1
-    fig = figure();
-    clear l
-    features = ["Jaw", "HandL", "HandR"];
-    l.h = [1, 1, 1];
-    l.ch = cumsum([1, l.h]);
-    tl = tiledlayout(fig, sum(l.h), 2, TileSpacing='tight');
-
-    clear ax
-    for ifn = 1:length(features)
-        fn = features(ifn);
-        % Plot STA
-        for selIDuration = 1:2
-            ax = nexttile(tl);
-            if ifn == 1
-                title(ax, sprintf('%gs opto', p.pulseDurations(selIDuration)))
-            end
-            xlabel('time to decoder/opto onset (s)')
-            clear h
-            iLine = 1;
-            hold(ax, 'on')
-
-            lineStyles = ["-", "-"];
-            colors = [.2,.2,.8,.5; .2,.2,.8,1];
-
-            h(iLine) = plot(ax, tLocal, mean(stimData(iExp).(fn).XCtrl, 1, 'omitnan'), 'k-.', LineWidth=1.5, DisplayName=sprintf("ctrl (n=%i)", length(stimData(iExp).stimCtrl)));
-            iLine = iLine + 1;
-
-            [uniqueHash, ia] = unique(stimData(iExp).hash);
-            durations = [0];
-            for iHash = 1:length(uniqueHash)
-                sel = stimData(iExp).hash == uniqueHash(iHash);
-                iPower = stimData(iExp).iPower(ia(iHash));
-                iDuration = stimData(iExp).iDuration(ia(iHash));
-                if iDuration ~= selIDuration
-                    continue
+for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
+    for trialType = ["press", "lick"]
+        fig = figure(Units='inches', Position=[0.1, 0.1, 10, 6]);
+        clear l
+        features = ["Jaw", "HandL", "HandR"];
+        featureDispNames = ["jaw", "l.hand", "r.hand"];
+        xl = {[-2, 3], [-2, 5]};
+        yl = {[-0.5, 2], [-0.25, 1], [-0.25, 1]};
+        l.h = [1, 1, 1];
+        l.ch = cumsum([1, l.h]);
+        l.w = cellfun(@diff, xl);
+        l.cw = cumsum([1, l.w]);
+        tl = tiledlayout(fig, sum(l.h), sum(l.w), TileSpacing='compact');
+    
+        clear ax
+        for ifn = 1:length(features)
+            fn = features(ifn);
+            % Plot STA
+            for iDuration = 1:2
+                ax = nexttile(tl, sum(l.w)*(ifn-1) + l.cw(iDuration), [l.h(ifn), l.w(iDuration)]);
+                if ifn == 1
+                    title(ax, sprintf('%gs opto', p.pulseDurations(iDuration)))
                 end
-                durations = [durations, p.pulseDurations(iDuration)];
-                mu = mean(stimData(iExp).(fn).X(sel, :), 1, 'omitnan');
-                label = sprintf("%gmw %gs", p.laserPowers(iPower)*1e3, p.pulseDurations(iDuration));
-                h(iLine) = plot(ax, tLocal, mu, Color=colors(iPower, :), LineStyle=lineStyles(iPower), LineWidth=1.5, DisplayName=sprintf("%s (n=%i)", label, nnz(sel)));
+                clear h
+                iLine = 1;
+                hold(ax, 'on')
+    
+                lineStyles = ["-", "-"];
+                colors = [.2,.2,.8,.5; .2,.2,.8,1];
+    
+                selCtrl = stimData(iExp).trialTypeCtrl == trialType;
+                mu = mean(stimData(iExp).(fn).XCtrl(selCtrl, :), 1, 'omitnan');
+                err = 0.1*std(stimData(iExp).(fn).XCtrl(selCtrl, :), 0, 1, 'omitnan');
+                ci = quantile(stimData(iExp).(fn).XCtrl(selCtrl, :), [0.25, 0.75], 1);
+                h(iLine) = plot(ax, tLocal, mu, 'k-.', LineWidth=1.5, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
                 iLine = iLine + 1;
+                % patch(ax, [tLocal, flip(tLocal)], [mu-err, flip(mu+err)], [.2,.2,.2], FaceAlpha=0.1, EdgeAlpha=0)
+                patch(ax, [tLocal, flip(tLocal)], [ci(1, :), flip(ci(2, :))], [.2,.2,.2], FaceAlpha=0.1, EdgeAlpha=0)
+
+                [uniqueHash, ia] = unique(stimData(iExp).hash);
+                durations = [0]; % For drawing xline at opto onset/offset
+                for iHash = 1:length(uniqueHash)
+                    sel = stimData(iExp).hash == uniqueHash(iHash) & stimData(iExp).trialType == trialType;
+                    iPower = stimData(iExp).iPower(ia(iHash));
+                    if stimData(iExp).iDuration(ia(iHash)) ~= iDuration
+                        continue
+                    end
+                    durations = [durations, p.pulseDurations(iDuration)];
+                    mu = mean(stimData(iExp).(fn).X(sel, :), 1, 'omitnan');
+                    err = 0.1*std(stimData(iExp).(fn).X(sel, :), 0, 1, 'omitnan');
+                    ci = quantile(stimData(iExp).(fn).X(sel, :), [0.25, 0.75], 1);
+                    label = sprintf("%gmw %gs", p.laserPowers(iPower)*1e3, p.pulseDurations(iDuration));
+                    h(iLine) = plot(ax, tLocal, mu, Color=colors(iPower, :), LineStyle=lineStyles(iPower), LineWidth=1.5, DisplayName=sprintf("%s (n=%i)", label, nnz(sel)));
+                    iLine = iLine + 1;
+                    % patch(ax, [tLocal, flip(tLocal)], [mu-err, flip(mu+err)], colors(iPower, 1:3), FaceAlpha=0.1, EdgeAlpha=0)
+                    patch(ax, [tLocal, flip(tLocal)], [ci(1, :), flip(ci(2, :))], colors(iPower, 1:3), FaceAlpha=0.1, EdgeAlpha=0)
+                end
+                xline(ax, durations, 'k--')
+                if iDuration == 1
+                    ylabel(ax, featureDispNames(ifn))
+                end
+                xlim(ax, xl{iDuration})
+                ylim(ax, yl{ifn})
+                if ifn == length(features)
+                    xticks(ax, xl{iDuration}(1)+1:xl{iDuration}(2)-1)
+                else
+                    xticks(ax, [])
+                end
+                if iDuration == 1
+                    yticks(ax, 'auto')
+                else
+                    yticks(ax, [])
+                end
+                if ifn == 1
+                    lgd = legend(h, Location='northoutside', Orientation='horizontal'); lgd.ItemTokenSize = [9, 9];
+                end
             end
-            xline(ax, durations, 'k--')
-            ylabel(ax, fn)
-            legend(h)
         end
+        title(tl, sprintf('%s - %s (n=%i)', stimData(iExp).name, trialType, nnz(stimData(iExp).trialType==trialType)))
+        xlabel(tl, 'time to decoder/opto onset (s)')
+        ylabel(tl, sprintf('%s (a.u.)', p.kinematicDataSource))
+        fontsize(fig, 9, 'points')
     end
-    title(tl, sprintf('%s', stimData(iExp).name))
-    fontsize(fig, 12, 'points')
 end
 
 %% Plot whole session kinematics + spikeRates
-close all
+% close all
 
 clc
 for iExp = 1:length(uniqueExpNames)
@@ -451,7 +479,7 @@ end
 
 p.plotIndividualUnits = false;
 p.plotPopulationMeans = true;
-p.kinematicDataSource = "vel"; % pos, vel
+p.kinematicDataSource = "pos"; % pos, vel
 p.spikeDataSource = "rate"; % rate, count
 p.spikeRes = 0.001;
 p.spikeKernelType = 'gaussian';
@@ -489,18 +517,22 @@ end
 
 
 % for trialType = ["press", "lick"]
-trialType = "press";
-iExp = 5;
+trialType = "press"; iExp = 6;
+% trialType = "press"; iExp = 5;
 clear n ei
 isInExp = euToExpIndices == iExp;
 n.press.inc = nnz(isInExp & c.isPressUp(:));
 n.press.dec = nnz(isInExp & c.isPressDown(:));
+n.press.all = nnz(isInExp);
 n.lick.inc = nnz(isInExp & c.isLickUp(:));
 n.lick.dec = nnz(isInExp & c.isLickDown(:));
+n.lick.all = nnz(isInExp);
 ei.press.inc = find(isInExp & c.isPressUp(:));
 ei.press.dec = find(isInExp & c.isPressDown(:));
+ei.press.all = find(isInExp);
 ei.lick.inc = find(isInExp & c.isLickUp(:));
 ei.lick.dec = find(isInExp & c.isLickDown(:));
+ei.lick.all = find(isInExp);
 if n.(trialType).inc == 0 || n.(trialType).dec == 0
     error("Cannot plot exp %i for trialtype %s", iExp, trialType)
 end
@@ -508,7 +540,7 @@ X = struct(dec=[], inc=[]);
 x = X;
 XBoot = struct(dec=[], inc=[]);
 nBoot = 10;
-for dir = ["dec", "inc"]
+for dir = ["dec", "inc", "all"]
     res = p.spikeRes;
     maxT = max(arrayfun(@(eu) eu.SpikeTimes(end), eu(ei.(trialType).inc)));
     edges = 0:res:maxT;
@@ -594,6 +626,7 @@ for dir = ["dec", "inc"]
 end
 X.dec = X.dec';
 X.inc = X.inc';
+X.all = X.all';
 
 % [rho, pval] = corr(x.dec, x.inc, Rows='complete');
 % sel = isfinite(x.dec) & isfinite(x.inc);
@@ -689,11 +722,11 @@ end
 
 % features = ["Jaw", "HandR", "HandL", "SpikeRate", "PCAScore", "PC1Angle"];
 % featureDispName = ["jaw", "r.hand", "l.hand", "spike rate", "pca scores", "pc1 angle"];
-features = ["Jaw", "HandR", "HandL", "SpikeRateWithOpto", "SpikeRateDiffWithOpto"];
-featureDispName = ["jaw", "r.hand", "l.hand", "spike rate", "divergence"];
+features = ["Jaw", "HandR", "HandL", "SpikeRateWithOpto", "DecoderWithStimData"];
+featureDispName = ["jaw", "r.hand", "l.hand", "spike rate", "decoder P(Move)"];
 nPCs = 1;
 
-l.h = [1, 1, 1, 2, 1];
+l.h = [1, 1, 1, 2, 2];
 l.ch = cumsum([1, l.h]);
 fig = figure(Units='inches', Position=[1, 1, 10, 6], DefaultAxesFontSize=9);
 tl = tiledlayout(fig, sum(l.h), 1, TileSpacing='none', Padding='tight');
@@ -749,6 +782,54 @@ for i = 1:length(features)
             for iStim = 1:length(tOn)
                 patch(ax(i), [tOn(iStim), tOff(iStim), tOff(iStim), tOn(iStim)], [-5, -5, 5, 5], [0.2, 0.2, 0.8], FaceAlpha=0.1, EdgeColor=[0.2, 0.2, 0.8], EdgeAlpha=0.5)
             end
+        case "DecoderWithStimData"
+            eu0 = eu(expToEuIndices(iExp));
+            [tDec, PDec, XDec] = readDecoderData(eu0, p.decoderDataDelay, p.decoderSampleRate, p.decoderSmoothWindow);
+            XDec = (XDec - mean(XDec, 'all', 'omitnan'))./std(XDec, 0, 'all', 'omitnan');
+
+            if p.plotPopulationMeans
+                iLine = iLine + 1;
+                h(iLine) = plot(ax(i), tDec, XDec, 'k', DisplayName='decoderX', Clipping='on');
+                iLine = iLine + 1;
+                h(iLine) = plot(ax(i), tDec, PDec, 'r', DisplayName='decoderP', Clipping='on');
+                iLine = iLine + 1;
+                h(iLine) = plot(ax(i), t, x.all, 'k--', DisplayName=sprintf('all (n=%i)', n.(trialType).all), Clipping='on');
+            end
+            yline(ax(i), 0, 'k:')
+            tOn = stimData(iExp).stimOn;
+            tOff = stimData(iExp).stimOff;
+            trialType = stimData(iExp).trialType;
+            for iStim = 1:length(tOn)
+                switch trialType(iStim)
+                    case "press"
+                        color = [0.8, 0.2, 0.2];
+                    case "lick"
+                        color = [0.2, 0.2, 0.8];
+                    case "unknown"
+                        color = [0.2, 0.2, 0.2];
+                end
+                patch(ax(i), [tOn(iStim), tOff(iStim), tOff(iStim), tOn(iStim)], [-5, -5, 5, 5], [0.2, 0.2, 0.8], FaceAlpha=0.1, EdgeColor=color, EdgeAlpha=0.5)
+            end
+            tOn = stimData(iExp).stimCtrl;
+            tOff = stimData(iExp).stimCtrl + 3;
+            trialType = stimData(iExp).trialTypeCtrl;
+            for iStim = 1:length(tOn)
+                switch trialType(iStim)
+                    case "press"
+                        color = [0.8, 0.2, 0.2];
+                    case "lick"
+                        color = [0.2, 0.2, 0.8];
+                    case "unknown"
+                        color = [0.2, 0.2, 0.2];
+                end
+                patch(ax(i), [tOn(iStim), tOff(iStim), tOff(iStim), tOn(iStim)], [-5, -5, 5, 5], [0.2, 0.2, 0.2], FaceAlpha=0.1, EdgeColor=color, EdgeAlpha=0.5)
+            end
+            tTimeoutStart = eu(expToEuIndices(iExp)).EventTimes.TIMEOUT_START;
+            for iTrial = 1:length(tTimeoutStart)
+                patch(ax(i), tTimeoutStart(iTrial) + [0, 0.1, 0.1, 0], [-5, -5, 5, 5], [0.8, 0.8, 0.2], FaceAlpha=0.1, EdgeColor=[0.8, 0.8, 0.2], EdgeAlpha=0.8)
+            end    
+
+            ylim(ax(i), [-3, 3])
         case "PCAScore"
             for iPC = 1:nPCs
                 iLine = iLine + 1;
@@ -773,8 +854,8 @@ ylim(ax(1:3), [-5, 5]);
 yticks(ax(1:3), [-3, 0, 3])
 ylim(ax(4), [-5, 5]);
 yticks(ax(4), [-3, 0, 3])
-ylim(ax(5), [-5, 5]);
-yticks(ax(5), [-3, 0, 3])
+% ylim(ax(5), [-5, 5]);
+% yticks(ax(5), [-3, 0, 3])
 % xlim(ax, eu(expToEuIndices(iExp)).EventTimes.LaserModBlueOn(1) + [-30, 30])
 linkaxes(ax, 'x');
 % legend(h);
@@ -802,4 +883,42 @@ function showStim(src, eu, index)
     fig.UserData.StimIndex = index;
     xlim(ax, eu.EventTimes.LaserModBlueOn(index) + [-10, 10])
     drawnow
+end
+
+function [t, P, X] = readDecoderData(eu, delay, sampleRate, smoothwindow)
+    % Parse the decoded data
+    % 1. Open the binary file
+    fid = fopen(fullfile('C:\SERVER', eu.getAnimalName(), eu.ExpName, 'DecodedData.bin'), 'rb');
+    
+    % 2. Read all contents as raw unsigned 8-bit bytes
+    rawBytes = fread(fid, Inf, '*uint8');
+    fclose(fid);
+    
+    % 3. Calculate total byte-length of one triplet
+    % uint32 = 4 bytes, uint16 = 2 bytes, uint8 = 1 byte (Total = 7 bytes per triplet)
+    bytesPerTriplet = 7;
+    numTriplets = floor(length(rawBytes) / bytesPerTriplet);
+    
+    % Trim any trailing incomplete bytes
+    rawBytes = rawBytes(1 : numTriplets * bytesPerTriplet);
+    
+    % 4. Reshape bytes into a 7-by-N matrix (column-major layout)
+    mat = reshape(rawBytes, bytesPerTriplet, numTriplets);
+    
+    % 5. Extract and cast fields using byte slices
+    I = zeros(1, size(mat, 2), 'uint32');
+    X = zeros(1, size(mat, 2), 'uint16');
+    P = zeros(1, size(mat, 2), 'uint8');
+    for iEvent = 1:size(mat, 2)
+        I(iEvent) = typecast(mat(1:4, iEvent), 'uint32'); % First 4 bytes
+        X(iEvent) = typecast(mat(5:6, iEvent), 'uint16'); % Next 2 bytes
+        P(iEvent)  = mat(7, iEvent);                       % Final 1 byte
+    end
+    X = single(X)/62235*200;
+    P = single(P)/255;
+    t = (single(I)-1)./30000;
+
+    t = t - delay;
+    P = smoothdata(P, 'gaussian', smoothwindow*sampleRate);
+    X = smoothdata(X, 'gaussian', smoothwindow*sampleRate);
 end
