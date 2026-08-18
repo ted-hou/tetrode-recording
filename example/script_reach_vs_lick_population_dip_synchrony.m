@@ -261,7 +261,7 @@ end
 % 'desmond47_20260724', 0.3
 % 'desmond47_20260729', 0.3
 
-%% TODO: Add controls (one duration, read from decoder data the exclude real stim)
+%% Get controls for decoder-stim
 p.decoderDataDelay = 0.66;
 p.decoderSampleRate = 50; % 20ms intervals
 p.decoderSmoothWindow = 0.1;
@@ -294,15 +294,59 @@ for iExp = 1:length(V)
     stimData(iExp).stimCtrl = tStimCtrl(:);
 end
 
+% Calulate a peri-stim movement histogram
+edges = -2:0.1:5;
+for iExp = 1:length(V)
+    eu0 = eu(expToEuIndices(iExp));
+    for trialType = ["press", "lick"]
+        switch trialType
+            case "press"
+                tMove = eu0.EventTimes.FirstPress;
+            case "lick"
+                tMove = eu0.EventTimes.FirstLick;
+        end
+        T0 = struct(stim=[], ctrl=[]);
+        T0.stim = stimData(iExp).stimOn;
+        T0.ctrl = stimData(iExp).stimCtrl;
+        for cond = ["stim", "ctrl"]
+            stimData(iExp).psmh.(cond).(trialType).N = zeros(length(T0.(cond)), length(edges)-1);
+            stimData(iExp).psmh.(cond).(trialType).edges = edges;
+            for iTrial = 1:length(T0.(cond))
+                t0 = T0.(cond)(iTrial);
+                stimData(iExp).psmh.(cond).(trialType).N(iTrial, :) = histcounts(tMove, t0 + edges);
+            end
+        end
+    end
+end
+
 %% Plot opto-aligned movement kinemeatics + spike rates
+kineFeatures = ["Jaw", "HandL", "HandR"];
+features = ["Jaw", "HandL", "HandR", "press", "lick"];
+featureDispNames = ["jaw", "l.hand", "r.hand", "bar-contact", "spout-contact"];
+xl = {[-2, 3], [-2, 5]};
+% p.kinematicDataSource = "spd";
+% yl = {[-1, 8], [-1, 8], [-1, 8], [0, 2], [0, 2]};
+% featureUnits = ["speed (a.u.)", "speed (a.u.)", "speed (a.u.)", "events/s", "events/s"];
 p.kinematicDataSource = "pos";
-features = ["Jaw", "HandL", "HandR"];
+yl = {[-0.5, 2], [-0.5, 2], [-0.5, 2], [0, 2], [0, 2]};
+featureUnits = ["pos (a.u.)", "pos (a.u.)", "pos (a.u.)", "events/s", "events/s"];
 % close all
 
+% % Interp over nans for kinematics, should not be needed
+% for iExp = 1:length(uniqueExpNames)
+%     for ifn = 1:length(kineFeatures)
+%         fn = kineFeatures(ifn);
+%         t = kinematics(iExp).(fn).t;
+%         x = kinematics(iExp).(fn).X;
+%         selnan = isnan(x);
+%         x(selnan) = interp1(t(~selnan), x(~selnan), t(selnan), 'linear');
+%         kinematics(iExp).(fn).X = reshape(x, size(kinematics(iExp).(fn).X));
+%     end
+% end
 % Calculate opto-triggered average kinematics
 for iExp = 1:length(uniqueExpNames)
-    for ifn = 1:length(features)
-        fn = features(ifn);
+    for ifn = 1:length(kineFeatures)
+        fn = kineFeatures(ifn);
         % get whole-session continuous kinematics data
         switch p.kinematicDataSource
             case "pos"
@@ -319,15 +363,15 @@ for iExp = 1:length(uniqueExpNames)
         end
 
         % average across trials
-        tLocal = -4:1e-2:max(stimData(iExp).duration)+2;
+        tLocal = -4:0.01:max(stimData(iExp).duration)+2;
         stimData(iExp).(fn).t = tLocal;
         stimData(iExp).(fn).X = NaN(length(stimData(iExp).hash), length(tLocal));
         for iStim = 1:length(stimData(iExp).hash)
-            stimData(iExp).(fn).X(iStim, :) = interp1(t, x, tLocal + stimData(iExp).stimOn(iStim), 'linear');
+            stimData(iExp).(fn).X(iStim, :) = interp1(t, x, tLocal + stimData(iExp).stimOn(iStim), 'previous');
         end
         stimData(iExp).(fn).XCtrl = NaN(length(stimData(iExp).stimCtrl), length(tLocal));
         for iStim = 1:length(stimData(iExp).stimCtrl)
-            stimData(iExp).(fn).XCtrl(iStim, :) = interp1(t, x, tLocal + stimData(iExp).stimCtrl(iStim), 'linear');
+            stimData(iExp).(fn).XCtrl(iStim, :) = interp1(t, x, tLocal + stimData(iExp).stimCtrl(iStim), 'previous');
         end
 
         % Mark down trialtype
@@ -359,6 +403,13 @@ for fn = ["Jaw", "HandL", "HandR"]
     stimData(length(V)+1).(fn).XCtrl = XCtrl;
     stimData(length(V)+1).(fn).t = stimData(1).(fn).t;
 end
+for trialType = ["press", "lick"]
+    for cond = ["stim", "ctrl"]
+        N = arrayfun(@(sd) sd.psmh.(cond).(trialType).N, stimData(1:length(stimData)-1), UniformOutput=false);
+        stimData(length(V)+1).psmh.(cond).(trialType).N = cat(1, N{:});
+        stimData(length(V)+1).psmh.(cond).(trialType).edges = stimData(1).psmh.(cond).(trialType).edges;
+    end
+end
 stimData(length(V)+1).iExp = 0;
 stimData(length(V)+1).name = 'all sessions';
 
@@ -373,13 +424,9 @@ end
 % for iExp = 1:length(uniqueExpNames)+1
 for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
     for trialType = ["press", "lick"]
-        fig = figure(Units='inches', Position=[0.1, 0.1, 10, 6]);
+        fig = figure(Units='inches', Position=[0.1, 0.1, 10, 8]);
         clear l
-        features = ["Jaw", "HandL", "HandR"];
-        featureDispNames = ["jaw", "l.hand", "r.hand"];
-        xl = {[-2, 3], [-2, 5]};
-        yl = {[-0.5, 2], [-0.25, 1], [-0.25, 1]};
-        l.h = [1, 1, 1];
+        l.h = [1, 1, 1, 1, 1];
         l.ch = cumsum([1, l.h]);
         l.w = cellfun(@diff, xl);
         l.cw = cumsum([1, l.w]);
@@ -400,16 +447,24 @@ for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
     
                 lineStyles = ["-", "-"];
                 colors = [.2,.2,.8,.5; .2,.2,.8,1];
-    
-                selCtrl = stimData(iExp).trialTypeCtrl == trialType;
-                mu = mean(stimData(iExp).(fn).XCtrl(selCtrl, :), 1, 'omitnan');
-                err = 0.1*std(stimData(iExp).(fn).XCtrl(selCtrl, :), 0, 1, 'omitnan');
-                ci = quantile(stimData(iExp).(fn).XCtrl(selCtrl, :), [0.25, 0.75], 1);
-                h(iLine) = plot(ax, tLocal, mu, 'k-.', LineWidth=1.5, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
-                iLine = iLine + 1;
-                % patch(ax, [tLocal, flip(tLocal)], [mu-err, flip(mu+err)], [.2,.2,.2], FaceAlpha=0.1, EdgeAlpha=0)
-                patch(ax, [tLocal, flip(tLocal)], [ci(1, :), flip(ci(2, :))], [.2,.2,.2], FaceAlpha=0.1, EdgeAlpha=0)
 
+                selCtrl = stimData(iExp).trialTypeCtrl == trialType;
+                switch fn
+                    case {"Jaw", "HandL", "HandR"}
+                        mu = mean(stimData(iExp).(fn).XCtrl(selCtrl, :), 1, 'omitnan');
+                        err = 0.1*std(stimData(iExp).(fn).XCtrl(selCtrl, :), 0, 1, 'omitnan');
+                        ci = quantile(stimData(iExp).(fn).XCtrl(selCtrl, :), [0.25, 0.75], 1);
+                        h(iLine) = plot(ax, tLocal, mu, 'k-.', LineWidth=1.5, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
+                        iLine = iLine + 1;
+                        patch(ax, [tLocal, flip(tLocal)], [ci(1, :), flip(ci(2, :))], [.2,.2,.2], FaceAlpha=0.1, EdgeAlpha=0)
+                    case {"press", "lick"}
+                        edges = stimData(iExp).psmh.ctrl.(fn).edges;
+                        N = mean(stimData(iExp).psmh.ctrl.(fn).N(selCtrl, :), 1, 'omitnan');
+                        N = N./mean(diff(edges));
+                        N(~isfinite(N)) = 0;
+                        h(iLine) = histogram(ax, BinEdges=edges, BinCounts=N, DisplayStyle='stairs', EdgeColor=[.2, .2, .2], EdgeAlpha=1, LineWidth=1.5, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
+                        iLine = iLine + 1;
+                end
                 [uniqueHash, ia] = unique(stimData(iExp).hash);
                 durations = [0]; % For drawing xline at opto onset/offset
                 for iHash = 1:length(uniqueHash)
@@ -419,18 +474,27 @@ for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
                         continue
                     end
                     durations = [durations, p.pulseDurations(iDuration)];
-                    mu = mean(stimData(iExp).(fn).X(sel, :), 1, 'omitnan');
-                    err = 0.1*std(stimData(iExp).(fn).X(sel, :), 0, 1, 'omitnan');
-                    ci = quantile(stimData(iExp).(fn).X(sel, :), [0.25, 0.75], 1);
-                    label = sprintf("%gmw %gs", p.laserPowers(iPower)*1e3, p.pulseDurations(iDuration));
-                    h(iLine) = plot(ax, tLocal, mu, Color=colors(iPower, :), LineStyle=lineStyles(iPower), LineWidth=1.5, DisplayName=sprintf("%s (n=%i)", label, nnz(sel)));
-                    iLine = iLine + 1;
-                    % patch(ax, [tLocal, flip(tLocal)], [mu-err, flip(mu+err)], colors(iPower, 1:3), FaceAlpha=0.1, EdgeAlpha=0)
-                    patch(ax, [tLocal, flip(tLocal)], [ci(1, :), flip(ci(2, :))], colors(iPower, 1:3), FaceAlpha=0.1, EdgeAlpha=0)
+                    switch fn
+                        case {"Jaw", "HandL", "HandR"}
+                            mu = mean(stimData(iExp).(fn).X(sel, :), 1, 'omitnan');
+                            err = 0.1*std(stimData(iExp).(fn).X(sel, :), 0, 1, 'omitnan');
+                            ci = quantile(stimData(iExp).(fn).X(sel, :), [0.25, 0.75], 1);
+                            label = sprintf("%gmw %gs", p.laserPowers(iPower)*1e3, p.pulseDurations(iDuration));
+                            h(iLine) = plot(ax, tLocal, mu, Color=colors(iPower, :), LineStyle=lineStyles(iPower), LineWidth=1.5, DisplayName=sprintf("%s (n=%i)", label, nnz(sel)));
+                            iLine = iLine + 1;
+                            % patch(ax, [tLocal, flip(tLocal)], [mu-err, flip(mu+err)], colors(iPower, 1:3), FaceAlpha=0.1, EdgeAlpha=0)
+                            patch(ax, [tLocal, flip(tLocal)], [ci(1, :), flip(ci(2, :))], colors(iPower, 1:3), FaceAlpha=0.1, EdgeAlpha=0)
+                        case {"press", "lick"}
+                            edges = stimData(iExp).psmh.stim.(fn).edges;
+                            N = mean(stimData(iExp).psmh.stim.(fn).N(sel, :), 1, 'omitnan');
+                            N = N./mean(diff(edges));
+                            N(~isfinite(N)) = 0;
+                            h(iLine) = histogram(ax, BinEdges=edges, BinCounts=N, DisplayStyle='stairs', EdgeColor=colors(iPower, 1:3), EdgeAlpha=colors(iPower, 4), LineWidth=1.5, DisplayName=sprintf("%s (n=%i)", label, nnz(sel)));
+                    end
                 end
                 xline(ax, durations, 'k--')
                 if iDuration == 1
-                    ylabel(ax, featureDispNames(ifn))
+                    ylabel(ax, [featureDispNames(ifn), featureUnits(ifn)])
                 end
                 xlim(ax, xl{iDuration})
                 ylim(ax, yl{ifn})
@@ -451,10 +515,11 @@ for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
         end
         title(tl, sprintf('%s - %s (n=%i)', stimData(iExp).name, trialType, nnz(stimData(iExp).trialType==trialType)))
         xlabel(tl, 'time to decoder/opto onset (s)')
-        ylabel(tl, sprintf('%s (a.u.)', p.kinematicDataSource))
+        % ylabel(tl, sprintf('%s (a.u.)', p.kinematicDataSource))
         fontsize(fig, 9, 'points')
     end
 end
+
 
 %% Plot whole session kinematics + spikeRates
 % close all
@@ -482,7 +547,7 @@ p.plotPopulationMeans = true;
 p.kinematicDataSource = "pos"; % pos, vel
 p.spikeDataSource = "rate"; % rate, count
 p.spikeRes = 0.001;
-p.spikeKernelType = 'gaussian';
+p.spikeKernelType = 'exponential';
 p.correctSpikeRateDrift = true; % Subtract a smoothed baseline spike rate
 if isfield(p, 'blank')
     p = rmfield(p, 'blank');
@@ -491,10 +556,6 @@ p.blank(1).event = "StimOn";
 p.blank(1).window = [-0.5, 0.5]*1e-3;
 p.blank(1).event = "StimOff";
 p.blank(1).window = [-0.5, 0.5]*1e-3;
-% p.blank(1).event = "FirstPress";
-% p.blank(1).window = [-2, 2];
-% p.blank(1).event = "FirstLick";
-% p.blank(1).window = [-2, 2];
 if isfield(p, 'artifacts')
     p = rmfield(p, 'artifacts');
 end
@@ -589,86 +650,17 @@ for dir = ["dec", "inc", "all"]
         end
 
         X.(dir)(i, :) = xx;
-
-        % Calculate bootstrapped spike rates (shuffle them ISIs)
-        % st0 = eu(iEu).SpikeTimes(1);
-        % isi = diff(eu(iEu).SpikeTimes);
-        % rng(42)
-        % for iBoot = 1:nBoot
-        %     % Shuffle ISIs to generate new spike train
-        %     st = cumsum([st0, isi(randperm(length(isi), length(isi)))]);
-        % 
-        %     % Calculate shuffled spike rates
-        %     switch p.spikeDataSource
-        %         case "count"
-        %             [x, t] = eu(iEu).getSpikeCounts(edges, spikeTimes=st);
-        %             x = single(x);
-        %             xBaseline = eu(iEu).getTrialAlignedData('count', [-4, -2], char(trialType), alignTo='stop', allowedTrialDuration=[1, Inf], ...
-        %                 resolution=res, spikeTimes=st);
-        %         case "rate"
-        %             switch p.spikeKernelType
-        %                 case 'gaussian'
-        %                     [x, t, kernel] = eu(iEu).getSpikeRates('gaussian', p.spikeKernelSigma, edges, kernelWidth=p.spikeKernelWidth, spikeTimes=st);
-        %                 case 'exponential'
-        %                     [x, t, kernel] = eu(iEu).getSpikeRates('exponential', p.spikeKernelLambda1, p.spikeKernelLambda2, edges, kernelWidth=p.spikeKernelWidth, spikeTimes=st);
-        %             end
-        %             xBaseline = eu(iEu).getTrialAlignedData('rate', [-4, -2], char(trialType), alignTo='stop', allowedTrialDuration=[1, Inf], ...
-        %                 resolution=res, kernel=kernel, spikeTimes=st);
-        %         otherwise
-        %             error("Unknown p.spikeDataSource=%s", p.spikeDataSource)
-        %     end
-        %     x = (x - mean(xBaseline, 'all', 'omitnan')) ./ std(xBaseline, 0, 'all', 'omitnan');
-        %     XBoot.(dir)(i, :, iBoot) = x;
-        % end
     end
     x.(dir) = mean(X.(dir), 1, 'omitnan')';
-    % XBoot.(dir) = squeeze(mean(XBoot.(dir), 1, 'omitnan'));
 end
 X.dec = X.dec';
 X.inc = X.inc';
 X.all = X.all';
 
-% [rho, pval] = corr(x.dec, x.inc, Rows='complete');
-% sel = isfinite(x.dec) & isfinite(x.inc);
-% [r, lags] = xcorr(x.dec(sel), x.inc(sel), 100/res, 'none');
-
-% rhoBoot = NaN(1, nBoot);
-% rBoot = NaN(size(r, 1), nBoot);
-% for iBoot = 1:nBoot
-%     rhoBoot(iBoot) = corr(XBoot.dec(:, iBoot), XBoot.inc(:, iBoot), Rows='complete');
-%     rBoot(:, iBoot) = xcorr(fillmissing(XBoot.dec(:, iBoot), 'linear'), fillmissing(XBoot.inc(:, iBoot), 'linear'), 100/res, 'none');
-% end
-% alpha = 0.05;
-% rhoBootCI = quantile(rhoBoot, [alpha/2, 1-alpha/2]);
-% rBootCI = quantile(rBoot, [alpha/2, 1-alpha/2], 2);
-
 % Do a PCA on population activity
 XMerge = double([X.dec, X.inc]);
 XMerge = XMerge - mean(XMerge, 1, 'omitnan');
 [coeff, score, ~, ~, explained, mu] = pca(XMerge);
-
-% fig = figure(Units='inches', Position=[1,1,6,3], DefaultAxesFontSize=9);
-% tl = tiledlayout(fig, 1, 2);
-% 
-% ax = nexttile(tl); hold(ax, 'on')
-% scatter(ax, x.dec, x.inc, 2, 'k.')
-% mdl = fitlm(x.dec, x.inc);
-% lims = [min(min(x.dec), min(x.inc)), max(max(x.dec), max(x.inc))];
-% plot(ax, lims', mdl.predict(lims'), 'r', LineWidth=2)
-% xline(ax, 0, 'k:')
-% yline(ax, 0, 'k:')
-% % plot(ax, mdl);
-% xlabel(ax, 'decrease')
-% ylabel(ax, 'increase')
-% title(ax, 'z-scored spike counts')
-% axis(ax, 'equal')
-% ax = nexttile(tl);
-% plot(ax, lags.*res, r, 'k')
-% % patch(ax, [lags, flip(lags)].*res, [rBootCI(:, 1)', flip(rBootCI(:, 2)')], [0.15, 0.15, 0.15], FaceAlpha=0.1, EdgeAlpha=0.1)
-% xlabel(ax, 'lag applied to increase population spike counts (s)')
-% ylabel(ax, 'xcorr')
-% title(tl, sprintf("exp%i - %s (%i dec vs. %i inc)\nrho=%g ([%g, %g]), pval=%g", iExp, trialType, n.(trialType).dec, n.(trialType).inc, rho, rhoBootCI(1), rhoBootCI(2), pval))
-% fprintf("Exp %i, %i dec vs. %i inc: rho=%g, pval=%g;\n", iExp, n.(trialType).dec, n.(trialType).inc, rho, pval);
 
 threshold = 3;
 exclusionWindow = [0, 1]; % NON-INCLUSIVE
@@ -720,8 +712,6 @@ if isfield(p, 'blank')
     end
 end
 
-% features = ["Jaw", "HandR", "HandL", "SpikeRate", "PCAScore", "PC1Angle"];
-% featureDispName = ["jaw", "r.hand", "l.hand", "spike rate", "pca scores", "pc1 angle"];
 features = ["Jaw", "HandR", "HandL", "SpikeRateWithOpto", "DecoderWithStimData"];
 featureDispName = ["jaw", "r.hand", "l.hand", "spike rate", "decoder P(Move)"];
 nPCs = 1;
@@ -731,7 +721,6 @@ l.ch = cumsum([1, l.h]);
 fig = figure(Units='inches', Position=[1, 1, 10, 6], DefaultAxesFontSize=9);
 tl = tiledlayout(fig, sum(l.h), 1, TileSpacing='none', Padding='tight');
 
-% h = gobjects(3+2, 1);
 clear h
 iLine = 0;
 ax = gobjects(length(features), 1);
@@ -854,17 +843,13 @@ ylim(ax(1:3), [-5, 5]);
 yticks(ax(1:3), [-3, 0, 3])
 ylim(ax(4), [-5, 5]);
 yticks(ax(4), [-3, 0, 3])
-% ylim(ax(5), [-5, 5]);
-% yticks(ax(5), [-3, 0, 3])
-% xlim(ax, eu(expToEuIndices(iExp)).EventTimes.LaserModBlueOn(1) + [-30, 30])
 linkaxes(ax, 'x');
 % legend(h);
 xlabel(tl, 'time (s)')
 box(ax, 'off')
 
-% xlim(ax, eu(expToEuIndices(iExp)).EventTimes.LaserModBlueOn(1) + [-10, 10])
-
-% Thanks AI for drawing pretty buttons! Would've been nicer if they were functional
+% Thanks AI for drawing pretty buttons! Would've been nicer if they were
+% functional but the grad student made it work.
 uicontrol(fig, Style='pushbutton', String='|<', Units='normalized', Position=[0.80, 0.02, 0.04, 0.03], ...
     Callback=@(src, ~) showStim(src, eu(expToEuIndices(iExp)), 1));
 uicontrol(fig, Style='pushbutton', String='<', Units='normalized', Position=[0.85, 0.02, 0.04, 0.03], ...

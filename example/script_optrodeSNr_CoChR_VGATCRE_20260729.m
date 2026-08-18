@@ -127,15 +127,14 @@ boot.lick = struct('h', NaN(length(eu), 1), 'muDiffCI', NaN(length(eu), 2), 'muD
     responseWindow=p.responseWindowLick);
 fprintf(1, '\nAll done\n')
 
-%%
+%% Get whole session kinematics
 p.features = ["HandR", "HandL", "FootR", "FootL", "Tongue", "Jaw", "Spine"];
-p.featureStats = ["xPos", "xPos", "xPos", "xPos", "likelihood", "yPos", "yPos"]; % xPos, yPos, xVel, yVel, likelihood, displacement, speed
+p.featureStats = ["xPos", "xPos", "xPos", "xPos", "likelihood", "yPos", "yPos"]; % xPos, yPos, likelihood, speed
 p.vtdNames = ["vtdR", "vtdL", "vtdR", "vtdL", "both", "both", "both"];
-p.smoothWindow = [5, 5, 5, 5, 5, 5, 5];
 p.minL = [0.5, 0.5, 0.5, 0.5, 0.2, 0.5, 0.5];
 p.spikeDataSource = "rate"; % rate, count
-p.spikeRes = 0.01;
-p.spikeKernelType = 'gaussian';
+p.spikeRes = 0.001;
+p.spikeKernelType = 'exponential';
 switch p.spikeKernelType
     case 'gaussian'
         p.spikeKernelSigma = 0.075;
@@ -148,11 +147,27 @@ switch p.spikeKernelType
         [~, ~, p.spikeKernel] = eu(1).getSpikeRates('exponential', p.spikeKernelLambda1, p.spikeKernelLambda2, p.spikeRes, kernelWidth=p.spikeKernelWidth);
 end
 
-ax = axes(figure());
-title(ax, 'Spike rate kernel')
+% Smoothing for kinematics
+p.kineRes = 0.01;
+p.kineKernelType = 'exponential';
+switch p.kineKernelType
+    case 'gaussian'
+        p.kineKernelSigma = 0.075;
+        p.kineKernelWidth = 0.5;
+        [~, ~, p.kineKernel] = eu(1).getSpikeRates('gaussian', p.kineKernelSigma, p.kineRes, kernelWidth=p.kineKernelWidth);
+    case 'exponential'
+        p.kineKernelLambda1 = 10;
+        p.kineKernelLambda2 = 100;
+        p.kineKernelWidth = 0.5;
+        [~, ~, p.kineKernel] = eu(1).getSpikeRates('exponential', p.kineKernelLambda1, p.kineKernelLambda2, p.kineRes, kernelWidth=p.kineKernelWidth);
+end
+
+
+tl = tiledlayout(figure(), 2, 1);
+ax = nexttile(tl);
+title(ax, 'spike rate kernel')
 xlabel(ax, 'time (s)')
 hold(ax, 'on')
-
 switch p.spikeKernelType
     case 'gaussian'
         plot(ax, p.spikeKernel.t, p.spikeKernel.y, DisplayName=sprintf('\\sigma=%g', p.spikeKernelSigma));
@@ -160,39 +175,21 @@ switch p.spikeKernelType
         plot(ax, p.spikeKernel.t, p.spikeKernel.y, DisplayName=sprintf('\\lambda_1=%g, \\lambda_2=%g', p.spikeKernelLambda1, p.spikeKernelLambda2));
 end
 legend(ax, Interpreter='tex')
+ax = nexttile(tl);
+title(ax, 'kinematics kernel')
+xlabel(ax, 'time (s)')
+hold(ax, 'on')
+switch p.kineKernelType
+    case 'gaussian'
+        plot(ax, p.kineKernel.t, p.kineKernel.y, DisplayName=sprintf('\\sigma=%g', p.kineKernelSigma));
+    case 'exponential'
+        plot(ax, p.kineKernel.t, p.kineKernel.y, DisplayName=sprintf('\\lambda_1=%g, \\lambda_2=%g', p.kineKernelLambda1, p.kineKernelLambda2));
+end
+legend(ax, Interpreter='tex')
 drawnow
 
-p.xta.res = 1/30;
-p.xta.window = [-1, 1];
-p.xta.meanWindow = [-0.3, 0.3];
 
-p.xta.dip.samples = [0.2, 0.8]./p.spikeRes; % exceed threshold for 200-800ms
-p.xta.dip.nullSamplesPre = 0.2/p.spikeRes; % 200 ms below threshold pre dip
-p.xta.dip.nullSamplesPost = 0.2/p.spikeRes; % 200 ms below threshold post dip
-p.xta.dip.thresholdQuantile = 0.25; % 0.25
-p.xta.dip.thresholdSubQuantile = 0.05;
-p.xta.dip.pattern = arrayfun(@(n) [zeros(1, p.xta.dip.nullSamplesPre), ones(1, n), zeros(1, p.xta.dip.nullSamplesPost)] , p.xta.dip.samples(1):p.xta.dip.samples(2), UniformOutput=false);
-p.xta.dip.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.dip.pattern); % finds the onset
-
-p.xta.rise.samples = [0.2, 0.8]./p.spikeRes; % exceed threshold for 200-800ms
-p.xta.rise.nullSamplesPre = 0.2/p.spikeRes; % 200 ms below threshold pre dip
-p.xta.rise.nullSamplesPost = 0.2/p.spikeRes; % 200 ms below threshold post dip
-p.xta.rise.thresholdQuantile = 1 - p.xta.dip.thresholdQuantile;
-p.xta.rise.thresholdSubQuantile = 1 - p.xta.dip.thresholdSubQuantile;
-p.xta.rise.pattern = arrayfun(@(n) [zeros(1, p.xta.rise.nullSamplesPre), ones(1, n), zeros(1, p.xta.rise.nullSamplesPost)] , p.xta.rise.samples(1):p.xta.rise.samples(2), UniformOutput=false);
-p.xta.rise.patternOnset = cellfun(@(pat) find(pat, 1, 'first') - 1, p.xta.rise.pattern);
-
-p.blank(1).event = "StimOn";
-p.blank(1).window = [-1, 1];
-p.blank(1).event = "FirstPress";
-p.blank(1).window = [-2, 2];
-p.blank(1).event = "FirstLick";
-p.blank(1).window = [-2, 2];
-
-p.nBoot = 10000;
-p.bootAlpha = 0.05;
-
-% Process vtdFeatues
+% Process kinematics
 clear kinematics
 kinematics(length(exp)) = struct(HandR=[], HandL=[], FootR=[], FootL=[], Tongue=[]);
 for iExp = 1:length(exp)
@@ -210,36 +207,39 @@ for iExp = 1:length(exp)
         if fn == "Tongue"
             assert(sn == "likelihood");
             iSide = 0;
-            t = 0:p.xta.res:max(exp(iExp).vtdL.Timestamp(end), exp(iExp).vtdR.Timestamp(end));
+            t = 0:p.kineRes:max(exp(iExp).vtdL.Timestamp(end), exp(iExp).vtdR.Timestamp(end));
             L = NaN(length(t), 1);
             for side = ["vtdL", "vtdR"]
                 iSide = iSide + 1;
                 l = exp(iExp).(side).(sprintf("%s_Likelihood", fn));
                 l(l<p.minL(iFeature)) = 0;
                 l(l>p.minL(iFeature)) = 1;
-                % l = smoothdata(l, 'gaussian', 7);
-                L(:, iSide) = interp1(exp(iExp).(side).Timestamp, l, t, 'linear');
+                L(:, iSide) = interp1(exp(iExp).(side).Timestamp, l, t, 'previous');
             end
             L = sum(L, 2);
             L = single(L > 0);
             clear iSide side l
-            L = smoothdata(L, 'gaussian', p.smoothWindow(iFeature));
-            kinematics(iExp).(fn) = struct(X=single(L), t=single(t));
+            % L = smoothdata(L, 'gaussian', p.smoothWindow(iFeature));
+            selnan = isnan(L);
+            L(selnan) = interp1(t(~selnan), L(~selnan), t(selnan), 'previous');
+            L = conv(L, p.kineKernel.y, 'same');
+            kinematics(iExp).(fn) = struct(X=single(L(:)), t=single(t(:)));
             clear t
         % Licks from digital events
         elseif fn == "Lick"
             assert(sn == "likelihood");
             L = exp(iExp).eu(1).EventTimes.LickOn;
-            t = 0:p.xta.res:exp(iExp).vtdR.Timestamp(end);
-            edges = [t - p.xta.res/2, t(end) + p.xta.res/2];
+            t = 0:p.kineRes:exp(iExp).vtdR.Timestamp(end);
+            edges = [t - p.kineRes/2, t(end) + p.kineRes/2];
             L = histcounts(L, edges);
-            L = smoothdata(L, 'gaussian', p.smoothWindow(iFeature));
-            kinematics(iExp).(fn) = struct(X=single(L), t=single(t));
+            % L = smoothdata(L, 'gaussian', p.smoothWindow(iFeature));
+            L = conv(L, p.kineKernel.y, 'same');
+            kinematics(iExp).(fn) = struct(X=single(L(:)), t=single(t(:)));
             clear edges t
         % Average displacement from both sides
         elseif vn == "both"
             iSide = 0;
-            t = 0:p.xta.res:max(exp(iExp).vtdL.Timestamp(end), exp(iExp).vtdR.Timestamp(end));
+            t = 0:p.kineRes:max(exp(iExp).vtdL.Timestamp(end), exp(iExp).vtdR.Timestamp(end));
             S = NaN(length(t), 1);
             for side = ["vtdL", "vtdR"]
                 iSide = iSide + 1;
@@ -261,40 +261,29 @@ for iExp = 1:length(exp)
                         end
                     case "yPos"
                         s = y;
-                    case "xVel"
-                        if vn == "vtdR"
-                            s = [NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
-                        else
-                            s = -[NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
-                        end
-                    case "yVel"
-                        s = [NaN; diff(smoothdata(y, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
                     case "displacement"
-                        s = sqrt(x.^2 + y.^2);
-                    case "speed"
-                        x = [NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
-                        y = [NaN; diff(smoothdata(y, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(tt)];
                         s = sqrt(x.^2 + y.^2);
                     otherwise
                         error("Unsupported stat '%s' for feature '%s'", sn, fn)
                 end
 
                 % l = smoothdata(l, 'gaussian', 7);
-                S(:, iSide) = interp1(tt, s, t, 'linear');
+                S(:, iSide) = interp1(tt, s, t, 'previous');
             end
             clear iSide side x y l d
-            S = mean(S, 2, 'omitnan');
-            if ~ismember(sn, ["xVel", "yVel", "speed"])
-                S = smoothdata(S, 'gaussian', p.smoothWindow(iFeature));
-            end
-            kinematics(iExp).(fn) = struct(X=single(S), t=single(t));
+            s = mean(S, 2, 'omitnan');
+            % S = smoothdata(S, 'gaussian', p.smoothWindow(iFeature));
+            selnan = isnan(s);
+            s(selnan) = interp1(t(~selnan), s(~selnan), t(selnan), 'previous');
+            s = conv(s, p.kineKernel.y, 'same');
+            kinematics(iExp).(fn) = struct(X=single(s(:)), t=single(t(:)));
             clear t
         % Other tracking points use position or speed
         elseif ismember(sprintf("%s_X", fn), vtd.Properties.VariableNames)
             x = vtd.(sprintf("%s_X", fn));
             y = vtd.(sprintf("%s_Y", fn));
             l = vtd.(sprintf("%s_Likelihood", fn));
-            t = vtd.Timestamp;
+            t = 0:p.kineRes:vtd.Timestamp(end);
             x(l<p.minL(iFeature)) = NaN;
             y(l<p.minL(iFeature)) = NaN;
             x = (x - mean(x, 'all', 'omitnan')) ./ std(x, 0, 'all', 'omitnan');
@@ -308,29 +297,17 @@ for iExp = 1:length(exp)
                     end
                 case "yPos"
                     s = y;
-                case "xVel"
-                    if vn == "vtdR"
-                        s = [NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
-                    else
-                        s = -[NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
-                    end
-                case "yVel"
-                    s = [NaN; diff(smoothdata(y, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
                 case "displacement"
-                    s = sqrt(x.^2 + y.^2);
-                case "speed"
-                    x = [NaN; diff(smoothdata(x, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
-                    y = [NaN; diff(smoothdata(y, 'gaussian', p.smoothWindow(iFeature)))]./[NaN; diff(t)];
                     s = sqrt(x.^2 + y.^2);
                 otherwise
                     error("Unsupported stat '%s' for feature '%s'", sn, fn)
             end
-            % selnan = isnan(D);
-            % D(selnan) = interp1(vtd.Timestamp(~selnan), D(~selnan), vtd.Timestamp(selnan), 'linear');
-            if ~ismember(sn, ["xVel", "yVel", "speed"])
-                s = smoothdata(s, 'gaussian', p.smoothWindow(iFeature));
-            end
-            kinematics(iExp).(fn) = struct(X=single(s), t=single(vtd.Timestamp));
+            s = interp1(vtd.Timestamp, s, t, 'previous');
+            % s = smoothdata(s, 'gaussian', p.smoothWindow(iFeature));
+            selnan = isnan(s);
+            s(selnan) = interp1(t(~selnan), s(~selnan), t(selnan), 'previous');
+            s = conv(s, p.kineKernel.y, 'same');
+            kinematics(iExp).(fn) = struct(X=single(s(:)), t=single(t(:)));
         end
     end
 end
@@ -387,7 +364,7 @@ fprintf('05 Calculate: Of %i: %i (%i%%) showed modulation for BOTH, %i (%i%%) sh
 
 clear nTotal sel
 
-save('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos.mat', 'boot', 'c', 'eta', 'kinematics')
+save('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos.mat', 'boot', 'c', 'eta', 'kinematics', 'p')
 eu.save('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr_ValidVideos')
 
 %%
