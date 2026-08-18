@@ -3054,6 +3054,10 @@ classdef EphysUnit < handle
             t = (edges(1:end-1) + edges(2:end)) / 2;
             t = t(1+nPrepad:end-nPostpad);
             
+            % so far sr is spike count, we divide by resolution to get
+            % spike rates
+            sr = sr./resolution;
+
             sr = single(sr);
             t = single(t);
         end
