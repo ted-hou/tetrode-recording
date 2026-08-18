@@ -3002,7 +3002,8 @@ classdef EphysUnit < handle
             kernelParams.window = kernelWindow;
             kernelParams.resolution = resolution;
             kernelParams.width = kernelWidth;
-            yKernel = yKernel / sum(yKernel) / resolution;
+            % yKernel = yKernel / sum(yKernel) / resolution;
+            yKernel = yKernel / sum(yKernel);
             kernel = struct('type', kernelType, 'params', kernelParams, 't', tKernel, 'y', yKernel);
 
             artifacts = p.Results.artifacts;
