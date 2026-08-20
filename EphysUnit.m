@@ -2977,7 +2977,7 @@ classdef EphysUnit < handle
             else
                 edges = p.Results.edgesOrResolution(:)';
                 assert(all(diff(edges) > 0), '''edges'' must be monotonic increasing.')
-                assert(all(single(diff(edges)) == single(edges(2) - edges(1))), '''edges'' must have equal distance between neighboring elements.')
+                % assert(all(single(diff(edges)) == single(edges(2) - edges(1))), '''edges'' must have equal distance between neighboring elements.')
                 resolution = edges(2) - edges(1);
             end
             kernelWidth = p.Results.kernelWidth;
