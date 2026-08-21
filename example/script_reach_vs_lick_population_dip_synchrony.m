@@ -358,34 +358,25 @@ for iExp = 1:length(uniqueExpNames)
             ll = fprintf("iExp=%i, %s, iEu=%i\n", iExp, cond, iEuInExp);
         end
         % average across units, keep trials, so X: nTrials x nTimestamps
-        XIncPress = mean(X(:, :, isIncPress), 3, 'omitnan');
-        XDecPress = mean(X(:, :, isDecPress), 3, 'omitnan');
-        XIncLick = mean(X(:, :, isIncLick), 3, 'omitnan');
-        XDecLick = mean(X(:, :, isDecLick), 3, 'omitnan');
-        NIncPress = nnz(isIncPress);
-        NDecPress = nnz(isDecPress);
-        NIncLick = nnz(isIncLick);
-        NDecLick = nnz(isDecLick);
-        X = mean(X, 3, 'omitnan');
         stimData(iExp).psth.(cond).t = 0.5*(t(1:end-1) + t(2:end));
-        stimData(iExp).psth.(cond).X = X;
-        stimData(iExp).psth.(cond).XIncPress = XIncPress;
-        stimData(iExp).psth.(cond).XDecPress = XDecPress;
-        stimData(iExp).psth.(cond).XIncLick = XIncLick;
-        stimData(iExp).psth.(cond).XDecLick = XDecLick;
+        stimData(iExp).psth.(cond).X = mean(X, 3, 'omitnan');
+        stimData(iExp).psth.(cond).XIncPress = mean(X(:, :, isIncPress), 3, 'omitnan');
+        stimData(iExp).psth.(cond).XDecPress = mean(X(:, :, isDecPress), 3, 'omitnan');
+        stimData(iExp).psth.(cond).XIncLick = mean(X(:, :, isIncLick), 3, 'omitnan');
+        stimData(iExp).psth.(cond).XDecLick = mean(X(:, :, isDecLick), 3, 'omitnan');
         % Record number of units per session, so we can do weighted averaging of sessions in the future
-        stimData(iExp).psth.(cond).N = length(euIndicesInExp);
-        stimData(iExp).psth.(cond).NIncPress = NIncPress;
-        stimData(iExp).psth.(cond).NDecPress = NDecPress;
-        stimData(iExp).psth.(cond).NIncLick = NIncLick;
-        stimData(iExp).psth.(cond).NDecLick = NDecLick;
+        stimData(iExp).psth.(cond).N = length(euIndicesInExp) * ones(length(stimTrials), 1);
+        stimData(iExp).psth.(cond).NIncPress = nnz(isIncPress) * ones(length(stimTrials), 1);
+        stimData(iExp).psth.(cond).NDecPress = nnz(isDecPress) * ones(length(stimTrials), 1);
+        stimData(iExp).psth.(cond).NIncLick = nnz(isIncLick) * ones(length(stimTrials), 1);
+        stimData(iExp).psth.(cond).NDecLick = nnz(isDecLick) * ones(length(stimTrials), 1);
     end
 end
 
 
 %% Plot opto-aligned movement kinemeatics + spike rates
 kineFeatures = ["Jaw", "HandL", "HandR"];
-features = ["X", "XInc", "XDec", "Jaw", "HandL", "HandR", "move"];
+features = ["X", "XInc", "XDec", "move", "Jaw", "HandL", "HandR"];
 featureDispNames = ["spike rate", "spike rate (inc)", "spike rate (dec)", "move", "jaw", "l.hand", "r.hand"];
 xl = {[-2, 3], [-2, 5]};
 p.kinematicDataSource = "spd";
@@ -471,6 +462,7 @@ for cond = ["stim", "ctrl"]
     XDecPress = arrayfun(@(sd) sd.psth.(cond).XDecPress, stimData(1:length(stimData)-1), UniformOutput=false);
     XIncLick = arrayfun(@(sd) sd.psth.(cond).XIncLick, stimData(1:length(stimData)-1), UniformOutput=false);
     XDecLick = arrayfun(@(sd) sd.psth.(cond).XDecLick, stimData(1:length(stimData)-1), UniformOutput=false);
+    N = arrayfun(@(sd) sd.psth.(cond).N, stimData(1:length(stimData)-1), UniformOutput=false);
     NIncPress = arrayfun(@(sd) sd.psth.(cond).NIncPress, stimData(1:length(stimData)-1), UniformOutput=false);
     NDecPress = arrayfun(@(sd) sd.psth.(cond).NDecPress, stimData(1:length(stimData)-1), UniformOutput=false);
     NIncLick = arrayfun(@(sd) sd.psth.(cond).NIncLick, stimData(1:length(stimData)-1), UniformOutput=false);
@@ -503,8 +495,10 @@ end
 
 % for iExp = 1:length(uniqueExpNames)+1
 for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
+    x0 = 0;
     for trialType = ["press", "lick"]
-        fig = figure(Units='inches', Position=[0.1, 0.1, 10, 8]);
+        fig = figure(Units='normalized', Position=[x0, 0, 0.5, 1]);
+        x0 = x0 + 0.5;
         tl = tiledlayout(fig, sum(l.h), sum(l.w), TileSpacing='compact');
     
         clear ax
@@ -529,15 +523,15 @@ for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
                         mu = mean(stimData(iExp).(fn).XCtrl(selCtrl, :), 1, 'omitnan');
                         err = 0.1*std(stimData(iExp).(fn).XCtrl(selCtrl, :), 0, 1, 'omitnan');
                         ci = quantile(stimData(iExp).(fn).XCtrl(selCtrl, :), [0.25, 0.75], 1);
-                        h(iLine) = plot(ax, tLocal, mu, Color=[.2, .2, .2, .5], LineWidth=1.5, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
+                        h(iLine) = plot(ax, tLocal, mu, Color=[.2, .2, .2, .5], LineWidth=1, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
                         iLine = iLine + 1;
                         patch(ax, [tLocal, flip(tLocal)], [ci(1, :), flip(ci(2, :))], [.2,.2,.2], FaceAlpha=0.1, EdgeAlpha=0)
-                    case {'press', 'lick'}
-                        edges = stimData(iExp).psmh.ctrl.(fn).edges;
-                        N = mean(stimData(iExp).psmh.ctrl.(fn).N(selCtrl, :), 1, 'omitnan');
+                    case 'move'
+                        edges = stimData(iExp).psmh.ctrl.(trialType).edges;
+                        N = mean(stimData(iExp).psmh.ctrl.(trialType).N(selCtrl, :), 1, 'omitnan');
                         N = N./mean(diff(edges));
                         N(~isfinite(N)) = 0;
-                        h(iLine) = histogram(ax, BinEdges=edges, BinCounts=N, DisplayStyle='stairs', EdgeColor=[.2, .2, .2], EdgeAlpha=0.5, LineWidth=1.5, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
+                        h(iLine) = histogram(ax, BinEdges=edges, BinCounts=N, DisplayStyle='stairs', EdgeColor=[.2, .2, .2], EdgeAlpha=0.5, LineWidth=1, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
                         iLine = iLine + 1;
                     case {'X', 'XInc', 'XDec'}
                         switch fn
@@ -546,13 +540,13 @@ for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
                                 fnn = 'N';
                             case {'XInc', 'XDec'}
                                 fnx = char(string(fn) + trialType);
-                                fnx(4) = upper(fnx(4)); % XIncPress
+                                fnx(5) = upper(fnx(5)); % XIncPress
                                 fnn = fnx;
                                 fnn(1) = 'N'; % NIncPress
                         end
                         t = stimData(iExp).psth.ctrl.t;
                         mu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :), 1, 'omitnan', Weights=stimData(iExp).psth.ctrl.(fnn)(selCtrl));
-                        h(iLine) = plot(ax, t, mu, Color=[.2, .2, .2, .5], LineWidth=1.5, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
+                        h(iLine) = plot(ax, t, mu, Color=[.2, .2, .2, .5], LineWidth=1, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
                         iLine = iLine + 1;
                 end
                 [uniqueHash, ia] = unique(stimData(iExp).hash);
@@ -587,7 +581,7 @@ for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
                                     fnn = 'N';
                                 case {'XInc', 'XDec'}
                                     fnx = char(string(fn) + trialType);
-                                    fnx(4) = upper(fnx(4)); % XIncPress
+                                    fnx(5) = upper(fnx(5)); % XIncPress
                                     fnn = fnx;
                                     fnn(1) = 'N'; % NIncPress
                             end
