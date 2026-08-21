@@ -156,7 +156,7 @@ switch p.kineKernelType
         p.kineKernelWidth = 0.5;
         [~, ~, p.kineKernel] = eu(1).getSpikeRates('gaussian', p.kineKernelSigma, p.kineRes, kernelWidth=p.kineKernelWidth);
     case 'exponential'
-        p.kineKernelLambda1 = 10;
+        p.kineKernelLambda1 = 10; % 5, 10
         p.kineKernelLambda2 = 100;
         p.kineKernelWidth = 0.5;
         [~, ~, p.kineKernel] = eu(1).getSpikeRates('exponential', p.kineKernelLambda1, p.kineKernelLambda2, p.kineRes, kernelWidth=p.kineKernelWidth);

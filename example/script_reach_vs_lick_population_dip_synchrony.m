@@ -25,6 +25,7 @@ meta.press = mean(eta.press.X(:, isin(eta.press.t, [-0.3, 0])), 2, 'omitnan');
 meta.lick = mean(eta.lick.X(:, isin(eta.lick.t, [-0.3, 0])), 2, 'omitnan');
 
 %% Plot ETAs (reach vs. lick vs. opto; all sessions combined, or per session)
+varsSnapshot = who; 
 
 TRIALTYPES = ["press", "lick", "stim", "stim"];
 SELTYPES = ["press", "lick", "press", "lick"];
@@ -110,8 +111,10 @@ for iExp = 0%:length(uniqueExpNames)
     print(fig, fullfile("C:\Users\AssadLab\Pictures\SNrOpto", sprintf("%s.png", ttl)), '-dpng')
 end
 
+clearvars('-except', varsSnapshot{:}, 'finalAnswer');
 
 %% Plot scattered METAs (reach/lick vs. opto)
+varsSnapshot = who; 
 
 fig = figure(Units='inches', Position=[1, 1, 10, 5]);
 tlp = tiledlayout(fig, 1, 2); 
@@ -162,6 +165,7 @@ histogram(ax, meta.stim, edges, DisplayStyle='stairs', EdgeColor=[.2,.2,.2], Edg
 xlim(AX([1, 3]), [-3, 7])
 ylim(AX, [-3, 7])
 
+clearvars('-except', varsSnapshot{:}, 'finalAnswer');
 %% Load laserpower data (SLOW!)
 V = cell(length(uniqueExpNames), 1);
 for iExp = 1:length(uniqueExpNames)
@@ -262,6 +266,8 @@ end
 % 'desmond47_20260729', 0.3
 
 %% Get controls for decoder-stim
+tLocal = -4:0.01:3+2;
+
 p.decoderDataDelay = 0.66;
 p.decoderSampleRate = 50; % 20ms intervals
 p.decoderSmoothWindow = 0.1;
@@ -334,8 +340,10 @@ for iExp = 1:length(uniqueExpNames)
                 stimOn = stimData(iExp).stimCtrl;
                 stimOff = stimOn + 1e-6;
         end
-        isInc = c.isPressUp(euIndicesInExp);
-        isDec = c.isPressDown(euIndicesInExp);
+        isIncPress = c.isPressUp(euIndicesInExp);
+        isDecPress = c.isPressDown(euIndicesInExp);
+        isIncLick = c.isLickUp(euIndicesInExp);
+        isDecLick = c.isLickDown(euIndicesInExp);
         stimTrials = Trial(stimOn, stimOff, advancedValidation=false);
         assert(length(stimOn) == length(stimTrials))
         assert(p.spikeDataSource=="rate");
@@ -350,27 +358,37 @@ for iExp = 1:length(uniqueExpNames)
             ll = fprintf("iExp=%i, %s, iEu=%i\n", iExp, cond, iEuInExp);
         end
         % average across units, keep trials, so X: nTrials x nTimestamps
-        XInc = mean(X(:, :, isInc), 3, 'omitnan');
-        XDec = mean(X(:, :, isDec), 3, 'omitnan');
+        XIncPress = mean(X(:, :, isIncPress), 3, 'omitnan');
+        XDecPress = mean(X(:, :, isDecPress), 3, 'omitnan');
+        XIncLick = mean(X(:, :, isIncLick), 3, 'omitnan');
+        XDecLick = mean(X(:, :, isDecLick), 3, 'omitnan');
+        NIncPress = nnz(isIncPress);
+        NDecPress = nnz(isDecPress);
+        NIncLick = nnz(isIncLick);
+        NDecLick = nnz(isDecLick);
         X = mean(X, 3, 'omitnan');
-        stimData(iExp).psth.(cond).X = X;
         stimData(iExp).psth.(cond).t = 0.5*(t(1:end-1) + t(2:end));
-        stimData(iExp).psth.(cond).XInc = XInc;
-        stimData(iExp).psth.(cond).XDec = XDec;
+        stimData(iExp).psth.(cond).X = X;
+        stimData(iExp).psth.(cond).N = length(euIndicesInExp);
+        stimData(iExp).psth.(cond).XIncPress = XIncPress;
+        stimData(iExp).psth.(cond).XDecPress = XDecPress;
+        stimData(iExp).psth.(cond).XIncLick = XIncLick;
+        stimData(iExp).psth.(cond).XDecLick = XDecLick;
+        stimData(iExp).psth.(cond).NIncPress = NIncPress;
+        stimData(iExp).psth.(cond).NDecPress = NDecPress;
+        stimData(iExp).psth.(cond).NIncLick = NIncLick;
+        stimData(iExp).psth.(cond).NDecLick = NDecLick;
     end
 end
 
 %% Plot opto-aligned movement kinemeatics + spike rates
 kineFeatures = ["Jaw", "HandL", "HandR"];
-features = ["X", "XIncPress", "XDecPress", "XIncPress", "XDecPress", "Jaw", "HandL", "HandR", "press", "lick"];
-featureDispNames = ["spike rate", "spike rate (inc)", "spike rate (dec)", "jaw", "l.hand", "r.hand", "bar-contact", "spout-contact"];
+features = ["X", "XInc", "XDec", "Jaw", "HandL", "HandR", "move"];
+featureDispNames = ["spike rate", "spike rate (inc)", "spike rate (dec)", "jaw", "l.hand", "r.hand", "move"];
 xl = {[-2, 3], [-2, 5]};
 p.kinematicDataSource = "spd";
-yl = {[-0.5, 1.5], [-0.5, 1.5], [-0.5, 1.5], [0, 12], [0, 8], [0, 8], [0, 2], [0, 2]};
-featureUnits = ["(a.u.)", "(a.u.)", "(a.u.)", "speed (a.u.)", "speed (a.u.)", "speed (a.u.)", "events/s", "events/s"];
-% p.kinematicDataSource = "pos";
-% yl = {[-2, 2], [-2, 2], [-2, 2], [-0.5, 2], [-0.5, 2], [-0.5, 2], [0, 2], [0, 2]};
-% featureUnits = ["(a.u.)", "(a.u.)", "(a.u.)", "pos (a.u.)", "pos (a.u.)", "pos (a.u.)", "events/s", "events/s"];
+yl = {[-0.5, 1.5], [-0.5, 1.5], [-0.5, 1.5], [0, 12], [0, 8], [0, 8], [0, 2]};
+featureUnits = ["(a.u.)", "(a.u.)", "(a.u.)", "speed (a.u.)", "speed (a.u.)", "speed (a.u.)", "events/s"];
 clear l
 l.h = ones(1, length(features));
 l.ch = cumsum([1, l.h]);
@@ -399,7 +417,6 @@ for iExp = 1:length(uniqueExpNames)
         end
 
         % average across trials
-        tLocal = -4:0.01:max(stimData(iExp).duration)+2;
         stimData(iExp).(fn).t = tLocal;
         stimData(iExp).(fn).X = NaN(length(stimData(iExp).hash), length(tLocal));
         for iStim = 1:length(stimData(iExp).hash)
