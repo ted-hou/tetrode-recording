@@ -268,6 +268,18 @@ end
 %% Get controls for decoder-stim
 tLocal = -4:0.01:3+2;
 
+% Get weak version of bootstrap:
+p.useWeakIncDec = true;
+meta.press = mean(eta.press.X(:, isin(eta.press.t, p.responseWindowPress)), 2, 'omitnan');
+meta.lick = mean(eta.lick.X(:, isin(eta.lick.t, p.responseWindowLick)), 2, 'omitnan');
+meta.pressBaseline = mean(eta.press.X(:, isin(eta.press.t, [-4, -2])), 2, 'omitnan');
+meta.lickBaseline = mean(eta.lick.X(:, isin(eta.lick.t, [-4, -2])), 2, 'omitnan');
+
+c.isPressUpWeak = meta.press > meta.pressBaseline;
+c.isPressDownWeak = meta.press < meta.pressBaseline;
+c.isLickUpWeak = meta.lick > meta.lickBaseline;
+c.isLickDownWeak = meta.lick < meta.lickBaseline;
+
 p.decoderDataDelay = 0.66;
 p.decoderSampleRate = 50; % 20ms intervals
 p.decoderSmoothWindow = 0.1;
@@ -342,10 +354,17 @@ for iExp = 1:length(uniqueExpNames)
                 stimOn = stimData(iExp).stimCtrl;
                 stimOff = stimOn + 1e-6;
         end
-        isIncPress = c.isPressUp(euIndicesInExp);
-        isDecPress = c.isPressDown(euIndicesInExp);
-        isIncLick = c.isLickUp(euIndicesInExp);
-        isDecLick = c.isLickDown(euIndicesInExp);
+        if p.useWeakIncDec
+            isIncPress = c.isPressUpWeak(euIndicesInExp);
+            isDecPress = c.isPressDownWeak(euIndicesInExp);
+            isIncLick = c.isLickUpWeak(euIndicesInExp);
+            isDecLick = c.isLickDownWeak(euIndicesInExp);
+        else
+            isIncPress = c.isPressUp(euIndicesInExp);
+            isDecPress = c.isPressDown(euIndicesInExp);
+            isIncLick = c.isLickUp(euIndicesInExp);
+            isDecLick = c.isLickDown(euIndicesInExp);
+        end
         stimTrials = Trial(stimOn, stimOff, advancedValidation=false);
         assert(length(stimOn) == length(stimTrials))
         assert(p.spikeDataSource=="rate");
@@ -391,10 +410,16 @@ l.ch = cumsum([1, l.h]);
 l.w = cellfun(@diff, xl);
 l.cw = cumsum([1, l.w]);
 close all
-if exist("E:\Figures\SNr_VGAT-Cre-CoChR", 'dir')
-    rmdir("E:\Figures\SNr_VGAT-Cre-CoChR", 's')
+exportPath = "E:\Figures\SNr_VGAT-Cre-CoChR";
+if p.useWeakIncDec
+    exportPath = fullfile(exportPath, "weakIncDec");
+else
+    exportPath = fullfile(exportPath, "bootIncDec");
 end
-mkdir("E:\Figures\SNr_VGAT-Cre-CoChR")
+if exist(exportPath, 'dir')
+    rmdir(exportPath, 's')
+end
+mkdir(exportPath)
 ll = 0;
 
 % Calculate opto-triggered average kinematics
@@ -602,6 +627,8 @@ for iExp = 1:length(uniqueExpNames)+1
                 end
                 xline(ax, durations, 'k--')
                 if iDuration == 1
+                    nTrialsPerExp = arrayfun(@(sd) length(sd.trialType), stimData(1:end-1));
+                    expToFirstTrialIndex = cumsum([1, nTrialsPerExp(1:end-1)]);
                     if featureDispNames(ifn) == "move"
                         switch trialType
                             case "press"
@@ -610,18 +637,36 @@ for iExp = 1:length(uniqueExpNames)+1
                                 ylabel(ax, ["spout-contact", featureUnits(ifn)])
                         end
                     elseif string(fn) == "XInc"
-                        switch trialType
-                            case "press"
-                                ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NIncPress(1), featureUnits(ifn))])
-                            case "lick"
-                                ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NIncLick(1), featureUnits(ifn))])
+                        if iExp < length(stimData)
+                            switch trialType
+                                case "press"
+                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NIncPress(1), featureUnits(ifn))])
+                                case "lick"
+                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NIncLick(1), featureUnits(ifn))])
+                            end
+                        else
+                            switch trialType
+                                case "press"
+                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", sum(stimData(iExp).psth.stim.NIncPress(expToFirstTrialIndex)), featureUnits(ifn))])
+                                case "lick"
+                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", sum(stimData(iExp).psth.stim.NIncLick(expToFirstTrialIndex)), featureUnits(ifn))])
+                            end
                         end
                     elseif string(fn) == "XDec"
-                        switch trialType
-                            case "press"
-                                ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NDecPress(1), featureUnits(ifn))])
-                            case "lick"
-                                ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NDecLick(1), featureUnits(ifn))])
+                        if iExp < length(stimData)
+                            switch trialType
+                                case "press"
+                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NDecPress(1), featureUnits(ifn))])
+                                case "lick"
+                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NDecLick(1), featureUnits(ifn))])
+                            end
+                        else
+                            switch trialType
+                                case "press"
+                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", sum(stimData(iExp).psth.stim.NDecPress(expToFirstTrialIndex)), featureUnits(ifn))])
+                                case "lick"
+                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", sum(stimData(iExp).psth.stim.NDecLick(expToFirstTrialIndex)), featureUnits(ifn))])
+                            end
                         end
                     else
                         ylabel(ax, [featureDispNames(ifn), featureUnits(ifn)])
@@ -651,7 +696,7 @@ for iExp = 1:length(uniqueExpNames)+1
         title(tl, sprintf('Exp %i - %s - %s (n=%i)', iExp, stimData(iExp).name, trialTypeDispName, nnz(stimData(iExp).trialType==trialType)), Interpreter='none')
         xlabel(tl, 'time to decoder/opto onset (s)')
         fontsize(fig, 9, 'points')
-        print(fig, fullfile("E:\Figures\SNr_VGAT-Cre-CoChR", sprintf("Exp %i - %s - %s.png", iExp, stimData(iExp).name, trialTypeDispName)), '-dpng')
+        print(fig, fullfile(exportPath, sprintf("Exp %i - %s - %s.png", iExp, stimData(iExp).name, trialTypeDispName)), '-dpng')
     end
 end
 
