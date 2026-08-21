@@ -319,7 +319,9 @@ for iExp = 1:length(V)
             stimData(iExp).psmh.(cond).(trialType).edges = edges;
             for iTrial = 1:length(T0.(cond))
                 t0 = T0.(cond)(iTrial);
-                stimData(iExp).psmh.(cond).(trialType).N(iTrial, :) = histcounts(tMove, t0 + edges);
+                N = histcounts(tMove, t0 + edges);
+                N(~isfinite(N)) = 0;
+                stimData(iExp).psmh.(cond).(trialType).N(iTrial, :) = N;
             end
         end
     end
@@ -380,14 +382,19 @@ p.kinematicDataSource = "spd";
 kineFeatures = ["Jaw", "HandL", "HandR"];
 features = ["X", "XInc", "XDec", "move", "Jaw", "HandL", "HandR"];
 featureDispNames = ["spike rate", "spike rate (inc)", "spike rate (dec)", "move", "jaw", "l.hand", "r.hand"];
-yl = {[-0.5, 1.5], [-0.5, 1.5], [-0.5, 1.5], [0, 0.2], [0, 12], [0, 8], [0, 8]};
+% yl = {[-0.5, 1.5], [-0.5, 1.5], [-0.5, 1.5], [0, 0.2], [0, 12], [0, 8], [0, 8]};
+yl = {[-1.5, 3], [-1.5, 3], [-1.5, 3], [0, 0.2], [0, 12], [0, 8], [0, 8]};
 featureUnits = ["(a.u.)", "(a.u.)", "(a.u.)", "events/trial", "speed (a.u.)", "speed (a.u.)", "speed (a.u.)"];
 clear l
 l.h = ones(1, length(features));
 l.ch = cumsum([1, l.h]);
 l.w = cellfun(@diff, xl);
 l.cw = cumsum([1, l.w]);
-% close all
+close all
+if exist("E:\Figures\SNr_VGAT-Cre-CoChR", 'dir')
+    rmdir("E:\Figures\SNr_VGAT-Cre-CoChR", 's')
+end
+mkdir("E:\Figures\SNr_VGAT-Cre-CoChR")
 ll = 0;
 
 % Calculate opto-triggered average kinematics
@@ -493,8 +500,8 @@ for iExp = 1:length(stimData)
 end
 
 
-% for iExp = 1:length(uniqueExpNames)+1
-for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
+for iExp = 1:length(uniqueExpNames)+1
+% for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
     x0 = 0;
     for trialType = ["press", "lick"]
         fig = figure(Units='normalized', Position=[x0, 0, 0.5, 1]);
@@ -529,9 +536,7 @@ for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
                     case 'move'
                         edges = stimData(iExp).psmh.ctrl.(trialType).edges;
                         N = mean(stimData(iExp).psmh.ctrl.(trialType).N(selCtrl, :), 1, 'omitnan');
-                        % N = N./mean(diff(edges)); % Normalize by bin width
-                        % N = N./; % Normalize by num trials
-                        % N(~isfinite(N)) = 0;
+                        N(~isfinite(N)) = 0;
                         h(iLine) = histogram(ax, BinEdges=edges, BinCounts=N, DisplayStyle='stairs', EdgeColor=colors(1, 1:3), EdgeAlpha=0.5, LineWidth=1, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
                         iLine = iLine + 1;
                     case {'X', 'XInc', 'XDec'}
@@ -572,6 +577,7 @@ for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
                         case {'move'}
                             edges = stimData(iExp).psmh.stim.(trialType).edges;
                             N = mean(stimData(iExp).psmh.stim.(trialType).N(sel, :), 1, 'omitnan');
+                            N(~isfinite(N)) = 0;
                             h(iLine) = histogram(ax, BinEdges=edges, BinCounts=N, DisplayStyle='stairs', EdgeColor=colors(iPower+1, 1:3), EdgeAlpha=colors(iPower+1, 4), LineWidth=1, DisplayName=sprintf("%s (n=%i)", label, nnz(sel)));
                         case {'X', 'XInc', 'XDec'} % Spike rate
                             switch fn
@@ -603,6 +609,20 @@ for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
                             case "lick"
                                 ylabel(ax, ["spout-contact", featureUnits(ifn)])
                         end
+                    elseif string(fn) == "XInc"
+                        switch trialType
+                            case "press"
+                                ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NIncPress(1), featureUnits(ifn))])
+                            case "lick"
+                                ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NIncLick(1), featureUnits(ifn))])
+                        end
+                    elseif string(fn) == "XDec"
+                        switch trialType
+                            case "press"
+                                ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NDecPress(1), featureUnits(ifn))])
+                            case "lick"
+                                ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NDecLick(1), featureUnits(ifn))])
+                        end
                     else
                         ylabel(ax, [featureDispNames(ifn), featureUnits(ifn)])
                     end
@@ -624,10 +644,14 @@ for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
                 end
             end
         end
-        title(tl, sprintf('%s - %s (n=%i)', stimData(iExp).name, trialType, nnz(stimData(iExp).trialType==trialType)))
+        trialTypeDispName = trialType; 
+        if trialType == "press"
+            trialTypeDispName = "reach";
+        end
+        title(tl, sprintf('Exp %i - %s - %s (n=%i)', iExp, stimData(iExp).name, trialTypeDispName, nnz(stimData(iExp).trialType==trialType)), Interpreter='none')
         xlabel(tl, 'time to decoder/opto onset (s)')
-        % ylabel(tl, sprintf('%s (a.u.)', p.kinematicDataSource))
         fontsize(fig, 9, 'points')
+        print(fig, fullfile("E:\Figures\SNr_VGAT-Cre-CoChR", sprintf("Exp %i - %s - %s.png", iExp, stimData(iExp).name, trialTypeDispName)), '-dpng')
     end
 end
 
