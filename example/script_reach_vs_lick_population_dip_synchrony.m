@@ -340,6 +340,7 @@ for iExp = 1:length(V)
 end
 
 % Calculate psth (spike rates)
+stimData = rmfield(stimData, 'psth');
 ll = 0;
 for iExp = 1:length(uniqueExpNames)
     euIndicesInExp = find(euToExpIndices(:)'==iExp);
@@ -378,19 +379,19 @@ for iExp = 1:length(uniqueExpNames)
             fprintf(repmat('\b', [1, ll]))
             ll = fprintf("iExp=%i, %s, iEu=%i\n", iExp, cond, iEuInExp);
         end
-        % average across units, keep trials, so X: nTrials x nTimestamps
+        % X: trials x time x units
         stimData(iExp).psth.(cond).t = 0.5*(t(1:end-1) + t(2:end));
-        stimData(iExp).psth.(cond).X = mean(X, 3, 'omitnan');
-        stimData(iExp).psth.(cond).XIncPress = mean(X(:, :, isIncPress), 3, 'omitnan');
-        stimData(iExp).psth.(cond).XDecPress = mean(X(:, :, isDecPress), 3, 'omitnan');
-        stimData(iExp).psth.(cond).XIncLick = mean(X(:, :, isIncLick), 3, 'omitnan');
-        stimData(iExp).psth.(cond).XDecLick = mean(X(:, :, isDecLick), 3, 'omitnan');
+        stimData(iExp).psth.(cond).X = X; % mean(X, 3, 'omitnan');
+        stimData(iExp).psth.(cond).XIncPress = X(:, :, isIncPress); % mean(X(:, :, isIncPress), 3, 'omitnan');
+        stimData(iExp).psth.(cond).XDecPress = X(:, :, isDecPress); % mean(X(:, :, isDecPress), 3, 'omitnan');
+        stimData(iExp).psth.(cond).XIncLick = X(:, :, isIncLick); % mean(X(:, :, isIncLick), 3, 'omitnan');
+        stimData(iExp).psth.(cond).XDecLick = X(:, :, isDecLick); % mean(X(:, :, isDecLick), 3, 'omitnan');
         % Record number of units per session, so we can do weighted averaging of sessions in the future
-        stimData(iExp).psth.(cond).N = length(euIndicesInExp) * ones(length(stimTrials), 1);
-        stimData(iExp).psth.(cond).NIncPress = nnz(isIncPress) * ones(length(stimTrials), 1);
-        stimData(iExp).psth.(cond).NDecPress = nnz(isDecPress) * ones(length(stimTrials), 1);
-        stimData(iExp).psth.(cond).NIncLick = nnz(isIncLick) * ones(length(stimTrials), 1);
-        stimData(iExp).psth.(cond).NDecLick = nnz(isDecLick) * ones(length(stimTrials), 1);
+        % stimData(iExp).psth.(cond).N = length(euIndicesInExp) * ones(length(stimTrials), 1);
+        % stimData(iExp).psth.(cond).NIncPress = nnz(isIncPress) * ones(length(stimTrials), 1);
+        % stimData(iExp).psth.(cond).NDecPress = nnz(isDecPress) * ones(length(stimTrials), 1);
+        % stimData(iExp).psth.(cond).NIncLick = nnz(isIncLick) * ones(length(stimTrials), 1);
+        % stimData(iExp).psth.(cond).NDecLick = nnz(isDecLick) * ones(length(stimTrials), 1);
     end
 end
 
@@ -398,6 +399,7 @@ end
 %% Plot opto-aligned movement kinemeatics + spike rates
 xl = {[-2, 3], [-2, 5]};
 p.kinematicDataSource = "spd";
+p.mergePSTHSessionsByAveragingAcross = "trials"; % "trials", "units"
 kineFeatures = ["Jaw", "HandL", "HandR"];
 features = ["X", "XInc", "XDec", "move", "Jaw", "HandL", "HandR"];
 featureDispNames = ["spike rate", "spike rate (inc)", "spike rate (dec)", "move", "jaw", "l.hand", "r.hand"];
@@ -488,28 +490,33 @@ for trialType = ["press", "lick"]
         stimData(length(V)+1).psmh.(cond).(trialType).edges = stimData(1).psmh.(cond).(trialType).edges;
     end
 end
-for cond = ["stim", "ctrl"]
-    X = arrayfun(@(sd) sd.psth.(cond).X, stimData(1:length(stimData)-1), UniformOutput=false);
-    XIncPress = arrayfun(@(sd) sd.psth.(cond).XIncPress, stimData(1:length(stimData)-1), UniformOutput=false);
-    XDecPress = arrayfun(@(sd) sd.psth.(cond).XDecPress, stimData(1:length(stimData)-1), UniformOutput=false);
-    XIncLick = arrayfun(@(sd) sd.psth.(cond).XIncLick, stimData(1:length(stimData)-1), UniformOutput=false);
-    XDecLick = arrayfun(@(sd) sd.psth.(cond).XDecLick, stimData(1:length(stimData)-1), UniformOutput=false);
-    N = arrayfun(@(sd) sd.psth.(cond).N, stimData(1:length(stimData)-1), UniformOutput=false);
-    NIncPress = arrayfun(@(sd) sd.psth.(cond).NIncPress, stimData(1:length(stimData)-1), UniformOutput=false);
-    NDecPress = arrayfun(@(sd) sd.psth.(cond).NDecPress, stimData(1:length(stimData)-1), UniformOutput=false);
-    NIncLick = arrayfun(@(sd) sd.psth.(cond).NIncLick, stimData(1:length(stimData)-1), UniformOutput=false);
-    NDecLick = arrayfun(@(sd) sd.psth.(cond).NDecLick, stimData(1:length(stimData)-1), UniformOutput=false);
-    stimData(length(V)+1).psth.(cond).t = stimData(1).psth.(cond).t;
-    stimData(length(V)+1).psth.(cond).X = cat(1, X{:});
-    stimData(length(V)+1).psth.(cond).N = cat(1, N{:});
-    stimData(length(V)+1).psth.(cond).XIncPress = cat(1, XIncPress{:});
-    stimData(length(V)+1).psth.(cond).XDecPress = cat(1, XDecPress{:});
-    stimData(length(V)+1).psth.(cond).XIncLick = cat(1, XIncLick{:});
-    stimData(length(V)+1).psth.(cond).XDecLick = cat(1, XDecLick{:});
-    stimData(length(V)+1).psth.(cond).NIncPress = cat(1, NIncPress{:});
-    stimData(length(V)+1).psth.(cond).NDecPress = cat(1, NDecPress{:});
-    stimData(length(V)+1).psth.(cond).NIncLick = cat(1, NIncLick{:});
-    stimData(length(V)+1).psth.(cond).NDecLick = cat(1, NDecLick{:});
+switch p.mergePSTHSessionsByAveragingAcross
+    case "units"
+        for cond = ["stim", "ctrl"]
+            X = arrayfun(@(sd) mean(sd.psth.(cond).X, 3, 'omitnan'), stimData(1:length(stimData)-1), UniformOutput=false);
+            XIncPress = arrayfun(@(sd) mean(sd.psth.(cond).XIncPress, 3, 'omitnan'), stimData(1:length(stimData)-1), UniformOutput=false);
+            XDecPress = arrayfun(@(sd) mean(sd.psth.(cond).XDecPress, 3, 'omitnan'), stimData(1:length(stimData)-1), UniformOutput=false);
+            XIncLick = arrayfun(@(sd) mean(sd.psth.(cond).XIncLick, 3, 'omitnan'), stimData(1:length(stimData)-1), UniformOutput=false);
+            XDecLick = arrayfun(@(sd) mean(sd.psth.(cond).XDecLick, 3, 'omitnan'), stimData(1:length(stimData)-1), UniformOutput=false);
+            N = arrayfun(@(sd) size(sd.psth.(cond).X, 3) * ones(size(sd.psth.(cond).X, 1), 1), stimData(1:length(stimData)-1), UniformOutput=false);
+            NIncPress = arrayfun(@(sd) size(sd.psth.(cond).XIncPress, 3) * ones(size(sd.psth.(cond).X, 1), 1), stimData(1:length(stimData)-1), UniformOutput=false);
+            NDecPress = arrayfun(@(sd) size(sd.psth.(cond).XDecPress, 3) * ones(size(sd.psth.(cond).X, 1), 1), stimData(1:length(stimData)-1), UniformOutput=false);
+            NIncLick = arrayfun(@(sd) size(sd.psth.(cond).XIncLick, 3) * ones(size(sd.psth.(cond).X, 1), 1), stimData(1:length(stimData)-1), UniformOutput=false);
+            NDecLick = arrayfun(@(sd) size(sd.psth.(cond).XDecLick, 3) * ones(size(sd.psth.(cond).X, 1), 1), stimData(1:length(stimData)-1), UniformOutput=false);
+            stimData(length(V)+1).psth.(cond).t = stimData(1).psth.(cond).t;
+            stimData(length(V)+1).psth.(cond).X = cat(1, X{:});
+            stimData(length(V)+1).psth.(cond).N = cat(1, N{:});
+            stimData(length(V)+1).psth.(cond).XIncPress = cat(1, XIncPress{:});
+            stimData(length(V)+1).psth.(cond).XDecPress = cat(1, XDecPress{:});
+            stimData(length(V)+1).psth.(cond).XIncLick = cat(1, XIncLick{:});
+            stimData(length(V)+1).psth.(cond).XDecLick = cat(1, XDecLick{:});
+            stimData(length(V)+1).psth.(cond).NIncPress = cat(1, NIncPress{:});
+            stimData(length(V)+1).psth.(cond).NDecPress = cat(1, NDecPress{:});
+            stimData(length(V)+1).psth.(cond).NIncLick = cat(1, NIncLick{:});
+            stimData(length(V)+1).psth.(cond).NDecLick = cat(1, NDecLick{:});
+        end
+    case "trials"
+        % error("Unimplemented, trials")
 end
 stimData(length(V)+1).iExp = 0;
 stimData(length(V)+1).name = 'all sessions';
@@ -520,13 +527,14 @@ for iExp = 1:length(stimData)
     nTrialsCtrl = histcounts(stimData(iExp).trialTypeCtrl, ["press", "lick", "unknown"]);
     fprintf("iExp=%i (%s):\n\tstim: %i reach, %i lick, %i unknown; ctrl: %i press, %i lick, %i unknown.\n", iExp, stimData(iExp).name, nTrials(1), nTrials(2), nTrials(3), nTrialsCtrl(1), nTrialsCtrl(2), nTrialsCtrl(3))
     if iExp < length(stimData)
-        fprintf("\t%i units; reach: %i/%i inc/dec; lick: %i/%i inc/dec.\n", stimData(iExp).psth.stim.N(1), stimData(iExp).psth.stim.NIncPress(1), stimData(iExp).psth.stim.NDecPress(1), stimData(iExp).psth.stim.NIncLick(1), stimData(iExp).psth.stim.NDecLick(1))
+        fprintf("\t%i units; reach: %i/%i inc/dec; lick: %i/%i inc/dec.\n", size(stimData(iExp).psth.stim.X, 3), size(stimData(iExp).psth.stim.XIncPress, 3), size(stimData(iExp).psth.stim.XDecPress, 3), size(stimData(iExp).psth.stim.XIncLick, 3), size(stimData(iExp).psth.stim.XDecLick, 3))
     end
 end
 
 
-for iExp = 1:length(uniqueExpNames)+1
+% for iExp = 1:length(uniqueExpNames)+1
 % for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
+for iExp = length(uniqueExpNames)%:length(uniqueExpNames)+1
     x0 = 0;
     for trialType = ["press", "lick"]
         fig = figure(Units='normalized', Position=[x0, 0, 0.5, 1]);
@@ -565,6 +573,7 @@ for iExp = 1:length(uniqueExpNames)+1
                         h(iLine) = histogram(ax, BinEdges=edges, BinCounts=N, DisplayStyle='stairs', EdgeColor=colors(1, 1:3), EdgeAlpha=0.5, LineWidth=1, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
                         iLine = iLine + 1;
                     case {'X', 'XInc', 'XDec'}
+                        t = stimData(iExp).psth.ctrl.t;
                         switch fn
                             case 'X'
                                 fnx = 'X';
@@ -575,8 +584,21 @@ for iExp = 1:length(uniqueExpNames)+1
                                 fnn = fnx;
                                 fnn(1) = 'N'; % NIncPress
                         end
-                        t = stimData(iExp).psth.ctrl.t;
-                        mu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :), 1, 'omitnan', Weights=stimData(iExp).psth.ctrl.(fnn)(selCtrl));
+                        switch p.mergePSTHSessionsByAveragingAcross
+                            case "units"
+                                if iExp < length(stimData)
+                                    mu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :, :), [1, 3], 'omitnan');
+                                else
+                                    mu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :), 1, 'omitnan', Weights=stimData(iExp).psth.ctrl.(fnn)(selCtrl));
+                                end
+                            case "trials"
+                                if iExp < length(stimData)
+                                    mu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :, :), [1, 3], 'omitnan');
+                                else
+                                    error("Not implemented")
+                                    mu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :), 1, 'omitnan', Weights=stimData(iExp).psth.ctrl.(fnn)(selCtrl));
+                                end
+                        end
                         h(iLine) = plot(ax, t, mu, Color=colors(1, :), LineWidth=1, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
                         iLine = iLine + 1;
                 end
@@ -616,9 +638,25 @@ for iExp = 1:length(uniqueExpNames)+1
                                     fnn(1) = 'N'; % NIncPress
                             end
                             t = stimData(iExp).psth.stim.t;
-                            mu = mean(stimData(iExp).psth.stim.(fnx)(sel, :), 1, 'omitnan', Weights=stimData(iExp).psth.stim.(fnn)(sel));
-                            err = 0.1*std(stimData(iExp).psth.stim.(fnx)(sel, :), 0, 1, 'omitnan');
-                            ci = quantile(stimData(iExp).psth.stim.(fnx)(sel, :), [0.25, 0.75], 1);
+                            switch p.mergePSTHSessionsByAveragingAcross
+                                case "units"
+                                    if iExp < length(stimData)
+                                        mu = mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), [1, 3], 'omitnan');
+                                        ci = quantile(mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), 3, 'omitnan'), [0.25, 0.75], 1);
+                                    else
+                                        mu = mean(stimData(iExp).psth.stim.(fnx)(sel, :), 1, 'omitnan', Weights=stimData(iExp).psth.stim.(fnn)(sel));
+                                        ci = quantile(stimData(iExp).psth.stim.(fnx)(sel, :), [0.25, 0.75], 1);
+                                    end
+                                case "trials"
+                                    if iExp < length(stimData)
+                                        mu = mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), [1, 3], 'omitnan');
+                                        ci = quantile(permute(mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), 1, 'omitnan'), [3, 2, 1]), [0.25, 0.75], 1);
+                                    else
+                                        error("Not implemented")
+                                        mu = mean(stimData(iExp).psth.stim.(fnx)(sel, :), 1, 'omitnan', Weights=stimData(iExp).psth.stim.(fnn)(sel));
+                                        ci = quantile(stimData(iExp).psth.stim.(fnx)(sel, :), [0.25, 0.75], 1);
+                                    end
+                            end
                             h(iLine) = plot(ax, t, mu, Color=colors(iPower+1, :), LineStyle=lineStyles(iPower+1), LineWidth=1, DisplayName=sprintf("%s (n=%i)", label, nnz(sel)));
                             iLine = iLine + 1;
                             patch(ax, [t, flip(t)], [ci(1, :), flip(ci(2, :))], colors(iPower+1, 1:3), FaceAlpha=0.1, EdgeAlpha=0)
@@ -636,38 +674,15 @@ for iExp = 1:length(uniqueExpNames)+1
                             case "lick"
                                 ylabel(ax, ["spout-contact", featureUnits(ifn)])
                         end
-                    elseif string(fn) == "XInc"
+                    elseif ismember(string(fn), ["XInc", "XDec"])
                         if iExp < length(stimData)
-                            switch trialType
-                                case "press"
-                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NIncPress(1), featureUnits(ifn))])
-                                case "lick"
-                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NIncLick(1), featureUnits(ifn))])
-                            end
+                            selExp = iExp;
                         else
-                            switch trialType
-                                case "press"
-                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", sum(stimData(iExp).psth.stim.NIncPress(expToFirstTrialIndex)), featureUnits(ifn))])
-                                case "lick"
-                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", sum(stimData(iExp).psth.stim.NIncLick(expToFirstTrialIndex)), featureUnits(ifn))])
-                            end
+                            selExp = 1:length(stimData)-1;
                         end
-                    elseif string(fn) == "XDec"
-                        if iExp < length(stimData)
-                            switch trialType
-                                case "press"
-                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NDecPress(1), featureUnits(ifn))])
-                                case "lick"
-                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", stimData(iExp).psth.stim.NDecLick(1), featureUnits(ifn))])
-                            end
-                        else
-                            switch trialType
-                                case "press"
-                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", sum(stimData(iExp).psth.stim.NDecPress(expToFirstTrialIndex)), featureUnits(ifn))])
-                                case "lick"
-                                    ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", sum(stimData(iExp).psth.stim.NDecLick(expToFirstTrialIndex)), featureUnits(ifn))])
-                            end
-                        end
+                        fnx = char(string(fn) + trialType);
+                        fnx(5) = upper(fnx(5));
+                        ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", sum(arrayfun(@(sd) size(sd.psth.stim.(fnx), 3), stimData(selExp))), featureUnits(ifn))])
                     else
                         ylabel(ax, [featureDispNames(ifn), featureUnits(ifn)])
                     end
