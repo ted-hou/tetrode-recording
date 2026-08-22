@@ -399,7 +399,8 @@ end
 %% Plot opto-aligned movement kinemeatics + spike rates
 xl = {[-2, 3], [-2, 5]};
 p.kinematicDataSource = "spd";
-p.mergePSTHSessionsByAveragingAcross = "trials"; % "trials", "units"
+p.showIndividualTracesFor = "trials"; % "trials", "units"
+p.showIndividualTracesAsCI = true;
 kineFeatures = ["Jaw", "HandL", "HandR"];
 features = ["X", "XInc", "XDec", "move", "Jaw", "HandL", "HandR"];
 featureDispNames = ["spike rate", "spike rate (inc)", "spike rate (dec)", "move", "jaw", "l.hand", "r.hand"];
@@ -490,34 +491,35 @@ for trialType = ["press", "lick"]
         stimData(length(V)+1).psmh.(cond).(trialType).edges = stimData(1).psmh.(cond).(trialType).edges;
     end
 end
-switch p.mergePSTHSessionsByAveragingAcross
-    case "units"
-        for cond = ["stim", "ctrl"]
-            X = arrayfun(@(sd) mean(sd.psth.(cond).X, 3, 'omitnan'), stimData(1:length(stimData)-1), UniformOutput=false);
-            XIncPress = arrayfun(@(sd) mean(sd.psth.(cond).XIncPress, 3, 'omitnan'), stimData(1:length(stimData)-1), UniformOutput=false);
-            XDecPress = arrayfun(@(sd) mean(sd.psth.(cond).XDecPress, 3, 'omitnan'), stimData(1:length(stimData)-1), UniformOutput=false);
-            XIncLick = arrayfun(@(sd) mean(sd.psth.(cond).XIncLick, 3, 'omitnan'), stimData(1:length(stimData)-1), UniformOutput=false);
-            XDecLick = arrayfun(@(sd) mean(sd.psth.(cond).XDecLick, 3, 'omitnan'), stimData(1:length(stimData)-1), UniformOutput=false);
-            N = arrayfun(@(sd) size(sd.psth.(cond).X, 3) * ones(size(sd.psth.(cond).X, 1), 1), stimData(1:length(stimData)-1), UniformOutput=false);
-            NIncPress = arrayfun(@(sd) size(sd.psth.(cond).XIncPress, 3) * ones(size(sd.psth.(cond).X, 1), 1), stimData(1:length(stimData)-1), UniformOutput=false);
-            NDecPress = arrayfun(@(sd) size(sd.psth.(cond).XDecPress, 3) * ones(size(sd.psth.(cond).X, 1), 1), stimData(1:length(stimData)-1), UniformOutput=false);
-            NIncLick = arrayfun(@(sd) size(sd.psth.(cond).XIncLick, 3) * ones(size(sd.psth.(cond).X, 1), 1), stimData(1:length(stimData)-1), UniformOutput=false);
-            NDecLick = arrayfun(@(sd) size(sd.psth.(cond).XDecLick, 3) * ones(size(sd.psth.(cond).X, 1), 1), stimData(1:length(stimData)-1), UniformOutput=false);
-            stimData(length(V)+1).psth.(cond).t = stimData(1).psth.(cond).t;
-            stimData(length(V)+1).psth.(cond).X = cat(1, X{:});
-            stimData(length(V)+1).psth.(cond).N = cat(1, N{:});
-            stimData(length(V)+1).psth.(cond).XIncPress = cat(1, XIncPress{:});
-            stimData(length(V)+1).psth.(cond).XDecPress = cat(1, XDecPress{:});
-            stimData(length(V)+1).psth.(cond).XIncLick = cat(1, XIncLick{:});
-            stimData(length(V)+1).psth.(cond).XDecLick = cat(1, XDecLick{:});
-            stimData(length(V)+1).psth.(cond).NIncPress = cat(1, NIncPress{:});
-            stimData(length(V)+1).psth.(cond).NDecPress = cat(1, NDecPress{:});
-            stimData(length(V)+1).psth.(cond).NIncLick = cat(1, NIncLick{:});
-            stimData(length(V)+1).psth.(cond).NDecLick = cat(1, NDecLick{:});
-        end
-    case "trials"
-        % error("Unimplemented, trials")
+
+% Try to merge sessions into one 3d array (trials x timestamps x units; block diagonal on the 1st and 3rd dimension, everything else NaN, so we could still average valid data and use easy trial indexing when splitting by conditions)
+% Block diagonal, you think you're better than us don't you (That's prolly not even the right term for it)
+for cond = ["stim", "ctrl"]
+    nTrials = arrayfun(@(sd) size(sd.psth.(cond).X, 1), stimData(1:length(V)));
+    nTimestamps = size(stimData(1).psth.(cond).X, 2);
+    nUnits = arrayfun(@(sd) size(sd.psth.(cond).X, 3), stimData(1:length(V)));
+    X = NaN(sum(nTrials), nTimestamps, sum(nUnits));
+    iTrial = 0;
+    iUnit = 0;
+    for iExp = 1:length(V)
+        X(iTrial+1:iTrial+nTrials(iExp), :, iUnit+1:iUnit+nUnits(iExp)) = stimData(iExp).psth.(cond).X;
+        iTrial = iTrial + nTrials(iExp);
+        iUnit = iUnit + nUnits(iExp);
+    end
+    stimData(length(V)+1).psth.(cond).X = X;
+    if p.useWeakIncDec
+        stimData(length(V)+1).psth.(cond).XPressInc = X(:, :, c.isPressUpWeak);
+        stimData(length(V)+1).psth.(cond).XPressDec = X(:, :, c.isPressDownWeak);
+        stimData(length(V)+1).psth.(cond).XLickInc = X(:, :, c.isLickUpWeak);
+        stimData(length(V)+1).psth.(cond).XLickDec = X(:, :, c.isLickDownWeak);
+    else
+        stimData(length(V)+1).psth.(cond).XPressInc = X(:, :, c.isPressUp);
+        stimData(length(V)+1).psth.(cond).XPressDec = X(:, :, c.isPressDown);
+        stimData(length(V)+1).psth.(cond).XLickInc = X(:, :, c.isLickUp);
+        stimData(length(V)+1).psth.(cond).XLickDec = X(:, :, c.isLickDown);
+    end
 end
+
 stimData(length(V)+1).iExp = 0;
 stimData(length(V)+1).name = 'all sessions';
 
@@ -577,29 +579,31 @@ for iExp = length(uniqueExpNames)%:length(uniqueExpNames)+1
                         switch fn
                             case 'X'
                                 fnx = 'X';
-                                fnn = 'N';
                             case {'XInc', 'XDec'}
                                 fnx = char(string(fn) + trialType);
                                 fnx(5) = upper(fnx(5)); % XIncPress
-                                fnn = fnx;
-                                fnn(1) = 'N'; % NIncPress
                         end
-                        switch p.mergePSTHSessionsByAveragingAcross
-                            case "units"
-                                if iExp < length(stimData)
-                                    mu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :, :), [1, 3], 'omitnan');
-                                else
-                                    mu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :), 1, 'omitnan', Weights=stimData(iExp).psth.ctrl.(fnn)(selCtrl));
-                                end
+                        switch p.showIndividualTracesFor
                             case "trials"
-                                if iExp < length(stimData)
-                                    mu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :, :), [1, 3], 'omitnan');
+                                mu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :, :), 3, 'omitnan'); % avg across units: trials x time x units, then average across 3rd dim -> trials x time
+                                if p.showIndividualTracesAsCI
+                                    ci = quantile(mu, [0.25, 0.75], 1);
+                                    patch(ax, [t, flip(t)], [ci(1, :), flip(ci(2, :))], colors(1, 1:3), FaceAlpha=0.05, EdgeAlpha=0);
                                 else
-                                    error("Not implemented")
-                                    mu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :), 1, 'omitnan', Weights=stimData(iExp).psth.ctrl.(fnn)(selCtrl));
+                                    plot(ax, t, mu', Color=[colors(1, 1:3), 0.05], LineWidth=0.5);
+                                end
+                            case "units"
+                                mu = mean(permute(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :, :), [3, 2, 1]), 3, 'omitnan'); % avg across trials: units x time x trials, then average across 3rd dim -> units x time
+                                if p.showIndividualTracesAsCI
+                                    ci = quantile(mu, [0.25, 0.75], 1);
+                                    patch(ax, [t, flip(t)], [ci(1, :), flip(ci(2, :))], colors(1, 1:3), FaceAlpha=0.1, EdgeAlpha=0);
+                                else
+                                    plot(ax, t, mu', Color=[colors(1, 1:3), 0.05], LineWidth=0.5);
                                 end
                         end
-                        h(iLine) = plot(ax, t, mu, Color=colors(1, :), LineWidth=1, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
+
+                        mumu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :, :), [1, 3], 'omitnan');
+                        h(iLine) = plot(ax, t, mumu, Color=colors(1, :), LineWidth=1, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
                         iLine = iLine + 1;
                 end
                 [uniqueHash, ia] = unique(stimData(iExp).hash);
@@ -627,39 +631,36 @@ for iExp = length(uniqueExpNames)%:length(uniqueExpNames)+1
                             N(~isfinite(N)) = 0;
                             h(iLine) = histogram(ax, BinEdges=edges, BinCounts=N, DisplayStyle='stairs', EdgeColor=colors(iPower+1, 1:3), EdgeAlpha=colors(iPower+1, 4), LineWidth=1, DisplayName=sprintf("%s (n=%i)", label, nnz(sel)));
                         case {'X', 'XInc', 'XDec'} % Spike rate
+                            t = stimData(iExp).psth.stim.t;
                             switch fn
                                 case 'X'
                                     fnx = 'X';
-                                    fnn = 'N';
                                 case {'XInc', 'XDec'}
                                     fnx = char(string(fn) + trialType);
                                     fnx(5) = upper(fnx(5)); % XIncPress
-                                    fnn = fnx;
-                                    fnn(1) = 'N'; % NIncPress
                             end
-                            t = stimData(iExp).psth.stim.t;
-                            switch p.mergePSTHSessionsByAveragingAcross
-                                case "units"
-                                    if iExp < length(stimData)
-                                        mu = mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), [1, 3], 'omitnan');
-                                        ci = quantile(mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), 3, 'omitnan'), [0.25, 0.75], 1);
-                                    else
-                                        mu = mean(stimData(iExp).psth.stim.(fnx)(sel, :), 1, 'omitnan', Weights=stimData(iExp).psth.stim.(fnn)(sel));
-                                        ci = quantile(stimData(iExp).psth.stim.(fnx)(sel, :), [0.25, 0.75], 1);
-                                    end
+                            switch p.showIndividualTracesFor
                                 case "trials"
-                                    if iExp < length(stimData)
-                                        mu = mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), [1, 3], 'omitnan');
-                                        ci = quantile(permute(mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), 1, 'omitnan'), [3, 2, 1]), [0.25, 0.75], 1);
+                                    mu = mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), 3, 'omitnan'); % avg across units: trials x time x units, then average across 3rd dim -> trials x time
+                                    if p.showIndividualTracesAsCI
+                                        ci = quantile(mu, [0.25, 0.75], 1);
+                                        patch(ax, [t, flip(t)], [ci(1, :), flip(ci(2, :))], colors(iPower+1, 1:3), FaceAlpha=0.05, EdgeAlpha=0);
                                     else
-                                        error("Not implemented")
-                                        mu = mean(stimData(iExp).psth.stim.(fnx)(sel, :), 1, 'omitnan', Weights=stimData(iExp).psth.stim.(fnn)(sel));
-                                        ci = quantile(stimData(iExp).psth.stim.(fnx)(sel, :), [0.25, 0.75], 1);
+                                        plot(ax, t, mu', Color=[colors(iPower+1, 1:3), 0.05], LineWidth=0.5);
+                                    end
+                                case "units"
+                                    mu = mean(permute(stimData(iExp).psth.stim.(fnx)(sel, :, :), [3, 2, 1]), 3, 'omitnan'); % avg across trials: units x time x trials, then average across 3rd dim -> units x time
+                                    if p.showIndividualTracesAsCI
+                                        ci = quantile(mu, [0.25, 0.75], 1);
+                                        patch(ax, [t, flip(t)], [ci(1, :), flip(ci(2, :))], colors(iPower+1, 1:3), FaceAlpha=0.1, EdgeAlpha=0);
+                                    else
+                                        plot(ax, t, mu', Color=[colors(iPower+1, 1:3), 0.05], LineWidth=0.5);
                                     end
                             end
-                            h(iLine) = plot(ax, t, mu, Color=colors(iPower+1, :), LineStyle=lineStyles(iPower+1), LineWidth=1, DisplayName=sprintf("%s (n=%i)", label, nnz(sel)));
+
+                            mumu = mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), [1, 3], 'omitnan');
+                            h(iLine) = plot(ax, t, mumu, Color=colors(iPower+1, :), LineWidth=1, DisplayName=sprintf("%s (n=%i)", label, nnz(sel)));
                             iLine = iLine + 1;
-                            patch(ax, [t, flip(t)], [ci(1, :), flip(ci(2, :))], colors(iPower+1, 1:3), FaceAlpha=0.1, EdgeAlpha=0)
                             yline(ax, 0, 'k--')
                     end
                 end
