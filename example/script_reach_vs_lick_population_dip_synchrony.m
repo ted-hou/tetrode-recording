@@ -395,6 +395,9 @@ for iExp = 1:length(uniqueExpNames)
     end
 end
 
+%% Save stimData:
+save('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_withStimData.mat', 'boot', 'c', 'eta', 'kinematics', 'p', 'stimData')
+
 
 %% Plot opto-aligned movement kinemeatics + spike rates
 xl = {[-2, 3], [-2, 5]};
