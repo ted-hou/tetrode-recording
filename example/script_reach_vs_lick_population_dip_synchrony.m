@@ -508,16 +508,17 @@ for cond = ["stim", "ctrl"]
     end
     stimData(length(V)+1).psth.(cond).X = X;
     if p.useWeakIncDec
-        stimData(length(V)+1).psth.(cond).XPressInc = X(:, :, c.isPressUpWeak);
-        stimData(length(V)+1).psth.(cond).XPressDec = X(:, :, c.isPressDownWeak);
-        stimData(length(V)+1).psth.(cond).XLickInc = X(:, :, c.isLickUpWeak);
-        stimData(length(V)+1).psth.(cond).XLickDec = X(:, :, c.isLickDownWeak);
+        stimData(length(V)+1).psth.(cond).XIncPress = X(:, :, c.isPressUpWeak);
+        stimData(length(V)+1).psth.(cond).XDecPress = X(:, :, c.isPressDownWeak);
+        stimData(length(V)+1).psth.(cond).XIncLick = X(:, :, c.isLickUpWeak);
+        stimData(length(V)+1).psth.(cond).XDecLick = X(:, :, c.isLickDownWeak);
     else
-        stimData(length(V)+1).psth.(cond).XPressInc = X(:, :, c.isPressUp);
-        stimData(length(V)+1).psth.(cond).XPressDec = X(:, :, c.isPressDown);
-        stimData(length(V)+1).psth.(cond).XLickInc = X(:, :, c.isLickUp);
-        stimData(length(V)+1).psth.(cond).XLickDec = X(:, :, c.isLickDown);
+        stimData(length(V)+1).psth.(cond).XIncPress = X(:, :, c.isPressUp);
+        stimData(length(V)+1).psth.(cond).XDecPress = X(:, :, c.isPressDown);
+        stimData(length(V)+1).psth.(cond).XIncLick = X(:, :, c.isLickUp);
+        stimData(length(V)+1).psth.(cond).XDecLick = X(:, :, c.isLickDown);
     end
+    stimData(length(V)+1).psth.(cond).t = stimData(1).psth.(cond).t;
 end
 
 stimData(length(V)+1).iExp = 0;
@@ -534,9 +535,8 @@ for iExp = 1:length(stimData)
 end
 
 
-% for iExp = 1:length(uniqueExpNames)+1
-% for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
-for iExp = length(uniqueExpNames)%:length(uniqueExpNames)+1
+%%
+for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
     x0 = 0;
     for trialType = ["press", "lick"]
         fig = figure(Units='normalized', Position=[x0, 0, 0.5, 1]);
@@ -559,6 +559,7 @@ for iExp = length(uniqueExpNames)%:length(uniqueExpNames)+1
                 lineStyles = ["-", "-", "-"];
                 colors = [.2,.2,.2,1; .2,.2,.8,.5; .2,.2,.8,1];
 
+                % Ctrk traces
                 selCtrl = stimData(iExp).trialTypeCtrl == trialType;
                 switch fn
                     case {'Jaw', 'HandL', 'HandR'}
