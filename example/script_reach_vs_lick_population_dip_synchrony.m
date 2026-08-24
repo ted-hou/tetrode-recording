@@ -338,9 +338,29 @@ for iExp = 1:length(V)
         end
     end
 end
+if isfield(stimData, 'psth')
+    stimData = rmfield(stimData, 'psth');
+end
+%% Save stimData:
+save('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_withoutStimData.mat', 'boot', 'c', 'eta', 'meta', 'kinematics', 'p')
+save('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_justStimData.mat', 'stimData', '-v7.3')
 
-% Calculate psth (spike rates)
-stimData = rmfield(stimData, 'psth');
+%% Can skip all above, just do this to load
+% Try running script_optrodeSNr_CoChR_VGATCre_20260729 again;
+expDesc = "VGAT-Cre x SNr(AAV-flex-CoChR)";
+load('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos.mat')
+eu = EphysUnit.load('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr_ValidVideos');
+
+expNames = string({eu.ExpName}');
+[uniqueExpNames, expToEuIndices, euToExpIndices] = unique(expNames);
+
+load('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_withoutStimData.mat'); %'boot', 'c', 'eta', 'meta', 'kinematics', 'p'
+load('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_justStimData.mat'); %'stimData'
+
+%% Calculate psth (spike rates) - we're making large 3D arrays with lots of NaNs, so doing this on the fly is a bit faster than 
+if isfield(stimData, 'psth')
+    stimData = rmfield(stimData, 'psth');
+end
 ll = 0;
 for iExp = 1:length(uniqueExpNames)
     euIndicesInExp = find(euToExpIndices(:)'==iExp);
@@ -369,7 +389,7 @@ for iExp = 1:length(uniqueExpNames)
         stimTrials = Trial(stimOn, stimOff, advancedValidation=false);
         assert(length(stimOn) == length(stimTrials))
         assert(p.spikeDataSource=="rate");
-        X = NaN(length(stimTrials), length(t)-1, length(euIndicesInExp));
+        X = NaN(length(stimTrials), length(t)-1, length(euIndicesInExp), 'single');
         for iEuInExp = 1:length(euIndicesInExp)
             [x, ~, ~] = eu(euIndicesInExp(iEuInExp)).getTrialAlignedData('rate', [t(1), t(end)], 'stim', trials=stimTrials, alignTo='start', ...
                 resolution=p.spikeRes, includeInvalid=true, kernel=p.spikeKernel, artifacts=p.artifacts);
@@ -394,9 +414,6 @@ for iExp = 1:length(uniqueExpNames)
         % stimData(iExp).psth.(cond).NDecLick = nnz(isDecLick) * ones(length(stimTrials), 1);
     end
 end
-
-%% Save stimData:
-save('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_withStimData.mat', 'boot', 'c', 'eta', 'kinematics', 'p', 'stimData')
 
 
 %% Plot opto-aligned movement kinemeatics + spike rates
