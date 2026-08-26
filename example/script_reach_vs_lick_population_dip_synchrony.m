@@ -17,8 +17,26 @@ clear artifacts
 artifacts(1) = struct(event='StimOn', length=0.5, lengthUnit='ms', direction='right');
 artifacts(2) = struct(event='StimOff', length=0.5, lengthUnit='ms', direction='right');
 eta.stim = eu.getETA('count', 'stim', [-4, 4], resolution=0.05, alignTo='start', normalize=[-4, -2], artifacts=artifacts);
-eta.press = eu.getETA('count', 'press', [-4, 4], resolution=0.1, alignTo='stop', normalize=[-4, -2], minTrialDuration=1, artifacts=artifacts);
-eta.lick = eu.getETA('count', 'lick', [-4, 4], resolution=0.1, alignTo='stop', normalize=[-4, -2], minTrialDuration=1, artifacts=artifacts);
+
+pressTrialsWithoutStim = cell(size(eu));
+lickTrialsWithoutStim = cell(size(eu));
+for iEu = 1:length(eu)
+    trials = eu(iEu).Trials.Press;
+    [~, ~, I] = trials.inTrial(eu(iEu).EventTimes.LaserModBlueOn);
+    trials(I) = [];
+    [~, ~, I] = trials.inTrial(eu(iEu).EventTimes.LaserModBlueOff);
+    trials(I) = [];
+    pressTrialsWithoutStim{iEu} = trials;
+    trials = eu(iEu).Trials.Lick;
+    [~, ~, I] = trials.inTrial(eu(iEu).EventTimes.LaserModBlueOn);
+    trials(I) = [];
+    [~, ~, I] = trials.inTrial(eu(iEu).EventTimes.LaserModBlueOff);
+    trials(I) = [];
+    lickTrialsWithoutStim{iEu} = trials;
+end
+
+eta.press = eu.getETA('count', 'press', [-4, 4], resolution=0.1, trials=pressTrialsWithoutStim, alignTo='stop', normalize=[-4, -2], minTrialDuration=1, artifacts=artifacts);
+eta.lick = eu.getETA('count', 'lick', [-4, 4], resolution=0.1, trials=lickTrialsWithoutStim, alignTo='stop', normalize=[-4, -2], minTrialDuration=1, artifacts=artifacts);
 
 meta.stim = mean(eta.stim.X(:, isin(eta.stim.t, [0.05, 0.2])), 2, 'omitnan');
 meta.press = mean(eta.press.X(:, isin(eta.press.t, [-0.3, 0])), 2, 'omitnan');
@@ -40,7 +58,7 @@ for iExp = 0%:length(uniqueExpNames)
 
     fig = figure(Units='inches', Position=[1, 1, 10, 6]);
     tl = tiledlayout(fig, 2, 2); 
-    
+
     for i = 1:length(TRIALTYPES)
         trialType = TRIALTYPES(i);
         selType = SELTYPES(i);
@@ -98,7 +116,7 @@ for iExp = 0%:length(uniqueExpNames)
         title(ax, trialTypeDispName)
         xlabel(ax, sprintf('time to %s (s)', eventDispName))
     end
-    
+
     ylabel(tl, 'z-scored spike rate (a.u.)')
 
     if iExp == 0
@@ -111,7 +129,7 @@ for iExp = 0%:length(uniqueExpNames)
     print(fig, fullfile("C:\Users\AssadLab\Pictures\SNrOpto", sprintf("%s.png", ttl)), '-dpng')
 end
 
-clearvars('-except', varsSnapshot{:}, 'finalAnswer');
+clearvars('-except', varsSnapshot{:});
 
 %% Plot scattered METAs (reach/lick vs. opto)
 varsSnapshot = who; 
@@ -347,15 +365,15 @@ load('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_justStimData.mat'); %'s
 %% Calculate psth (spike rates) - we're making large 3D arrays with lots of NaNs, so doing this on the fly is a bit faster than
 
 % Get weak version of bootstrap:
-p.useWeakIncDec = false;
+p.useWeakIncDec = true;
 meta.press = mean(eta.press.X(:, isin(eta.press.t, p.responseWindowPress)), 2, 'omitnan');
 meta.lick = mean(eta.lick.X(:, isin(eta.lick.t, p.responseWindowLick)), 2, 'omitnan');
 meta.pressBaseline = mean(eta.press.X(:, isin(eta.press.t, [-4, -2])), 2, 'omitnan');
 meta.lickBaseline = mean(eta.lick.X(:, isin(eta.lick.t, [-4, -2])), 2, 'omitnan');
 
-c.isPressUpWeak = meta.press > meta.pressBaseline;
+c.isPressUpWeak = meta.press >= meta.pressBaseline;
 c.isPressDownWeak = meta.press < meta.pressBaseline;
-c.isLickUpWeak = meta.lick > meta.lickBaseline;
+c.isLickUpWeak = meta.lick >= meta.lickBaseline;
 c.isLickDownWeak = meta.lick < meta.lickBaseline;
 
 
@@ -415,8 +433,12 @@ for iExp = 1:length(uniqueExpNames)
         for iEuInExp = 1:length(euIndicesInExp)
             [x, ~, ~] = eu(euIndicesInExp(iEuInExp)).getTrialAlignedData('rate', [t(1), t(end)], 'stim', trials=stimTrials, alignTo='start', ...
                 resolution=p.spikeRes, includeInvalid=true, kernel=p.spikeKernel, artifacts=p.artifacts);
-            xBaseline = eu(euIndicesInExp(iEuInExp)).getTrialAlignedData('rate', [-4, -2], 'stim', trials=eu(euIndicesInExp(iEuInExp)).Trials.Press, alignTo='stop', ...
+            % baselineTrials = [pressTrialsWithoutStim{euIndicesInExp(iEuInExp)}, lickTrialsWithoutStim{euIndicesInExp(iEuInExp)}];
+            % baselineTrials = baselineTrials.sortby('start', 'ascend');
+            % baselineTrials = baselineTrials(baselineTrials.duration() >= 4);
+            [xBaseline, tBaseline] = eu(euIndicesInExp(iEuInExp)).getTrialAlignedData('rate', [-5, 5], 'stim', trials=stimTrials, alignTo='stop', ...
                 resolution=p.spikeRes, includeInvalid=true, kernel=p.spikeKernel, artifacts=p.artifacts);
+            xBaseline = xBaseline(:, isin(tBaseline, [-3, -0.5]));
             X(:, :, iEuInExp) = (x - mean(xBaseline, 'all', 'omitnan'))./std(xBaseline, 0, 'all', 'omitnan');
             fprintf(repmat('\b', [1, ll]))
             ll = fprintf("iExp=%i, %s, iEu=%i\n", iExp, cond, iEuInExp);
@@ -439,14 +461,14 @@ end
 
 
 %% Plot opto-aligned movement kinemeatics + spike rates
-% close all
+close all
 xl = {[-2, 3], [-2, 5]};
 kineFeatures = ["Jaw", "HandL", "HandR"];
 features = ["X", "XInc", "XDec", "move", "Jaw", "HandL", "HandR"];
 featureDispNames = ["spike rate", "spike rate (inc)", "spike rate (dec)", "move", "jaw", "l.hand", "r.hand"];
 % yl = {[-0.5, 1.5], [-0.5, 1.5], [-0.5, 1.5], [0, 0.2], [0, 12], [0, 8], [0, 8]};
 yl = {[-1.5, 3], [-1.5, 3], [-1.5, 3], [0, 0.2], [0, 12], [0, 8], [0, 8]};
-featureUnits = ["(a.u.)", "(a.u.)", "(a.u.)", "units", "events/trial", "speed (a.u.)", "speed (a.u.)", "speed (a.u.)"];
+featureUnits = ["(a.u.)", "(a.u.)", "(a.u.)", "probability", "events/trial", "speed (a.u.)", "speed (a.u.)", "speed (a.u.)"];
 p.kinematicDataSource = "spd";
 p.showIndividualTracesFor = "units"; % "trials", "units"
 p.showIndividualTracesAsCI = true; % true to plot 25%/75% CI as shaded area, false to plot single traces
@@ -581,7 +603,8 @@ for iExp = 1:length(stimData)
     end
 end
 
-for iExp = length(uniqueExpNames)+1 % nSessions+1 will plot session average
+%% Do actual plotting
+for iExp = length(uniqueExpNames) + 1 % nSessions+1 will plot session average
     x0 = 0;
     for trialType = ["press", "lick"]
         fig = figure(Units='normalized', Position=[x0, 0, 0.5, 1]);
@@ -783,15 +806,15 @@ for iExp = length(uniqueExpNames) + 1
     fig = figure();
     tlp = tiledlayout(fig, 2, 1);
     tl = gobjects(2, 1);
-    tl(1) = tiledlayout(tlp, 2, sum(l.w));
-    tl(2) = tiledlayout(tlp, 2, sum(l.w));
+    tl(1) = tiledlayout(tlp, 2, sum(l.w), TileSpacing='tight');
+    tl(2) = tiledlayout(tlp, 2, sum(l.w), TileSpacing='tight');
     tl(1).Layout.Tile = 1; tl(1).Layout.TileSpan = [1, 1];
     tl(2).Layout.Tile = 2; tl(1).Layout.TileSpan = [1, 1];
 
     for itl = 1:length(trialTypes)
         trialType = trialTypes(itl);
         selCtrl = stimData(iExp).trialTypeCtrl == trialType;
-        title(tl(itl), trialTypeDispName(itl))
+        title(tl(itl), trialTypeDispName(itl), FontWeight='bold')
         AX = gobjects(2, 3);
         for i = 1:2
             for j = 1:3
@@ -817,8 +840,10 @@ for iExp = length(uniqueExpNames) + 1
             t = stimData(iExp).psth.stim.t;
             muDec = mean(permute(stimData(iExp).psth.stim.(fnxDec)(sel, :, :), [3, 2, 1]), 3, 'omitnan'); % avg across trials: units x time x trials, then average across 3rd dim -> units x time
             muInc = mean(permute(stimData(iExp).psth.stim.(fnxInc)(sel, :, :), [3, 2, 1]), 3, 'omitnan'); % avg across trials: units x time x trials, then average across 3rd dim -> units x time
-            [~, orderDec] = sort(100*mean(muDec(:, isin(t, [0, 3])), 2, 'omitnan') + 1*mean(muDec(:, isin(t, [3, 4])), 2, 'omitnan'), 'ascend');
-            [~, orderInc] = sort(100*mean(muInc(:, isin(t, [0, 3])), 2, 'omitnan') + 1*mean(muInc(:, isin(t, [3, 4])), 2, 'omitnan'), 'descend');
+            % [~, orderDec] = sort(10*(mean(muDec(:, isin(t, [0, 3])), 2, 'omitnan')>0) + 1*(mean(muDec(:, isin(t, [3, 4])), 2, 'omitnan')>0) + 0.1*mean(muDec(:, isin(t, [0, 3])), 2, 'omitnan'), 'ascend');
+            % [~, orderInc] = sort(10*(mean(muInc(:, isin(t, [0, 3])), 2, 'omitnan')>0) + 1*(mean(muInc(:, isin(t, [3, 4])), 2, 'omitnan')>0) + 0.1*mean(muInc(:, isin(t, [0, 3])), 2, 'omitnan'), 'descend');
+            [~, orderDec] = sort(10*(mean(muDec(:, isin(t, [0, 3])), 2, 'omitnan')>0) + 1*(mean(muDec(:, isin(t, [3, 4])), 2, 'omitnan')>0) + 0.1*mean(muDec(:, isin(t, [3, 4])), 2, 'omitnan'), 'ascend');
+            [~, orderInc] = sort(100*(mean(muInc(:, isin(t, [0, 3])), 2, 'omitnan')>0) + 10*(mean(muInc(:, isin(t, [3, 4])), 2, 'omitnan')>0) + 0.1*mean(muInc(:, isin(t, [3, 4])), 2, 'omitnan'), 'descend');
         end
 
 
@@ -834,18 +859,27 @@ for iExp = length(uniqueExpNames) + 1
                     fnxDec(5) = upper(fnxDec(5)); % XDecPress
                     fnxInc = char("XInc" + trialType);
                     fnxInc(5) = upper(fnxInc(5)); % XIncPress
+                    tCtrl = stimData(iExp).psth.ctrl.t;
                     muDec = mean(permute(stimData(iExp).psth.ctrl.(fnxDec)(selCtrl, :, :), [3, 2, 1]), 3, 'omitnan'); % avg across trials: units x time x trials, then average across 3rd dim -> units x time
                     muInc = mean(permute(stimData(iExp).psth.ctrl.(fnxInc)(selCtrl, :, :), [3, 2, 1]), 3, 'omitnan'); % avg across trials: units x time x trials, then average across 3rd dim -> units x time
-                    mu = vertcat(muDec(orderDec, :), muInc(orderInc, :));
-                    imagesc(ax, XData=stimData(iExp).psth.ctrl.t, CData=mu);
+                    muCtrl = vertcat(muDec(orderDec, :), muInc(orderInc, :));
+                    % muCtrl = muCtrl - mean(muCtrl(:, isin(tCtrl, [-3, -1])), 2, 'omitnan');
+                    muCtrl(isnan(muCtrl)) = 0;
+                    imagesc(ax, XData=tCtrl, CData=muCtrl);
                     xline(ax, durations, 'k--')
                     yline(ax, size(muDec, 1)+0.5, 'k--', LineWidth=1)
                     xlim(ax, xl{iDuration+1})
-                    ylim(ax, [0.5, size(mu, 1)+0.5])
-                    yticks(ax, [1, size(muDec, 1), size(mu, 1)])
+                    ylim(ax, [0.5, size(muCtrl, 1)+0.5])
+                    yticks(ax, [1, size(muDec, 1), size(muCtrl, 1)])
                     ax.YAxis.Direction = 'reverse';
-                    applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+                    applyCustomColormap(ax, [-3, 3], hlim=[0.375, 0, -0.3, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.15, h0=0.33);
                     title(ax, sprintf("%s", label))
+                    if iPowerAirBunnies == 1
+                        xticklabels(ax, [])
+                    else
+                        xticks(ax, [0, 1])
+                        xlabel(ax, 'time from decoded-move onset (s)')
+                    end
                 end
             else
                 % stim (1s, 3s)
@@ -865,28 +899,35 @@ for iExp = length(uniqueExpNames) + 1
                     fnxDec(5) = upper(fnxDec(5)); % XDecPress
                     fnxInc = char("XInc" + trialType);
                     fnxInc(5) = upper(fnxInc(5)); % XIncPress
+                    t = stimData(iExp).psth.stim.t;
                     muDec = mean(permute(stimData(iExp).psth.stim.(fnxDec)(sel, :, :), [3, 2, 1]), 3, 'omitnan'); % avg across trials: units x time x trials, then average across 3rd dim -> units x time
                     muInc = mean(permute(stimData(iExp).psth.stim.(fnxInc)(sel, :, :), [3, 2, 1]), 3, 'omitnan'); % avg across trials: units x time x trials, then average across 3rd dim -> units x time
                     mu = vertcat(muDec(orderDec, :), muInc(orderInc, :));
                     mu(isnan(mu)) = 0;
-                    imagesc(ax, XData=stimData(iExp).psth.stim.t, CData=mu);
+                    % mu = mu - mean(muCtrl(:, isin(tCtrl, [-3, -1])), 2, 'omitnan');
+                    imagesc(ax, XData=t, CData=mu);
                     xline(ax, durations, 'k--')
                     yline(ax, size(muDec, 1)+0.5, 'k--', LineWidth=1)
                     xlim(ax, xl{iDuration+1})
                     ylim(ax, [0.5, size(mu, 1)+0.5])
                     yticks(ax, [1, size(muDec, 1), size(mu, 1)])
                     ax.YAxis.Direction = 'reverse';
-                    applyCustomColormap(ax, [-1.5, 1.5], hlim=[0.375, 0, 0, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+                    applyCustomColormap(ax, [-3, 3], hlim=[0.375, 0, -0.3, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
 
                     title(ax, sprintf("%s %is", label, durations(end)))
+                    if iPowerAirBunnies == 1
+                        xticklabels(ax, [])
+                    else
+                        xticks(ax, durations)
+                        xlabel(ax, 'time from opto onset (s)')
+                    end
                 end
             end
-            xticks(ax, durations)
-            ylabel(ax, 'units')
         end
         cb = colorbar(ax);
         cb.Layout.Tile = 'east';
-        cb.Label.String = 'norm spike rate (a.u.)';
+        cb.Label.String = 'normalized spike rate (a.u.)';
+        ylabel(tl(itl), 'units')
     end
     fontsize(fig, 9, 'points')
 end
