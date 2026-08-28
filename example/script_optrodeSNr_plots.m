@@ -94,13 +94,13 @@ for iExp = 0%:length(uniqueExpNames)
             plot(ax, eta.(trialType).t, eta.(trialType).X(selUnits & selDown, :), Color=[0, 0, 1, 0.1])
         end
         plot(ax, eta.(trialType).t, eta.(trialType).X(selUnits & selFlat, :), Color=[0, 0, 0, 0.1])
-        h(iLine) = plot(ax, eta.(trialType).t, mean(eta.(trialType).X(selUnits & selUp, :), 1, 'omitnan'), Color=[0.8, 0.2, 0.2], LineWidth=1, DisplayName=sprintf('%s-inc (n=%i)', selTypeDispName, nnz(selUnits & selUp)));
+        h(iLine) = plot(ax, eta.(trialType).t, mean(eta.(trialType).X(selUnits & selUp, :), 1, 'omitnan'), Color=[0.8, 0.2, 0.2], LineWidth=1.5, DisplayName=sprintf('%s-inc (n=%i)', selTypeDispName, nnz(selUnits & selUp)));
         iLine = iLine + 1;
         if any(selUnits & c.isPressDown)
-            h(iLine) = plot(ax, eta.(trialType).t, mean(eta.(trialType).X(selUnits & selDown, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.8], LineWidth=1, DisplayName=sprintf('%s-dec (n=%i)', selTypeDispName, nnz(selUnits & selDown)));
+            h(iLine) = plot(ax, eta.(trialType).t, mean(eta.(trialType).X(selUnits & selDown, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.8], LineWidth=1.5, DisplayName=sprintf('%s-dec (n=%i)', selTypeDispName, nnz(selUnits & selDown)));
             iLine = iLine + 1;
         end
-        h(iLine) = plot(ax, eta.(trialType).t, mean(eta.(trialType).X(selUnits & selFlat, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.2], LineWidth=1, DisplayName=sprintf('%s-flat (n=%i)', selTypeDispName, nnz(selUnits & selFlat)));
+        h(iLine) = plot(ax, eta.(trialType).t, mean(eta.(trialType).X(selUnits & selFlat, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.2], LineWidth=1.5, DisplayName=sprintf('%s-flat (n=%i)', selTypeDispName, nnz(selUnits & selFlat)));
         iLine = iLine + 1;
 
         xline(ax, 0, 'k:')
@@ -284,43 +284,51 @@ end
 % 'desmond47_20260729', 0.3
 
 %% Get controls for decoder-stim
+stimData = stimData(1:length(expToEuIndices));
 tLocal = -4:0.01:3+2;
-
-p.decoderDataDelay = 0.66;
-p.decoderSampleRate = 50; % 20ms intervals
-p.decoderSmoothWindow = 0.1;
-for iExp = 1:length(V)
-    eu0 = eu(expToEuIndices(iExp));
-    stimOn = eu0.EventTimes.LaserModBlueOn;
-    stimOff = eu0.EventTimes.LaserModBlueOff;
-
-    [t, P, X] = readDecoderData(eu0, p.decoderDataDelay, p.decoderSampleRate, p.decoderSmoothWindow);
-
-    % ax = axes(figure);
-    % hold(ax, 'on')
-    % plot(ax, t, (X - mean(X))./std(X, 0), 'k-')
-    % plot(ax, t, P, 'b-')
-    % ax.InteractionOptions.LimitsDimensions = "x";
-
-    threshold = 0.3;
-    tStimCtrl = t(strfind(P >= threshold, [0, 1]) + 1);
-    timeoutStart = eu0.EventTimes.TIMEOUT_START;
-    trials = Trial(timeoutStart+2, tStimCtrl, 'first', stimOn);
-    tStimCtrl = [trials.Stop];
-    % [B, t, I] = trials.inTrial(tStimCtrl);
-    % [~, ia, ~] = unique(I);
-    % tStimCtrl = t(ia);
-
-    for t0 = stimOn(:)'
-        tStimCtrl(isin(tStimCtrl, t0 + [-3, 3])) = [];
+if exist('decoderData', 'var') && isfield(decoderData, 'tSham')
+    for iExp = 1:length(stimData)
+        stimData(iExp).stimCtrl = decoderData(iExp).tSham(:);
     end
-
-    stimData(iExp).stimCtrl = tStimCtrl(:);
+% Fallback method is bad, requires reading MATLAB-recorded decoder pMoves
+% but there's an unknow delay we need to correct by guessing
+else
+    p.decoderDataDelay = 0.66;
+    p.decoderSampleRate = 50; % 20ms intervals
+    p.decoderSmoothWindow = 0.1;
+    for iExp = 1:length(stimData)
+        eu0 = eu(expToEuIndices(iExp));
+        stimOn = eu0.EventTimes.LaserModBlueOn;
+        stimOff = eu0.EventTimes.LaserModBlueOff;
+    
+        [t, P, X] = readDecoderData(eu0, p.decoderDataDelay, p.decoderSampleRate, p.decoderSmoothWindow);
+    
+        % ax = axes(figure);
+        % hold(ax, 'on')
+        % plot(ax, t, (X - mean(X))./std(X, 0), 'k-')
+        % plot(ax, t, P, 'b-')
+        % ax.InteractionOptions.LimitsDimensions = "x";
+    
+        threshold = 0.3;
+        tStimCtrl = t(strfind(P >= threshold, [0, 1]) + 1);
+        timeoutStart = eu0.EventTimes.TIMEOUT_START;
+        trials = Trial(timeoutStart+2, tStimCtrl, 'first', stimOn);
+        tStimCtrl = [trials.Stop];
+        % [B, t, I] = trials.inTrial(tStimCtrl);
+        % [~, ia, ~] = unique(I);
+        % tStimCtrl = t(ia);
+    
+        for t0 = stimOn(:)'
+            tStimCtrl(isin(tStimCtrl, t0 + [-3, 3])) = [];
+        end
+    
+        stimData(iExp).stimCtrl = tStimCtrl(:);
+    end
 end
 
 % Calulate a peri-stim movement histogram
 edges = -2:0.1:5;
-for iExp = 1:length(V)
+for iExp = 1:length(stimData)
     eu0 = eu(expToEuIndices(iExp));
     for trialType = ["press", "lick"]
         switch trialType
@@ -364,7 +372,7 @@ load('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_justStimData.mat'); %'s
 
 %% Calculate psth (spike rates) - we're making large 3D arrays with lots of NaNs, so doing this on the fly is a bit faster than
 
-p.kinematicDataSource = "spd";
+p.kinematicDataSource = "vel";
 kineFeatures = ["Jaw", "HandL", "HandR"];
 
 % Get weak version of bootstrap:
@@ -475,6 +483,17 @@ for iExp = 1:length(uniqueExpNames)
             case "vel"
                 t = kinematics(iExp).(fn).t;
                 x = diff([NaN; kinematics(iExp).(fn).X(:)]) ./ diff([NaN; kinematics(iExp).(fn).t(:)]);
+
+                % Smooth the velocity with a exponential kernel so it's
+                % easier on the eyes
+                velKernelLambda1 = 20;
+                velKernelLambda2 = 100;
+                velKernelWidth = 0.5;
+                [~, ~, velKernel] = eu(1).getSpikeRates('exponential', velKernelLambda1, velKernelLambda2, p.kineRes, kernelWidth=velKernelWidth);
+                % figure, plot(velKernel.t, velKernel.y)
+                
+                x = conv(x, velKernel.y, 'same');
+
             case "spd"
                 t = kinematics(iExp).(fn).t;
                 x = abs(diff([NaN; kinematics(iExp).(fn).X(:)]) ./ diff([NaN; kinematics(iExp).(fn).t(:)]));
@@ -578,224 +597,59 @@ for iExp = 1:length(stimData)
 end
 
 %% Plot stim triggered kinematics/spike rates
-close all
-xl = {[-2, 3], [-2, 5]};
+% close all
+xl = {[-0.5, 2], [-0.5, 4]};
 features = ["X", "XInc", "XDec", "XFlt", "move", "Jaw", "HandL", "HandR"];
 featureDispNames = ["spike rate", "spike rate (inc)", "spike rate (dec)", "spike rate (flat)", "move", "jaw", "l.hand", "r.hand"];
-yl = {[-1.5, 3], [-1.5, 3], [-1.5, 3], [-1.5, 3], [0, 0.2], [0, 12], [0, 8], [0, 8]};
-featureUnits = ["(a.u.)", "(a.u.)", "(a.u.)", "(a.u.)", "probability", "speed (a.u.)", "speed (a.u.)", "speed (a.u.)"];
-p.showIndividualTracesFor = "units"; % "trials", "units"
-p.showIndividualTracesAsCI = true; % true to plot 25%/75% CI as shaded area, false to plot single traces
+yl = {[-1.5, 3], [-1.5, 3], [-1.5, 3], [-1.5, 3], [0, 0.2]};
+featureUnits = ["(a.u.)", "(a.u.)", "(a.u.)", "(a.u.)", "probability"];
+switch p.kinematicDataSource
+    case "pos"
+        yl = horzcat(yl, {[-2, 2], [-1, 1], [-1, 1]});
+        featureUnits = horzcat(featureUnits, repmat("pos (a.u.)", [1, 3]));
+    case "spd"
+        yl = horzcat(yl, {[0, 12], [0, 8], [0, 8]});
+        featureUnits = horzcat(featureUnits, repmat("speed (a.u.)", [1, 3]));
+    case "vel"
+        yl = horzcat(yl, {[-6, 6], [-4, 4], [-4, 4]});
+        featureUnits = horzcat(featureUnits, repmat("vel (a.u.)", [1, 3]));
+end
+p.showVarianceFor = "units"; % "trials", "units"
+p.showVarianceAs = "sd"; % "ci" plot 25%/75% CI as shaded area; "sd" plot mean+-sd; "traces" to plot single traces;
+p.varianceEdgeAlhpa = 0;
 lineStylesByPower = ["-", "-", "-"]; % ctrl, 5mW, 20mW
-colorsByPower = [.2,.2,.2,1; .2,.2,.8,.5; .8,.2,.2,1]; % ctrl, 5mW, 20mW
+colorsByPower = [.2,.2,.2,1; .2,.2,.8,.5; .2,.2,.8,1]; % ctrl, 5mW, 20mW
 showIndividualTracesByPower = [true, true, true];
 individualTracesAlpha = 0.2;
 
-clear l
-l.h = ones(1, length(features));
-l.ch = cumsum([1, l.h]);
-l.w = cellfun(@diff, xl);
-l.cw = cumsum([1, l.w]);
-exportPath = "C:\SERVER\Figures\SNr_VGAT-Cre-CoChR";
-if p.useWeakIncDec
-    exportPath = fullfile(exportPath, "weakIncDec");
-else
-    exportPath = fullfile(exportPath, "bootIncDec");
-end
-if exist(exportPath, 'dir')
-    rmdir(exportPath, 's')
-end
-mkdir(exportPath)
+script_optrodeSNr_plots_stim_triggered_kinematics_spikeRates;
 
-for iExp = length(uniqueExpNames) + 1 % nSessions+1 will plot session average
-    x0 = 0;
-    for trialType = ["press", "lick"]
-        fig = figure(Units='normalized', Position=[x0, 0, 0.5, 1]);
-        x0 = x0 + 0.5;
-        tl = tiledlayout(fig, sum(l.h), sum(l.w), TileSpacing='compact');
-    
-        clear ax
-        for ifn = 1:length(features)
-            fn = char(features(ifn));
-            % Plot STA
-            for iDuration = 1:2
-                ax = nexttile(tl, sum(l.w)*(ifn-1) + l.cw(iDuration), [l.h(ifn), l.w(iDuration)]);
-                if ifn == 1
-                    title(ax, sprintf('%gs opto', p.pulseDurations(iDuration)))
-                end
-                clear h
-                iLine = 1;
-                hold(ax, 'on')
-    
-                % Ctrk traces
-                selCtrl = stimData(iExp).trialTypeCtrl == trialType;
-                switch fn
-                    case {'Jaw', 'HandL', 'HandR'}
-                        mu = mean(stimData(iExp).(fn).XCtrl(selCtrl, :), 1, 'omitnan');
-                        err = 0.1*std(stimData(iExp).(fn).XCtrl(selCtrl, :), 0, 1, 'omitnan');
-                        ci = quantile(stimData(iExp).(fn).XCtrl(selCtrl, :), [0.25, 0.75], 1);
-                        h(iLine) = plot(ax, tLocal, mu, Color=colorsByPower(1, :), LineWidth=1, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
-                        iLine = iLine + 1;
-                        patch(ax, [tLocal, flip(tLocal)], [ci(1, :), flip(ci(2, :))], colorsByPower(1, 1:3), FaceAlpha=0.1, EdgeAlpha=0)
-                    case 'move'
-                        edges = stimData(iExp).psmh.ctrl.(trialType).edges;
-                        N = mean(stimData(iExp).psmh.ctrl.(trialType).N(selCtrl, :), 1, 'omitnan');
-                        N(~isfinite(N)) = 0;
-                        h(iLine) = histogram(ax, BinEdges=edges, BinCounts=N, DisplayStyle='stairs', EdgeColor=colorsByPower(1, 1:3), EdgeAlpha=0.5, LineWidth=1, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
-                        iLine = iLine + 1;
-                    case {'X', 'XInc', 'XDec', 'XFlt'}
-                        t = stimData(iExp).psth.ctrl.t;
-                        switch fn
-                            case 'X'
-                                fnx = 'X';
-                            case {'XInc', 'XDec', 'XFlt'}
-                                fnx = char(string(fn) + trialType);
-                                fnx(5) = upper(fnx(5)); % XIncPress
-                        end
-                        if showIndividualTracesByPower(1)
-                            switch p.showIndividualTracesFor
-                                case "trials"
-                                    mu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :, :), 3, 'omitnan'); % avg across units: trials x time x units, then average across 3rd dim -> trials x time
-                                    if ~isempty(mu)
-                                        if p.showIndividualTracesAsCI
-                                            ci = quantile(mu, [0.25, 0.75], 1);
-                                            patch(ax, [t, flip(t)], [ci(1, :), flip(ci(2, :))], colorsByPower(1, 1:3), FaceAlpha=0.05, EdgeAlpha=0);
-                                        else
-                                            plot(ax, t, mu', Color=[colorsByPower(1, 1:3), individualTracesAlpha], LineWidth=0.5);
-                                        end
-                                    end
-                                case "units"
-                                    mu = mean(permute(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :, :), [3, 2, 1]), 3, 'omitnan'); % avg across trials: units x time x trials, then average across 3rd dim -> units x time
-                                    if ~isempty(mu)
-                                        if p.showIndividualTracesAsCI
-                                            ci = quantile(mu, [0.25, 0.75], 1);
-                                            patch(ax, [t, flip(t)], [ci(1, :), flip(ci(2, :))], colorsByPower(1, 1:3), FaceAlpha=0.1, EdgeAlpha=0);
-                                        else
-                                            plot(ax, t, mu', Color=[colorsByPower(1, 1:3), individualTracesAlpha], LineWidth=0.5);
-                                        end
-                                    end
-                            end
-                        end
-
-                        mumu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :, :), [1, 3], 'omitnan');
-                        h(iLine) = plot(ax, t, mumu, Color=colorsByPower(1, :), LineWidth=1, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
-                        iLine = iLine + 1;
-                end
-                [uniqueHash, ia] = unique(stimData(iExp).hash);
-                durations = [0]; % For drawing xline at opto onset/offset
-                for iHash = 1:length(uniqueHash)
-                    sel = stimData(iExp).hash == uniqueHash(iHash) & stimData(iExp).trialType == trialType;
-                    iPower = stimData(iExp).iPower(ia(iHash));
-                    if stimData(iExp).iDuration(ia(iHash)) ~= iDuration
-                        continue
-                    end
-                    durations = [durations, p.pulseDurations(iDuration)];
-                    label = sprintf("%gmw", p.laserPowers(iPower)*1e3);
-                    switch fn
-                        case {'Jaw', 'HandL', 'HandR'}
-                            mu = mean(stimData(iExp).(fn).X(sel, :), 1, 'omitnan');
-                            err = 0.1*std(stimData(iExp).(fn).X(sel, :), 0, 1, 'omitnan');
-                            ci = quantile(stimData(iExp).(fn).X(sel, :), [0.25, 0.75], 1);
-                            h(iLine) = plot(ax, tLocal, mu, Color=colorsByPower(iPower+1, :), LineStyle=lineStylesByPower(iPower+1), LineWidth=1, DisplayName=sprintf("%s (n=%i)", label, nnz(sel)));
-                            iLine = iLine + 1;
-                            % patch(ax, [tLocal, flip(tLocal)], [mu-err, flip(mu+err)], colors(iPower, 1:3), FaceAlpha=0.1, EdgeAlpha=0)
-                            patch(ax, [tLocal, flip(tLocal)], [ci(1, :), flip(ci(2, :))], colorsByPower(iPower+1, 1:3), FaceAlpha=0.1, EdgeAlpha=0)
-                        case {'move'}
-                            edges = stimData(iExp).psmh.stim.(trialType).edges;
-                            N = mean(stimData(iExp).psmh.stim.(trialType).N(sel, :), 1, 'omitnan');
-                            N(~isfinite(N)) = 0;
-                            h(iLine) = histogram(ax, BinEdges=edges, BinCounts=N, DisplayStyle='stairs', EdgeColor=colorsByPower(iPower+1, 1:3), EdgeAlpha=colorsByPower(iPower+1, 4), LineWidth=1, DisplayName=sprintf("%s (n=%i)", label, nnz(sel)));
-                        case {'X', 'XInc', 'XDec', 'XFlt'} % Spike rate
-                            t = stimData(iExp).psth.stim.t;
-                            switch fn
-                                case 'X'
-                                    fnx = 'X';
-                                case {'XInc', 'XDec', 'XFlt'}
-                                    fnx = char(string(fn) + trialType);
-                                    fnx(5) = upper(fnx(5)); % XIncPress
-                            end
-                            if showIndividualTracesByPower(iPower+1)
-                                switch p.showIndividualTracesFor
-                                    case "trials"
-                                        mu = mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), 3, 'omitnan'); % avg across units: trials x time x units, then average across 3rd dim -> trials x time
-                                        if ~isempty(mu)
-                                            if p.showIndividualTracesAsCI
-                                                ci = quantile(mu, [0.25, 0.75], 1);
-                                                patch(ax, [t, flip(t)], [ci(1, :), flip(ci(2, :))], colorsByPower(iPower+1, 1:3), FaceAlpha=0.05, EdgeAlpha=0);
-                                            else
-                                                plot(ax, t, mu', Color=[colorsByPower(iPower+1, 1:3), individualTracesAlpha], LineWidth=0.5);
-                                            end
-                                        end
-                                    case "units"
-                                        mu = mean(permute(stimData(iExp).psth.stim.(fnx)(sel, :, :), [3, 2, 1]), 3, 'omitnan'); % avg across trials: units x time x trials, then average across 3rd dim -> units x time
-                                        if ~isempty(mu)
-                                            if p.showIndividualTracesAsCI
-                                                ci = quantile(mu, [0.25, 0.75], 1);
-                                                patch(ax, [t, flip(t)], [ci(1, :), flip(ci(2, :))], colorsByPower(iPower+1, 1:3), FaceAlpha=0.1, EdgeAlpha=0);
-                                            else
-                                                plot(ax, t, mu', Color=[colorsByPower(iPower+1, 1:3), individualTracesAlpha], LineWidth=0.5);
-                                            end
-                                        end
-                                end
-                            end
-
-                            mumu = mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), [1, 3], 'omitnan');
-                            h(iLine) = plot(ax, t, mumu, Color=colorsByPower(iPower+1, :), LineWidth=1, DisplayName=sprintf("%s (n=%i)", label, nnz(sel)));
-                            iLine = iLine + 1;
-                            yline(ax, 0, 'k--')
-                    end
-                end
-                xline(ax, durations, 'k--')
-                if iDuration == 1
-                    nTrialsPerExp = arrayfun(@(sd) length(sd.trialType), stimData(1:end-1));
-                    expToFirstTrialIndex = cumsum([1, nTrialsPerExp(1:end-1)]);
-                    if featureDispNames(ifn) == "move"
-                        switch trialType
-                            case "press"
-                                ylabel(ax, ["bar-contact", featureUnits(ifn)])
-                            case "lick"
-                                ylabel(ax, ["spout-contact", featureUnits(ifn)])
-                        end
-                    elseif ismember(string(fn), ["XInc", "XDec", "XFlt"])
-                        if iExp < length(stimData)
-                            selExp = iExp;
-                        else
-                            selExp = 1:length(stimData)-1;
-                        end
-                        fnx = char(string(fn) + trialType);
-                        fnx(5) = upper(fnx(5));
-                        ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", sum(arrayfun(@(sd) size(sd.psth.stim.(fnx), 3), stimData(selExp))), featureUnits(ifn))])
-                    else
-                        ylabel(ax, [featureDispNames(ifn), featureUnits(ifn)])
-                    end
-                end
-                xlim(ax, xl{iDuration})
-                ylim(ax, yl{ifn})
-                if ifn == length(features)
-                    xticks(ax, xl{iDuration}(1)+1:xl{iDuration}(2)-1)
-                else
-                    xticks(ax, [])
-                end
-                if iDuration == 1
-                    yticks(ax, 'auto')
-                else
-                    yticks(ax, [])
-                end
-                if ifn == 1
-                    lgd = legend(h, Location='northoutside', Orientation='horizontal'); lgd.ItemTokenSize = [9, 9];
-                end
-            end
-        end
-        trialTypeDispName = trialType; 
-        if trialType == "press"
-            trialTypeDispName = "reach";
-        end
-        title(tl, sprintf('Exp %i - %s - %s (n=%i)', iExp, stimData(iExp).name, trialTypeDispName, nnz(stimData(iExp).trialType==trialType)), Interpreter='none')
-        xlabel(tl, 'time to decoder/opto onset (s)')
-        fontsize(fig, 9, 'points')
-        print(fig, fullfile(exportPath, sprintf("Exp %i - %s - %s.png", iExp, stimData(iExp).name, trialTypeDispName)), '-dpng')
-    end
+%%
+xl = {[-0.5, 2], [-0.5, 4]};
+features = ["move", "JawInhibited", "JawBreakthrough", "HandLInhibited", "HandLBreakthrough", "HandRInhibited", "HandRBreakthrough"];
+featureDispNames = ["move", "jaw (inhibited)", "jaw (breakthrough)", "l.hand (inhibited)", "l.hand (breakthrough)", "r.hand (inhibited)", "r.hand (breakthrough)"];
+yl = {[0, 0.2]};
+featureUnits = ["probability"];
+switch p.kinematicDataSource
+    case "pos"
+        yl = horzcat(yl, {[-2, 2], [-2, 2], [-1, 1], [-1, 1], [-1, 1], [-1, 1]});
+        featureUnits = horzcat(featureUnits, repmat("pos (a.u.)", [1, 6]));
+    case "spd"
+        yl = horzcat(yl, {[0, 12], [0, 12], [0, 8], [0, 8], [0, 8], [0, 8]});
+        featureUnits = horzcat(featureUnits, repmat("speed (a.u.)", [1, 6]));
+    case "vel"
+        yl = horzcat(yl, {[-6, 6], [-6, 6], [-4, 4], [-4, 4], [-4, 4], [-4, 4]});
+        featureUnits = horzcat(featureUnits, repmat("vel (a.u.)", [1, 6]));
 end
+p.showVarianceFor = "units"; % "trials", "units"
+p.showVarianceAs = "sd"; % "ci" plot 25%/75% CI as shaded area; "sd" plot mean+-sd; "traces" to plot single traces;
+p.varianceEdgeAlhpa = 0;
+lineStylesByPower = ["-", "-", "-"]; % ctrl, 5mW, 20mW
+colorsByPower = [.2,.2,.2,1; .2,.2,.8,.5; .2,.2,.8,1]; % ctrl, 5mW, 20mW
+showIndividualTracesByPower = [true, true, true];
+individualTracesAlpha = 0.2;
+
+script_optrodeSNr_plots_stim_triggered_kinematics_spikeRates;
 
 %% Plot opt responses as a heatmap
 % close all
@@ -882,7 +736,7 @@ for iExp = length(uniqueExpNames) + 1
                 ax.Color = [0.67, 0.67, 0.67];
                 boundaries = [1, cumsum([size(muDec, 1), size(muFlt, 1), size(muInc, 1)])];
                 xline(ax, durations, 'k--')
-                yline(ax, boundaries(2:3) + 0.5, 'k--', LineWidth=1)
+                yline(ax, boundaries(2:3) + 0.5, 'k--', LineWidth=1.5)
                 xlim(ax, xl{iDuration+1})
                 ylim(ax, [0.5, boundaries(end)+0.5])
                 if iDuration == 0

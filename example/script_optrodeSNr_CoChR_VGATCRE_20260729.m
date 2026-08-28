@@ -21,7 +21,8 @@ dlcResultsPath = 'C:\SERVER\DeepLabCut\Results\FourPawsJawTongueSpine_Emma';
 
 exp = CompleteExperiment3(eu, cameras='lr', deeplabcutPath=dlcResultsPath);
 
-exp.alignTimestamps(refEventNameArduino={'REWARD_ON'}, refEventNameEphys={'RewardOn'}, trialDurationTolerance=2);
+% exp.alignTimestamps(refEventNameArduino={'REWARD_ON'}, refEventNameEphys={'RewardOn'}, trialDurationTolerance=2);
+exp.alignTimestamps(refEventNameArduino={'TIMEOUT_END'}, refEventNameEphys={'TimeoutOff'}, trialDurationTolerance=2);
 
 clear results
 results(length(exp)) = struct(name=[], varsL=[], hasTimestampsL=[], varsR=[], hasTimestampsR=[], isValid=[]);
@@ -499,102 +500,216 @@ clearvars('-except', vars{:})
 %     end
 % end
 
-stimData(1).decoderParams = struct(spikeThreshold=-55, pMoveThreshold=0.3, waitAtLeastSeconds=NaN, updateInterval=0.020, binWidth=0.1);
-stimData(2).decoderParams = struct(spikeThreshold=-45, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
-stimData(3).decoderParams = struct(spikeThreshold=-45, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
-stimData(4).decoderParams = struct(spikeThreshold=-55, pMoveThreshold=0.3, waitAtLeastSeconds=NaN, updateInterval=0.020, binWidth=0.1);
-stimData(5).decoderParams = struct(spikeThreshold=-55, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
-stimData(6).decoderParams = struct(spikeThreshold=-45, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
-stimData(7).decoderParams = struct(spikeThreshold=-45, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
+% stimData(1).decoderParams = struct(spikeThreshold=-55, pMoveThreshold=0.3, waitAtLeastSeconds=NaN, updateInterval=0.020, binWidth=0.1);
+% stimData(2).decoderParams = struct(spikeThreshold=-45, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
+% stimData(3).decoderParams = struct(spikeThreshold=-45, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
+% stimData(4).decoderParams = struct(spikeThreshold=-55, pMoveThreshold=0.3, waitAtLeastSeconds=NaN, updateInterval=0.020, binWidth=0.1);
+% stimData(5).decoderParams = struct(spikeThreshold=-55, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
+% stimData(6).decoderParams = struct(spikeThreshold=-45, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
+% stimData(7).decoderParams = struct(spikeThreshold=-45, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
+% 
+% chunkSize = 32;
+% nChunks = 384/chunkSize;
+% assert(mod(chunkSize, 1) == 0)
+% clear decoderData
+% decoderData(length(stimData)) = struct(spikeTimes=[], t=[], spikeRates=[], meanSpikeRates=[]);
+% for iExp = 1:length(stimData)
+%     try
+%         animalName = strsplit(string(stimData(iExp).name), "_");
+%         animalName = animalName(1);
+%         fpath = char(fullfile("C:\SERVER", animalName, stimData(iExp).name));
+% 
+%         obj = TetrodeRecording;
+%         obj.SelectFiles(NeuropixelPath=fpath);
+%         fprintf('Reading file: %s\\%s...\n', obj.Path.imec, obj.Files.imec);
+%         meta = obj.ReadNeuropixelMeta();
+% 
+% 
+%         nChannelsInFile = str2double(meta.imec.nSavedChans);
+%         assert(nChannelsInFile==385) % 384 neural, 1 digital where bit 6 (7 in MATLAB) is sync
+%         nSamplesInFile = str2double(meta.imec.fileSizeBytes) / (2*nChannelsInFile);
+%         sampleRate = str2double(meta.imec.imSampRate);
+%         [B, A] = butter(2, [300, 9000]/(sampleRate/2));
+% 
+% 
+%         duration = 60;
+%         eof = false;
+%         timeWindow = [0, duration];
+%         numSamplesRead = NaN;
+%         spikeTimes = cell(384, 1);
+%         while ~eof
+%             fid = fopen(fullfile(obj.Path.imec, obj.Files.imec), 'rb');
+%             nSamplesToSkip = max(floor(timeWindow(1)*sampleRate), 0);
+%             nSamplesToRead = floor(timeWindow(2)*sampleRate) - floor(timeWindow(1)*sampleRate);
+%             nSamplesToRead = min(nSamplesToRead, nSamplesInFile - nSamplesToSkip);
+%             eof = nSamplesToSkip + nSamplesToRead >= nSamplesInFile;
+% 
+%             % Read data
+%             tTic = tic();
+%             fseek(fid, nSamplesToSkip*2*nChannelsInFile, 'bof');
+%             data = fread(fid, [nChannelsInFile, nSamplesToRead], 'int16=>double');
+%             data = SGLX_readMeta.GainCorrectIM(data, 1:384, meta.imec)*1e6;
+%             data = data(1:384, :)';
+%             % t = ((0:nSamplesToRead-1) + nSamplesToSkip) / sampleRate;
+%             t0 = nSamplesToSkip / sampleRate;
+%             fclose(fid);
+%             timeElapsed = toc(tTic);
+%             fprintf(1, 'Read %.1f seconds of data (%i->%i = %i samples, %.3f MB) of data in %.1f seconds.\n', nSamplesToRead/sampleRate, nSamplesToSkip + 1, nSamplesToSkip + nSamplesToRead, nSamplesToRead, nSamplesToRead*nChannelsInFile*2/1024/1024, timeElapsed);
+% 
+%             % Do spike detection
+%             data = filter(B, A, data); % Bandpass
+%             data = data - mean(data, 2); % CAR, we do mean since it's faster(?) than median 
+%             isBelowThreshold = data < stimData(iExp).decoderParams.spikeThreshold;
+%             for iChannel = 1:384
+%                 st = t0 + strfind(isBelowThreshold(:, iChannel)', [0,0,0,0,0,1,1,1])./sampleRate;
+%                 spikeTimes{iChannel} = [spikeTimes{iChannel}, st];
+%             end            
+%             timeWindow = timeWindow+duration;
+%         end
+% 
+%         % Perform running spike counts
+%         t = 0:stimData(iExp).decoderParams.updateInterval:(nSamplesInFile/sampleRate);
+%         binWidth = stimData(iExp).decoderParams.binWidth;
+%         spikeRates = NaN(384, length(t), 'single');
+%         sSamples = length(t);
+%         parfor iChannel = 1:384
+%             for iSample = 1:sSamples
+%                 t0 = t(iSample);
+%                 [a, b] = isin(spikeTimes{iChannel}, [t0 - binWidth, t0], false, true);
+%                 if isempty(a) || isempty(b) || a>b
+%                     spikeRates(iChannel, iSample) = 0;
+%                 else
+%                     spikeRates(iChannel, iSample) = (b-a+1)/binWidth;
+%                 end
+%             end
+%         end
+%         meanSpikeRates = mean(spikeRates, 1, 'omitnan');
+% 
+%         decoderData(iExp).spikeTimes = spikeTimes;
+%         decoderData(iExp).t = t;
+%         decoderData(iExp).spikeRates = spikeRates;
+%         decoderData(iExp).meanSpikeRates = meanSpikeRates;
+% 
+%     catch ME
+%         warning('Could not process exp: %i', iExp)
+%         warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+%     end
+% end
+% 
+% save('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_decoderData.mat', 'decoderData', 'stimData', 'p', '-v7.3')
 
-chunkSize = 32;
-nChunks = 384/chunkSize;
-assert(mod(chunkSize, 1) == 0)
-clear decoderData
-decoderData(length(stimData)) = struct(spikeTimes=[], t=[], spikeRates=[], meanSpikeRates=[]);
-for iExp = 1:length(stimData)
-    try
-        animalName = strsplit(string(stimData(iExp).name), "_");
-        animalName = animalName(1);
-        fpath = char(fullfile("C:\SERVER", animalName, stimData(iExp).name));
+%% Skip previous section, load its results
+load('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_decoderData.mat')
 
-        obj = TetrodeRecording;
-        obj.SelectFiles(NeuropixelPath=fpath);
-        fprintf('Reading file: %s\\%s...\n', obj.Path.imec, obj.Files.imec);
-        meta = obj.ReadNeuropixelMeta();
+%% Retrain decoder based on all trails prior to first opto onset.
+close all
+% Find first opto, all trials prior are training data
+p.decoder.minTrialLengthForTraining = 3;
+p.decoder.baselineWindow = [-6, -2];
+p.decoder.moveWindow = [-0.5, 0];
+p.decoder.minSpikeRate = 10; % Lower than this we assume amplifier-saturation
+fig = figure(Units='inches', Position=[1, 1, 11.5, 4.76]);
+tl = tiledlayout(fig, 4, 2, TileSpacing='tight', Padding='none');
+for iExp = 1:length(decoderData)
+    eu0 = eu(expToEuIndices(iExp));
+    firstStim = eu0.EventTimes.LaserModBlueOn(1);
+    trials = [eu0.Trials.Press, eu0.Trials.Lick];
+    trials = trials.sort();
+    trials = trials([trials.Stop] < firstStim); % Trials before first opto for training
+    trials = trials(trials.duration() >= p.decoder.minTrialLengthForTraining); % Remove short trials
 
-
-        nChannelsInFile = str2double(meta.imec.nSavedChans);
-        assert(nChannelsInFile==385) % 384 neural, 1 digital where bit 6 (7 in MATLAB) is sync
-        nSamplesInFile = str2double(meta.imec.fileSizeBytes) / (2*nChannelsInFile);
-        sampleRate = str2double(meta.imec.imSampRate);
-        [B, A] = butter(2, [300, 9000]/(sampleRate/2));
-        
-        
-        duration = 60;
-        eof = false;
-        timeWindow = [0, duration];
-        numSamplesRead = NaN;
-        spikeTimes = cell(384, 1);
-        while ~eof
-            fid = fopen(fullfile(obj.Path.imec, obj.Files.imec), 'rb');
-            nSamplesToSkip = max(floor(timeWindow(1)*sampleRate), 0);
-            nSamplesToRead = floor(timeWindow(2)*sampleRate) - floor(timeWindow(1)*sampleRate);
-            nSamplesToRead = min(nSamplesToRead, nSamplesInFile - nSamplesToSkip);
-            eof = nSamplesToSkip + nSamplesToRead >= nSamplesInFile;
-
-            % Read data
-            tTic = tic();
-            fseek(fid, nSamplesToSkip*2*nChannelsInFile, 'bof');
-            data = fread(fid, [nChannelsInFile, nSamplesToRead], 'int16=>double');
-            data = SGLX_readMeta.GainCorrectIM(data, 1:384, meta.imec)*1e6;
-            data = data(1:384, :)';
-            % t = ((0:nSamplesToRead-1) + nSamplesToSkip) / sampleRate;
-            t0 = nSamplesToSkip / sampleRate;
-            fclose(fid);
-            timeElapsed = toc(tTic);
-            fprintf(1, 'Read %.1f seconds of data (%i->%i = %i samples, %.3f MB) of data in %.1f seconds.\n', nSamplesToRead/sampleRate, nSamplesToSkip + 1, nSamplesToSkip + nSamplesToRead, nSamplesToRead, nSamplesToRead*nChannelsInFile*2/1024/1024, timeElapsed);
-
-            % Do spike detection
-            data = filter(B, A, data); % Bandpass
-            data = data - mean(data, 2); % CAR, we do mean since it's faster(?) than median 
-            isBelowThreshold = data < stimData(iExp).decoderParams.spikeThreshold;
-            for iChannel = 1:384
-                st = t0 + strfind(isBelowThreshold(:, iChannel)', [0,0,0,0,0,1,1,1])./sampleRate;
-                spikeTimes{iChannel} = [spikeTimes{iChannel}, st];
-            end            
-            timeWindow = timeWindow+duration;
-        end
-
-        % Perform running spike counts
-        t = 0:stimData(iExp).decoderParams.updateInterval:(nSamplesInFile/sampleRate);
-        binWidth = stimData(iExp).decoderParams.binWidth;
-        spikeRates = NaN(384, length(t), 'single');
-        sSamples = length(t);
-        parfor iChannel = 1:384
-            for iSample = 1:sSamples
-                t0 = t(iSample);
-                [a, b] = isin(spikeTimes{iChannel}, [t0 - binWidth, t0], false, true);
-                if isempty(a) || isempty(b) || a>b
-                    spikeRates(iChannel, iSample) = 0;
-                else
-                    spikeRates(iChannel, iSample) = (b-a+1)/binWidth;
-                end
+    % Get spike rates
+    XBaseline = NaN(length(trials), 384);
+    XMove = NaN(length(trials), 384);
+    for iTrial = 1:length(trials)
+        for iChannel = 1:384
+            [a, b] = isin(decoderData(iExp).spikeTimes{iChannel}, p.decoder.baselineWindow + trials(iTrial).Stop, false, true);
+            if isempty(a) || isempty(b) || a>b
+                XBaseline(iTrial, iChannel) = 0;
+            else
+                XBaseline(iTrial, iChannel) = (b-a+1)./diff(p.decoder.baselineWindow);
+            end
+            [a, b] = isin(decoderData(iExp).spikeTimes{iChannel}, p.decoder.moveWindow + trials(iTrial).Stop, false, true);
+            if isempty(a) || isempty(b) || a>b
+                XMove(iTrial, iChannel) = 0;
+            else
+                XMove(iTrial, iChannel) = (b-a+1)./diff(p.decoder.moveWindow);
             end
         end
-        meanSpikeRates = mean(spikeRates, 1, 'omitnan');
+    end
+    % Average across channels
+    XBaseline = mean(XBaseline, 2);
+    XMove = mean(XMove, 2);
+    % Filter out bad training trials with no spikes detected
+    XTrain = [XBaseline'; XMove'];
+    selBad = any(XTrain<5, 1);
+    fprintf("iExp=%i, %s, removed %i/%i bad trials for low spike rate.\n", iExp, stimData(iExp).name, nnz(selBad), length(selBad));
+    XBaseline(selBad) = [];
+    XMove(selBad) = [];
 
-        decoderData(iExp).spikeTimes = spikeTimes;
-        decoderData(iExp).t = t;
-        decoderData(iExp).spikeRates = spikeRates;
-        decoderData(iExp).meanSpikeRates = meanSpikeRates;
+    % Fit model
+    XTrain = vertcat(XBaseline, XMove);
+    yTrain = vertcat(zeros(size(XBaseline, 1), 1), ones(size(XMove, 1), 1));
+    mdl = fitglm(XTrain, yTrain, 'linear', Distribution='binomial', Link='logit');
+    yHatTrainMove = mdl.predict(XTrain(yTrain==1, :)); % should cluster near 1
+    yHatTrainBaseline = mdl.predict(XTrain(yTrain==0, :)); % should cluster near 0
 
-    catch ME
-        warning('Could not process exp: %i', iExp)
-        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
+    % Save results
+    decoderData(iExp).XBaseline = XBaseline;
+    decoderData(iExp).XMove = XMove;
+    decoderData(iExp).mdl = mdl;
+
+    % Calculate whole-session pMove
+    decoderData(iExp).pMove = mdl.predict(decoderData(iExp).meanSpikeRates');
+
+    % Plot results
+    ax = nexttile(tl);
+    hold(ax, 'on')
+    histogram(ax, yHatTrainMove, -0.1:0.05:1.1, FaceColor='blue', FaceAlpha=0.2, EdgeAlpha=0, DisplayName='peri-move')
+    histogram(ax, yHatTrainBaseline, -0.1:0.05:1.1, FaceColor='red', FaceAlpha=0.2, EdgeAlpha=0, DisplayName='baseline')
+
+    title(ax, sprintf("%s (%i training trials)", stimData(iExp).name, length(XMove)), Interpreter='none')
+    if iExp == length(decoderData)
+        lgd = legend(ax);
+        lgd.Layout.Tile = 'north';
+        lgd.Orientation = 'horizontal';
     end
 end
+title(tl, 'decoder performance on training data', FontWeight='bold')
+xlabel(tl, 'p(move)')
+ylabel(tl, 'no. trials')
+fontsize(fig, 11, 'points')
+copygraphics(fig, ContentType='vector', BackgroundColor='none')
 
-save('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_decoderData.mat', 'decoderData', 'stimData', 'p', '-v7.3')
+%% Recapitulate ctrl/sham stim trials
+% Sham stim is triggered when 1)pMove>threshold 2)in state TIMEOUT/WAITFORTOUCH 3)opto hasn't started 4)timeSinceTimeoutStart>2
+for iExp = 1:length(decoderData)
+    eu0 = eu(expToEuIndices(iExp));
+    t = decoderData(iExp).t;
+    pMove = decoderData(iExp).pMove;
+    stimTrials = Trial(eu0.EventTimes.LaserModBlueOn, eu0.EventTimes.LaserModBlueOff);
+    stimTrials = stimTrials(stimTrials.duration()>0.5);
+    tSham = [];
+    for iTrial = 1:length(eu0.EventTimes.TIMEOUT_START)
+        timeoutStart = eu0.EventTimes.TIMEOUT_START(iTrial);
+        % Find the next anything (press/lick/opto) 2s after timeoutstart
+        events = [eu0.EventTimes.FirstPress, eu0.EventTimes.FirstLick, eu0.EventTimes.LaserModBlueOn];
+        events = sort(events, 'ascend');
+        nextEvent = events(find(events>timeoutStart+2, 1, 'first'));
+        if isempty(nextEvent)
+            nextEvent = Inf;
+        end
+        % Find first threshold crossing
+        [a, b] = isin(t, [timeoutStart+2, nextEvent], false, true);
+        if ~isempty(a) && ~isempty(b) && a<=b % There could be super short trials (<0.02s) that skips pMove sampling
+            tt = t(a:b);
+            pp = pMove(a:b);
+            tSham = [tSham, tt(find(pp > stimData(iExp).decoderParams.pMoveThreshold, 1, 'first'))];
+        end
+    end
+    % Discard if threshold crossing happens during opto pulse (or shortly before/after)
+    happensDuringOpto = stimTrials.inTrial(tSham, window=[-1, 1], windowMode='extend');
+    tSham = tSham(~happensDuringOpto);
+    decoderData(iExp).tSham = tSham;
+end
 
-%load('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_decoderData.mat')
