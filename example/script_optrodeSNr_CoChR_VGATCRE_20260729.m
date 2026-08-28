@@ -596,3 +596,5 @@ for iExp = 1:length(stimData)
 end
 
 save('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_decoderData.mat', 'decoderData', 'stimData', 'p', '-v7.3')
+
+%load('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_decoderData.mat')
