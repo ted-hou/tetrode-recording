@@ -368,103 +368,231 @@ save('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos.mat', 'boot', 'c', 'eta
 eu.save('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr_ValidVideos')
 
 %%
-rd = eu.getRasterData('stim', window=[-1, 1], photoelectricBlankDuration=0.5e-3, minTrialDuration=0.75, maxTrialDuration=4);
-if ~exist('E:\Figures\SNr_CoChR_VGATCre', 'dir')
-    mkdir('E:\Figures\SNr_CoChR_VGATCre')
-end
+% rd = eu.getRasterData('stim', window=[-1, 1], photoelectricBlankDuration=0.5e-3, minTrialDuration=0.75, maxTrialDuration=4);
+% if ~exist('E:\Figures\SNr_CoChR_VGATCre', 'dir')
+%     mkdir('E:\Figures\SNr_CoChR_VGATCre')
+% end
+% 
+% fig = figure(Units='inches', Position=[1, 1, 7, 7]);
+% ax = axes(fig);
+% for iEu = 1:length(eu)
+%     cla(ax)
+%     try
+%         EphysUnit.plotRaster(ax, rd(iEu), timeUnit='ms', xlim=[-1000, 4000]);
+%         legend(ax, 'off')
+%         print(fig, fullfile('E:\Figures\SNr_CoChR_VGATCre', sprintf('%s.png', eu(iEu).getName())), '-dpng', '-r0')
+%     end
+% end
 
-fig = figure(Units='inches', Position=[1, 1, 7, 7]);
-ax = axes(fig);
-for iEu = 1:length(eu)
-    cla(ax)
+
+% %% Plot PSTH aligned to stim onset
+% clear artifacts
+% artifacts(1) = struct(event='StimOn', length=0.5, lengthUnit='ms', direction='right');
+% artifacts(2) = struct(event='StimOff', length=0.5, lengthUnit='ms', direction='right');
+% eta.stim = eu.getETA('count', 'stim', [-1, 1], resolution=0.020, alignTo='start', normalize=[-0.5, 0], artifacts=artifacts);
+% meta.stim = mean(eta.stim.X(:, isin(eta.stim.t, [0.05, 0.2])), 2, 'omitnan');
+% ax = axes(figure); hold(ax, 'on')
+% plot(ax, eta.stim.t, eta.stim.X(meta.stim>=0, :), Color=[0.8, 0.2, 0.2, 0.1])
+% plot(ax, eta.stim.t, eta.stim.X(meta.stim<0, :), Color=[0.2, 0.2, 0.8, 0.1])
+% plot(ax, eta.stim.t, mean(eta.stim.X, 1, 'omitnan'), Color='k', LineWidth=2)
+% 
+% %% Plot PETH aligned to reach
+% close all
+% eta.press = eu.getETA('count', 'press', [-4, 1], resolution=0.2, alignTo='stop', normalize=[-4, -2], minTrialDuration=1);
+% eta.lick = eu.getETA('count', 'lick', [-4, 1], resolution=0.2, alignTo='stop', normalize=[-4, -2], minTrialDuration=1);
+% meta.press = mean(eta.press.X(:, isin(eta.press.t, [-0.4, 0.2])), 2, 'omitnan');
+% meta.lick = mean(eta.lick.X(:, isin(eta.lick.t, [-0.4, 0.2])), 2, 'omitnan');
+% 
+% %%
+% ax = axes(figure); hold(ax, 'on')
+% plot(ax, eta.stim.t, eta.stim.X(c.isPressUp, :), Color=[0.8, 0.2, 0.2, 0.1])
+% plot(ax, eta.stim.t, eta.stim.X(c.isPressDown, :), Color=[0.2, 0.2, 0.8, 0.1])
+% plot(ax, eta.stim.t, mean(eta.stim.X, 1, 'omitnan'), Color='k', LineWidth=2)
+% plot(ax, eta.stim.t, mean(eta.stim.X(c.isPressUp, :), 1, 'omitnan'), Color=[0.8, 0.2, 0.2], LineWidth=2)
+% plot(ax, eta.stim.t, mean(eta.stim.X(c.isPressDown, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.8], LineWidth=2)
+% 
+% %% Plot press PETH
+% ax = axes(figure); hold(ax, 'on')
+% plot(ax, eta.press.t, eta.press.X(c.isPressUp, :), Color=[0.8, 0.2, 0.2, 0.1])
+% plot(ax, eta.press.t, eta.press.X(c.isPressDown, :), Color=[0.2, 0.2, 0.8, 0.1])
+% plot(ax, eta.press.t, mean(eta.press.X, 1, 'omitnan'), Color='k', LineWidth=2)
+% xline(ax, 0, 'k-')
+% title(ax, 'press')
+% %%
+% ax = axes(figure); hold(ax, 'on')
+% plot(ax, eta.press.t, eta.press.X(meta.stim>+0.50, :), Color=[0.8, 0.2, 0.2, 0.1])
+% plot(ax, eta.press.t, eta.press.X(meta.stim<-0.5, :), Color=[0.2, 0.2, 0.8, 0.1])
+% plot(ax, eta.press.t, mean(eta.press.X(meta.stim>0, :), 1, 'omitnan'), Color=[0.8, 0.2, 0.2], LineWidth=1)
+% plot(ax, eta.press.t, mean(eta.press.X(meta.stim<0, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.8], LineWidth=1)
+% xline(ax, 0, 'k-')
+% title(ax, 'press')
+% %%
+% ax = axes(figure); hold(ax, 'on')
+% plot(ax, eta.lick.t, eta.lick.X(c.isLickUp, :), Color=[0.8, 0.2, 0.2, 0.1])
+% plot(ax, eta.lick.t, eta.lick.X(c.isLickDown, :), Color=[0.2, 0.2, 0.8, 0.1])
+% plot(ax, eta.lick.t, mean(eta.lick.X, 1, 'omitnan'), Color='k', LineWidth=2)
+% xline(ax, 0, 'k-')
+% title(ax, 'lick')
+% 
+% ax = axes(figure); hold(ax, 'on')
+% sel = c.isPressResponsive;
+% scatter(ax, meta.press(sel), meta.stim(sel))
+% xline(ax, 0, 'k--')
+% yline(ax, 0, 'k--')
+% mdl = fitlm(meta.press(sel), meta.stim(sel));
+% plot(ax, mdl)
+% 
+% xlabel(ax, 'press')
+% ylabel(ax, 'stim')
+% 
+% 
+% ax = axes(figure); hold(ax, 'on')
+% sel = c.isLickResponsive;
+% scatter(ax, meta.lick(sel), meta.stim(sel))
+% xline(ax, 0, 'k--')
+% yline(ax, 0, 'k--')
+% mdl = fitlm(meta.lick(sel), meta.stim(sel));
+% plot(ax, mdl)
+% 
+% xlabel(ax, 'lick')
+% ylabel(ax, 'stim')
+% 
+% 
+% 
+% ax = axes(figure); hold(ax, 'on')
+% scatter(ax, meta.press, meta.lick)
+% xline(ax, 0, 'k--')
+% yline(ax, 0, 'k--')
+% mdl = fitlm(meta.press, meta.lick);
+% plot(ax, mdl)
+% 
+% xlabel(ax, 'press')
+% ylabel(ax, 'lick')
+
+
+%% Can skip all above, just do this to load
+% Try running script_optrodeSNr_CoChR_VGATCre_20260729 again;
+expDesc = "VGAT-Cre x SNr(AAV-flex-CoChR)";
+eu = EphysUnit.load('C:\SERVER\Units\SNr_CoChR_VGATCre\SingleUnit_NonDuplicate_NonDrift_SNr_ValidVideos');
+
+expNames = string({eu.ExpName}');
+[uniqueExpNames, expToEuIndices, euToExpIndices] = unique(expNames);
+
+load('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_withoutStimData.mat'); %'boot', 'c', 'eta', 'meta', 'kinematics', 'p'
+load('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_justStimData.mat'); %'stimData'
+
+% Taka a snapshot of initial variables so we could return here
+vars = who;
+clearvars('-except', vars{:})
+%% Reread imec.bin to redo decoder (so we could align it properly to ephys, matlab recording had a unspecifiable timelag~=-.5s)
+
+% for iExp = 1:length(stimData)
+%     animalName = strsplit(string(stimData(iExp).name), "_");
+%     animalName = animalName(1);
+%     fname(iExp).script = fullfile("C:\SERVER", animalName, stimData(iExp).name, sprintf("%s.m", stimData(iExp).name));
+%     exists(iExp).script = exist(fname(iExp).script, 'file');
+%     fprintf("fname=%s, exists=%i\n", fname(iExp).script, exists(iExp).script)
+% 
+%     if exists(iExp).script
+%         edit(fname(iExp).script)
+%         disp(iExp)
+%     end
+% end
+
+stimData(1).decoderParams = struct(spikeThreshold=-55, pMoveThreshold=0.3, waitAtLeastSeconds=NaN, updateInterval=0.020, binWidth=0.1);
+stimData(2).decoderParams = struct(spikeThreshold=-45, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
+stimData(3).decoderParams = struct(spikeThreshold=-45, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
+stimData(4).decoderParams = struct(spikeThreshold=-55, pMoveThreshold=0.3, waitAtLeastSeconds=NaN, updateInterval=0.020, binWidth=0.1);
+stimData(5).decoderParams = struct(spikeThreshold=-55, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
+stimData(6).decoderParams = struct(spikeThreshold=-45, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
+stimData(7).decoderParams = struct(spikeThreshold=-45, pMoveThreshold=0.3, waitAtLeastSeconds=2, updateInterval=0.020, binWidth=0.1);
+
+chunkSize = 32;
+nChunks = 384/chunkSize;
+assert(mod(chunkSize, 1) == 0)
+clear decoderData
+decoderData(length(stimData)) = struct(spikeTimes=[], t=[], spikeRates=[], meanSpikeRates=[]);
+for iExp = 1:length(stimData)
     try
-        EphysUnit.plotRaster(ax, rd(iEu), timeUnit='ms', xlim=[-1000, 4000]);
-        legend(ax, 'off')
-        print(fig, fullfile('E:\Figures\SNr_CoChR_VGATCre', sprintf('%s.png', eu(iEu).getName())), '-dpng', '-r0')
+        animalName = strsplit(string(stimData(iExp).name), "_");
+        animalName = animalName(1);
+        fpath = char(fullfile("C:\SERVER", animalName, stimData(iExp).name));
+
+        obj = TetrodeRecording;
+        obj.SelectFiles(NeuropixelPath=fpath);
+        fprintf('Reading file: %s\\%s...\n', obj.Path.imec, obj.Files.imec);
+        meta = obj.ReadNeuropixelMeta();
+
+
+        nChannelsInFile = str2double(meta.imec.nSavedChans);
+        assert(nChannelsInFile==385) % 384 neural, 1 digital where bit 6 (7 in MATLAB) is sync
+        nSamplesInFile = str2double(meta.imec.fileSizeBytes) / (2*nChannelsInFile);
+        sampleRate = str2double(meta.imec.imSampRate);
+        [B, A] = butter(2, [300, 9000]/(sampleRate/2));
+        
+        
+        duration = 60;
+        eof = false;
+        timeWindow = [0, duration];
+        numSamplesRead = NaN;
+        spikeTimes = cell(384, 1);
+        while ~eof
+            fid = fopen(fullfile(obj.Path.imec, obj.Files.imec), 'rb');
+            nSamplesToSkip = max(floor(timeWindow(1)*sampleRate), 0);
+            nSamplesToRead = floor(timeWindow(2)*sampleRate) - floor(timeWindow(1)*sampleRate);
+            nSamplesToRead = min(nSamplesToRead, nSamplesInFile - nSamplesToSkip);
+            eof = nSamplesToSkip + nSamplesToRead >= nSamplesInFile;
+
+            % Read data
+            tTic = tic();
+            fseek(fid, nSamplesToSkip*2*nChannelsInFile, 'bof');
+            data = fread(fid, [nChannelsInFile, nSamplesToRead], 'int16=>double');
+            data = SGLX_readMeta.GainCorrectIM(data, 1:384, meta.imec)*1e6;
+            data = data(1:384, :)';
+            % t = ((0:nSamplesToRead-1) + nSamplesToSkip) / sampleRate;
+            t0 = nSamplesToSkip / sampleRate;
+            fclose(fid);
+            timeElapsed = toc(tTic);
+            fprintf(1, 'Read %.1f seconds of data (%i->%i = %i samples, %.3f MB) of data in %.1f seconds.\n', nSamplesToRead/sampleRate, nSamplesToSkip + 1, nSamplesToSkip + nSamplesToRead, nSamplesToRead, nSamplesToRead*nChannelsInFile*2/1024/1024, timeElapsed);
+
+            % Do spike detection
+            data = filter(B, A, data); % Bandpass
+            data = data - mean(data, 2); % CAR, we do mean since it's faster(?) than median 
+            isBelowThreshold = data < stimData(iExp).decoderParams.spikeThreshold;
+            for iChannel = 1:384
+                st = t0 + strfind(isBelowThreshold(:, iChannel)', [0,0,0,0,0,1,1,1])./sampleRate;
+                spikeTimes{iChannel} = [spikeTimes{iChannel}, st];
+            end            
+            timeWindow = timeWindow+duration;
+        end
+
+        % Perform running spike counts
+        t = 0:stimData(iExp).decoderParams.updateInterval:(nSamplesInFile/sampleRate);
+        binWidth = stimData(iExp).decoderParams.binWidth;
+        spikeRates = NaN(384, length(t), 'single');
+        sSamples = length(t);
+        parfor iChannel = 1:384
+            for iSample = 1:sSamples
+                t0 = t(iSample);
+                [a, b] = isin(spikeTimes{iChannel}, [t0 - binWidth, t0], false, true);
+                if isempty(a) || isempty(b) || a>b
+                    spikeRates(iChannel, iSample) = 0;
+                else
+                    spikeRates(iChannel, iSample) = (b-a+1)/binWidth;
+                end
+            end
+        end
+        meanSpikeRates = mean(spikeRates, 1, 'omitnan');
+
+        decoderData(iExp).spikeTimes = spikeTimes;
+        decoderData(iExp).t = t;
+        decoderData(iExp).spikeRates = spikeRates;
+        decoderData(iExp).meanSpikeRates = meanSpikeRates;
+
+    catch ME
+        warning('Could not process exp: %i', iExp)
+        warning('Error in program %s.\nTraceback (most recent at top):\n%s\nError Message:\n%s', mfilename, getcallstack(ME), ME.message)
     end
 end
 
-
-%% Plot PSTH aligned to stim onset
-clear artifacts
-artifacts(1) = struct(event='StimOn', length=0.5, lengthUnit='ms', direction='right');
-artifacts(2) = struct(event='StimOff', length=0.5, lengthUnit='ms', direction='right');
-eta.stim = eu.getETA('count', 'stim', [-1, 1], resolution=0.020, alignTo='start', normalize=[-0.5, 0], artifacts=artifacts);
-meta.stim = mean(eta.stim.X(:, isin(eta.stim.t, [0.05, 0.2])), 2, 'omitnan');
-ax = axes(figure); hold(ax, 'on')
-plot(ax, eta.stim.t, eta.stim.X(meta.stim>=0, :), Color=[0.8, 0.2, 0.2, 0.1])
-plot(ax, eta.stim.t, eta.stim.X(meta.stim<0, :), Color=[0.2, 0.2, 0.8, 0.1])
-plot(ax, eta.stim.t, mean(eta.stim.X, 1, 'omitnan'), Color='k', LineWidth=2)
-
-%% Plot PETH aligned to reach
-close all
-eta.press = eu.getETA('count', 'press', [-4, 1], resolution=0.2, alignTo='stop', normalize=[-4, -2], minTrialDuration=1);
-eta.lick = eu.getETA('count', 'lick', [-4, 1], resolution=0.2, alignTo='stop', normalize=[-4, -2], minTrialDuration=1);
-meta.press = mean(eta.press.X(:, isin(eta.press.t, [-0.4, 0.2])), 2, 'omitnan');
-meta.lick = mean(eta.lick.X(:, isin(eta.lick.t, [-0.4, 0.2])), 2, 'omitnan');
-
-%%
-ax = axes(figure); hold(ax, 'on')
-plot(ax, eta.stim.t, eta.stim.X(c.isPressUp, :), Color=[0.8, 0.2, 0.2, 0.1])
-plot(ax, eta.stim.t, eta.stim.X(c.isPressDown, :), Color=[0.2, 0.2, 0.8, 0.1])
-plot(ax, eta.stim.t, mean(eta.stim.X, 1, 'omitnan'), Color='k', LineWidth=2)
-plot(ax, eta.stim.t, mean(eta.stim.X(c.isPressUp, :), 1, 'omitnan'), Color=[0.8, 0.2, 0.2], LineWidth=2)
-plot(ax, eta.stim.t, mean(eta.stim.X(c.isPressDown, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.8], LineWidth=2)
-
-%% Plot press PETH
-ax = axes(figure); hold(ax, 'on')
-plot(ax, eta.press.t, eta.press.X(c.isPressUp, :), Color=[0.8, 0.2, 0.2, 0.1])
-plot(ax, eta.press.t, eta.press.X(c.isPressDown, :), Color=[0.2, 0.2, 0.8, 0.1])
-plot(ax, eta.press.t, mean(eta.press.X, 1, 'omitnan'), Color='k', LineWidth=2)
-xline(ax, 0, 'k-')
-title(ax, 'press')
-%%
-ax = axes(figure); hold(ax, 'on')
-plot(ax, eta.press.t, eta.press.X(meta.stim>+0.50, :), Color=[0.8, 0.2, 0.2, 0.1])
-plot(ax, eta.press.t, eta.press.X(meta.stim<-0.5, :), Color=[0.2, 0.2, 0.8, 0.1])
-plot(ax, eta.press.t, mean(eta.press.X(meta.stim>0, :), 1, 'omitnan'), Color=[0.8, 0.2, 0.2], LineWidth=1)
-plot(ax, eta.press.t, mean(eta.press.X(meta.stim<0, :), 1, 'omitnan'), Color=[0.2, 0.2, 0.8], LineWidth=1)
-xline(ax, 0, 'k-')
-title(ax, 'press')
-%%
-ax = axes(figure); hold(ax, 'on')
-plot(ax, eta.lick.t, eta.lick.X(c.isLickUp, :), Color=[0.8, 0.2, 0.2, 0.1])
-plot(ax, eta.lick.t, eta.lick.X(c.isLickDown, :), Color=[0.2, 0.2, 0.8, 0.1])
-plot(ax, eta.lick.t, mean(eta.lick.X, 1, 'omitnan'), Color='k', LineWidth=2)
-xline(ax, 0, 'k-')
-title(ax, 'lick')
-
-ax = axes(figure); hold(ax, 'on')
-sel = c.isPressResponsive;
-scatter(ax, meta.press(sel), meta.stim(sel))
-xline(ax, 0, 'k--')
-yline(ax, 0, 'k--')
-mdl = fitlm(meta.press(sel), meta.stim(sel));
-plot(ax, mdl)
-
-xlabel(ax, 'press')
-ylabel(ax, 'stim')
-
-
-ax = axes(figure); hold(ax, 'on')
-sel = c.isLickResponsive;
-scatter(ax, meta.lick(sel), meta.stim(sel))
-xline(ax, 0, 'k--')
-yline(ax, 0, 'k--')
-mdl = fitlm(meta.lick(sel), meta.stim(sel));
-plot(ax, mdl)
-
-xlabel(ax, 'lick')
-ylabel(ax, 'stim')
-
-
-
-ax = axes(figure); hold(ax, 'on')
-scatter(ax, meta.press, meta.lick)
-xline(ax, 0, 'k--')
-yline(ax, 0, 'k--')
-mdl = fitlm(meta.press, meta.lick);
-plot(ax, mdl)
-
-xlabel(ax, 'press')
-ylabel(ax, 'lick')
+save('C:\SERVER\Units\meta_SNr_CoChR_VGATCre_ValidVideos_decoderData.mat', 'decoderData', 'stimData', 'p', '-v7.3')

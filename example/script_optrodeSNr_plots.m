@@ -596,7 +596,7 @@ l.h = ones(1, length(features));
 l.ch = cumsum([1, l.h]);
 l.w = cellfun(@diff, xl);
 l.cw = cumsum([1, l.w]);
-exportPath = "E:\Figures\SNr_VGAT-Cre-CoChR";
+exportPath = "C:\SERVER\Figures\SNr_VGAT-Cre-CoChR";
 if p.useWeakIncDec
     exportPath = fullfile(exportPath, "weakIncDec");
 else
@@ -804,10 +804,12 @@ l.w = cellfun(@diff, xl);
 l.cw = cumsum([1, l.w]);
 trialTypes = ["press", "lick"];
 trialTypeDispName = ["reach", "lick"];
-
+try
+    close(fig)
+end
 for iExp = length(uniqueExpNames) + 1
-    fig = figure();
-    tlp = tiledlayout(fig, 2, 1);
+    fig = figure(Units="inches", Position=[1, 0.5, 6, 10]);
+    tlp = tiledlayout(fig, 2, 1, Padding='tight');
     tl = gobjects(2, 1);
     tl(1) = tiledlayout(tlp, 2, sum(l.w), TileSpacing='compact');
     tl(2) = tiledlayout(tlp, 2, sum(l.w), TileSpacing='compact');
@@ -901,15 +903,15 @@ for iExp = length(uniqueExpNames) + 1
                     switch cond 
                         case"ctrl"
                             xticks(ax, [0, 1])
-                            xlabel(ax, 'time from decoded-move onset (s)')
+                            xlabel(ax, ["time from", "decoded move onset (s)"])
                         case "stim"
                             xticks(ax, durations)
-                            xlabel(ax, 'time from opto onset (s)')
+                            xlabel(ax, ["time from", "opto onset (s)"])
                     end
                 end
                 switch cond
                     case "ctrl"
-                        title(ax, "ctrl");
+                        title(ax, "sham");
                     case "stim"
                         title(ax, sprintf("%gmw %is", p.laserPowers(iPower)*1e3, p.pulseDurations(iDuration)));
                 end

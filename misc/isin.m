@@ -90,6 +90,8 @@ function i = binarySearchStopIndex(X, k, inclusive)
     end
     if inclusive && X(a) <= k
         i = a;
+    elseif ~inclusive && X(a) < k
+        i = a;
     else
         i = a - 1;
     end
