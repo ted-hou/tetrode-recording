@@ -110,9 +110,9 @@ for iExp = length(uniqueExpNames) + 1 % nSessions+1 will plot session average
                                 centers = stimData(iExp).psmh.stim.(trialType).edges; centers = 0.5*(centers(1:end-1) + centers(2:end));
                             end
                             if contains(fn, 'Inhibited')
-                                subsel = sum(NMoves(:, isin(centers, [0, 1])), 2) == 0;
+                                subsel = sum(NMoves(:, isin(centers, [0, 0.5])), 2) == 0;
                             elseif contains(fn, 'Breakthrough')
-                                subsel = sum(NMoves(:, isin(centers, [0, 1])), 2) > 0;
+                                subsel = sum(NMoves(:, isin(centers, [0, 0.5])), 2) > 0;
                             else
                                 subsel = true(size(sel));
                             end

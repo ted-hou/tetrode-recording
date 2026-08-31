@@ -596,7 +596,7 @@ for iExp = 1:length(stimData)
     end
 end
 
-%% Plot stim triggered kinematics/spike rates
+%% 1A. Plot stim triggered kinematics/spike rates
 % close all
 xl = {[-0.5, 2], [-0.5, 4]};
 features = ["X", "XInc", "XDec", "XFlt", "move", "Jaw", "HandL", "HandR"];
@@ -624,7 +624,7 @@ individualTracesAlpha = 0.2;
 
 script_optrodeSNr_plots_stim_triggered_kinematics_spikeRates;
 
-%%
+%% 1B. Plot stim triggered kinematics/spike rates (inhibited vs. breakthrough movement)
 xl = {[-0.5, 2], [-0.5, 4]};
 features = ["move", "JawInhibited", "JawBreakthrough", "HandLInhibited", "HandLBreakthrough", "HandRInhibited", "HandRBreakthrough"];
 featureDispNames = ["move", "jaw (inhibited)", "jaw (breakthrough)", "l.hand (inhibited)", "l.hand (breakthrough)", "r.hand (inhibited)", "r.hand (breakthrough)"];
