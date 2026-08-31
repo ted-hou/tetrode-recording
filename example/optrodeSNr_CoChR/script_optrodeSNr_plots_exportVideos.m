@@ -7,7 +7,7 @@ clear clips moveTimes
 clips(length(exp), nPowers, nDurations) = struct(press=[], lick=[]);
 moveTimes(length(exp), nPowers, nDurations) = struct(press=[], lick=[]);
 for iExp = 1:length(exp)
-    for iPower = 0:nPowers-1
+    for iPower = 1:nPowers-1
         if iPower == 0
             nDurations = 1;
         else
@@ -55,7 +55,7 @@ end
 
 %% Combine sessions
 for iExp = 1:length(exp)
-    for iPower = 0:nPowers-1
+    for iPower = 1:nPowers-1
         if iPower == 0
             nDurations = 1;
         else
@@ -76,7 +76,7 @@ for iExp = 1:length(exp)
 end
 %% Make big video displaying all trials at once
 for iExp = length(exp) + 1
-    for iPower = 0:nPowers-1
+    for iPower = 1:nPowers-1
         if iPower == 0
             nDurations = 1;
         else
@@ -84,39 +84,43 @@ for iExp = length(exp) + 1
         end
         for iDuration = 1:nDurations
             for trialType = ["press", "lick"]
-                [~, trialOrder] = sort(moveTimes(iExp, iPower+1, iDuration).(trialType), 'ascend');
-                clipsTemp = clips(iExp, iPower+1, iDuration).(trialType)(trialOrder);
-                
-                nCols = ceil(length(clipsTemp) / nRows);
-                nFrames = size(clipsTemp{1}, 4);
-                megaClip = zeros(cropParams(3)*nRows, cropParams(4)*nCols, 3, nFrames, 'uint8');
-                i0 = 0;
-                j0 = 0;
-                for iClip = 1:length(clipsTemp)
-                    megaClip(i0+1:i0+cropParams(3), j0+1:j0+cropParams(4), :, :) = clipsTemp{iClip};
-                    j0 = j0 + cropParams(4);
-                    if j0 >= size(megaClip, 2)
-                        j0 = 0;
-                        i0 = i0 + cropParams(3);
+                try
+                    [~, trialOrder] = sort(moveTimes(iExp, iPower+1, iDuration).(trialType), 'ascend');
+                    clipsTemp = clips(iExp, iPower+1, iDuration).(trialType)(trialOrder);
+                    
+                    nCols = ceil(length(clipsTemp) / nRows);
+                    nFrames = size(clipsTemp{1}, 4);
+                    megaClip = zeros(cropParams(3)*nRows, cropParams(4)*nCols, 3, nFrames, 'uint8');
+                    i0 = 0;
+                    j0 = 0;
+                    for iClip = 1:length(clipsTemp)
+                        megaClip(i0+1:i0+cropParams(3), j0+1:j0+cropParams(4), :, :) = clipsTemp{iClip};
+                        j0 = j0 + cropParams(4);
+                        if j0 >= size(megaClip, 2)
+                            j0 = 0;
+                            i0 = i0 + cropParams(3);
+                        end
                     end
+                    megaClip = imresize(megaClip, scale);
+            
+                    % Writer videos to file
+                    exportPath = "C:\SERVER\Figures\SNr_VGAT-Cre-CoChR\Videos";
+                    if ~exist(exportPath, 'dir')
+                        mkdir(exportPath)
+                    end
+                    if isempty(videos(iExp).(trialType))
+                        continue
+                    end
+                    fname = fullfile(exportPath, sprintf("%i_%s_iPower%i_iDuration%i_%s.avi", iExp, stimData(iExp).name, iPower, iDuration, trialType));
+                    fprintf('Writing video %s...\n', fname);
+                    v = VideoWriter(fname);
+                    v.FrameRate = 30;
+                    open(v)
+                    writeVideo(v, megaClip)
+                    close(v)
+                catch
+                    warning('Could not make video for "%i_%s_iPower%i_iDuration%i_%s.avi"', iExp, stimData(iExp).name, iPower, iDuration, trialType)
                 end
-                megaClip = imresize(megaClip, scale);
-        
-                % Writer videos to file
-                exportPath = "E:\Figures\SNr_VGAT-Cre-CoChR\Videos";
-                if ~exist(exportPath, 'dir')
-                    mkdir(exportPath)
-                end
-                if isempty(videos(iExp).(trialType))
-                    continue
-                end
-                fname = fullfile(exportPath, sprintf("%i_%s_%s.avi", iExp, stimData(iExp).name, trialType));
-                fprintf('Writing video %s...\n', fname);
-                v = VideoWriter(fname);
-                v.FrameRate = 30;
-                open(v)
-                writeVideo(v, megaClip)
-                close(v)
             end
         end
     end
