@@ -230,7 +230,7 @@ classdef CompleteExperiment < handle
             labelColors = [transpose(0:(0.8 - 0)/(length(bodyparts) - 1):0.8), repmat([1, 0.5], length(bodyparts), 1)];
             labelColors = hsl2rgb(labelColors)*255;
 
-            fprintf('Reading video file %s\n', file)
+            % fprintf('Reading video file %s\n', file)
 
 			clip = cell(length(ephysTime), 1);
             t = zeros(length(ephysTime), numFramesBefore + numFramesAfter + 1);
@@ -239,7 +239,7 @@ classdef CompleteExperiment < handle
 		    vidStartTime = v.CurrentTime;
 
             firstFrame = vtd.FrameNumber(1);
-            fprintf('Extracting %i clips...', length(ephysTime))
+            % fprintf('Extracting %i clips...', length(ephysTime))
             for iClip = 1:length(ephysTime)
             % 				fprintf('Extracting clip %d of %d...', iClip, length(ephysTime))
             
@@ -251,29 +251,33 @@ classdef CompleteExperiment < handle
                     clip{iClip} = uint8(zeros(v.Height, v.Width, 3, numFramesBefore + numFramesAfter + 1));
                 end
                 for iClipFrame = 1:size(t, 2)
-	                iFrameAbs = iFrame + iClipFrame - numFramesBefore - 1;
-                    t(iClip, iClipFrame) = vtd.Timestamp(iFrameAbs);
-	                thisProb = transpose(cellfun(@(x) x(iFrameAbs), prob));
-                    sel = thisProb > minLikelihood;
-                    if ~noImage
-	                    thisFrame = readFrame(v);
-                        if any(sel)
-                            thisProb = thisProb(sel);
-	                        thisPos = transpose([cellfun(@(x) x(iFrameAbs), xPos); cellfun(@(x) x(iFrameAbs), yPos)]);
-                            thisPos = thisPos(sel, :);
-                            thisColor = labelColors(sel, :);
-                            thisLabels = bodyparts(sel);
-	                        thisFrame = insertText(thisFrame, thisPos, thisLabels, TextColor=thisColor, BoxOpacity=0, AnchorPoint='RightTop');
-	                        thisFrame = insertText(thisFrame, thisPos, round(100*thisProb)/100, TextColor=thisColor, BoxOpacity=0, AnchorPoint='RightBottom');
-	                        thisFrame = insertMarker(thisFrame, thisPos, Color=thisColor, Size=10);
-                        end					    
+                    try
+	                    iFrameAbs = iFrame + iClipFrame - numFramesBefore - 1;
+                        t(iClip, iClipFrame) = vtd.Timestamp(iFrameAbs);
+	                    thisProb = transpose(cellfun(@(x) x(iFrameAbs), prob));
+                        sel = thisProb > minLikelihood;
                         if ~noImage
-                            clip{iClip}(:, :, :, iClipFrame) = thisFrame;
+                            thisFrame = readFrame(v);
+                            if any(sel)
+                                thisProb = thisProb(sel);
+                                thisPos = transpose([cellfun(@(x) x(iFrameAbs), xPos); cellfun(@(x) x(iFrameAbs), yPos)]);
+                                thisPos = thisPos(sel, :);
+                                thisColor = labelColors(sel, :);
+                                thisLabels = bodyparts(sel);
+                                thisFrame = insertText(thisFrame, thisPos, thisLabels, TextColor=thisColor, BoxOpacity=0, AnchorPoint='RightTop');
+                                thisFrame = insertText(thisFrame, thisPos, round(100*thisProb)/100, TextColor=thisColor, BoxOpacity=0, AnchorPoint='RightBottom');
+                                thisFrame = insertMarker(thisFrame, thisPos, Color=thisColor, Size=10);
+                            end					    
+                            if ~noImage
+                                clip{iClip}(:, :, :, iClipFrame) = thisFrame;
+                            end
                         end
+                    catch ME
+                        warning('Could not read frame %i', iFrameAbs)
                     end
                 end
             end
-            fprintf('Done!\n')
+            % fprintf('Done!\n')
 
             if length(ephysTime) == 1
                 clip = clip{1};
