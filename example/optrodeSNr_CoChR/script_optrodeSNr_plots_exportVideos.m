@@ -1,33 +1,43 @@
 cropParams = [50, 75, 240, 320];
 scale = 0.5;
 nRows = 6;
+nPowers = 3;
+nDurations = 2;
 clear videos clips moveTimes
-videos(length(exp)) = struct(press=[], lick=[]);
-clips(length(exp)) = struct(press=[], lick=[]);
-moveTimes(length(exp)) = struct(press=[], lick=[]);
+videos(length(exp), nPowers, nDurations) = struct(press=[], lick=[]);
+clips(length(exp), nPowers, nDurations) = struct(press=[], lick=[]);
+moveTimes(length(exp), nPowers, nDurations) = struct(press=[], lick=[]);
 for iExp = 1:length(exp)
-    for trialType = ["press", "lick"]
-        % Get clips from 3s 20mW trials
-        sel = stimData(iExp).power==20e-3 & stimData(iExp).duration==3 & stimData(iExp).trialType==trialType;
-        [clipsTemp, t] = exp(iExp).getVideoClip(stimData(iExp).stimOn(sel), ...
-            side='l', numFramesBefore=1*30, numFramesAfter=(3+5)*30, bodyParts={'HandL', 'Jaw', 'Tongue'}, minLikelihood=0.5);
-        for iClip = 1:length(clipsTemp)
-            clipsTemp{iClip} = clipsTemp{iClip}(cropParams(1):cropParams(1)+cropParams(3)-1, cropParams(2):cropParams(2)+cropParams(4)-1, :, :);
-        end
-    
-        % Sort clips by movement latency
-        psmh = stimData(iExp).psmh.stim.(trialType).N(sel, :);
-        moveTime = Inf(size(psmh, 1), 1);
-        for iTrial = 1:size(psmh, 1)
-            i0 = find(psmh(iTrial, :)>0, 1, 'first');
-            if ~isempty(i0)
-                moveTime(iTrial) = mean(stimData(iExp).psmh.stim.(trialType).edges(i0:i0+1));
+    for iPower = 0:nPowers-1
+        for iDuration = 1:nDurations
+            for trialType = ["press", "lick"]
+                if iPower == 0 % ctrl
+                    sel = stimData(iExp).trialTypeCtrl==trialType;
+                    t0 = stimData(iExp).stimCtrl(sel);
+                else
+                    sel = stimData(iExp).iPower==iPower & stimData(iExp).iDuration==iDuration & stimData(iExp).trialType==trialType;
+                    t0 = stimData(iExp).stimOn(sel);
+                end
+                [clipsTemp, t] = exp(iExp).getVideoClip(t0, side='l', numFramesBefore=1*30, numFramesAfter=(3+5)*30, bodyParts={'HandL', 'Jaw'}, minLikelihood=0.5);
+                for iClip = 1:length(clipsTemp)
+                    clipsTemp{iClip} = clipsTemp{iClip}(cropParams(1):cropParams(1)+cropParams(3)-1, cropParams(2):cropParams(2)+cropParams(4)-1, :, :);
+                end
+            
+                % Sort clips by movement latency
+                psmh = stimData(iExp).psmh.stim.(trialType).N(sel, :);
+                moveTime = Inf(size(psmh, 1), 1);
+                for iTrial = 1:size(psmh, 1)
+                    i0 = find(psmh(iTrial, :)>0, 1, 'first');
+                    if ~isempty(i0)
+                        moveTime(iTrial) = mean(stimData(iExp).psmh.stim.(trialType).edges(i0:i0+1));
+                    end
+                end
+        
+                % Save results
+                clips(iExp).(trialType) = clipsTemp;
+                moveTimes(iExp).(trialType) = moveTime;
             end
         end
-
-        % Save results
-        clips(iExp).(trialType) = clipsTemp;
-        moveTimes(iExp).(trialType) = moveTime;
     end
 end
 
