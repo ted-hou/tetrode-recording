@@ -599,8 +599,8 @@ end
 %% 1A. Plot stim triggered kinematics/spike rates
 % close all
 xl = {[-0.5, 2], [-0.5, 4]};
-features = ["X", "XInc", "XDec", "XFlt", "move", "Jaw", "HandL", "HandR"];
-featureDispNames = ["spike rate", "spike rate (inc)", "spike rate (dec)", "spike rate (flat)", "move", "jaw", "l.hand", "r.hand"];
+features = ["X", "XInc", "XDec", "XFlt", "psmh", "Jaw", "HandL", "HandR"];
+featureDispNames = ["spike rate", "spike rate (inc)", "spike rate (dec)", "spike rate (flat)", "psmh", "jaw", "l.hand", "r.hand"];
 yl = {[-1.5, 3], [-1.5, 3], [-1.5, 3], [-1.5, 3], [0, 0.2]};
 featureUnits = ["(a.u.)", "(a.u.)", "(a.u.)", "(a.u.)", "probability"];
 switch p.kinematicDataSource
@@ -626,8 +626,8 @@ script_optrodeSNr_plots_stim_triggered_kinematics_spikeRates;
 
 %% 1B. Plot stim triggered kinematics/spike rates (inhibited vs. breakthrough movement)
 xl = {[-0.5, 2], [-0.5, 4]};
-features = ["move", "JawInhibited", "JawBreakthrough", "HandLInhibited", "HandLBreakthrough", "HandRInhibited", "HandRBreakthrough"];
-featureDispNames = ["move", "jaw (inhibited)", "jaw (breakthrough)", "l.hand (inhibited)", "l.hand (breakthrough)", "r.hand (inhibited)", "r.hand (breakthrough)"];
+features = ["psmh", "JawInhibited", "JawBreakthrough", "HandLInhibited", "HandLBreakthrough", "HandRInhibited", "HandRBreakthrough"];
+featureDispNames = ["psmh", "jaw (inhibited)", "jaw (breakthrough)", "l.hand (inhibited)", "l.hand (breakthrough)", "r.hand (inhibited)", "r.hand (breakthrough)"];
 yl = {[0, 0.2]};
 featureUnits = ["probability"];
 switch p.kinematicDataSource
