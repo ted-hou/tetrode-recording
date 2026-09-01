@@ -596,7 +596,35 @@ for iExp = 1:length(stimData)
     end
 end
 
-%% 1A. Plot stim triggered kinematics/spike rates
+%% 1A. Plot stim triggered kinematics
+% close all
+xl = {[-0.5, 2], [-0.5, 4]};
+features = ["X", "psmh", "Jaw", "HandL", "HandR"];
+featureDispNames = ["spike rate", "psmh", "jaw", "l.hand", "r.hand"];
+yl = {[-1.5, 3], [0, 0.2]};
+featureUnits = ["(a.u.)", "probability"];
+switch p.kinematicDataSource
+    case "pos"
+        yl = horzcat(yl, {[-2, 2], [-1, 1], [-1, 1]});
+        featureUnits = horzcat(featureUnits, repmat("pos (a.u.)", [1, 3]));
+    case "spd"
+        yl = horzcat(yl, {[0, 12], [0, 8], [0, 8]});
+        featureUnits = horzcat(featureUnits, repmat("speed (a.u.)", [1, 3]));
+    case "vel"
+        yl = horzcat(yl, {[-6, 6], [-4, 4], [-4, 4]});
+        featureUnits = horzcat(featureUnits, repmat("vel (a.u.)", [1, 3]));
+end
+p.showVarianceFor = "units"; % "trials", "units"
+p.showVarianceAs = "sd"; % "ci" plot 25%/75% CI as shaded area; "sd" plot mean+-sd; "traces" to plot single traces;
+p.varianceEdgeAlhpa = 0;
+lineStylesByPower = ["-", "-", "-"]; % ctrl, 5mW, 20mW
+colorsByPower = [.2,.2,.2,1; .2,.2,.8,.5; .2,.2,.8,1]; % ctrl, 5mW, 20mW
+showIndividualTracesByPower = [true, true, true];
+individualTracesAlpha = 0.2;
+
+script_optrodeSNr_plots_stim_triggered_kinematics_spikeRates;
+
+%% 1B. Plot stim triggered kinematics/spike rates
 % close all
 xl = {[-0.5, 2], [-0.5, 4]};
 features = ["X", "XInc", "XDec", "XFlt", "psmh", "Jaw", "HandL", "HandR"];
@@ -624,7 +652,7 @@ individualTracesAlpha = 0.2;
 
 script_optrodeSNr_plots_stim_triggered_kinematics_spikeRates;
 
-%% 1B. Plot stim triggered kinematics/spike rates (inhibited vs. breakthrough movement)
+%% 1C. Plot stim triggered kinematics/spike rates (inhibited vs. breakthrough movement)
 xl = {[-0.5, 2], [-0.5, 4]};
 features = ["psmh", "JawInhibited", "JawBreakthrough", "HandLInhibited", "HandLBreakthrough", "HandRInhibited", "HandRBreakthrough"];
 featureDispNames = ["psmh", "jaw (inhibited)", "jaw (breakthrough)", "l.hand (inhibited)", "l.hand (breakthrough)", "r.hand (inhibited)", "r.hand (breakthrough)"];

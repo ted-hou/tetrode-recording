@@ -18,7 +18,7 @@ mkdir(exportPath)
 for iExp = length(uniqueExpNames) + 1 % nSessions+1 will plot session average
     x0 = 0;
     for trialType = ["press", "lick"]
-        fig = figure(Units='normalized', Position=[x0, 0, 0.5, 1]);
+        fig = figure(Units='normalized', Position=[x0, 0, 0.5, length(features)*0.1]);
         x0 = x0 + 0.5;
         tl = tiledlayout(fig, sum(l.h), sum(l.w), TileSpacing='compact');
         clear lgd
@@ -40,18 +40,22 @@ for iExp = length(uniqueExpNames) + 1 % nSessions+1 will plot session average
                 % Ctrl traces
                 iPower = 0;
                 selCtrl = stimData(iExp).trialTypeCtrl == trialType;
+                clear fnx
                 switch fn
                     case {'Jaw', 'HandL', 'HandR', 'JawInhibited', 'HandLInhibited', 'HandRInhibited', 'JawBreakthrough', 'HandLBreakthrough', 'HandRBreakthrough'}
                         if contains(fn, {'Inhibited', 'Breakthrough'})
                             fnx = strsplit(fn, {'Inhibited', 'Breakthrough'});
                             fnx = fnx{1};
+                        else
+                            fnx = fn;
                         end
+                        t = stimData(iExp).(fnx).t;
                         mu = mean(stimData(iExp).(fnx).XCtrl(selCtrl, :), 1, 'omitnan');
                         err = 0.1*std(stimData(iExp).(fnx).XCtrl(selCtrl, :), 0, 1, 'omitnan');
                         ci = quantile(stimData(iExp).(fnx).XCtrl(selCtrl, :), [0.25, 0.75], 1);
-                        h(iLine) = plot(ax, tLocal, mu, Color=colorsByPower(iPower+1, :), LineWidth=1.5, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
+                        h(iLine) = plot(ax, t, mu, Color=colorsByPower(iPower+1, :), LineWidth=1.5, DisplayName=sprintf("ctrl (n=%i)", nnz(selCtrl)));
                         iLine = iLine + 1;
-                        patch(ax, [tLocal, flip(tLocal)], [ci(1, :), flip(ci(2, :))], colorsByPower(iPower+1, 1:3), FaceAlpha=0.05, EdgeAlpha=p.varianceEdgeAlhpa, LineStyle=':', LineWidth=0.5);
+                        patch(ax, [t, flip(t)], [ci(1, :), flip(ci(2, :))], colorsByPower(iPower+1, 1:3), FaceAlpha=0.05, EdgeAlpha=p.varianceEdgeAlhpa, LineStyle=':', LineWidth=0.5);
                     case 'psmh'
                         edges = stimData(iExp).psmh.ctrl.(trialType).edges;
                         N = mean(stimData(iExp).psmh.ctrl.(trialType).N(selCtrl, :), 1, 'omitnan');
@@ -60,7 +64,6 @@ for iExp = length(uniqueExpNames) + 1 % nSessions+1 will plot session average
                         iLine = iLine + 1;
                     case {'X', 'XInc', 'XDec', 'XFlt'}
                         t = stimData(iExp).psth.ctrl.t;
-                        mumu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :, :), [1, 3], 'omitnan');
                         switch fn
                             case 'X'
                                 fnx = 'X';
@@ -68,6 +71,7 @@ for iExp = length(uniqueExpNames) + 1 % nSessions+1 will plot session average
                                 fnx = char(string(fn) + trialType);
                                 fnx(5) = upper(fnx(5)); % XIncPress
                         end
+                        mumu = mean(stimData(iExp).psth.ctrl.(fnx)(selCtrl, :, :), [1, 3], 'omitnan');
                         if showIndividualTracesByPower(1)
                             switch p.showVarianceFor
                                 case "trials"
@@ -118,13 +122,13 @@ for iExp = length(uniqueExpNames) + 1 % nSessions+1 will plot session average
                             else
                                 subsel = true(size(sel));
                             end
+                            t = stimData(iExp).(fnx).t;
                             mu = mean(stimData(iExp).(fnx).X(sel & subsel, :), 1, 'omitnan');
                             err = 0.1*std(stimData(iExp).(fnx).X(sel & subsel, :), 0, 1, 'omitnan');
                             ci = quantile(stimData(iExp).(fnx).X(sel & subsel, :), [0.25, 0.75], 1);
-                            h(iLine) = plot(ax, tLocal, mu, Color=colorsByPower(iPower+1, :), LineStyle=lineStylesByPower(iPower+1), LineWidth=1.5, DisplayName=sprintf("%s (n=%i)", label, nnz(sel & subsel)));
+                            h(iLine) = plot(ax, t, mu, Color=colorsByPower(iPower+1, :), LineStyle=lineStylesByPower(iPower+1), LineWidth=1.5, DisplayName=sprintf("%s (n=%i)", label, nnz(sel & subsel)));
                             iLine = iLine + 1;
-                            % patch(ax, [tLocal, flip(tLocal)], [mu-err, flip(mu+err)], colors(iPower, 1:3), FaceAlpha=0.1, EdgeAlpha=0)
-                            patch(ax, [tLocal, flip(tLocal)], [ci(1, :), flip(ci(2, :))], colorsByPower(iPower+1, 1:3), FaceAlpha=0.05, EdgeColor=colorsByPower(iPower+1, 1:3), EdgeAlpha=p.varianceEdgeAlhpa, LineStyle=':', LineWidth=0.5);
+                            patch(ax, [t, flip(t)], [ci(1, :), flip(ci(2, :))], colorsByPower(iPower+1, 1:3), FaceAlpha=0.05, EdgeColor=colorsByPower(iPower+1, 1:3), EdgeAlpha=p.varianceEdgeAlhpa, LineStyle=':', LineWidth=0.5);
                         case {'psmh'}
                             edges = stimData(iExp).psmh.stim.(trialType).edges;
                             N = mean(stimData(iExp).psmh.stim.(trialType).N(sel, :), 1, 'omitnan');
@@ -133,7 +137,6 @@ for iExp = length(uniqueExpNames) + 1 % nSessions+1 will plot session average
                             iLine = iLine + 1;
                         case {'X', 'XInc', 'XDec', 'XFlt'} % Spike rate
                             t = stimData(iExp).psth.stim.t;
-                            mumu = mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), [1, 3], 'omitnan');
                             switch fn
                                 case 'X'
                                     fnx = 'X';
@@ -141,6 +144,7 @@ for iExp = length(uniqueExpNames) + 1 % nSessions+1 will plot session average
                                     fnx = char(string(fn) + trialType);
                                     fnx(5) = upper(fnx(5)); % XIncPress
                             end
+                            mumu = mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), [1, 3], 'omitnan');
                             if showIndividualTracesByPower(iPower+1)
                                 switch p.showVarianceFor
                                     case "trials"
@@ -221,7 +225,7 @@ for iExp = length(uniqueExpNames) + 1 % nSessions+1 will plot session average
         end
         title(tl, sprintf('Exp %i - %s - %s (n=%i)', iExp, stimData(iExp).name, trialTypeDispName, nnz(stimData(iExp).trialType==trialType)), Interpreter='none')
         xlabel(tl, 'time to decoder/opto onset (s)')
-        fontsize(fig, 9, 'points')
+        fontsize(fig, 10, 'points')
         print(fig, fullfile(exportPath, sprintf("Exp %i - %s - %s.png", iExp, stimData(iExp).name, trialTypeDispName)), '-dpng')
     end
 end
