@@ -716,7 +716,6 @@ showIndividualTracesByPower = [true, true, true];
 individualTracesAlpha = 0.2;
 
 selExp = length(uniqueExpNames) + (1:2);
-
 script_optrodeSNr_plots_stim_triggered_kinematics_spikeRates;
 
 %% 1A. Plot stim triggered kinematics
@@ -833,7 +832,7 @@ try
     close(fig)
 end
 for iExp = length(uniqueExpNames) + (1:2)
-    fig = figure(Units="inches", Position=[25, 0.5, 6, 12]);
+    fig = figure(Units="inches", Position=[3*(iExp-1), 0.5, 6, 12/25*size(stimData(iExp).psth.stim.X, 3)]);
     tlp = tiledlayout(fig, 2, 1, Padding='tight');
     tl = gobjects(2, 1);
     tl(1) = tiledlayout(tlp, 2, sum(l.w), TileSpacing='compact');
@@ -905,19 +904,21 @@ for iExp = length(uniqueExpNames) + (1:2)
                 % mu(isnan(mu)) = 0;
                 imagesc(ax, XData=t, CData=mu, AlphaData=~isnan(mu));
                 ax.Color = [0.67, 0.67, 0.67];
-                boundaries = [1, cumsum([size(muDec, 1), size(muFlt, 1), size(muInc, 1)])];
-                xline(ax, durations, 'k--')
-                yline(ax, boundaries(2:3) + 0.5, 'k--', LineWidth=1.5)
-                xlim(ax, xl{iDuration+1})
-                ylim(ax, [0.5, boundaries(end)+0.5])
-                if iDuration == 0
-                    yticks(ax, boundaries)
-                    catNames = ["dec", "flat", "inc"];
-                    for i = 1:3
-                        text(ax, xl{1}(1), mean(boundaries(i:i+1)), catNames(i), Rotation=90, HorizontalAlignment='center', VerticalAlignment='bottom')
+                try
+                    boundaries = [1, cumsum([size(muDec, 1), size(muFlt, 1), size(muInc, 1)])];
+                    xline(ax, durations, 'k--')
+                    yline(ax, boundaries(2:3) + 0.5, 'k--', LineWidth=1.5)
+                    xlim(ax, xl{iDuration+1})
+                    ylim(ax, [0.5, boundaries(end)+0.5])
+                    if iDuration == 0
+                        yticks(ax, boundaries)
+                        catNames = ["dec", "flat", "inc"];
+                        for i = 1:3
+                            text(ax, xl{1}(1), mean(boundaries(i:i+1)), catNames(i), Rotation=90, HorizontalAlignment='center', VerticalAlignment='bottom')
+                        end
+                    else
+                        yticklabels(ax, [])
                     end
-                else
-                    yticklabels(ax, [])
                 end
                 ax.YAxis.Direction = 'reverse';
                 applyCustomColormap(ax, [-3, 3], hlim=[0.375, 0, -0.3, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
