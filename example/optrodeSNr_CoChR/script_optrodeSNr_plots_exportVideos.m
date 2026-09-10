@@ -82,28 +82,48 @@ for iExp = 1:length(exp)
 end
 
 %% Combine sessions
-for iExp = 1:length(exp)
-    for iPower = 1:nPowers
-        if iPower == 1
-            nDurations = 1;
-        else
-            nDurations = 2;
-        end
-        for iDuration = 1:nDurations
-            for trialType = ["press", "lick"]
-                CLIPS = arrayfun(@(clips) clips.(trialType), clips(1:length(exp), iPower, iDuration), UniformOutput=false);
-                CLIPS = cat(1, CLIPS{:});
-                MOVETIMES = arrayfun(@(moveTimes) moveTimes.(trialType), moveTimes(1:length(exp), iPower, iDuration), UniformOutput=false);
-                MOVETIMES = cat(1, MOVETIMES{:});
-                clips(length(exp) + 1, iPower, iDuration).(trialType) = CLIPS; 
-                moveTimes(length(exp) + 1, iPower, iDuration).(trialType) = MOVETIMES; 
-                clear CLIPS MOVETIMES
-            end
+for iPower = 1:nPowers
+    if iPower == 1
+        nDurations = 1;
+    else
+        nDurations = 2;
+    end
+    for iDuration = 1:nDurations
+        for trialType = ["press", "lick"]
+            CLIPS = arrayfun(@(clips) clips.(trialType), clips(1:length(exp), iPower, iDuration), UniformOutput=false);
+            CLIPS = cat(1, CLIPS{:});
+            MOVETIMES = arrayfun(@(moveTimes) moveTimes.(trialType), moveTimes(1:length(exp), iPower, iDuration), UniformOutput=false);
+            MOVETIMES = cat(1, MOVETIMES{:});
+            clips(length(exp) + 1, iPower, iDuration).(trialType) = CLIPS; 
+            moveTimes(length(exp) + 1, iPower, iDuration).(trialType) = MOVETIMES; 
+            clear CLIPS MOVETIMES
         end
     end
 end
+
+%% Combine sessions (good ones)
+selGoodSessions = [1, 2, 3, 7]; 
+for iPower = 1:nPowers
+    if iPower == 1
+        nDurations = 1;
+    else
+        nDurations = 2;
+    end
+    for iDuration = 1:nDurations
+        for trialType = ["press", "lick"]
+            CLIPS = arrayfun(@(clips) clips.(trialType), clips(selGoodSessions, iPower, iDuration), UniformOutput=false);
+            CLIPS = cat(1, CLIPS{:});
+            MOVETIMES = arrayfun(@(moveTimes) moveTimes.(trialType), moveTimes(selGoodSessions, iPower, iDuration), UniformOutput=false);
+            MOVETIMES = cat(1, MOVETIMES{:});
+            clips(length(exp) + 2, iPower, iDuration).(trialType) = CLIPS; 
+            moveTimes(length(exp) + 2, iPower, iDuration).(trialType) = MOVETIMES; 
+            clear CLIPS MOVETIMES
+        end
+    end
+end
+
 %% Make big video displaying all trials at once
-for iExp = length(exp) + 1
+for iExp = length(exp) + 2
     for iPower = 1:nPowers
         if iPower == 1
             nDurations = 1;
