@@ -43,7 +43,7 @@
 % meta.lick = mean(eta.lick.X(:, isin(eta.lick.t, [-0.3, 0])), 2, 'omitnan');
 % 
 % %% Plot ETAs (reach vs. lick vs. opto; all sessions combined, or per session)
-% varsSnapshot = who; 
+% vs = who; 
 % 
 % TRIALTYPES = ["press", "lick", "stim", "stim"];
 % SELTYPES = ["press", "lick", "press", "lick"];
@@ -129,10 +129,10 @@
 %     print(fig, fullfile("C:\Users\AssadLab\Pictures\SNrOpto", sprintf("%s.png", ttl)), '-dpng')
 % end
 % 
-% clearvars('-except', varsSnapshot{:});
+% clearvars('-except', vs{:});
 % 
 % %% Plot scattered METAs (reach/lick vs. opto)
-% varsSnapshot = who; 
+% vs = who; 
 % 
 % fig = figure(Units='inches', Position=[1, 1, 10, 5]);
 % tlp = tiledlayout(fig, 1, 2); 
@@ -183,7 +183,7 @@
 % xlim(AX([1, 3]), [-3, 7])
 % ylim(AX, [-3, 7])
 % 
-% clearvars('-except', varsSnapshot{:}, 'finalAnswer');
+% clearvars('-except', vs{:}, 'finalAnswer');
 % %% Load laserpower data (SLOW!)
 % V = cell(length(uniqueExpNames), 1);
 % for iExp = 1:length(uniqueExpNames)
@@ -418,12 +418,16 @@ for iExp = 1:length(exp)
         exp(iExp).vtdR = vtd;
     end
 end
+clear dlcResultsPath results from toL toR iExp vtd i
+
+clear vs
+vs = vertcat(who, 'vs');
 
 %% Calculate psth (spike rates) - we're making large 3D arrays with lots of NaNs, so doing this on the fly is a bit faster than
 % We also combine all sessions here
-selGoodSessions = [1, 2, 3, 7]; 
-euGood = [exp(selGoodSessions).eu];
-isGoodUnit = ismember(eu, euGood);
+c.selGoodSessions = [1, 2, 3, 7]; 
+euGood = [exp(c.selGoodSessions).eu];
+c.isGoodUnit = ismember(eu, euGood);
 
 p.kinematicDataSource = "spd";
 kineFeatures = ["Jaw", "HandL", "HandR"];
@@ -582,17 +586,17 @@ end
 stimData = stimData(1:length(expToEuIndices));
 for fn = ["power", "ain", "stimOn", "stimOff", "duration", "iPower", "iDuration", "hash", "stimCtrl", "trialType", "trialTypeCtrl"]
     X = {stimData(1:length(expToEuIndices)).(fn)};
-    XGood = cat(1, X{selGoodSessions});
+    XGood = cat(1, X{c.selGoodSessions});
     X = cat(1, X{:});
     stimData(length(expToEuIndices)+1).(fn) = X;
     stimData(length(expToEuIndices)+2).(fn) = XGood;
 end
 for fn = ["Jaw", "HandL", "HandR"]
     X = arrayfun(@(stimData) stimData.(fn).X, stimData(1:length(expToEuIndices)), UniformOutput=false);
-    XGood = cat(1, X{selGoodSessions});
+    XGood = cat(1, X{c.selGoodSessions});
     X = cat(1, X{:});
     XCtrl = arrayfun(@(stimData) stimData.(fn).XCtrl, stimData(1:length(expToEuIndices)), UniformOutput=false);
-    XCtrlGood = cat(1, XCtrl{selGoodSessions});
+    XCtrlGood = cat(1, XCtrl{c.selGoodSessions});
     XCtrl = cat(1, XCtrl{:});
     stimData(length(expToEuIndices)+1).(fn).X = X;
     stimData(length(expToEuIndices)+1).(fn).XCtrl = XCtrl;
@@ -606,7 +610,7 @@ for trialType = ["press", "lick"]
         N = arrayfun(@(sd) sd.psmh.(cond).(trialType).N, stimData(1:length(exp)), UniformOutput=false);
         stimData(length(expToEuIndices)+1).psmh.(cond).(trialType).N = cat(1, N{:});
         stimData(length(expToEuIndices)+1).psmh.(cond).(trialType).edges = stimData(1).psmh.(cond).(trialType).edges;
-        stimData(length(expToEuIndices)+2).psmh.(cond).(trialType).N = cat(1, N{selGoodSessions});
+        stimData(length(expToEuIndices)+2).psmh.(cond).(trialType).N = cat(1, N{c.selGoodSessions});
         stimData(length(expToEuIndices)+2).psmh.(cond).(trialType).edges = stimData(1).psmh.(cond).(trialType).edges;
     end
 end
@@ -643,31 +647,31 @@ for cond = ["stim", "ctrl"]
     end
     stimData(length(expToEuIndices)+1).psth.(cond).t = stimData(1).psth.(cond).t;
 
-    % nTrialsGood = arrayfun(@(sd) size(sd.psth.(cond).X, 1), stimData(selGoodSessions));
+    % nTrialsGood = arrayfun(@(sd) size(sd.psth.(cond).X, 1), stimData(c.selGoodSessions));
     % nUnitsGood = arrayfun(@(sd) size(sd.psth.(cond).X, 3), stimData(1:length(expToEuIndices)));
-    XGood = NaN(sum(nTrials(selGoodSessions)), nTimestamps, sum(nUnits(selGoodSessions)), 'single');
+    XGood = NaN(sum(nTrials(c.selGoodSessions)), nTimestamps, sum(nUnits(c.selGoodSessions)), 'single');
     iTrial = 0;
     iUnit = 0;
-    for iExp = selGoodSessions(:)'
+    for iExp = c.selGoodSessions(:)'
         XGood(iTrial+1:iTrial+nTrials(iExp), :, iUnit+1:iUnit+nUnits(iExp)) = stimData(iExp).psth.(cond).X;
         iTrial = iTrial + nTrials(iExp);
         iUnit = iUnit + nUnits(iExp);
     end
     stimData(length(expToEuIndices)+2).psth.(cond).X = XGood(:, :, :);
     if p.useWeakIncDec
-        stimData(length(expToEuIndices)+2).psth.(cond).XIncPress = XGood(:, :, c.isPressUpWeak(find(isGoodUnit)));
-        stimData(length(expToEuIndices)+2).psth.(cond).XDecPress = XGood(:, :, c.isPressDownWeak(find(isGoodUnit)));
+        stimData(length(expToEuIndices)+2).psth.(cond).XIncPress = XGood(:, :, c.isPressUpWeak(find(c.isGoodUnit)));
+        stimData(length(expToEuIndices)+2).psth.(cond).XDecPress = XGood(:, :, c.isPressDownWeak(find(c.isGoodUnit)));
         stimData(length(expToEuIndices)+2).psth.(cond).XFltPress = XGood(:, :, []);
-        stimData(length(expToEuIndices)+2).psth.(cond).XIncLick = XGood(:, :, c.isLickUpWeak(find(isGoodUnit)));
-        stimData(length(expToEuIndices)+2).psth.(cond).XDecLick = XGood(:, :, c.isLickDownWeak(find(isGoodUnit)));
+        stimData(length(expToEuIndices)+2).psth.(cond).XIncLick = XGood(:, :, c.isLickUpWeak(find(c.isGoodUnit)));
+        stimData(length(expToEuIndices)+2).psth.(cond).XDecLick = XGood(:, :, c.isLickDownWeak(find(c.isGoodUnit)));
         stimData(length(expToEuIndices)+2).psth.(cond).XFltLick = XGood(:, :, []);
     else
-        stimData(length(expToEuIndices)+2).psth.(cond).XIncPress = XGood(:, :, c.isPressUp(find(isGoodUnit)));
-        stimData(length(expToEuIndices)+2).psth.(cond).XDecPress = XGood(:, :, c.isPressDown(find(isGoodUnit)));
-        stimData(length(expToEuIndices)+2).psth.(cond).XFltPress = XGood(:, :, ~c.isPressResponsive(find(isGoodUnit)));
-        stimData(length(expToEuIndices)+2).psth.(cond).XIncLick = XGood(:, :, c.isLickUp(find(isGoodUnit)));
-        stimData(length(expToEuIndices)+2).psth.(cond).XDecLick = XGood(:, :, c.isLickDown(find(isGoodUnit)));
-        stimData(length(expToEuIndices)+2).psth.(cond).XFltLick = XGood(:, :, ~c.isLickResponsive(find(isGoodUnit)));
+        stimData(length(expToEuIndices)+2).psth.(cond).XIncPress = XGood(:, :, c.isPressUp(find(c.isGoodUnit)));
+        stimData(length(expToEuIndices)+2).psth.(cond).XDecPress = XGood(:, :, c.isPressDown(find(c.isGoodUnit)));
+        stimData(length(expToEuIndices)+2).psth.(cond).XFltPress = XGood(:, :, ~c.isPressResponsive(find(c.isGoodUnit)));
+        stimData(length(expToEuIndices)+2).psth.(cond).XIncLick = XGood(:, :, c.isLickUp(find(c.isGoodUnit)));
+        stimData(length(expToEuIndices)+2).psth.(cond).XDecLick = XGood(:, :, c.isLickDown(find(c.isGoodUnit)));
+        stimData(length(expToEuIndices)+2).psth.(cond).XFltLick = XGood(:, :, ~c.isLickResponsive(find(c.isGoodUnit)));
     end
     stimData(length(expToEuIndices)+2).psth.(cond).t = stimData(1).psth.(cond).t;
 end
@@ -688,6 +692,9 @@ for iExp = 1:length(stimData)
             size(stimData(iExp).psth.stim.XIncLick, 3), size(stimData(iExp).psth.stim.XDecLick, 3), size(stimData(iExp).psth.stim.XFltLick, 3))
     end
 end
+
+vs = vertcat(vs, 'stimData');
+clearvars('-except', vs{:})
 
 %% 1A. Plot stim triggered kinematics
 close all
@@ -715,53 +722,29 @@ colorsByPower = [.2,.2,.2,1; .2,.2,.8,.5; .2,.2,.8,1]; % ctrl, 5mW, 20mW
 showIndividualTracesByPower = [true, true, true];
 individualTracesAlpha = 0.2;
 
-selExp = length(uniqueExpNames) + (1:2);
+selExp = length(uniqueExpNames) + 1;
 script_optrodeSNr_plots_stim_triggered_kinematics_spikeRates;
+clearvars('-except', vs{:})
 
-%% 1A. Plot stim triggered kinematics
-% close all
-xl = {[-1, 3], [-1, 5]};
-features = ["psmh", "Jaw", "HandL", "HandR"];
-featureDispNames = ["psmh", "jaw", "l.hand", "r.hand"];
-yl = {[0, 0.2]};
-featureUnits = ["probability"];
-switch p.kinematicDataSource
-    case "pos"
-        yl = horzcat(yl, {[-2, 2], [-1, 1], [-1, 1]});
-        featureUnits = horzcat(featureUnits, repmat("pos (a.u.)", [1, 3]));
-    case "spd"
-        yl = horzcat(yl, {[0, 12], [0, 8], [0, 8]});
-        featureUnits = horzcat(featureUnits, repmat("speed (a.u.)", [1, 3]));
-    case "vel"
-        yl = horzcat(yl, {[-6, 6], [-4, 4], [-4, 4]});
-        featureUnits = horzcat(featureUnits, repmat("vel (a.u.)", [1, 3]));
-end
-p.showVarianceFor = "units"; % "trials", "units"
-p.showVarianceAs = "sd"; % "ci" plot 25%/75% CI as shaded area; "sd" plot mean+-sd; "traces" to plot single traces;
-p.varianceEdgeAlhpa = 0;
-lineStylesByPower = ["-", "-", "-"]; % ctrl, 5mW, 20mW
-colorsByPower = [.2,.2,.2,1; .2,.2,.8,.5; .2,.2,.8,1]; % ctrl, 5mW, 20mW
-showIndividualTracesByPower = [true, true, true];
-individualTracesAlpha = 0.2;
-selExp = length(uniqueExpNames) + (1:2);
-
-script_optrodeSNr_plots_stim_triggered_kinematics_spikeRates;
-
-%% 1B. Plot stim triggered kinematics (inhibited vs. breakthrough movement; lick)
+%% 1B. Plot stim triggered kinematics (inhibited vs. breakthrough movement; lick vs. reach)
+close all
+trialTypes = "lick";
 xl = {[-0.5, 2], [-0.5, 4]};
-features = ["psmh", "JawInhibited", "JawBreakthrough"];
-featureDispNames = ["psmh", "jaw (inhibited)", "jaw (breakthrough)"];
-yl = {[0, 0.2]};
-featureUnits = ["probability"];
+% xl = {[-0.5, 0.5], [-0.5, 0.5]};
+breakthroughThreshold = 0.5; % NaN -> use opto duration
+features = ["psmhFirstCumulativeInhibited", "psmhFirstCumulativeBreakthrough", "psmhSecondCumulativeInhibited", "psmhSecondCumulativeBreakthrough", "XInhibited", "XBreakthrough", "JawInhibited", "JawBreakthrough", "HandLInhibited", "HandLBreakthrough", "HandRInhibited", "HandRBreakthrough"];
+featureDispNames = ["1st move", "1st move", "2nd move", "2nd move", "spike rate", "spike rate", "jaw (inhibited)", "jaw (breakthrough)", "l.hand (inhibited)", "l.hand (breakthrough)", "r.hand (inhibited)", "r.hand (breakthrough)"];
+yl = {[0, 1], [0, 1], [0, 0.5], [0, 0.5], [-.5, 1.5], [-.5, 1.5]};
+featureUnits = ["inhibited cdf", "breakthrough cdf", "inhibited cdf", "breakthrough cdf", "(inhibited, a.u.)", "(breakthrough, a.u.)"];
 switch p.kinematicDataSource
     case "pos"
-        yl = horzcat(yl, {[-2, 2], [-2, 2], [-1, 1], [-1, 1], [-1, 1], [-1, 1]});
+        yl = horzcat(yl, {[-1, 1], [-1, 1], [-1, 1], [-1, 1], [-1, 1], [-1, 1]});
         featureUnits = horzcat(featureUnits, repmat("pos (a.u.)", [1, 6]));
     case "spd"
-        yl = horzcat(yl, {[0, 12], [0, 12], [0, 8], [0, 8], [0, 8], [0, 8]});
+        yl = horzcat(yl, {[0, 12], [0, 8], [0, 8], [0, 12], [0, 8], [0, 8]});
         featureUnits = horzcat(featureUnits, repmat("speed (a.u.)", [1, 6]));
     case "vel"
-        yl = horzcat(yl, {[-6, 6], [-6, 6], [-4, 4], [-4, 4], [-4, 4], [-4, 4]});
+        yl = horzcat(yl, {[-6, 6], [-4, 4], [-4, 4], [-6, 6], [-4, 4], [-4, 4]});
         featureUnits = horzcat(featureUnits, repmat("vel (a.u.)", [1, 6]));
 end
 p.showVarianceFor = "units"; % "trials", "units"
@@ -771,37 +754,13 @@ lineStylesByPower = ["-", "-", "-"]; % ctrl, 5mW, 20mW
 colorsByPower = [.2,.2,.2,1; .2,.2,.8,.5; .2,.2,.8,1]; % ctrl, 5mW, 20mW
 showIndividualTracesByPower = [true, true, true];
 individualTracesAlpha = 0.2;
-selExp = length(uniqueExpNames) + (1:2);
+selExp = length(uniqueExpNames) + 1;
 
 script_optrodeSNr_plots_stim_triggered_kinematics_spikeRates;
 
-%% 1C. Plot stim triggered kinematics (inhibited vs. breakthrough movement; reach)
-xl = {[-0.5, 2], [-0.5, 4]};
-features = ["psmh", "HandLInhibited", "HandRInhibited", "HandLBreakthrough", "HandRBreakthrough"];
-featureDispNames = ["psmh", "l.hand (inhibited)", "r.hand (inhibited)", "l.hand (breakthrough)", "r.hand (breakthrough)"];
-yl = {[0, 0.2]};
-featureUnits = ["probability"];
-switch p.kinematicDataSource
-    case "pos"
-        yl = horzcat(yl, {[-1, 1], [-1, 1], [-1, 1], [-1, 1]});
-        featureUnits = horzcat(featureUnits, repmat("pos (a.u.)", [1, 6]));
-    case "spd"
-        yl = horzcat(yl, {[0, 8], [0, 8], [0, 8], [0, 8]});
-        featureUnits = horzcat(featureUnits, repmat("speed (a.u.)", [1, 6]));
-    case "vel"
-        yl = horzcat(yl, {[-4, 4], [-4, 4], [-4, 4], [-4, 4]});
-        featureUnits = horzcat(featureUnits, repmat("vel (a.u.)", [1, 6]));
-end
-p.showVarianceFor = "units"; % "trials", "units"
-p.showVarianceAs = "sd"; % "ci" plot 25%/75% CI as shaded area; "sd" plot mean+-sd; "traces" to plot single traces;
-p.varianceEdgeAlhpa = 0;
-lineStylesByPower = ["-", "-", "-"]; % ctrl, 5mW, 20mW
-colorsByPower = [.2,.2,.2,1; .2,.2,.8,.5; .2,.2,.8,1]; % ctrl, 5mW, 20mW
-showIndividualTracesByPower = [true, true, true];
-individualTracesAlpha = 0.2;
-selExp = length(uniqueExpNames) + (1:2);
-
+trialTypes = "press";
 script_optrodeSNr_plots_stim_triggered_kinematics_spikeRates;
+clearvars('-except', vs{:})
 
 %% 1D. Plot stim triggered spike rates
 % close all

@@ -15,9 +15,12 @@ if exist(exportPath, 'dir')
 end
 mkdir(exportPath)
 
+if ~exist('trialTypes', 'var')
+    trialTypes = ["press", "lick"];
+end
 for iExp = selExp % nSessions+1 will plot session average
     x0 = 0;
-    for trialType = ["press", "lick"]
+    for trialType = trialTypes
         fig = figure(Units='normalized', Position=[x0, 0, 0.35, length(features)*0.08]);
         x0 = x0 + 0.5;
         tl = tiledlayout(fig, sum(l.h), sum(l.w), TileSpacing='compact');
@@ -30,6 +33,11 @@ for iExp = selExp % nSessions+1 will plot session average
             fn = char(features(ifn));
             % Plot STA
             for iDuration = 1:2
+                if isnan(breakthroughThreshold)
+                    breakthroughWindow = [0, p.pulseDurations(iDuration)];
+                else
+                    breakthroughWindow = [0, breakthroughThreshold];
+                end
                 ax = nexttile(tl, sum(l.w)*(ifn-1) + l.cw(iDuration), [l.h(ifn), l.w(iDuration)]);
                 AX(ifn, iDuration) = ax;
                 if ifn == 1
@@ -58,18 +66,29 @@ for iExp = selExp % nSessions+1 will plot session average
                         h(iLine) = plot(ax, t, mu, Color=colorsByPower(iPower+1, :), LineWidth=1.5, DisplayName="ctrl");%sprintf("ctrl (n=%i)", nnz(selCtrl)));
                         iLine = iLine + 1;
                         patch(ax, [t, flip(t)], [ci(1, :), flip(ci(2, :))], colorsByPower(iPower+1, 1:3), FaceAlpha=0.05, EdgeAlpha=p.varianceEdgeAlhpa, LineStyle=':', LineWidth=0.5);
-                    case {'psmh', 'psmhCumulative'}
+                    case {'psmh', 'psmhCumulative', 'psmhCumulativeInhibited', 'psmhCumulativeBreakthrough'}
                         edges = stimData(iExp).psmh.ctrl.(trialType).edges;
                         N = mean(stimData(iExp).psmh.ctrl.(trialType).N(selCtrl, :), 1, 'omitnan');
                         N(~isfinite(N)) = 0;
-                        if strcmpi(fn, 'psmhCumulative')
+                        if ismember(fn, {'psmhCumulative', 'psmhCumulativeInhibited', 'psmhCumulativeBreakthrough'})
                             N = cumsum(N);
                         end
                         h(iLine) = histogram(ax, BinEdges=edges, BinCounts=N, DisplayStyle='bar', EdgeColor='none', FaceColor=colorsByPower(iPower+1, 1:3), FaceAlpha=0.5, DisplayName="ctrl");%sprintf("ctrl (n=%i)", nnz(selCtrl)));
                         iLine = iLine + 1;
-                    case {'psmhFirst', 'psmhSecond', 'psmhFirstCumulative', 'psmhSecondCumulative'}
+                    case {'psmhFirst', 'psmhSecond', 'psmhFirstCumulative', 'psmhSecondCumulative', 'psmhFirstCumulativeInhibited', 'psmhSecondCumulativeInhibited', 'psmhFirstCumulativeBreakthrough', 'psmhSecondCumulativeBreakthrough'}
+                        if contains(fn, {'Inhibited', 'Breakthrough'})
+                            NMoves = stimData(iExp).psmh.ctrl.(trialType).N; % trials x t
+                            centers = stimData(iExp).psmh.ctrl.(trialType).edges; centers = 0.5*(centers(1:end-1) + centers(2:end));
+                        end
+                        if contains(fn, 'Inhibited')
+                            subsel = sum(NMoves(:, isin(centers, [-Inf, breakthroughWindow(2)])), 2) == 0;
+                        elseif contains(fn, 'Breakthrough')
+                            subsel = sum(NMoves(:, isin(centers, breakthroughWindow)), 2) > 0;
+                        else
+                            subsel = true(size(selCtrl));
+                        end
                         edges = stimData(iExp).psmh.ctrl.(trialType).edges;
-                        N = stimData(iExp).psmh.ctrl.(trialType).N(selCtrl, :);
+                        N = stimData(iExp).psmh.ctrl.(trialType).N(selCtrl & subsel, :);
                         N(~isfinite(N)) = 0;
                         N1 = zeros(size(N));
                         N2 = zeros(size(N));
@@ -93,10 +112,10 @@ for iExp = selExp % nSessions+1 will plot session average
                         end
                         h(iLine) = histogram(ax, BinEdges=edges, BinCounts=N, DisplayStyle='bar', EdgeColor='none', FaceColor=colorsByPower(iPower+1, 1:3), FaceAlpha=0.5, DisplayName="ctrl (1st)");%sprintf("ctrl (n=%i)", nnz(selCtrl)));
                         iLine = iLine + 1;
-                    case {'X', 'XInc', 'XDec', 'XFlt'}
+                    case {'X', 'XInc', 'XDec', 'XFlt', 'XInhibited', 'XBreakthrough'}
                         t = stimData(iExp).psth.ctrl.t;
                         switch fn
-                            case 'X'
+                            case {'X', 'XInhibited', 'XBreakthrough'}
                                 fnx = 'X';
                             case {'XInc', 'XDec', 'XFlt'}
                                 fnx = char(string(fn) + trialType);
@@ -145,13 +164,12 @@ for iExp = selExp % nSessions+1 will plot session average
                                 fnx = fnx{1};
                                 NMoves = stimData(iExp).psmh.stim.(trialType).N; % trials x t
                                 centers = stimData(iExp).psmh.stim.(trialType).edges; centers = 0.5*(centers(1:end-1) + centers(2:end));
+                                xline(ax, breakthroughWindow(2), 'k:')
                             end
                             if contains(fn, 'Inhibited')
-                                subsel = sum(NMoves(:, isin(centers, [0, 0.5])), 2) == 0;
-                                xline(ax, 0.5, 'k:')
+                                subsel = sum(NMoves(:, isin(centers, [-Inf, breakthroughWindow(2)])), 2) == 0;
                             elseif contains(fn, 'Breakthrough')
-                                subsel = sum(NMoves(:, isin(centers, [0, 0.5])), 2) > 0;
-                                xline(ax, 0.5, 'k:')
+                                subsel = sum(NMoves(:, isin(centers, breakthroughWindow)), 2) > 0;
                             else
                                 subsel = true(size(sel));
                             end
@@ -162,18 +180,43 @@ for iExp = selExp % nSessions+1 will plot session average
                             h(iLine) = plot(ax, t, mu, Color=colorsByPower(iPower+1, :), LineStyle=lineStylesByPower(iPower+1), LineWidth=1.5, DisplayName=label);%sprintf("%s (n=%i)", label, nnz(sel & subsel)));
                             iLine = iLine + 1;
                             patch(ax, [t, flip(t)], [ci(1, :), flip(ci(2, :))], colorsByPower(iPower+1, 1:3), FaceAlpha=0.05, EdgeColor=colorsByPower(iPower+1, 1:3), EdgeAlpha=p.varianceEdgeAlhpa, LineStyle=':', LineWidth=0.5);
-                        case {'psmh', 'psmhCumulative'}
+                        case {'psmh', 'psmhCumulative', 'psmhCumulativeInhibited', 'psmhCumulativeBreakthrough'}
+                            if contains(fn, {'Inhibited', 'Breakthrough'})
+                                NMoves = stimData(iExp).psmh.stim.(trialType).N; % trials x t
+                                centers = stimData(iExp).psmh.stim.(trialType).edges; centers = 0.5*(centers(1:end-1) + centers(2:end));
+                                xline(ax, breakthroughWindow(2), 'k:')
+                            end
+                            if contains(fn, 'Inhibited')
+                                subsel = sum(NMoves(:, isin(centers, [-Inf, breakthroughWindow(2)])), 2) == 0;
+                            elseif contains(fn, 'Breakthrough')
+                                subsel = sum(NMoves(:, isin(centers, breakthroughWindow)), 2) > 0;
+                            else
+                                subsel = true(size(sel));
+                            end
                             edges = stimData(iExp).psmh.stim.(trialType).edges;
-                            N = mean(stimData(iExp).psmh.stim.(trialType).N(sel, :), 1, 'omitnan');
+                            N = mean(stimData(iExp).psmh.stim.(trialType).N(sel & subsel, :), 1, 'omitnan');
                             N(~isfinite(N)) = 0;
-                            if strcmpi(fn, 'psmhCumulative')
+                            if ismember(fn, {'psmhCumulative', 'psmhCumulativeInhibited', 'psmhCumulativeBreakthrough'})
                                 N = cumsum(N);
                             end
                             h(iLine) = histogram(ax, BinEdges=edges, BinCounts=N, DisplayStyle='stairs', EdgeColor=colorsByPower(iPower+1, 1:3), EdgeAlpha=colorsByPower(iPower+1, 4), LineWidth=1.5, DisplayName=label);%sprintf("%s (n=%i)", label, nnz(sel)));
                             iLine = iLine + 1;
-                        case {'psmhFirst', 'psmhSecond', 'psmhFirstCumulative', 'psmhSecondCumulative'}
+                        case {'psmhFirst', 'psmhSecond', 'psmhFirstCumulative', 'psmhSecondCumulative', 'psmhFirstCumulativeInhibited', 'psmhSecondCumulativeInhibited', 'psmhFirstCumulativeBreakthrough', 'psmhSecondCumulativeBreakthrough'}
+                            if contains(fn, {'Inhibited', 'Breakthrough'})
+                                NMoves = stimData(iExp).psmh.stim.(trialType).N; % trials x t
+                                centers = stimData(iExp).psmh.stim.(trialType).edges; centers = 0.5*(centers(1:end-1) + centers(2:end));
+                                xline(ax, breakthroughWindow(2), 'k:')
+                            end
+                            if contains(fn, 'Inhibited')
+                                subsel = sum(NMoves(:, isin(centers, [-Inf, breakthroughWindow(2)])), 2) == 0;
+                            elseif contains(fn, 'Breakthrough')
+                                subsel = sum(NMoves(:, isin(centers, breakthroughWindow)), 2) > 0;
+                            else
+                                subsel = true(size(sel));
+                            end
+
                             edges = stimData(iExp).psmh.stim.(trialType).edges;
-                            N = stimData(iExp).psmh.stim.(trialType).N(sel, :);
+                            N = stimData(iExp).psmh.stim.(trialType).N(sel & subsel, :);
                             N(~isfinite(N)) = 0;
                             N1 = zeros(size(N));
                             N2 = zeros(size(N));
@@ -197,22 +240,34 @@ for iExp = selExp % nSessions+1 will plot session average
                             end
                             h(iLine) = histogram(ax, BinEdges=edges, BinCounts=N, DisplayStyle='stairs', EdgeColor=colorsByPower(iPower+1, 1:3), EdgeAlpha=colorsByPower(iPower+1, 4), LineWidth=1.5, DisplayName=label);%sprintf("%s (n=%i)", label, nnz(sel)));
                             iLine = iLine + 1;
-                        case {'X', 'XInc', 'XDec', 'XFlt'} % Spike rate
+                        case {'X', 'XInc', 'XDec', 'XFlt', 'XInhibited', 'XBreakthrough'} % Spike rate
                             t = stimData(iExp).psth.stim.t;
                             switch fn
-                                case 'X'
+                                case {'X', 'XInhibited', 'XBreakthrough'}
                                     fnx = 'X';
                                 case {'XInc', 'XDec', 'XFlt'}
                                     fnx = char(string(fn) + trialType);
                                     fnx(5) = upper(fnx(5)); % XIncPress
                             end
-                            mumu = mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), [1, 3], 'omitnan');
+                            if contains(fn, {'Inhibited', 'Breakthrough'})
+                                NMoves = stimData(iExp).psmh.stim.(trialType).N; % trials x t
+                                centers = stimData(iExp).psmh.stim.(trialType).edges; centers = 0.5*(centers(1:end-1) + centers(2:end));
+                                xline(ax, breakthroughWindow(2), 'k:')
+                            end
+                            if contains(fn, 'Inhibited')
+                                subsel = sum(NMoves(:, isin(centers, [-Inf, breakthroughWindow(2)])), 2) == 0;
+                            elseif contains(fn, 'Breakthrough')
+                                subsel = sum(NMoves(:, isin(centers, breakthroughWindow)), 2) > 0;
+                            else
+                                subsel = true(size(sel));
+                            end
+                            mumu = mean(stimData(iExp).psth.stim.(fnx)(sel & subsel, :, :), [1, 3], 'omitnan');
                             if showIndividualTracesByPower(iPower+1)
                                 switch p.showVarianceFor
                                     case "trials"
-                                        mu = mean(stimData(iExp).psth.stim.(fnx)(sel, :, :), 3, 'omitnan'); % avg across units: trials x time x units, then average across 3rd dim -> trials x time
+                                        mu = mean(stimData(iExp).psth.stim.(fnx)(sel & subsel, :, :), 3, 'omitnan'); % avg across units: trials x time x units, then average across 3rd dim -> trials x time
                                     case "units"
-                                        mu = mean(permute(stimData(iExp).psth.stim.(fnx)(sel, :, :), [3, 2, 1]), 3, 'omitnan'); % avg across trials: units x time x trials, then average across 3rd dim -> units x time
+                                        mu = mean(permute(stimData(iExp).psth.stim.(fnx)(sel & subsel, :, :), [3, 2, 1]), 3, 'omitnan'); % avg across trials: units x time x trials, then average across 3rd dim -> units x time
                                 end
                                 if ~isempty(mu)
                                     switch p.showVarianceAs
@@ -239,9 +294,9 @@ for iExp = selExp % nSessions+1 will plot session average
                     if featureDispNames(ifn) == "psmh"
                         switch trialType
                             case "press"
-                                ylabel(ax, ["bar-contact", featureUnits(ifn)])
+                                ylabel(ax, ["bar-contact", featureUnits(ifn)], Rotation=0)
                             case "lick"
-                                ylabel(ax, ["spout-contact", featureUnits(ifn)])
+                                ylabel(ax, ["spout-contact", featureUnits(ifn)], Rotation=0)
                         end
                     elseif ismember(string(fn), ["XInc", "XDec", "XFlt"])
                         if iExp < length(stimData)
@@ -251,9 +306,9 @@ for iExp = selExp % nSessions+1 will plot session average
                         end
                         fnx = char(string(fn) + trialType);
                         fnx(5) = upper(fnx(5));
-                        ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", sum(arrayfun(@(sd) size(sd.psth.stim.(fnx), 3), stimData(selExp))), featureUnits(ifn))])
+                        ylabel(ax, [featureDispNames(ifn), sprintf("n=%i %s", sum(arrayfun(@(sd) size(sd.psth.stim.(fnx), 3), stimData(selExp))), featureUnits(ifn))], Rotation=0)
                     else
-                        ylabel(ax, [featureDispNames(ifn), featureUnits(ifn)])
+                        ylabel(ax, [featureDispNames(ifn), featureUnits(ifn)], Rotation=0)
                     end
                 end
                 xlim(ax, xl{iDuration})
