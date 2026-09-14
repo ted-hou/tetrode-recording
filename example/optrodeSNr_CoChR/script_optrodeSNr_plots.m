@@ -429,7 +429,7 @@ c.selGoodSessions = [1, 2, 3, 7];
 euGood = [exp(c.selGoodSessions).eu];
 c.isGoodUnit = ismember(eu, euGood);
 
-p.kinematicDataSource = "spd";
+p.kinematicDataSource = "pos";
 kineFeatures = ["Jaw", "HandL", "HandR"];
 
 % Get weak version of bootstrap:
@@ -570,16 +570,172 @@ for iExp = 1:length(uniqueExpNames)
         end
     end
 
+    % % Mark down trialtype - old way with Trial.inTrial(), creates many unknowns
+    % eu0 = eu(expToEuIndices(iExp));
+    % trialType = repmat("unknown", [length(stimData(iExp).stimOn), 1]);
+    % trialType(eu0.Trials.Press.inTrial(stimData(iExp).stimOn)) = "press";
+    % trialType(eu0.Trials.Lick.inTrial(stimData(iExp).stimOn)) = "lick";
+    % trialTypeCtrl = repmat("unknown", [length(stimData(iExp).stimCtrl), 1]);
+    % trialTypeCtrl(eu0.Trials.Press.inTrial(stimData(iExp).stimCtrl)) = "press";
+    % trialTypeCtrl(eu0.Trials.Lick.inTrial(stimData(iExp).stimCtrl)) = "lick";
+    % stimData(iExp).trialType = categorical(trialType);
+    % stimData(iExp).trialTypeCtrl = categorical(trialTypeCtrl);
+
     % Mark down trialtype
     eu0 = eu(expToEuIndices(iExp));
     trialType = repmat("unknown", [length(stimData(iExp).stimOn), 1]);
-    trialType(eu0.Trials.Press.inTrial(stimData(iExp).stimOn)) = "press";
-    trialType(eu0.Trials.Lick.inTrial(stimData(iExp).stimOn)) = "lick";
+    for iTrial = 1:length(stimData(iExp).stimOn)
+        tStim = stimData(iExp).stimOn(iTrial);
+        tPress = eu0.EventTimes.FirstPress;
+        tLick = eu0.EventTimes.FirstLick;
+        tPress = tPress(find(tPress > tStim, 1, 'first'));
+        tLick = tLick(find(tLick > tStim, 1, 'first'));
+        if isempty(tPress)
+            tPress = Inf;
+        end
+        if isempty(tLick)
+            tLick = Inf;
+        end
+        if ~isfinite(tPress) && ~isfinite(tLick)
+            trialType(iTrial) = "unknown";
+        elseif tPress <= tLick
+            trialType(iTrial) = "press";
+        else
+            trialType(iTrial) = "lick";
+        end
+    end
     trialTypeCtrl = repmat("unknown", [length(stimData(iExp).stimCtrl), 1]);
-    trialTypeCtrl(eu0.Trials.Press.inTrial(stimData(iExp).stimCtrl)) = "press";
-    trialTypeCtrl(eu0.Trials.Lick.inTrial(stimData(iExp).stimCtrl)) = "lick";
+    for iTrial = 1:length(stimData(iExp).stimCtrl)
+        tStim = stimData(iExp).stimCtrl(iTrial);
+        tPress = eu0.EventTimes.FirstPress;
+        tLick = eu0.EventTimes.FirstLick;
+        tPress = tPress(find(tPress > tStim, 1, 'first'));
+        tLick = tLick(find(tLick > tStim, 1, 'first'));
+        if isempty(tPress)
+            tPress = Inf;
+        end
+        if isempty(tLick)
+            tLick = Inf;
+        end
+        if ~isfinite(tPress) && ~isfinite(tLick)
+            trialTypeCtrl(iTrial) = "unknown";
+        elseif tPress <= tLick
+            trialTypeCtrl(iTrial) = "press";
+        else
+            trialTypeCtrl(iTrial) = "lick";
+        end
+    end
     stimData(iExp).trialType = categorical(trialType);
     stimData(iExp).trialTypeCtrl = categorical(trialTypeCtrl);
+end
+
+% Calculate movement onset times
+assert(p.kineRes == 0.010)
+switch p.kinematicDataSource
+    case "spd"
+        p.moveOnset.threshold.Jaw = 1.5;
+        p.moveOnset.threshold.HandL = 1.5;
+        p.moveOnset.threshold.HandR = 1.5;
+    case "pos"
+        p.moveOnset.threshold.Jaw = .5;
+        p.moveOnset.threshold.HandL = .5;
+        p.moveOnset.threshold.HandR = .5;
+    otherwise
+        error()
+end
+p.moveOnset.pattern = [zeros(1, 0.05/p.kineRes), ones(1, 0.05/p.kineRes)];
+p.moveOnset.window = [-1, Inf];
+p.moveOnset.mode = "firstInWindow"; % "firstInWindow", "lastBeforeContact"
+
+firstOne = find(p.moveOnset.pattern, 1, 'first');
+
+% Get time of first bar/spout contact
+for iExp = 1:length(exp)
+    eu0 = exp(iExp).eu(1);
+    for trialType = ["press", "lick"]
+        switch trialType
+            case "press"
+                tFirstMove = eu0.EventTimes.FirstPress;
+            case "lick"
+                tFirstMove = eu0.EventTimes.FirstLick;
+        end
+        for cond = ["stim", "ctrl"]
+            switch cond
+                case "stim"
+                    tStim = stimData(iExp).stimOn;
+                    trialTypes = stimData(iExp).trialType;
+                case "ctrl"
+                    tStim = stimData(iExp).stimCtrl;
+                    trialTypes = stimData(iExp).trialTypeCtrl;
+            end
+            tContact = Inf(length(tStim), 1);
+            tReward = Inf(length(tStim), 1);
+            for iTrial = 1:length(tStim)
+                if trialTypes(iTrial) == trialType
+                    iFirstMove = find(tFirstMove >= tStim(iTrial), 1, 'first');
+                    if ~isempty(iFirstMove)
+                        tContact(iTrial) = tFirstMove(iFirstMove) - tStim(iTrial);
+                    end
+                    iFirstReward = find(eu0.EventTimes.RewardOn >= tStim(iTrial), 1, 'first');
+                    if ~isempty(iFirstReward)
+                        tReward(iTrial) = eu0.EventTimes.RewardOn(iFirstReward) - tStim(iTrial);
+                    end
+                end
+            end
+            stimData(iExp).psmh.(cond).(trialType).tContact = tContact;
+            stimData(iExp).psmh.(cond).(trialType).tReward = tReward;
+        end
+    end
+end
+
+% Get video-tracked movement onset
+for iExp = 1:length(exp)
+    for fn = ["Jaw", "HandL", "HandR"]
+        for cond = ["stim", "ctrl"]
+            t = stimData(iExp).(fn).t;
+            sel = isin(t, p.moveOnset.window);
+            t = t(sel);
+            switch cond
+                case "stim"
+                    X = stimData(iExp).(fn).X;
+                    trialTypes = string(stimData(iExp).trialType);
+                case "ctrl"
+                    X = stimData(iExp).(fn).XCtrl;
+                    trialTypes = string(stimData(iExp).trialTypeCtrl);
+            end
+            tOnset = Inf(size(X, 1), 1);
+            for iTrial = 1:size(X, 1)
+                x = X(iTrial, sel);
+                x = smoothdata(x, 'movmean', [0.1/p.kineRes, 0]);
+                iOnset = strfind(abs(x)>=p.moveOnset.threshold.(fn), p.moveOnset.pattern) + firstOne - 1;
+                trialType = trialTypes(iTrial);
+                if trialType == "unknown"
+                    tContact = Inf;
+                else
+                    tContact = stimData(iExp).psmh.(cond).(trialType).tContact(iTrial);
+                end
+                if ~isempty(iOnset)
+                    switch p.moveOnset.mode
+                        case "firstInWindow"
+                            iOnset = iOnset(1);
+                            tOnset(iTrial) = t(iOnset);
+                        case "lastBeforeContact"
+                            iLast = find(t(iOnset) <= tContact, 1, 'last');
+                            iOnset = iOnset(iLast);
+                            if ~isempty(iOnset)
+                                tOnset(iTrial) = t(iOnset);
+                            end
+                    end
+                end
+            end
+            switch cond
+                case "stim"
+                    stimData(iExp).(fn).tOnset = tOnset;
+                case "ctrl"
+                    stimData(iExp).(fn).tOnsetCtrl = tOnset;
+            end
+        end
+    end
 end
 
 % Combine all sessions, store it in stimData(nSessions+1)
@@ -598,19 +754,35 @@ for fn = ["Jaw", "HandL", "HandR"]
     XCtrl = arrayfun(@(stimData) stimData.(fn).XCtrl, stimData(1:length(expToEuIndices)), UniformOutput=false);
     XCtrlGood = cat(1, XCtrl{c.selGoodSessions});
     XCtrl = cat(1, XCtrl{:});
+    tOnset = arrayfun(@(stimData) stimData.(fn).tOnset, stimData(1:length(expToEuIndices)), UniformOutput=false);
+    tOnsetGood = cat(1, tOnset{c.selGoodSessions});
+    tOnset = cat(1, tOnset{:});
+    tOnsetCtrl = arrayfun(@(stimData) stimData.(fn).tOnsetCtrl, stimData(1:length(expToEuIndices)), UniformOutput=false);
+    tOnsetCtrlGood = cat(1, tOnsetCtrl{c.selGoodSessions});
+    tOnsetCtrl = cat(1, tOnsetCtrl{:});
     stimData(length(expToEuIndices)+1).(fn).X = X;
     stimData(length(expToEuIndices)+1).(fn).XCtrl = XCtrl;
     stimData(length(expToEuIndices)+1).(fn).t = stimData(1).(fn).t;
+    stimData(length(expToEuIndices)+1).(fn).tOnset = tOnset;
+    stimData(length(expToEuIndices)+1).(fn).tOnsetCtrl = tOnsetCtrl;
     stimData(length(expToEuIndices)+2).(fn).X = XGood;
     stimData(length(expToEuIndices)+2).(fn).XCtrl = XCtrlGood;
     stimData(length(expToEuIndices)+2).(fn).t = stimData(1).(fn).t;
+    stimData(length(expToEuIndices)+2).(fn).tOnset = tOnsetGood;
+    stimData(length(expToEuIndices)+2).(fn).tOnset = tOnsetCtrlGood;
 end
 for trialType = ["press", "lick"]
     for cond = ["stim", "ctrl"]
         N = arrayfun(@(sd) sd.psmh.(cond).(trialType).N, stimData(1:length(exp)), UniformOutput=false);
+        tContact = arrayfun(@(sd) sd.psmh.(cond).(trialType).tContact, stimData(1:length(exp)), UniformOutput=false);
+        tReward = arrayfun(@(sd) sd.psmh.(cond).(trialType).tReward, stimData(1:length(exp)), UniformOutput=false);
         stimData(length(expToEuIndices)+1).psmh.(cond).(trialType).N = cat(1, N{:});
+        stimData(length(expToEuIndices)+1).psmh.(cond).(trialType).tContact = cat(1, tContact{:});
+        stimData(length(expToEuIndices)+1).psmh.(cond).(trialType).tReward = cat(1, tReward{:});
         stimData(length(expToEuIndices)+1).psmh.(cond).(trialType).edges = stimData(1).psmh.(cond).(trialType).edges;
         stimData(length(expToEuIndices)+2).psmh.(cond).(trialType).N = cat(1, N{c.selGoodSessions});
+        stimData(length(expToEuIndices)+2).psmh.(cond).(trialType).tContact = cat(1, tContact{c.selGoodSessions});
+        stimData(length(expToEuIndices)+2).psmh.(cond).(trialType).tReward = cat(1, tReward{c.selGoodSessions});
         stimData(length(expToEuIndices)+2).psmh.(cond).(trialType).edges = stimData(1).psmh.(cond).(trialType).edges;
     end
 end
@@ -696,6 +868,78 @@ end
 vs = vertcat(vs, 'stimData');
 clearvars('-except', vs{:})
 
+%% Plot to inspect the choice of parameters for onset detection
+close all
+colors = struct(onset=[.15, .15, .15], stim=hsl2rgb([.7, .5, .5]), press=hsl2rgb([0, .5, .5]), lick=hsl2rgb([.7, .5, .5]), reward=hsl2rgb([.1, .8, .5]));
+ylSpike = [-1, 3];
+ylKine = [-5, 5];
+fig = figure;
+tl = tiledlayout(fig, 4, 1);
+ax = gobjects(4, 1);
+i = 0;
+for fn = ["Spikes", "Jaw", "HandL", "HandR"]
+    i = i + 1;
+    ax(i) = nexttile(tl);
+    hold(ax(i), 'on')
+    ylabel(ax(i), fn, Rotation=0)
+    xticks(ax(i), [-1, 0, 1, 2, 3, 4])
+end
+xlabel(tl, 'time to opto onset (s)')
+iExp = 8; %randi(length(exp));
+t = stimData(iExp).Jaw.t;
+for iTrial = randperm(size(stimData(iExp).Jaw.X, 1), size(stimData(iExp).Jaw.X, 1))
+    trialType = string(stimData(iExp).trialType(iTrial));
+    if trialType == "unknown"
+        tContact = Inf;
+        tReward = Inf;
+    else
+        tContact = stimData(iExp).psmh.stim.(trialType).tContact(iTrial);
+        tReward = stimData(iExp).psmh.stim.(trialType).tReward(iTrial);
+    end
+    title(tl, sprintf("exp no. %i (%s) - trial no. %i (%s)", iExp, stimData(iExp).name, iTrial, trialType), FontWeight='bold', Interpreter='none')
+    i = 1;
+    cla(ax(i))
+    x = mean(stimData(iExp).psth.stim.X(iTrial, :, :), 3, 'omitnan');
+    plot(ax(i), stimData(iExp).psth.stim.t, x, 'k-')
+    patch(ax(i), [0, stimData(iExp).duration(iTrial), stimData(iExp).duration(iTrial), 0], ylSpike([1, 1, 2, 2]), colors.stim, FaceAlpha=0.1, EdgeColor='none', EdgeAlpha=0)
+    text(ax(i), stimData(iExp).duration(iTrial), ylSpike(2), sprintf("%gmW", stimData(iExp).power(iTrial)*1e3), Color=colors.stim, HorizontalAlignment='right', VerticalAlignment='top')
+
+    for fn = ["Jaw", "HandL", "HandR"]
+        i = i + 1;
+        cla(ax(i))
+        xRaw = stimData(iExp).(fn).X(iTrial, :);
+        x = smoothdata(xRaw, 'movmean', [0.1/p.kineRes, 0]);
+        tOnset = stimData(iExp).(fn).tOnset(iTrial);
+        % plot(ax(i), t, xRaw, 'k:')
+        plot(ax(i), t, x, 'k')
+        % yline(ax(i), p.moveOnset.threshold.(fn), 'r--')
+        if isfinite(tOnset)
+            xline(ax(i), tOnset, Color=colors.onset, LineStyle='-', LineWidth=1)
+            text(ax(i), tOnset, ylKine(2), sprintf("onset=%.2fs ", tOnset), Color=colors.onset, HorizontalAlignment='right', VerticalAlignment='bottom')
+        end
+        if trialType ~= "unknown"
+            if tContact <= 5
+                xline(ax(i), tContact, Color=colors.(trialType), LineWidth=2)
+                text(ax(i), tContact, ylKine(2), sprintf("%s=%.2fs", trialType, tContact), Color=colors.(trialType), HorizontalAlignment='left', VerticalAlignment='bottom')
+            elseif isfinite(tContact)
+                text(ax(i), 5, ylKine(2), sprintf("%s=%.2fs", trialType, tContact), Color=colors.(trialType), HorizontalAlignment='left', VerticalAlignment='bottom')
+            else
+                text(ax(i), 5, ylKine(2), "Inf", Color=colors.(trialType), HorizontalAlignment='left', VerticalAlignment='bottom')
+            end
+        end
+        if tReward <= 5
+            xline(ax(i), tReward, Color=colors.reward, LineWidth=2)
+            text(ax(i), tReward, 0, sprintf("reward=%.2fs", tReward), Color=colors.reward, HorizontalAlignment='left', VerticalAlignment='bottom')
+        end
+        patch(ax(i), [0, stimData(iExp).duration(iTrial), stimData(iExp).duration(iTrial), 0], ylKine([1, 1, 2, 2]), colors.stim, FaceAlpha=0.1, EdgeColor='none', EdgeAlpha=0)
+        text(ax(i), stimData(iExp).duration(iTrial), ylKine(2), sprintf("%gmW", stimData(iExp).power(iTrial)*1e3), Color=colors.stim, HorizontalAlignment='right', VerticalAlignment='top')
+    end
+    xlim(ax, [-1, 5])
+    ylim(ax(1), ylSpike)
+    ylim(ax(2:end), ylKine)
+end
+clearvars('-except', vs{:})
+
 %% 1A. Plot stim triggered kinematics
 close all
 xl = {[-0.5, 4], [-0.5, 5]};
@@ -762,7 +1006,7 @@ trialTypes = "press";
 script_optrodeSNr_plots_stim_triggered_kinematics_spikeRates;
 clearvars('-except', vs{:})
 
-%% 1D. Plot stim triggered spike rates
+%% 1C. Plot stim triggered spike rates
 % close all
 xl = {[-0.5, 2], [-0.5, 4]};
 features = ["XInc", "XDec", "XFlt", "psmh"];
@@ -780,7 +1024,174 @@ selExp = length(uniqueExpNames) + (1:2);
 
 script_optrodeSNr_plots_stim_triggered_kinematics_spikeRates;
 
-%% Plot opt responses as a heatmap
+%% 2A. Sort trials by movement onset, plot kinematics as heatmap
+close all
+selExp = length(exp) + 1;
+for iExp = selExp
+    for trialType = ["press", "lick"]
+        fig = figure();
+        tlp = tiledlayout(fig, 1, 4); % power, duration
+        title(tlp, trialType, FontWeight='bold')
+        xlabel(tlp, "time from opto onset (s)")
+        for iDuration = 1:2
+            for iPower = 1:2
+                tl = tiledlayout(tlp, 3, 1);
+                tl.Layout.Tile = (iPower-1)*2 + iDuration;
+                tl.Layout.TileSpan = [1, 1];
+                clear cb
+                title(tl, sprintf("%gmW %gs", 1e3*p.laserPowers(iPower), p.pulseDurations(iDuration)), FontWeight='bold')
+                if iPower == 0
+                else
+                    selTrials = stimData(iExp).trialType == trialType & stimData(iExp).iPower == iPower & stimData(iExp).iDuration == iDuration;
+                    tContact = stimData(iExp).psmh.stim.(trialType).tContact(selTrials);
+                    ifn = 0;
+                    for fn = ["Jaw", "HandL", "HandR"]
+                        ifn = ifn + 1;
+                        ax = nexttile(tl);
+                        hold(ax, 'on')
+
+                        tOnset = stimData(iExp).(fn).tOnset(selTrials);
+                        [~, order] = sort(tOnset, 'descend');
+                        % [~, order] = sort(tContact, 'descend');
+                        X = stimData(iExp).(fn).X(selTrials, :);
+                        for iTrial = 1:size(X, 1)
+                            X(iTrial, :) = smoothdata(X(iTrial, :), 'movmean', [0.1/p.kineRes, 0]);
+                        end
+                        t = stimData(iExp).(fn).t;
+                        imagesc(ax, XData=t, CData=X(order, :));
+                        applyCustomColormap(ax, [-3, 12], hlim=[0.375, 0, -0.3, -0.375], llim=[0.2, 1, 1, 0.3], hpwr=.3, lpwr=0.33, h0=0.33);
+                        % plot(ax, reshape([tOnset(order), tOnset(order)]', 1, []), reshape([0.5:length(order)-0.5; 1.5:length(order)+0.5], 1, []), 'g-', LineWidth=1)
+                        plot(ax, reshape([tContact(order), tContact(order), NaN(length(order), 1)]', 1, []), reshape([0.5:length(order)-0.5; 1.5:length(order)+0.5; NaN(1, length(order))], 1, []), Color=hsl2rgb([0.3, 0.7, 0.3]), LineStyle='-', LineWidth=2)
+                        % plot(ax, reshape([tContact(order), tContact(order)]', 1, []), reshape([0.5:length(order)-0.5; 1.5:length(order)+0.5], 1, []), 'g-', LineWidth=1)
+                        % plot(ax, reshape([tOnset(order), tOnset(order), NaN(length(order), 1)]', 1, []), reshape([0.5:length(order)-0.5; 1.5:length(order)+0.5; NaN(1, length(order))], 1, []), 'g-', LineWidth=4)
+                        xline(ax, 0, 'k--')
+                        % if ~exist('cb', 'var')
+                        %     cb = colorbar(ax);
+                        %     cb.Layout.Tile = 'east';
+                        %     cb.Label.String = 'speed (a.u.)';
+                        % end
+                        % title(ax, fn, FontWeight='normal')
+                        if iDuration==1 && iPower==1
+                            ylabel(ax, [fn, "trial"])
+                        end
+                        xlim(ax, [-0.5, 1])
+                        ylim(ax, [-0.5, size(X, 1)+0.5])
+                    end
+                end
+            end
+        end
+        fontsize(fig, 11, 'points')
+    end
+end
+clearvars('-except', vs{:})
+
+
+
+
+%% 2B. Scatter plot bar/spout contact time vs. movement onset
+close all
+selExp = length(exp) + 1;
+for iExp = selExp
+    for trialType = ["press", "lick"]
+        fig = figure();
+        tlp = tiledlayout(fig, 2, 2); % power, duration
+        title(tlp, trialType, FontWeight='bold')
+        for iDuration = 1:2
+            for iPower = 1:2
+                tl = tiledlayout(tlp, 3, 1);
+                tl.Layout.Tile = (iPower-1)*2 + iDuration;
+                tl.Layout.TileSpan = [1, 1];
+                title(tl, sprintf("%gmW %gs", 1e3*p.laserPowers(iPower), p.pulseDurations(iDuration)))
+                if iPower == 0
+                else
+                    selTrials  = stimData(iExp).trialType == trialType & stimData(iExp).iPower == iPower & stimData(iExp).iDuration == iDuration;
+                    tContact = stimData(iExp).psmh.stim.(trialType).tContact(selTrials);
+                    ifn = 0;
+                    for fn = ["Jaw", "HandL", "HandR"]
+                        ifn = ifn + 1;
+                        ax = nexttile(tl);
+                        hold(ax, 'on')
+                        tOnset = stimData(iExp).(fn).tOnset(selTrials);
+                        x = tOnset;
+                        y = tContact;
+                        sel = isfinite(x) & isfinite(y) & y>=0;
+                        x = x(sel);
+                        y = y(sel);
+                        mdl = fitlm(x(:), y(:));
+                        scatter(ax, x, y, 10, 'k');
+                        plot(ax, [-5; 5], mdl.predict([-5; 5]), 'k:')
+                        % title(ax, fn)
+                        xlabel(ax, sprintf("%s onset (s)", fn))
+                        switch trialType
+                            case "press"
+                                ylabel(ax, "bar contact (s)")
+                            case "lick"
+                                ylabel(ax, "spout contact (s)")
+                        end
+                        xlim(ax, [-0.5, 3])
+                        ylim(ax, [-1, 3])
+                    end
+                end
+            end
+        end
+        fontsize(fig, 11, 'points')
+    end
+end
+clearvars('-except', vs{:})
+
+%% 2C. Scatter plot bar/spout contact time vs. movement onset -> contact delay
+close all
+selExp = length(exp) + 1;
+for iExp = selExp
+    for trialType = ["press", "lick"]
+        fig = figure();
+        tlp = tiledlayout(fig, 2, 2); % power, duration
+        title(tlp, trialType, FontWeight='bold')
+        for iDuration = 1:2
+            for iPower = 1:2
+                tl = tiledlayout(tlp, 3, 1);
+                tl.Layout.Tile = (iPower-1)*2 + iDuration;
+                tl.Layout.TileSpan = [1, 1];
+                title(tl, sprintf("%gmW %gs", 1e3*p.laserPowers(iPower), p.pulseDurations(iDuration)))
+                if iPower == 0
+                else
+                    selTrials  = stimData(iExp).trialType == trialType & stimData(iExp).iPower == iPower & stimData(iExp).iDuration == iDuration;
+                    tContact = stimData(iExp).psmh.stim.(trialType).tContact(selTrials);
+                    ifn = 0;
+                    for fn = ["Jaw", "HandL", "HandR"]
+                        ifn = ifn + 1;
+                        ax = nexttile(tl);
+                        hold(ax, 'on')
+                        tOnset = stimData(iExp).(fn).tOnset(selTrials);
+                        x = tOnset;
+                        y = tContact - tOnset;
+                        sel = isfinite(x) & isfinite(y) & y>=0;
+                        x = x(sel);
+                        y = y(sel);
+                        mdl = fitlm(x(:), y(:));
+                        scatter(ax, x, y, 10, 'k');
+                        plot(ax, [-5; 5], mdl.predict([-5; 5]), 'k--')
+                        % title(ax, fn)
+                        xlabel(ax, sprintf("%s onset (s)", fn))
+                        switch trialType
+                            case "press"
+                                ylabel(ax, "bar contact delay (s)")
+                            case "lick"
+                                ylabel(ax, "spout contact delay (s)")
+                        end
+                        % xlim(ax, [-0.5, 0.5])
+                        ylim(ax, [-1, 5])
+                    end
+                end
+            end
+        end
+    end
+end
+fontsize(fig, 9, 'points')
+clearvars('-except', vs{:})
+
+
+%% 3. Plot opt responses as a heatmap
 close all
 xl = {[-1, 3], [-1, 3], [-1, 5]}; % ctrl, 5mW 1s, 5mW 3s
 l.w = cellfun(@diff, xl);
