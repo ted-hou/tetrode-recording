@@ -706,7 +706,12 @@ for iExp = 1:length(exp)
             tOnset = Inf(size(X, 1), 1);
             for iTrial = 1:size(X, 1)
                 x = X(iTrial, sel);
-                x = smoothdata(x, 'movmean', [0.1/p.kineRes, 0]);
+                switch p.kinematicDataSource
+                    case "spd"
+                        x = smoothdata(x, 'movmean', [0.1/p.kineRes, 0]);
+                    case "pos"
+                        x = x - median(X(iTrial, stimData(iExp).(fn).t<0), 'omitnan');
+                end
                 iOnset = strfind(abs(x)>=p.moveOnset.threshold.(fn), p.moveOnset.pattern) + firstOne - 1;
                 trialType = trialTypes(iTrial);
                 if trialType == "unknown"
@@ -872,7 +877,7 @@ clearvars('-except', vs{:})
 close all
 colors = struct(onset=[.15, .15, .15], stim=hsl2rgb([.7, .5, .5]), press=hsl2rgb([0, .5, .5]), lick=hsl2rgb([.7, .5, .5]), reward=hsl2rgb([.1, .8, .5]));
 ylSpike = [-1, 3];
-ylKine = [-5, 5];
+ylKine = [-4, 4];
 fig = figure;
 tl = tiledlayout(fig, 4, 1);
 ax = gobjects(4, 1);
@@ -885,8 +890,9 @@ for fn = ["Spikes", "Jaw", "HandL", "HandR"]
     xticks(ax(i), [-1, 0, 1, 2, 3, 4])
 end
 xlabel(tl, 'time to opto onset (s)')
-iExp = 8; %randi(length(exp));
+iExp = 9; %randi(length(exp));
 t = stimData(iExp).Jaw.t;
+rng(42)
 for iTrial = randperm(size(stimData(iExp).Jaw.X, 1), size(stimData(iExp).Jaw.X, 1))
     trialType = string(stimData(iExp).trialType(iTrial));
     if trialType == "unknown"
@@ -907,8 +913,13 @@ for iTrial = randperm(size(stimData(iExp).Jaw.X, 1), size(stimData(iExp).Jaw.X, 
     for fn = ["Jaw", "HandL", "HandR"]
         i = i + 1;
         cla(ax(i))
-        xRaw = stimData(iExp).(fn).X(iTrial, :);
-        x = smoothdata(xRaw, 'movmean', [0.1/p.kineRes, 0]);
+        x = stimData(iExp).(fn).X(iTrial, :);
+        switch p.kinematicDataSource
+            case "spd"
+                x = smoothdata(x, 'movmean', [0.1/p.kineRes, 0]);
+            case "pos"
+                x = x - median(x(stimData(iExp).(fn).t<0), 'omitnan');
+        end
         tOnset = stimData(iExp).(fn).tOnset(iTrial);
         % plot(ax(i), t, xRaw, 'k:')
         plot(ax(i), t, x, 'k')
