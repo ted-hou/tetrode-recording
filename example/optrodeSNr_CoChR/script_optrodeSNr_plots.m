@@ -646,6 +646,11 @@ end
 p.moveOnset.pattern = [zeros(1, 0.05/p.kineRes), ones(1, 0.05/p.kineRes)];
 p.moveOnset.window = [-1, Inf];
 p.moveOnset.mode = "firstInWindow"; % "firstInWindow", "lastBeforeContact"
+p.moveOnset.contactWindow = [0, Inf];
+p.moveOnset.contactsWindow = [-5, 5];
+p.moveOnset.rewardsWindow = [-5, 5]; % Window relative to stimOn to detect rewards in
+p.moveOnset.isRewardedWindow = [-1, 0]; % ExtendedWindow relative to [stimOn, stimOff]
+
 
 firstOne = find(p.moveOnset.pattern, 1, 'first');
 
@@ -663,27 +668,40 @@ for iExp = 1:length(exp)
             switch cond
                 case "stim"
                     tStim = stimData(iExp).stimOn;
+                    stimDuration = stimData(iExp).duration;
                     trialTypes = stimData(iExp).trialType;
                 case "ctrl"
                     tStim = stimData(iExp).stimCtrl;
+                    stimDuration = 3*ones(size(tStim)); % For ctrl we pretend it's 3s stim
                     trialTypes = stimData(iExp).trialTypeCtrl;
             end
-            tContact = Inf(length(tStim), 1);
-            tReward = Inf(length(tStim), 1);
+            tContact = Inf(length(tStim), 1); % First contact after opto
+            tContacts = cell(length(tStim), 1); % All contacts in window
+            tReward = Inf(length(tStim), 1); % First reward after opto
+            tRewards = cell(length(tStim), 1); % All rewards in window
+            isRewarded = false(length(tStim), 1);
             for iTrial = 1:length(tStim)
                 if trialTypes(iTrial) == trialType
-                    iFirstMove = find(tFirstMove >= tStim(iTrial), 1, 'first');
-                    if ~isempty(iFirstMove)
-                        tContact(iTrial) = tFirstMove(iFirstMove) - tStim(iTrial);
+                    iFirstContact = find(isin(tFirstMove, tStim(iTrial) + p.moveOnset.contactWindow), 1, 'first');
+                    if ~isempty(iFirstContact)
+                        tContact(iTrial) = tFirstMove(iFirstContact) - tStim(iTrial);
                     end
-                    iFirstReward = find(eu0.EventTimes.RewardOn >= tStim(iTrial), 1, 'first');
-                    if ~isempty(iFirstReward)
-                        tReward(iTrial) = eu0.EventTimes.RewardOn(iFirstReward) - tStim(iTrial);
-                    end
+                    selContacts = isin(tFirstMove, tStim(iTrial) + p.moveOnset.contactsWindow);
+                    tContacts{iTrial} = tFirstMove(selContacts) - tStim(iTrial);
                 end
+                iFirstReward = find(eu0.EventTimes.RewardOn >= tStim(iTrial), 1, 'first');
+                if ~isempty(iFirstReward)
+                    tReward(iTrial) = eu0.EventTimes.RewardOn(iFirstReward) - tStim(iTrial);
+                end
+                selRewards = isin(eu0.EventTimes.RewardOn, tStim(iTrial) + p.moveOnset.rewardsWindow);
+                tRewards{iTrial} = eu0.EventTimes.RewardOn(selRewards) - tStim(iTrial);
+                isRewarded(iTrial) = any(isin(tRewards{iTrial}, [p.moveOnset.isRewardedWindow(1), stimDuration(iTrial) + p.moveOnset.isRewardedWindow(2)]));
             end
             stimData(iExp).psmh.(cond).(trialType).tContact = tContact;
+            stimData(iExp).psmh.(cond).(trialType).tContacts = tContacts;
             stimData(iExp).psmh.(cond).(trialType).tReward = tReward;
+            stimData(iExp).psmh.(cond).(trialType).tRewards = tRewards;
+            stimData(iExp).psmh.(cond).(trialType).isRewarded = isRewarded;
         end
     end
 end
@@ -776,18 +794,28 @@ for fn = ["Jaw", "HandL", "HandR"]
     stimData(length(expToEuIndices)+2).(fn).tOnset = tOnsetGood;
     stimData(length(expToEuIndices)+2).(fn).tOnset = tOnsetCtrlGood;
 end
+
 for trialType = ["press", "lick"]
     for cond = ["stim", "ctrl"]
         N = arrayfun(@(sd) sd.psmh.(cond).(trialType).N, stimData(1:length(exp)), UniformOutput=false);
         tContact = arrayfun(@(sd) sd.psmh.(cond).(trialType).tContact, stimData(1:length(exp)), UniformOutput=false);
+        tContacts = arrayfun(@(sd) sd.psmh.(cond).(trialType).tContacts, stimData(1:length(exp)), UniformOutput=false);
         tReward = arrayfun(@(sd) sd.psmh.(cond).(trialType).tReward, stimData(1:length(exp)), UniformOutput=false);
+        tRewards = arrayfun(@(sd) sd.psmh.(cond).(trialType).tRewards, stimData(1:length(exp)), UniformOutput=false);
+        isRewarded = arrayfun(@(sd) sd.psmh.(cond).(trialType).isRewarded, stimData(1:length(exp)), UniformOutput=false);
         stimData(length(expToEuIndices)+1).psmh.(cond).(trialType).N = cat(1, N{:});
         stimData(length(expToEuIndices)+1).psmh.(cond).(trialType).tContact = cat(1, tContact{:});
+        stimData(length(expToEuIndices)+1).psmh.(cond).(trialType).tContacts = cat(1, tContacts{:});
         stimData(length(expToEuIndices)+1).psmh.(cond).(trialType).tReward = cat(1, tReward{:});
+        stimData(length(expToEuIndices)+1).psmh.(cond).(trialType).tRewards = cat(1, tRewards{:});
+        stimData(length(expToEuIndices)+1).psmh.(cond).(trialType).isRewarded = cat(1, isRewarded{:});
         stimData(length(expToEuIndices)+1).psmh.(cond).(trialType).edges = stimData(1).psmh.(cond).(trialType).edges;
         stimData(length(expToEuIndices)+2).psmh.(cond).(trialType).N = cat(1, N{c.selGoodSessions});
         stimData(length(expToEuIndices)+2).psmh.(cond).(trialType).tContact = cat(1, tContact{c.selGoodSessions});
+        stimData(length(expToEuIndices)+2).psmh.(cond).(trialType).tContacts = cat(1, tContacts{c.selGoodSessions});
         stimData(length(expToEuIndices)+2).psmh.(cond).(trialType).tReward = cat(1, tReward{c.selGoodSessions});
+        stimData(length(expToEuIndices)+2).psmh.(cond).(trialType).tRewards = cat(1, tRewards{c.selGoodSessions});
+        stimData(length(expToEuIndices)+2).psmh.(cond).(trialType).isRewarded = cat(1, isRewarded{c.selGoodSessions});
         stimData(length(expToEuIndices)+2).psmh.(cond).(trialType).edges = stimData(1).psmh.(cond).(trialType).edges;
     end
 end
@@ -873,81 +901,245 @@ end
 vs = vertcat(vs, 'stimData');
 clearvars('-except', vs{:})
 
-%% Plot to inspect the choice of parameters for onset detection
+%% 0A. Plot single trials as single figures, dump into folder
 close all
-colors = struct(onset=[.15, .15, .15], stim=hsl2rgb([.7, .5, .5]), press=hsl2rgb([0, .5, .5]), lick=hsl2rgb([.7, .5, .5]), reward=hsl2rgb([.1, .8, .5]));
-ylSpike = [-1, 3];
+exportPath = "E:\Figures\SNr_VGAT-Cre-CoChR\SingleTrials";
+if exist(exportPath, 'dir')
+    rmdir(exportPath, 's')
+end
+mkdir(exportPath)
+
+colors = struct(onset=[.15, .15, .15], stim=hsl2rgb([.7, .5, .5]), ctrl=hsl2rgb([0, 0, .5]), press=hsl2rgb([0, .5, .5]), lick=hsl2rgb([.4, .5, .3]), reward=hsl2rgb([.1, .8, .5]));
+xl = [-1, 5];
+ylSpike = [-4, 12];
 ylKine = [-4, 4];
-fig = figure;
-tl = tiledlayout(fig, 4, 1);
+layout.h = [3, 1, 1, 1];
+layout.ch = cumsum([1, layout.h]);
+fig = figure(Units='inches', Position=[1, 1, 10, 8]);
+tl = tiledlayout(fig, sum(layout.h), 1);
 ax = gobjects(4, 1);
 i = 0;
+featureDispName = ["spike rate", "jaw", "l.hand", "r.hand"];
+featureDispName2 = ["norm", repmat(p.kinematicDataSource, 1, 3)];
 for fn = ["Spikes", "Jaw", "HandL", "HandR"]
     i = i + 1;
-    ax(i) = nexttile(tl);
+    ax(i) = nexttile(tl, layout.ch(i), [layout.h(i), 1]);
     hold(ax(i), 'on')
-    ylabel(ax(i), fn, Rotation=0)
+    ylabel(ax(i), [featureDispName(i), featureDispName2(i), "(a.u.)"], Rotation=0)
     xticks(ax(i), [-1, 0, 1, 2, 3, 4])
 end
 xlabel(tl, 'time to opto onset (s)')
-iExp = 9; %randi(length(exp));
-t = stimData(iExp).Jaw.t;
-rng(42)
-for iTrial = randperm(size(stimData(iExp).Jaw.X, 1), size(stimData(iExp).Jaw.X, 1))
-    trialType = string(stimData(iExp).trialType(iTrial));
-    if trialType == "unknown"
-        tContact = Inf;
-        tReward = Inf;
-    else
-        tContact = stimData(iExp).psmh.stim.(trialType).tContact(iTrial);
-        tReward = stimData(iExp).psmh.stim.(trialType).tReward(iTrial);
-    end
-    title(tl, sprintf("exp no. %i (%s) - trial no. %i (%s)", iExp, stimData(iExp).name, iTrial, trialType), FontWeight='bold', Interpreter='none')
-    i = 1;
-    cla(ax(i))
-    x = mean(stimData(iExp).psth.stim.X(iTrial, :, :), 3, 'omitnan');
-    plot(ax(i), stimData(iExp).psth.stim.t, x, 'k-')
-    patch(ax(i), [0, stimData(iExp).duration(iTrial), stimData(iExp).duration(iTrial), 0], ylSpike([1, 1, 2, 2]), colors.stim, FaceAlpha=0.1, EdgeColor='none', EdgeAlpha=0)
-    text(ax(i), stimData(iExp).duration(iTrial), ylSpike(2), sprintf("%gmW", stimData(iExp).power(iTrial)*1e3), Color=colors.stim, HorizontalAlignment='right', VerticalAlignment='top')
 
-    for fn = ["Jaw", "HandL", "HandR"]
-        i = i + 1;
-        cla(ax(i))
-        x = stimData(iExp).(fn).X(iTrial, :);
-        switch p.kinematicDataSource
-            case "spd"
-                x = smoothdata(x, 'movmean', [0.1/p.kineRes, 0]);
-            case "pos"
-                x = x - median(x(stimData(iExp).(fn).t<0), 'omitnan');
+% iExp = 9; %randi(length(exp));
+for iExp = 1:length(exp)
+    % Sort neurons by stim response sign/amplitude
+    X = stimData(iExp).psth.stim.X;
+    t = stimData(iExp).psth.stim.t;
+    stimResp = squeeze(mean(X(:, isin(t, [0, 1]), :), [1, 2], 'omitnan'));
+    [~, neuronOrder] = sort(stimResp, 'descend');
+
+    rng(42)
+    for cond = ["ctrl", "stim"]
+        switch cond
+            case "stim"
+                trialTypes = stimData(iExp).trialType;
+                stimOn = stimData(iExp).stimOn;
+            case "ctrl"
+                trialTypes = stimData(iExp).trialTypeCtrl;
+                stimOn = stimData(iExp).stimCtrl;
         end
-        tOnset = stimData(iExp).(fn).tOnset(iTrial);
-        % plot(ax(i), t, xRaw, 'k:')
-        plot(ax(i), t, x, 'k')
-        % yline(ax(i), p.moveOnset.threshold.(fn), 'r--')
-        if isfinite(tOnset)
-            xline(ax(i), tOnset, Color=colors.onset, LineStyle='-', LineWidth=1)
-            text(ax(i), tOnset, ylKine(2), sprintf("onset=%.2fs ", tOnset), Color=colors.onset, HorizontalAlignment='right', VerticalAlignment='bottom')
-        end
-        if trialType ~= "unknown"
-            if tContact <= 5
-                xline(ax(i), tContact, Color=colors.(trialType), LineWidth=2)
-                text(ax(i), tContact, ylKine(2), sprintf("%s=%.2fs", trialType, tContact), Color=colors.(trialType), HorizontalAlignment='left', VerticalAlignment='bottom')
-            elseif isfinite(tContact)
-                text(ax(i), 5, ylKine(2), sprintf("%s=%.2fs", trialType, tContact), Color=colors.(trialType), HorizontalAlignment='left', VerticalAlignment='bottom')
+        for iTrial = 1:length(trialTypes) %randperm(length(trialTypes), length(trialTypes), 1))
+            trialType = string(trialTypes(iTrial));
+            switch trialType
+                case {"press", "lick"}
+                    tContacts = stimData(iExp).psmh.(cond).(trialType).tContacts{iTrial};
+                    tRewards = stimData(iExp).psmh.(cond).(trialType).tRewards{iTrial};
+                case "unknown"
+                    tContacts = [];
+                    tRewards = [];
+            end
+            switch trialType
+                case "press"
+                    trialTypeDispName = "reach_" + cond;
+                    contactDispName = "bar-contact";
+                case "lick"
+                    trialTypeDispName = "lick_" + cond;
+                    contactDispName = "spout-contact";
+                case "unknown"
+                    trialTypeDispName = "idle_" + cond;
+                    contactDispName = "";
+            end
+            timeDisp = seconds(stimOn(iTrial));
+            timeDisp.Format = "mm:ss.SSS";
+            dispName = sprintf("exp no. %i (%s) - trial no. %i (%s) - time %s", iExp, stimData(iExp).name, iTrial, trialTypeDispName, timeDisp);
+            title(tl, dispName, FontWeight='bold', Interpreter='none')
+    
+            % 1. Plot spike rate
+            i = 1;
+            cla(ax(i))
+            assert(iExp<=length(exp), "Not implemented for combined sessions.")
+            X = squeeze(stimData(iExp).psth.(cond).X(iTrial, :, neuronOrder));
+            x = mean(X, 2, 'omitnan');
+            plot(ax(i), stimData(iExp).psth.(cond).t, x, 'k-', LineWidth=1.5)
+            hLine = plot(ax(i), stimData(iExp).psth.(cond).t, X, LineWidth=0.5);
+            for iLine = 1:length(hLine)
+                set(hLine(iLine), Color=[getColor(iLine, length(hLine), 0.7), 0.25])
+            end
+            if cond == "stim"
+                patch(ax(i), [0, stimData(iExp).duration(iTrial), stimData(iExp).duration(iTrial), 0], ylSpike([1, 1, 2, 2]), colors.stim, FaceAlpha=0.1, EdgeColor='none', EdgeAlpha=0)
+                text(ax(i), 0, ylSpike(2), sprintf(" %gmW", stimData(iExp).power(iTrial)*1e3), Color=colors.stim, HorizontalAlignment='left', VerticalAlignment='bottom')
             else
-                text(ax(i), 5, ylKine(2), "Inf", Color=colors.(trialType), HorizontalAlignment='left', VerticalAlignment='bottom')
+                xline(ax(i), 0, Color=colors.ctrl, LineStyle='--')
+                text(ax(i), 0, ylSpike(2), "ctrl", Color=colors.ctrl, HorizontalAlignment='left', VerticalAlignment='bottom')
+            end
+        
+            % 2-4. Plot kinematics of bodyparts
+            t = stimData(iExp).Jaw.t;
+            for fn = ["Jaw", "HandL", "HandR"]
+                i = i + 1;
+                cla(ax(i))
+                switch cond
+                    case "stim"
+                        x = stimData(iExp).(fn).X(iTrial, :);
+                        tOnset = stimData(iExp).(fn).tOnset(iTrial);
+                    case "ctrl"
+                        x = stimData(iExp).(fn).XCtrl(iTrial, :);
+                        tOnset = stimData(iExp).(fn).tOnsetCtrl(iTrial);
+                end
+                switch p.kinematicDataSource
+                    case "spd"
+                        x = smoothdata(x, 'movmean', [0.1/p.kineRes, 0]);
+                    case "pos"
+                        x = x - median(x(stimData(iExp).(fn).t<0), 'omitnan');
+                end
+                % plot(ax(i), t, xRaw, 'k:')
+                plot(ax(i), t, x, 'k')
+                % Label movement onset
+                if isfinite(tOnset)
+                    xline(ax(i), tOnset, Color=colors.onset, LineStyle='-')
+                    text(ax(i), tOnset, ylKine(2), sprintf("onset=%.2fs ", tOnset), Color=colors.onset, HorizontalAlignment='right', VerticalAlignment='bottom')
+                end
+                % Label bar/spout contact
+                if trialType ~= "unknown"
+                    if length(tContacts) > 1
+                        disp(2);
+                    end
+                    for tContact = tContacts(:)'
+                        if isin(tContact, xl, true)
+                            xline(ax(i), tContact, Color=colors.(trialType), LineWidth=2)
+                            text(ax(i), tContact, ylKine(2), sprintf(" %s=%.2fs", contactDispName, tContact), Color=colors.(trialType), HorizontalAlignment='left', VerticalAlignment='top')
+                        end
+                    end
+                end
+                % Label reward events
+                if trialType ~= "unknown"
+                    for tReward = tRewards(:)'
+                        if isin(tReward, xl, true)
+                            xline(ax(i), tReward, Color=colors.reward, LineWidth=2)
+                            text(ax(i), tReward, ylKine(1), sprintf(" reward=%.2fs", tReward), Color=colors.reward, HorizontalAlignment='left', VerticalAlignment='bottom')
+                        end
+                    end
+                end
+                % Label opto window
+                if cond == "stim"
+                    patch(ax(i), [0, stimData(iExp).duration(iTrial), stimData(iExp).duration(iTrial), 0], ylKine([1, 1, 2, 2]), colors.stim, FaceAlpha=0.1, EdgeColor='none', EdgeAlpha=0)
+                    text(ax(i), 0, ylKine(1), sprintf(" %gmW", stimData(iExp).power(iTrial)*1e3), Color=colors.stim, HorizontalAlignment='left', VerticalAlignment='bottom')
+                else
+                    xline(ax(i), 0, Color=colors.ctrl, LineStyle='--')
+                    text(ax(i), 0, ylKine(1), "ctrl", Color=colors.ctrl, HorizontalAlignment='left', VerticalAlignment='bottom')
+                end
+            end
+            xlim(ax, xl)
+            ylim(ax(1), ylSpike)
+            ylim(ax(2:end), ylKine)
+            fontsize(fig, 9, 'points')
+    
+            fileName = sprintf("exp%i_%s_%s_trial%i.png", iExp, stimData(iExp).name, trialTypeDispName, iTrial);
+            print(fig, fullfile(exportPath, fileName), '-dpng', '-r0')
+        end
+    end
+end
+clearvars('-except', vs{:})
+
+%% 0B. Calculate total distance traveled during stim vs. ctrl (rewarded vs. unrewarded)
+close all
+edges = 0:0.25:15;
+for iExp = length(exp) + 1
+    for trialType = ["press", "lick"]
+        fig = figure();
+        tl = tiledlayout(fig, 2, 3, TileIndexing="columnmajor"); % fn, cond
+        title(tl, trialType)
+        xlabel(tl, 'mean speed, [1s, 3s] after stim (a.u.)')
+        ylabel(tl, 'fraction of trials')
+        ax = gobjects(3, 2);
+        ifn = 0;
+        for fn = ["Jaw", "HandL", "HandR"]
+            ifn = ifn + 1;
+            ic = 0;
+            for rewarded = [false, true]
+                switch rewarded
+                    case true
+                        dispName = "rewarded";
+                    case false
+                        dispName = "unrewarded";
+                end
+                ic = ic + 1;
+                ax(ifn, ic) = nexttile(tl);
+                hold(ax(ifn, ic), 'on')
+                title(ax(ifn, ic), sprintf("%s %s", fn, dispName))
+                h = gobjects(2, 1);
+                for cond = ["ctrl", "stim"]
+                    switch rewarded
+                        case true
+                            selTrialsByReward = stimData(iExp).psmh.(cond).(trialType).isRewarded;
+                        case false
+                            selTrialsByReward = ~stimData(iExp).psmh.(cond).(trialType).isRewarded;
+                    end
+                    switch cond
+                        case "stim"
+                            xn = "X";
+                            stimDuration = stimData(iExp).duration;
+                            selTrialsByDuration = stimDuration == 3;
+                            selTrials = selTrialsByReward & selTrialsByDuration & stimData(iExp).trialType == trialType;
+                        case "ctrl"
+                            xn = "XCtrl";
+                            stimDuration = 3*ones(size(stimData(iExp).stimCtrl));
+                            selTrialsByDuration = true(size(stimDuration));
+                            selTrials = selTrialsByReward & selTrialsByDuration & stimData(iExp).trialTypeCtrl == trialType;
+                    end
+                    t = stimData(iExp).(fn).t;
+                    X = stimData(iExp).(fn).(xn)(selTrials, :);
+                    durs = stimDuration(selTrials);
+                    D = zeros(size(X, 1), 1);
+                    for iTrial = 1:size(X, 1)
+                        % x = X(iTrial, isin(t, [0, durs(iTrial)]));
+                        % D(iTrial) = sum(abs(diff(x)))./durs(iTrial);
+                        x = X(iTrial, isin(t, [1, 3]));
+                        tt = t(isin(t, [1, 3]));
+                        selnan = isnan(x);
+                        if any(selnan) && nnz(~selnan)>2
+                            x(selnan) = interp1(tt(~selnan), x(~selnan), x(selnan), 'linear', 'extrap');
+                        end
+                        D(iTrial) = sum(abs(diff(x)))./2;
+                    end
+                    mu = median(D, 'omitnan');
+                    switch cond
+                        case "ctrl"
+                            h(1) = histogram(ax(ifn, ic), D, edges, DisplayStyle='stairs', EdgeColor='k', Normalization='probability', DisplayName=sprintf("%s, (median=%.1f)", cond, mu));
+                            xline(ax(ifn, ic), mu, 'k--', LineWidth=2)
+                            DCtrl = D;
+                        case "stim"
+                            h(2) = histogram(ax(ifn, ic), D, edges, FaceColor=hsl2rgb([0.6, 1, 0.5]), FaceAlpha=0.5, EdgeColor='none', Normalization='probability', DisplayName=sprintf("%s, (median=%.1f)", cond, mu));
+                            xline(ax(ifn, ic), mu, Color=hsl2rgb([0.6, 1, 0.5]), LineStyle='--', LineWidth=2)
+                            DStim = D;
+                    end
+                end
+                [pVal, hVal] = ranksum(DCtrl, DStim);
+                text(ax(ifn, ic), 15, 0, sprintf("p<%g", pVal), HorizontalAlignment='right', VerticalAlignment='bottom')
+                legend(h)
             end
         end
-        if tReward <= 5
-            xline(ax(i), tReward, Color=colors.reward, LineWidth=2)
-            text(ax(i), tReward, 0, sprintf("reward=%.2fs", tReward), Color=colors.reward, HorizontalAlignment='left', VerticalAlignment='bottom')
-        end
-        patch(ax(i), [0, stimData(iExp).duration(iTrial), stimData(iExp).duration(iTrial), 0], ylKine([1, 1, 2, 2]), colors.stim, FaceAlpha=0.1, EdgeColor='none', EdgeAlpha=0)
-        text(ax(i), stimData(iExp).duration(iTrial), ylKine(2), sprintf("%gmW", stimData(iExp).power(iTrial)*1e3), Color=colors.stim, HorizontalAlignment='right', VerticalAlignment='top')
     end
-    xlim(ax, [-1, 5])
-    ylim(ax(1), ylSpike)
-    ylim(ax(2:end), ylKine)
 end
 clearvars('-except', vs{:})
 
@@ -958,6 +1150,7 @@ features = ["X", "psmhFirst", "psmhSecond", "psmhFirstCumulative", "psmhSecondCu
 featureDispNames = ["spike rate", "1st move", "2nd move", "1st move", "2nd move", "jaw", "l.hand", "r.hand"];
 yl = {[-1.5, 3], [0, 0.2], [0, 0.05], [0, 1], [0, 0.3]};
 featureUnits = ["(a.u.)", "pdf", "pdf", "cdf", "cdf"];
+breakthroughThreshold = NaN; % NaN -> use opto duration
 switch p.kinematicDataSource
     case "pos"
         yl = horzcat(yl, {[-2, 2], [-1, 1], [-1, 1]});
