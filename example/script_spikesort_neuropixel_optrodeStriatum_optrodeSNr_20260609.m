@@ -1,5 +1,5 @@
 %% Spike detection
-pause(20*60);
+% pause(25*60);
 
 clear, clc
 folders = { ...
@@ -21,8 +21,11 @@ folders = { ...
     % 'C:\SERVER\desmond46\desmond46_20260717', ... SNr ChR2 Optrode, Sorted by Emma
     % 'C:\SERVER\desmond46\desmond46_20260722', ... SNr ChR2 Optrode, Sorted by Emma
     % 'C:\SERVER\desmond47\desmond47_20260724', ... SNr ChR2 Optrode, Sorted by Emma
-    'C:\SERVER\desmond46\desmond46_20260728', ... SNr ChR2 Optrode, Sorted by Emma
-    'C:\SERVER\desmond47\desmond47_20260729', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond46\desmond46_20260728', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\desmond47\desmond47_20260729', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\daisy38\daisy38_20261026', ... SNr somBiPOLES Optrode
+    % 'C:\SERVER\daisy38\daisy38_20261027', ... SNr somBiPOLES Optrode
+    'C:\SERVER\daisy38\daisy38_20261028', ... SNr somBiPOLES Optrode
     };
 
 chunkSize = 32;
