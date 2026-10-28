@@ -1478,10 +1478,12 @@ classdef EphysUnit < handle
             shiftDurationTolerance = p.Results.shiftDurationTolerance;
 
             if isnumeric(tAC)
-                error('Not implemented: acTimestamps is numeric, use event name string instead.')
+                assert(isscalar(obj))
+                % error('Not implemented: acTimestamps is numeric, use event name string instead.')
+            else
+                assert(isstring(tAC));
+                tAC = tAC(:)';
             end
-            assert(isstring(tAC));
-            tAC = tAC(:)';
 
             if isempty(p.Results.ac)
                 [ac, euIndicesFirstInSession, expIndices, uniqueExpNames] = loadArduinoConnection(obj);
@@ -1494,7 +1496,7 @@ classdef EphysUnit < handle
             end
 
             for iExp = 1:length(uniqueExpNames)
-                try
+                % try
                     acTemp = ac(euIndicesFirstInSession(iExp));
                     euTemp = obj(euIndicesFirstInSession(iExp));
     
@@ -1539,24 +1541,28 @@ classdef EphysUnit < handle
                     assert(all(abs(diff(tRefAC(:)) - diff(tRefEU(:))) < trialDurationTolerance), 'Adruino trial lengths differe significantly from ephys, max different: %g.', max(abs(diff(tRefEU(:)) - diff(tRefAC(:)))))
                     fprintf(1, '\tInter-ref-intervals match between ephys and arduino for %g trials with a tolerance of %gs.\n', length(tRefEU), trialDurationTolerance);
     
-                    euIndices = find(expIndices==iExp);
-                    euIndices = euIndices(:)';
-                    tEU(iExp).euIndices = euIndices;
-                    for event = tAC
-                        tACTemp = acTemp.GetEventMarker(char(event), 'millis')./1000;
-                        if ~isempty(tRefAC) && ~isempty(tRefEU) && ~isempty(tACTemp)
-                            tEUTemp = interp1(tRefAC, tRefEU, tACTemp, 'linear', 'extrap');
-                        else
-                            tEUTemp = [];
-                        end
-                        tEU(iExp).(event) = tEUTemp;
-                        for iEu = euIndices
-                            obj(iEu).EventTimes.(event) = tEUTemp;
+                    if isnumeric(tAC)
+                        tEU = interp1(tRefAC, tRefEU, tAC, 'linear', 'extrap');
+                    elseif isstring(tAC)
+                        euIndices = find(expIndices==iExp);
+                        euIndices = euIndices(:)';
+                        tEU(iExp).euIndices = euIndices;
+                        for event = tAC
+                            tACTemp = acTemp.GetEventMarker(char(event), 'millis')./1000;
+                            if ~isempty(tRefAC) && ~isempty(tRefEU) && ~isempty(tACTemp)
+                                tEUTemp = interp1(tRefAC, tRefEU, tACTemp, 'linear', 'extrap');
+                            else
+                                tEUTemp = [];
+                            end
+                            tEU(iExp).(event) = tEUTemp;
+                            for iEu = euIndices
+                                obj(iEu).EventTimes.(event) = tEUTemp;
+                            end
                         end
                     end
-                catch
-                    warning('Error when aligning timestamps for session %s', euTemp.ExpName)
-                end
+                % catch
+                %     warning('Error when aligning timestamps for session %s', euTemp.ExpName)
+                % end
             end
         end
 
