@@ -363,7 +363,7 @@ classdef TetrodeRecording < handle
                 else
                     fileName = sprintf('%s_Chn%03i.mat', expName, iChannel);
                 end
-                save(fullfile(pathName, fileName), 'spikes', '-mat')
+                save(fullfile(pathName, fileName), 'spikes', '-mat', '-v7.3')
             end
             if isstruct(obj.Path) && isfield(obj.Path, 'nidq')
                 obj.Path.SavedSpikes = pathName;
