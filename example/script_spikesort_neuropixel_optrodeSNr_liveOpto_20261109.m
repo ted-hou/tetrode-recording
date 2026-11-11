@@ -73,7 +73,7 @@ else
 end
 
 channels = 1:128;
-tr.LoadSpikes(channels, Path='Spikes_Sorted');
+tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
 tr.PlotAllChannels(Channels=channels, plotMethod='mean')
 
 %%
