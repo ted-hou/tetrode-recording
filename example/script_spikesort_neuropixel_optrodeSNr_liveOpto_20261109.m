@@ -1,13 +1,13 @@
 %% Spike detection
-pause(25*60);
+% pause(25*60);
 
 clear, clc
 folders = { ...
     % 'C:\SERVER\daisy38\daisy38_20261026', ... SNr somBiPOLES Optrode, OLD OPTO channels
     % 'C:\SERVER\daisy38\daisy38_20261027', ... SNr somBiPOLES Optrode, OLD OPTO channels
     % 'C:\SERVER\daisy38\daisy38_20261028', ... SNr somBiPOLES Optrode, OLD OPTO channels
-    % 'C:\SERVER\daisy38\daisy38_20261105', ... SNr somBiPOLES Optrode, OLD OPTO channels, First live opto session
-    % 'C:\SERVER\daisy38\daisy38_20261110', ... SNr somBiPOLES Optrode, OLD OPTO channels, unilateral (optrode only, right) stim, forgot to move mirror to other fiber; first session with od.OptoLog
+    'C:\SERVER\daisy38\daisy38_20261105', ... SNr somBiPOLES Optrode, OLD OPTO channels, First live opto session
+    'C:\SERVER\daisy38\daisy38_20261110', ... SNr somBiPOLES Optrode, OLD OPTO channels, unilateral (optrode only, right) stim, forgot to move mirror to other fiber; first session with od.OptoLog
     };
 
 chunkSize = 32;
@@ -28,8 +28,13 @@ for iSession = 1:length(folders)
         end
 
         % Read detected spikes and NIDQ digital/analog channels
-        % tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
-        tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'UseLever', 5; 'LiveOpto1', 6; 'LiveOpto2', 7});
+        [~, sessionName] = fileparts(folders{iSession});
+        sessionDate = strsplit(sessionName, '_'); sessionDate = sessionDate{end};
+        if sessionDate < 20261110
+            tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
+        else
+            tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'UseLever', 5; 'LiveOpto1', 6; 'LiveOpto2', 7});
+        end
 
         % Spike sort
         for iChunk = 1:nChunks
@@ -53,24 +58,24 @@ end
 
 
 %% Load sorted data on a different PC
+folder = 'C:\SERVER\daisy38\daisy38_20261105';
 
 clear, clc
 tr = TetrodeRecording();
-tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy38\daisy38_20261105')
+tr.SelectFiles(NeuropixelPath=folder)
 tr.LoadNeuropixelIO();
-tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7}); % For 1105 and before
-% tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'UseLever', 5; 'LiveOpto1', 6; 'LiveOpto2', 7}); % For 1110 and after 
+[~, sessionName] = fileparts(folder);
+sessionDate = strsplit(sessionName, '_'); sessionDate = sessionDate{end};
+if sessionDate < 20261110
+    tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
+else
+    tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'UseLever', 5; 'LiveOpto1', 6; 'LiveOpto2', 7});
+end
 
 channels = 1:128;
-tr.LoadSpikes(channels, Path='Spikes');
+tr.LoadSpikes(channels, Path='Spikes_Sorted');
 tr.PlotAllChannels(Channels=channels, plotMethod='mean')
 
-%%
-% tr.SaveSpikes(Channels=channels, Path='Spikes_Sorted')
-channels = 74:128;
-tr.Spikes = [];
-tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
-tr.PlotAllChannels(Channels=channels, plotMethod='mean')
 %%
 tr.SaveSpikes(Channels=channels, Path='Spikes_Sorted')
 channels = 129:256;
