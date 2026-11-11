@@ -351,6 +351,10 @@ cStim.isRedNotBlue = cStim.isRed & ~cStim.isBlue2000 & SNr_SCRetro.c.isSNr;
 fprintf("%i (of %i) neurons with DV < -3.8\n", nnz(SNr_SCRetro.c.isSNr), length(SNr_SCRetro.c.isSNr));
 fprintf("isRed = %i, isBlue = %i, isBlueNotRed = %i, isRedNotBlue = %i\n", nnz(cStim.isRed), nnz(cStim.isBlue500), nnz(cStim.isBlueNotRed), nnz(cStim.isRedNotBlue));
 
+cStim.isRedNeg = metaRed{:, "2000+"}<-p.stimThreshold & SNr_SCRetro.c.isSNr;
+cStim.isBlue500Neg = metaBlue{:, "500"}<-p.stimThreshold & SNr_SCRetro.c.isSNr;
+fprintf("isRedNeg = %i, isBlueNeg = %i, isEitherNeg = %i (%i%%)\n", nnz(cStim.isRedNeg), nnz(cStim.isBlue500Neg), nnz(cStim.isRedNeg | cStim.isBlue500Neg), nnz(cStim.isRedNeg | cStim.isBlue500Neg)/nnz(SNr_SCRetro.c.isSNr)*100);
+
 
 % 8e. Plot stim response
 close all
