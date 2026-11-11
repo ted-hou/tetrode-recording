@@ -1,5 +1,5 @@
 %% Spike detection
-% pause(25*60);
+pause(25*60);
 
 clear, clc
 folders = { ...
@@ -25,7 +25,8 @@ folders = { ...
     % 'C:\SERVER\desmond47\desmond47_20260729', ... SNr ChR2 Optrode, Sorted by Emma
     % 'C:\SERVER\daisy38\daisy38_20261026', ... SNr somBiPOLES Optrode
     % 'C:\SERVER\daisy38\daisy38_20261027', ... SNr somBiPOLES Optrode
-    'C:\SERVER\daisy38\daisy38_20261028', ... SNr somBiPOLES Optrode
+    % 'C:\SERVER\daisy38\daisy38_20261028', ... SNr somBiPOLES Optrode
+    'C:\SERVER\daisy38\daisy38_20261105', ... SNr somBiPOLES Optrode
     };
 
 chunkSize = 32;
@@ -73,12 +74,12 @@ end
 
 clear, clc
 tr = TetrodeRecording();
-tr.SelectFiles(NeuropixelPath='C:\SERVER\desmond46\desmond46_20260722')
+tr.SelectFiles(NeuropixelPath='C:\SERVER\daisy38\daisy38_20261105')
 tr.LoadNeuropixelIO();
 tr.ParseNeuropixelIO(DigitalChannels={'Sync', 0; 'Lick', 1; 'Press', 2; 'Reward', 3; 'Timeout', 4; 'Mot2Busy', 5; 'CueLeft', 6; 'CueRight', 7});
 
-channels = 1:73;
-tr.LoadSpikes(channels, Path='Spikes_AutoSortedIterative');
+channels = 63:64;
+tr.LoadSpikes(channels, Path='Spikes');
 tr.PlotAllChannels(Channels=channels, plotMethod='mean')
 
 %%
