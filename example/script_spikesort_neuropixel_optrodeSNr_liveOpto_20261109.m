@@ -6,8 +6,9 @@ folders = { ...
     % 'C:\SERVER\daisy38\daisy38_20261026', ... SNr somBiPOLES Optrode, OLD OPTO channels
     % 'C:\SERVER\daisy38\daisy38_20261027', ... SNr somBiPOLES Optrode, OLD OPTO channels
     % 'C:\SERVER\daisy38\daisy38_20261028', ... SNr somBiPOLES Optrode, OLD OPTO channels
-    'C:\SERVER\daisy38\daisy38_20261105', ... SNr somBiPOLES Optrode, OLD OPTO channels, First live opto session
-    'C:\SERVER\daisy38\daisy38_20261110', ... SNr somBiPOLES Optrode, OLD OPTO channels, unilateral (optrode only, right) stim, forgot to move mirror to other fiber; first session with od.OptoLog
+    % 'C:\SERVER\daisy38\daisy38_20261105', ... SNr somBiPOLES Optrode, OLD OPTO channels, First live opto session
+    % 'C:\SERVER\daisy38\daisy38_20261110', ... SNr somBiPOLES Optrode, NEW OPTO channels, unilateral (optrode only, right) stim, forgot to move mirror to other fiber; first session with od.OptoLog
+    'C:\SERVER\daisy38\daisy38_20261111', ... SNr somBiPOLES Optrode, NEW OPTO channels, stopped at channel 290
     };
 
 chunkSize = 32;
@@ -20,8 +21,8 @@ for iSession = 1:length(folders)
         tr.SelectFiles(NeuropixelPath=folders{iSession});
         if ~isfolder(fullfile(tr.Path.imec, 'Spikes'))
             fprintf('Reading file: %s\\%s...\n', tr.Path.imec, tr.Files.imec);
-            tr.ReadFiles(Duration=60, NumSigmas=4, NumSigmasReturn=1.5, NumSigmasReject=40, WaveformWindow=[-0.5, 1])
-            tr.SaveNeuropixelIO()
+            tr.ReadFiles(Duration=60, NumSigmas=4, NumSigmasReturn=1.5, NumSigmasReject=10, WaveformWindow=[-0.5, 1])
+            tr.SaveNeuropixelIO();
         else
             fprintf('Spikes were previously detected in %s\\Spikes, not reading raw data again...\n', tr.Path.imec);
             tr.LoadNeuropixelIO();
@@ -45,7 +46,7 @@ for iSession = 1:length(folders)
             % tr.IterativeArtifactRemoval(channels, MinSpikeRate=0.05, KIterative=4, KFinal=2, MaxIters=5, ...
             %     DimensionIterative=3, DimensionFinal=10, FeatureMethod='PCA', ClusterMethod='kmeans', ...
             %     WaveformWindow=[-0.5, 0.5]);
-            tr.IterativeArtifactRemoval(channels, MinSpikeRate=0.5, KIterative=4, KFinal=2, MaxIters=5, ...
+            tr.IterativeArtifactRemoval(channels, MinSpikeRate=5, KIterative=4, KFinal=2, MaxIters=5, ...
                 DimensionIterative=3, DimensionFinal=10, FeatureMethod='PCA', ClusterMethod='kmeans', ...
                 WaveformWindow=[-0.5, 0.5]);
             tr.SaveSpikes(Channels=channels, Path='Spikes_AutoSortedIterative');
