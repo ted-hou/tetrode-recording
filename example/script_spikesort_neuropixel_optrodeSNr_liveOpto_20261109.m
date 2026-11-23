@@ -59,9 +59,9 @@ end
 
 
 %% Load sorted data on a different PC
-folder = 'C:\SERVER\daisy38\daisy38_20261105';
-
 clear, clc
+folder = 'C:\SERVER\daisy38\daisy38_20261111';
+
 tr = TetrodeRecording();
 tr.SelectFiles(NeuropixelPath=folder)
 tr.LoadNeuropixelIO();

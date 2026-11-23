@@ -324,7 +324,6 @@ classdef TetrodeRecording < handle
                         end
                         obj.ReadNIDQ(TimeWindow=duration, ReadMode='simple');
                     end
-                    
 			end
 			obj.GetStartTime();
         end
@@ -594,7 +593,7 @@ classdef TetrodeRecording < handle
                 obj.DigitalEvents.StimOff = sort(stimOff, 'ascend');
             end
         end
-
+     
 		function ReadBlackrock(obj, varargin)
 			p = inputParser;
 			addParameter(p, 'Channels', [], @isnumeric);
@@ -1536,7 +1535,7 @@ classdef TetrodeRecording < handle
             addParameter(p, 'MinThresholdMicroVolts', 0, @isnumeric);
             addParameter(p, 'MaxThresholdMicroVolts', Inf, @isnumeric);
             addParameter(p, 'UseClampedThresholdInsteadOfSigma', true, @islogical);
-			parse(p, channels, varargin{:});
+            parse(p, channels, varargin{:});
 			channels 		= p.Results.Channels;
 			numSigmas 		= p.Results.NumSigmas;
 			numSigmasReturn = p.Results.NumSigmasReturn;
@@ -1925,7 +1924,7 @@ classdef TetrodeRecording < handle
 			clusterMethod = p.Results.ClusterMethod;
             
             if isempty(channels)
-                channels = [obj.Spike.Channel];
+                channels = [obj.Spikes.Channel];
             end
             for iChannel = channels(:)'
                 culledClusters = NaN;
@@ -1941,6 +1940,40 @@ classdef TetrodeRecording < handle
             
                 obj.SpikeClusterAutoReorder(iChannel, 'range', 'descend', Verbose=false);
             end            
+        end
+
+        % Blank out periods with photoelectric effect (usually laser on/off [0, 0.5] ms)
+        function SpikeCullPhotoelectric(obj, channels, varargin)
+            p = inputParser();
+            p.addRequired('Channels', @isnumeric);
+            p.addOptional('Duration', 0.5e-3, @isnumeric);
+            p.addParameter('DigitalEventNames', ["StimOn", "StimOff"], @isstring)
+            p.parse(channels, varargin{:});
+            channels = p.Results.Channels;
+            duration = p.Results.Duration;
+            digitalEventNames = p.Results.DigitalEventNames;
+
+            if isempty(channels)
+                channels = [obj.Spikes.Channels];
+            end
+
+            events = [];
+            for den = digitalEventNames
+                events = [events, obj.DigitalEvents.(den)];
+            end
+            for iChn = channels(:)'
+                toCull = false(length(obj.Spikes(iChn).Timestamps), 1);
+                for t0 = events
+                    [a, b] = isin(obj.Spikes(iChn).Timestamps, [t0, t0+duration], false, true);
+                    toCull(a:b) = true;
+                end
+                obj.Spikes(iChn).SampleIndex(toCull) = [];
+                obj.Spikes(iChn).Timestamps(toCull) = [];
+                obj.Spikes(iChn).Waveforms(toCull, :) = [];
+                obj.Spikes(iChn).Feature.Coeff(toCull, :) = [];
+                obj.Spikes(iChn).Cluster.Classes(toCull) = [];       
+                fprintf(1, 'Culled %i photoelectric waveforms within %g ms of %i stim events from chn %i\n', nnz(toCull), duration*1e3, length(events), iChn);                
+            end
         end
 
         function SpikeCullHighVoltage(obj, channels, threshold)
