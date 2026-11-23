@@ -8,7 +8,13 @@ folders = { ...
     % 'C:\SERVER\daisy38\daisy38_20261028', ... SNr somBiPOLES Optrode, OLD OPTO channels
     % 'C:\SERVER\daisy38\daisy38_20261105', ... SNr somBiPOLES Optrode, OLD OPTO channels, First live opto session
     % 'C:\SERVER\daisy38\daisy38_20261110', ... SNr somBiPOLES Optrode, NEW OPTO channels, unilateral (optrode only, right) stim, forgot to move mirror to other fiber; first session with od.OptoLog
-    'C:\SERVER\daisy38\daisy38_20261111', ... SNr somBiPOLES Optrode, NEW OPTO channels, stopped at channel 290
+    % 'C:\SERVER\daisy38\daisy38_20261111', ... SNr somBiPOLES Optrode, NEW OPTO channels, stopped at channel 290
+    'C:\SERVER\daisy38\daisy38_20261119', ... SNr somBiPOLES Optrode, NEW OPTO channels, not sorted
+    'C:\SERVER\daisy38\daisy38_20261120', ... SNr somBiPOLES Optrode, NEW OPTO channels, not sorted; s[ecial session just to test if unilateral vs. bilateral stim causes rotations -> optrode side causes CW or CCW rotation in mouse with blue or orange light
+    'C:\SERVER\daisy39\daisy39_20261112', ... SNr somBiPOLES Optrode, NEW OPTO channels, not sorted
+    'C:\SERVER\daisy39\daisy39_20261113', ... SNr somBiPOLES Optrode, NEW OPTO channels, not sorted
+    'C:\SERVER\daisy39\daisy39_20261117', ... SNr somBiPOLES Optrode, NEW OPTO channels, not sorted
+    'C:\SERVER\daisy39\daisy39_20261118', ... SNr somBiPOLES Optrode, NEW OPTO channels, not sorted
     };
 
 chunkSize = 32;
@@ -21,7 +27,7 @@ for iSession = 1:length(folders)
         tr.SelectFiles(NeuropixelPath=folders{iSession});
         if ~isfolder(fullfile(tr.Path.imec, 'Spikes'))
             fprintf('Reading file: %s\\%s...\n', tr.Path.imec, tr.Files.imec);
-            tr.ReadFiles(Duration=60, NumSigmas=4, NumSigmasReturn=1.5, NumSigmasReject=10, WaveformWindow=[-0.5, 1])
+            tr.ReadFiles(Duration=60, NumSigmas=4, NumSigmasReturn=1.5, NumSigmasReject=10, WaveformWindow=[-0.5, 1], MaxMicroVolts=750, MinThresholdMicroVolts=15, MaxThresholdMicroVolts=250)
             tr.SaveNeuropixelIO();
         else
             fprintf('Spikes were previously detected in %s\\Spikes, not reading raw data again...\n', tr.Path.imec);
@@ -43,10 +49,8 @@ for iSession = 1:length(folders)
             channels = (1:chunkSize) + (iChunk-1)*chunkSize;
             tr.LoadSpikes(channels);
     
-            % tr.IterativeArtifactRemoval(channels, MinSpikeRate=0.05, KIterative=4, KFinal=2, MaxIters=5, ...
-            %     DimensionIterative=3, DimensionFinal=10, FeatureMethod='PCA', ClusterMethod='kmeans', ...
-            %     WaveformWindow=[-0.5, 0.5]);
-            tr.IterativeArtifactRemoval(channels, MinSpikeRate=5, KIterative=4, KFinal=2, MaxIters=5, ...
+            tr.SpikeCullPhotoelectric(channels, 0.5e-3, DigitalEventNames=["StimOn", "StimOff"]);
+            tr.IterativeArtifactRemoval(channels, MinSpikeRate=0.5, KIterative=4, KFinal=2, MaxIters=5, ...
                 DimensionIterative=3, DimensionFinal=10, FeatureMethod='PCA', ClusterMethod='kmeans', ...
                 WaveformWindow=[-0.5, 0.5]);
             tr.SaveSpikes(Channels=channels, Path='Spikes_AutoSortedIterative');
