@@ -8,13 +8,13 @@ folders = { ...
     % 'C:\SERVER\daisy38\daisy38_20261028', ... SNr somBiPOLES Optrode, OLD OPTO channels
     % 'C:\SERVER\daisy38\daisy38_20261105', ... SNr somBiPOLES Optrode, OLD OPTO channels, First live opto session
     % 'C:\SERVER\daisy38\daisy38_20261110', ... SNr somBiPOLES Optrode, NEW OPTO channels, unilateral (optrode only, right) stim, forgot to move mirror to other fiber; first session with od.OptoLog
-    % 'C:\SERVER\daisy38\daisy38_20261111', ... SNr somBiPOLES Optrode, NEW OPTO channels, stopped at channel 290
-    'C:\SERVER\daisy38\daisy38_20261119', ... SNr somBiPOLES Optrode, NEW OPTO channels, not sorted
-    'C:\SERVER\daisy38\daisy38_20261120', ... SNr somBiPOLES Optrode, NEW OPTO channels, not sorted; s[ecial session just to test if unilateral vs. bilateral stim causes rotations -> optrode side causes CW or CCW rotation in mouse with blue or orange light
-    'C:\SERVER\daisy39\daisy39_20261112', ... SNr somBiPOLES Optrode, NEW OPTO channels, not sorted
-    'C:\SERVER\daisy39\daisy39_20261113', ... SNr somBiPOLES Optrode, NEW OPTO channels, not sorted
-    'C:\SERVER\daisy39\daisy39_20261117', ... SNr somBiPOLES Optrode, NEW OPTO channels, not sorted
-    'C:\SERVER\daisy39\daisy39_20261118', ... SNr somBiPOLES Optrode, NEW OPTO channels, not sorted
+    % 'C:\SERVER\daisy38\daisy38_20261111', ... SNr somBiPOLES Optrode, NEW OPTO channels, stopped at channel 290; weired results over 2GB/channel spikes
+    'C:\SERVER\daisy38\daisy38_20261119', ... SNr somBiPOLES Optrode, NEW OPTO channels, autosorted
+    'C:\SERVER\daisy38\daisy38_20261120', ... SNr somBiPOLES Optrode, NEW OPTO channels, autosorted; s[ecial session just to test if unilateral vs. bilateral stim causes rotations -> optrode side causes CW or CCW rotation in mouse with blue or orange light
+    'C:\SERVER\daisy39\daisy39_20261112', ... SNr somBiPOLES Optrode, NEW OPTO channels, autosorted
+    'C:\SERVER\daisy39\daisy39_20261113', ... SNr somBiPOLES Optrode, NEW OPTO channels, autosorted
+    'C:\SERVER\daisy39\daisy39_20261117', ... SNr somBiPOLES Optrode, NEW OPTO channels, autosorted
+    'C:\SERVER\daisy39\daisy39_20261118', ... SNr somBiPOLES Optrode, NEW OPTO channels, autosorted
     };
 
 chunkSize = 32;
@@ -64,7 +64,7 @@ end
 
 %% Load sorted data on a different PC
 clear, clc
-folder = 'C:\SERVER\daisy38\daisy38_20261111';
+folder = 'C:\SERVER\daisy38\daisy38_20261119';
 
 tr = TetrodeRecording();
 tr.SelectFiles(NeuropixelPath=folder)
@@ -112,17 +112,18 @@ tr.PlotAllChannels(Channels=1:32, plotMethod='mean')
 %%
 %% Convert to EphysUnits
 folders = { ...
-    % 'C:\SERVER\desmond46\desmond46_20260708', ... SNr ChR2 Optrode, Sorted by Emma
-    % 'C:\SERVER\desmond46\desmond46_20260709', ... SNr ChR2 Optrode, Sorted by Emma
-    % 'C:\SERVER\desmond47\desmond47_20260709', ... SNr ChR2 Optrode, Sorted by Emma
-    % 'C:\SERVER\desmond46\desmond46_20260710', ... SNr ChR2 Optrode, Sorted by Emma
-    % 'C:\SERVER\desmond47\desmond47_20260710', ... SNr ChR2 Optrode, Sorted by Emma
-    % 'C:\SERVER\desmond47\desmond47_20260716', ... SNr ChR2 Optrode, Sorted by Emma
-    % 'C:\SERVER\desmond46\desmond46_20260717', ... SNr ChR2 Optrode, Sorted by Emma
-    % 'C:\SERVER\desmond46\desmond46_20260722', ... SNr ChR2 Optrode, Sorted by Emma
-    'C:\SERVER\desmond47\desmond47_20260724', ... SNr ChR2 Optrode, Sorted by Emma
-    'C:\SERVER\desmond46\desmond46_20260728', ... SNr ChR2 Optrode, Sorted by Emma
-    'C:\SERVER\desmond47\desmond47_20260729', ... SNr ChR2 Optrode, Sorted by Emma
+    % 'C:\SERVER\daisy38\daisy38_20261026', ... SNr somBiPOLES Optrode, OLD OPTO channels
+    % 'C:\SERVER\daisy38\daisy38_20261027', ... SNr somBiPOLES Optrode, OLD OPTO channels
+    % 'C:\SERVER\daisy38\daisy38_20261028', ... SNr somBiPOLES Optrode, OLD OPTO channels
+    % 'C:\SERVER\daisy38\daisy38_20261105', ... SNr somBiPOLES Optrode, OLD OPTO channels, First live opto session
+    % 'C:\SERVER\daisy38\daisy38_20261110', ... SNr somBiPOLES Optrode, NEW OPTO channels, unilateral (optrode only, right) stim, forgot to move mirror to other fiber; first session with od.OptoLog
+    % 'C:\SERVER\daisy38\daisy38_20261111', ... SNr somBiPOLES Optrode, NEW OPTO channels, stopped at channel 290
+    'C:\SERVER\daisy38\daisy38_20261119', ... SNr somBiPOLES Optrode, NEW OPTO channels, autosorted
+    'C:\SERVER\daisy38\daisy38_20261120', ... SNr somBiPOLES Optrode, NEW OPTO channels, autosorted; s[ecial session just to test if unilateral vs. bilateral stim causes rotations -> optrode side causes CW or CCW rotation in mouse with blue or orange light
+    'C:\SERVER\daisy39\daisy39_20261112', ... SNr somBiPOLES Optrode, NEW OPTO channels, autosorted
+    'C:\SERVER\daisy39\daisy39_20261113', ... SNr somBiPOLES Optrode, NEW OPTO channels, autosorted
+    'C:\SERVER\daisy39\daisy39_20261117', ... SNr somBiPOLES Optrode, NEW OPTO channels, autosorted
+    'C:\SERVER\daisy39\daisy39_20261118', ... SNr somBiPOLES Optrode, NEW OPTO channels, autosorted
     };
 
 chunkSize = 32; % NumChannelsPerChunk

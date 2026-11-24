@@ -1976,8 +1976,12 @@ classdef TetrodeRecording < handle
                 obj.Spikes(iChn).SampleIndex(toCull) = [];
                 obj.Spikes(iChn).Timestamps(toCull) = [];
                 obj.Spikes(iChn).Waveforms(toCull, :) = [];
-                obj.Spikes(iChn).Feature.Coeff(toCull, :) = [];
-                obj.Spikes(iChn).Cluster.Classes(toCull) = [];       
+                if isfield(obj.Spikes(iChn), 'Feature') && isfield(obj.Spikes(iChn).Feature, 'Coeff')
+                    obj.Spikes(iChn).Feature.Coeff(toCull, :) = [];
+                end
+                if isfield(obj.Spikes(iChn), 'Cluster') && isfield(obj.Spikes(iChn).Cluster, 'Classes')
+                    obj.Spikes(iChn).Cluster.Classes(toCull) = [];
+                end
                 fprintf(1, 'Culled %i photoelectric waveforms within %g ms of %i stim events from chn %i\n', nnz(toCull), duration*1e3, length(events), iChn);                
             end
         end
